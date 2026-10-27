@@ -163,4 +163,6 @@ logo ya están en el esquema).
 5. **Etapa 2: conector Notion real** (`/api/cron`, pg_cron + pg_net, CRON_SECRET y llave de
    servicio en Vercel). Antes de construirla, guía paso a paso para Xchel. Después: correos de
    cambio de estatus; conectores `sheets` y `webhook`.
-6. `npm run db:reset-produccion` cuando se lance.
+6. `npm run db:reset-produccion` cuando se lance. En esa misma migración (ya sin la semilla de
+   prueba, cuyas CLABE no pasan el dígito de control): validar el **dígito de control de la CLABE
+   también en la base** (check o disparador), no solo en la pantalla de Catálogos.
