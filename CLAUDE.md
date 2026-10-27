@@ -61,7 +61,8 @@ la app las muestra, la base las hace cumplir.
 ## Reglas técnicas
 
 - Sin columna de empresa: Tasa es un solo negocio. El RLS se amarra a la persona y su rol.
-- **Toda tabla nueva:** RLS encendido y `revoke all on [tabla] from anon;`. Ver
+- **Toda tabla nueva:** RLS encendido, `revoke all on [tabla] from anon;` y GRANT explícito a
+  `authenticated` (el proyecto NO expone tablas solo; ver `0010_permisos.sql`). Ver
   `supabase/migrations/LEEME.md`.
 - **Buckets privados** (`comprobantes`, `cotizaciones`), siempre por URL firmada.
 - La llave de servicio de Supabase solo existe en `/api/cron`, protegida con `CRON_SECRET`.
@@ -81,5 +82,6 @@ la app las muestra, la base las hace cumplir.
 
 ## Estado
 
-Fase 1 (MVP). Hecho: esquema, semilla de prueba y verificaciones (también en `npm test`).
-Sigue: proyecto de Next.js, acceso, y pantallas.
+Fase 1 (MVP). Hecho: esquema, semilla, verificaciones (`npm test`), migraciones por CLI
+(`npm run db:*`), proyecto Next.js y acceso por código al correo.
+Sigue: pantallas del comisionista y del panel admin.

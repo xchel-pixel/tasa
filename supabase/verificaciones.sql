@@ -285,6 +285,47 @@ begin
 end;
 $$;
 
+-- @@ Permisos explícitos (GRANT)
+-- El proyecto no expone tablas automáticamente: todo permiso sale de
+-- 0010_permisos.sql. Aquí se comprueba contra el catálogo de la base.
+do $$
+declare
+  v text;
+begin
+  select string_agg(table_name || ':' || privilege_type, ', ') into v
+    from information_schema.role_table_grants
+   where table_schema = 'public' and grantee = 'anon';
+  perform pg_temp.igual(v, null::text, 'anon no tiene ningún permiso sobre ninguna tabla');
+
+  select string_agg(p.proname, ', ' order by p.proname) into v
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
+  perform pg_temp.igual(v, 'correo_en_padron'::text, 'anon solo ejecuta correo_en_padron');
+
+  select string_agg(c.relname, ', ' order by c.relname) into v
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind = 'r'
+     and not has_table_privilege('authenticated', c.oid, 'select');
+  perform pg_temp.igual(v, null::text, 'authenticated puede leer todas las tablas (el RLS filtra las filas)');
+
+  select string_agg(c.relname, ', ' order by c.relname) into v
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity;
+  perform pg_temp.igual(v, null::text, 'Todas las tablas tienen RLS encendido');
+
+  perform pg_temp.igual(has_table_privilege('authenticated', 'pagos', 'delete'), false,
+    'Nadie borra pagos');
+  perform pg_temp.igual(has_table_privilege('authenticated', 'bitacora', 'insert'), false,
+    'Nadie escribe la bitácora a mano');
+  perform pg_temp.igual(has_function_privilege('authenticated', 'ejecutar_aprobacion_cierre(date, uuid)', 'execute'), false,
+    'La aprobación interna del cierre no se alcanza desde la app');
+  perform pg_temp.igual(has_function_privilege('authenticated', 'vencer_cotizaciones()', 'execute'), false,
+    'Vencer cotizaciones es solo del cron');
+  perform pg_temp.igual(has_function_privilege('service_role', 'vencer_cotizaciones()', 'execute'), true,
+    'El cron sí vence cotizaciones');
+end;
+$$;
+
 -- @@ Permisos (RLS)
 do $$
 declare

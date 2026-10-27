@@ -4,14 +4,33 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
     "test": "vitest run",
     "db:pruebas": "node scripts/db.mjs pruebas push",
     "db:pruebas:semilla": "node scripts/db.mjs pruebas semilla",
     "db:pruebas:verificar": "node scripts/db.mjs pruebas verificar",
     "db:produccion": "node scripts/db.mjs produccion push"
   },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.10",
-    "vitest": "3.2.4"
+    "vitest": "3.2.4",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

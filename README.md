@@ -5,6 +5,35 @@ Portal para comisionistas de servicios de valuación. Se despliega en `tasa.xgpl
 > Estado: esquema de base de datos listo y probado. La aplicación de Next.js es la siguiente etapa;
 > este README se completa con ella (variables de entorno, cron y despliegue en Vercel).
 
+## Correr la aplicación en tu computadora
+
+```bash
+npm install
+npm run dev
+```
+
+Abre `http://localhost:3000`. Necesita en `.env.local` la URL y la llave `anon` del proyecto de
+pruebas (Settings → API Keys). Desde el celular, en la misma red Wi-Fi, entra por la IP de la
+computadora (`http://192.168.x.x:3000`).
+
+### Acceso por código: lo que hay que configurar en Supabase
+
+En el proyecto (pruebas y producción), en **Authentication**:
+
+1. **Sign In / Providers → Email**: habilitado, con "Confirm email" activo. "Allow new users
+   to sign up" se queda **encendido**: quien decide si alguien entra es `correo_en_padron()`,
+   no esta casilla; si se apaga, nadie nuevo puede recibir su primer código.
+2. **Emails → Templates → Magic Link**: el correo debe mostrar el código, no una liga.
+   Cambia el cuerpo por algo como:
+   ```html
+   <h2>Tu código para entrar a Tasa</h2>
+   <p style="font-size:28px;letter-spacing:6px"><strong>{{ .Token }}</strong></p>
+   <p>Vence en una hora. Si pediste más de uno, solo sirve el más reciente.</p>
+   ```
+3. **Emails → SMTP Settings**: apunta a Resend (host `smtp.resend.com`, puerto 465, usuario
+   `resend`, contraseña = una API key de Resend), remitente `@xgplataform.com`.
+4. **URL Configuration → Site URL**: `https://tasa.xgplataform.com` en producción.
+
 ## Pruebas locales
 
 ```bash

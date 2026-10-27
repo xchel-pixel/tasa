@@ -14,10 +14,11 @@ Archivos numerados que se corren en orden desde el editor SQL de Supabase.
 | `0007_storage.sql` | Buckets privados `comprobantes` y `cotizaciones` |
 | `0008_catalogos.sql` | Marcas, cuentas (CLABEs placeholder), servicios, niveles, mapeo |
 | `0009_lectura_notion.sql` | Lectura de Notion (folio desde el título, etapa → estatus) y alertas |
+| `0010_permisos.sql` | GRANT explícitos por tabla y función (el proyecto no expone tablas solo) |
 
 Fuera de las migraciones, en `supabase/`:
 
-- `semilla_prueba.sql` — **solo en un proyecto de pruebas.** 3 comisionistas, 10 trabajos, septiembre aprobado.
+- `semilla_prueba.sql` — **solo en un proyecto de pruebas.** 3 comisionistas, 10 trabajos, cierres de junio a septiembre aprobados.
 - `verificaciones.sql` — prueba las reglas contra la semilla, dentro de `begin … rollback`.
   Las mismas secciones corren con `npm test` (vitest + PGlite, ver `pruebas/`).
 
@@ -26,13 +27,18 @@ Fuera de las migraciones, en `supabase/`:
 1. **RLS encendido**: `alter table X enable row level security;`.
 2. **Cerrada a `anon`**: `revoke all on X from anon;`. Sin esto, el RLS queda como única
    barrera y una política con un hueco se vuelve una fuga.
-3. **Políticas por rol** usando `mi_persona_id()`, `mi_rol()`, `soy_staff()`, `soy_super_admin()`.
-4. **Bitácora**, si la tabla la tocan admin o finanzas:
+3. **GRANT explícito a `authenticated`** con solo las operaciones que usa la app. El proyecto
+   tiene "Automatically expose new tables" apagado: sin el GRANT, la tabla no existe para la app.
+   Nada a `anon`. Si la usa el cron, el GRANT mínimo a `service_role`.
+4. **Políticas por rol** usando `mi_persona_id()`, `mi_rol()`, `soy_staff()`, `soy_super_admin()`.
+5. **Bitácora**, si la tabla la tocan admin o finanzas:
    `create trigger bitacora after insert or update or delete on X for each row execute function registrar_bitacora();`
 
 ## Lo que lleva una función
 
 - `security definer` + `set search_path = public`.
+- Nace cerrada (0010 quitó el permiso por omisión): `grant execute` explícito a quien la use,
+  incluidas las que corren dentro de una política, un `default` o un `check`.
 - `revoke all ... from public, anon` antes del `grant` a quien toca.
 - Las que hacen trabajo delicado tienen dos capas: la pública revisa el rol y la interna
   (`ejecutar_…`) no la alcanza nadie desde el navegador.

@@ -16,14 +16,12 @@ create function auth.uid() returns uuid language sql stable as $$
 $$;
 
 grant usage on schema auth to authenticated, anon;
-grant usage on schema public to authenticated, anon;
+grant usage on schema public to authenticated, anon, service_role;
 
--- Supabase les da permisos por omisión a anon y authenticated. Se
--- replica para que los `revoke ... from anon` de las migraciones
--- prueben algo de verdad.
-alter default privileges in schema public grant all on tables to anon, authenticated;
-alter default privileges in schema public grant all on functions to anon, authenticated;
-alter default privileges in schema public grant all on sequences to anon, authenticated;
+-- El proyecto real tiene "Automatically expose new tables" APAGADO:
+-- las tablas nuevas no le dan permisos a nadie. Aquí tampoco, así que
+-- si a 0010_permisos.sql le falta un GRANT, las pruebas de permisos
+-- truenan igual que tronaría la aplicación.
 
 create schema storage;
 create table storage.buckets (id text primary key, name text, public boolean);

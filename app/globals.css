@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* ============================================================
+   IDENTIDAD DE TASA
+   ============================================================
+   Clara, sobria, de oficina de valuación: papel blanco, tinta casi
+   negra y un verde profundo como acento. Se lee igual al sol, que es
+   donde un comisionista saca el teléfono para ver si ya le pagaron.
+
+   Tres reglas:
+   1. Tipografía del sistema: texto instantáneo aunque la señal sea mala.
+   2. El rojo es solo para errores y rechazos, nunca adorno.
+   3. Una sola paleta. Mantener dos (clara y oscura) duplica el trabajo
+      y las pruebas sin que nadie lo haya pedido.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  --papel: #fafaf9;
+  --tarjeta: #ffffff;
+  --campo: #ffffff;
+  --tinta: #1c1917;
+  --apagado: #57534e;
+  --linea: #e7e5e4;
+  --acento: #166534;
+  --sobre-acento: #ffffff;
+  --error: #b91c1c;
+}
+
+@theme inline {
+  --color-papel: var(--papel);
+  --color-tarjeta: var(--tarjeta);
+  --color-campo: var(--campo);
+  --color-tinta: var(--tinta);
+  --color-apagado: var(--apagado);
+  --color-linea: var(--linea);
+  --color-acento: var(--acento);
+  --color-sobre-acento: var(--sobre-acento);
+  --color-error: var(--error);
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+body {
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--font-sans);
+  /* 17px de cuerpo y 15 de secundario: 14 es chico en un teléfono. */
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  /* Una CLABE o un correo largo no desbordan un teléfono angosto. */
+  overflow-wrap: break-word;
+}
+
+/* Todo lo que se toca mide al menos 48px de alto: es un dedo, no un
+   cursor. */
+.toque {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+}
+
+/* Un solo aro de foco para todo: lo ve quien navega con teclado. */
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* El aviso de "esta página no terminó de cargar" espera tres segundos
+   antes de verse: si todo va bien, React lo quita antes. */
+.aviso-sin-js {
+  opacity: 0;
+  animation: aparecer-tarde 0s linear 3s forwards;
+}
+
+@keyframes aparecer-tarde {
+  to {
+    opacity: 1;
+  }
+}
