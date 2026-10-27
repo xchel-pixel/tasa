@@ -718,6 +718,143 @@ begin
 end;
 $$;
 
+-- @@ Deshacer
+-- Hoy: 5 de diciembre. Octubre y noviembre cerrados; diciembre abierto.
+do $$
+declare
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  beto  uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
+  carla uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
+  romi  uuid := (select id from cuentas_receptoras where alias = 'ROMI');
+  avaluo uuid := (select id from servicios where nombre = 'Avalúo Comercial');
+  t9    uuid := (select id from solicitudes where folio = 'MGP-2026-9009');
+  t2    uuid := (select id from solicitudes where cliente_nombre = 'Jorge Salinas');
+  t1    uuid := (select id from solicitudes where cliente_nombre = 'Laura Méndez');
+  t7    uuid := (select id from solicitudes where folio = 'MGP-2026-9007');
+  s     uuid;
+  p     uuid;
+  mov   uuid;
+  recibo uuid := (select id from pagos_comision where referencia = 'Recibo 7');
+  oct   uuid := (select id from pendientes_comision where comisionista_id = beto and mes = '2026-10-01');
+begin
+  -- Un trabajo de Carla que se paga completo el 3 de diciembre.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en)
+  values (carla, 'tramite_directo', 'admin', avaluo, 'Calle Prueba 1', 'Cliente Deshacer',
+          (select id from marcas where clave = 'MGP'), romi, 10000, 'tramite', 'entregado', now())
+  returning id into s;
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  values (s, 'comprobante', 10000, '2026-12-03', carla || '/x.pdf', carla) returning id into p;
+  update pagos set estado = 'confirmado' where id = p;
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s and tipo = 'comision'), 1::bigint,
+    'Al confirmar el 100% se devenga la comisión');
+
+  perform pg_temp.como('xchel+carla@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select retirar_pago(%L, %L)', p, 'me equivoqué'),
+    'ya está confirmado', 'El comisionista no retira un pago ya confirmado');
+  perform pg_temp.debe_fallar(format('select revertir_pago(%L, %L)', p, 'x'),
+    'Solo finanzas', 'El comisionista no revierte confirmaciones');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select revertir_pago(%L, %L)', p, '  '),
+    'Escribe el motivo', 'Revertir pide motivo');
+  perform revertir_pago(p, 'Se confirmó el pago equivocado');
+  perform set_config('role', 'postgres', true);
+  perform pg_temp.igual((select estado from pagos where id = p), 'reportado'::text,
+    'Revertir la confirmación regresa el pago a "reportado"');
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s and tipo = 'comision'), 0::bigint,
+    'Y quita la comisión que había devengado');
+  perform pg_temp.igual((select pagado_en is null and estatus_publico = 'entregado' from solicitudes where id = s), true,
+    'El trabajo deja de estar pagado y regresa a su estatus anterior');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where motivo = 'Se confirmó el pago equivocado'
+        and ((tabla = 'pagos' and antes->>'estado' = 'confirmado' and despues->>'estado' = 'reportado')
+          or (tabla = 'comisiones' and accion = 'DELETE'))), 2::bigint,
+    'La bitácora guarda el motivo con el antes y el después (pago y comisión)');
+
+  -- Revertir un rechazo.
+  update pagos set estado = 'rechazado', motivo_rechazo = 'No se ve la cuenta' where id = p;
+  perform pg_temp.como('gaby@tasa.test');
+  perform revertir_pago(p, 'Sí se veía la cuenta');
+  perform set_config('role', 'postgres', true);
+  perform pg_temp.igual((select estado || '/' || coalesce(motivo_rechazo, '-') from pagos where id = p), 'reportado/-'::text,
+    'Revertir un rechazo lo regresa a "reportado" sin motivo de rechazo');
+  perform pg_temp.debe_fallar(format($q$update pagos set estado = 'reportado' where id = %L$q$,
+      (select id from pagos where estado = 'confirmado' limit 1)),
+    'ya no cambia', 'Fuera de revertir_pago nadie regresa un pago a "reportado"');
+
+  -- Retirar un pago reportado.
+  perform pg_temp.como('xchel+carla@arqosuv.com');
+  perform retirar_pago(p, 'Lo reporté dos veces');
+  perform pg_temp.igual((select estado from pagos where id = p), 'retirado'::text, 'El comisionista retira su pago reportado');
+  perform pg_temp.debe_fallar(format('select retirar_pago(%L, %L)', p, 'otra vez'),
+    'retirado', 'Un pago retirado no se vuelve a retirar');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(
+    format('select retirar_pago(%L, %L)', (select id from pagos where estado = 'reportado' and reportado_por <> ana limit 1), 'x'),
+    'no lo reportaste', 'Nadie retira un pago que no reportó');
+
+  -- Mes cerrado: no se deshace nada.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(
+    format('select revertir_pago(%L, %L)', (select id from pagos where solicitud_id = t9 and estado = 'confirmado' limit 1), 'x'),
+    'Mes cerrado', 'No se revierte un pago de un mes cerrado');
+  perform pg_temp.debe_fallar(
+    format('select anular_pago_comision(%L, %L)', (select id from pagos_comision where referencia = 'SPEI 1001'), 'x'),
+    'Mes cerrado', 'No se anula un pago de comisión de un mes cerrado');
+  perform pg_temp.debe_fallar(
+    format('select anular_movimiento(%L, %L)', (select id from comisiones where nota = 'Descuento por papelería'), 'x'),
+    'Mes cerrado', 'No se anula un cargo de un mes cerrado');
+
+  -- Anular un pago de comisión (diciembre, abierto).
+  perform pg_temp.como('gaby@tasa.test');
+  perform anular_pago_comision(recibo, 'Se registró al comisionista equivocado');
+  perform set_config('role', 'postgres', true);
+  perform pg_temp.igual((select pagado || '/' || coalesce(pagado_en::text, '-') from pendientes_comision where id = oct),
+    '0.00/-'::text, 'Anular el pago le devuelve al pendiente su saldo');
+  perform pg_temp.igual((select bool_and(estado = 'devengada') from comisiones where comisionista_id = beto and mes = '2026-10-01'),
+    true, 'Y sus comisiones vuelven a "devengada"');
+  perform pg_temp.igual((select estado from pagos_comision where id = recibo), 'anulado'::text,
+    'El pago no se borra: queda anulado');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select count(*) from mis_pagos_comision()), 0::bigint, 'El comisionista ya no ve el pago anulado');
+
+  -- Cotizaciones y solicitudes.
+  perform pg_temp.debe_fallar(
+    format('select anular_cotizacion(%L, %L)', (select id from cotizaciones where solicitud_id = t2 and estado = 'emitida'), 'x'),
+    'Solo finanzas', 'El comisionista no anula cotizaciones');
+  perform pg_temp.como('gaby@tasa.test');
+  perform anular_cotizacion((select id from cotizaciones where solicitud_id = t2 and estado = 'emitida'), 'Precio equivocado');
+  perform set_config('role', 'postgres', true);
+  perform pg_temp.igual((select estado || '/' || estatus_publico from solicitudes where id = t2), 'solicitada/solicitada'::text,
+    'Anular la cotización regresa la solicitud a "por cotizar"');
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select cancelar_mi_solicitud(%L, %L)', t1, 'x'),
+    'no es tuya', 'Nadie cancela la solicitud de otro');
+  perform pg_temp.debe_fallar(format('select cancelar_mi_solicitud(%L, %L)', t7, 'x'),
+    'Ya se cotizó', 'Lo que ya pasó de "solicitada" no lo cancela el comisionista');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform cancelar_mi_solicitud(t1, 'El cliente ya no lo necesita');
+  perform pg_temp.igual((select estado from solicitudes where id = t1), 'cancelada'::text,
+    'El comisionista cancela su solicitud mientras esté "solicitada"');
+
+  -- Bono manual en diciembre: se anula con el contrario.
+  perform pg_temp.como('xchel@arqosuv.com');
+  mov := agregar_movimiento(ana, 'bono', 700, romi, null, 'Bono de diciembre');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select anular_movimiento(%L, %L)', mov, 'x'),
+    'Solo super_admin', 'Finanzas no anula movimientos');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform anular_movimiento(mov, 'Era para otra persona');
+  perform pg_temp.igual((select sum(monto) from comisiones where id = mov or anula_id = mov), 0.00::numeric,
+    'Anular un bono mete su contrario: los dos suman cero y ninguno se borra');
+  perform pg_temp.debe_fallar(format('select anular_movimiento(%L, %L)', mov, 'x'),
+    'ya estaba anulado', 'No se anula dos veces');
+  perform set_config('role', 'postgres', true);
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
