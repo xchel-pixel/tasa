@@ -1,0 +1,7 @@
+# Lo que nunca sube a Vercel en un despliegue desde la CLI.
+# .env.local tiene la contraseña de la base: solo vive en esta máquina.
+.env*
+!.env.example
+supabase/.temp
+node_modules
+.next
