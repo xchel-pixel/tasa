@@ -69,8 +69,8 @@ schema_paths = []
 enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-# Apagado a propósito: la semilla de prueba se corre con `npm run db:pruebas:semilla`,
-# que se niega a correr fuera del proyecto de pruebas. Así `db push --include-seed`
+# Apagado a propósito: la semilla de prueba se corre con `npm run db:semilla`,
+# que se niega a correr si TASA_MODO no es pruebas. Así `db push --include-seed`
 # no puede sembrar producción por accidente.
 sql_paths = ["./semilla_prueba.sql"]
 

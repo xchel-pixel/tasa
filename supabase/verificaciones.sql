@@ -16,9 +16,11 @@
 
 begin;
 
--- Amarra un usuario de autenticación a cada persona de la semilla.
+-- Amarra un usuario de autenticación a cada persona de la semilla que
+-- todavía no tenga (Xchel ya puede tener el suyo si entró con su correo).
 insert into auth.users (id, email)
-select gen_random_uuid(), correo from personas where correo like '%@tasa.test';
+select gen_random_uuid(), correo from personas
+ where (correo like '%@tasa.test' or correo = 'xchel@arqosuv.com') and user_id is null;
 
 -- Cambia la sesión a la persona con ese correo (o a anon si es nulo).
 create function pg_temp.como(p_correo text) returns void language plpgsql as $$
@@ -386,7 +388,7 @@ begin
   perform pg_temp.igual((select count(*) from bitacora), 0::bigint, 'Finanzas no ve la bitácora');
   perform pg_temp.igual((select count(*) > 0 from alertas), true, 'Finanzas sí ve las alertas');
 
-  perform pg_temp.como('xchel@tasa.test');
+  perform pg_temp.como('xchel@arqosuv.com');
   execute format($q$update solicitudes set cuenta_receptora_id = (select id from cuentas_receptoras where banco = 'Banregio') where id = %L$q$, t7);
   perform pg_temp.igual(
     (select count(*) from bitacora where tabla = 'solicitudes' and registro_id = t7::text

@@ -1,24 +1,26 @@
 /**
- * Migraciones con la CLI de Supabase, con candados para no equivocarse
- * de proyecto.
+ * Migraciones con la CLI de Supabase. Tasa usa UN solo proyecto: hoy es
+ * de pruebas; antes de lanzar se resetea y queda como producción.
  *
- *   npm run db:pruebas            → amarra el proyecto de pruebas y empuja migraciones
- *   npm run db:pruebas:semilla    → corre la semilla de prueba (solo pruebas)
- *   npm run db:pruebas:verificar  → corre las verificaciones (solo pruebas, no dejan rastro)
- *   npm run db:produccion         → amarra producción y empuja migraciones. Nada más.
+ *   npm run db:push               → empuja migraciones pendientes (cualquier modo)
+ *   npm run db:semilla            → carga la semilla de prueba (solo TASA_MODO=pruebas)
+ *   npm run db:verificar          → corre las verificaciones (solo pruebas; no dejan rastro)
+ *   npm run db:reset-produccion   → BORRA todo, aplica migraciones sin semilla y pasa
+ *                                   TASA_MODO a produccion. Pide escribir el nombre del proyecto.
  *
  * Los datos salen de `.env.local` (no se sube a GitHub):
- *   SUPABASE_REF_PRUEBAS, SUPABASE_DB_PASSWORD_PRUEBAS
- *   SUPABASE_REF_PRODUCCION, SUPABASE_DB_PASSWORD_PRODUCCION
+ *   SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD, TASA_MODO
  *
  * Antes, una sola vez por computadora: `npx supabase login`.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createInterface } from "node:readline/promises";
 
 const raiz = join(import.meta.dirname, "..");
-const [destino, accion = "push"] = process.argv.slice(2);
+const archivoEntorno = join(raiz, ".env.local");
+const accion = process.argv[2];
 
 function salir(mensaje) {
   console.error(`\n✗ ${mensaje}\n`);
@@ -27,77 +29,99 @@ function salir(mensaje) {
 
 /** Lee `.env.local` sin dependencias: líneas CLAVE=valor. */
 function leerEntorno() {
-  const archivo = join(raiz, ".env.local");
-  if (!existsSync(archivo)) salir("Falta el archivo .env.local (ver .env.example).");
+  if (!existsSync(archivoEntorno)) salir("Falta el archivo .env.local (ver .env.example).");
   const entorno = {};
-  for (const linea of readFileSync(archivo, "utf8").split(/\r?\n/)) {
-    const m = linea.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+  for (const linea of readFileSync(archivoEntorno, "utf8").split(/\r?\n/)) {
+    const m = linea.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
     if (m) entorno[m[1]] = m[2].replace(/^["']|["']$/g, "");
   }
   return entorno;
 }
 
-function supabase(args, extraEnv = {}) {
+function supabase(args, { env = {}, capturar = false } = {}) {
   const r = spawnSync("npx", ["supabase", ...args], {
     cwd: raiz,
-    stdio: "inherit",
+    stdio: capturar ? ["inherit", "pipe", "inherit"] : "inherit",
     shell: process.platform === "win32",
-    env: { ...process.env, ...extraEnv },
+    encoding: "utf8",
+    env: { ...process.env, ...env },
   });
   if (r.status !== 0) salir(`Falló: supabase ${args.join(" ")}`);
+  return r.stdout;
 }
 
-function proyectoAmarrado() {
-  const archivo = join(raiz, "supabase", ".temp", "project-ref");
-  return existsSync(archivo) ? readFileSync(archivo, "utf8").trim() : null;
-}
-
-if (!["pruebas", "produccion"].includes(destino)) {
-  salir("Uso: node scripts/db.mjs <pruebas|produccion> [push|semilla|verificar]");
-}
-if (!["push", "semilla", "verificar"].includes(accion)) {
-  salir(`Acción desconocida: ${accion}`);
-}
+const ACCIONES = ["push", "semilla", "verificar", "reset-produccion"];
+if (!ACCIONES.includes(accion)) salir(`Uso: node scripts/db.mjs <${ACCIONES.join("|")}>`);
 
 const entorno = leerEntorno();
-const SUFIJO = destino === "pruebas" ? "PRUEBAS" : "PRODUCCION";
-const ref = entorno[`SUPABASE_REF_${SUFIJO}`];
-const password = entorno[`SUPABASE_DB_PASSWORD_${SUFIJO}`];
+const ref = entorno.SUPABASE_PROJECT_REF;
+const password = entorno.SUPABASE_DB_PASSWORD;
+const modo = entorno.TASA_MODO;
 
-if (!ref) salir(`Falta SUPABASE_REF_${SUFIJO} en .env.local.`);
-if (entorno.SUPABASE_REF_PRUEBAS && entorno.SUPABASE_REF_PRUEBAS === entorno.SUPABASE_REF_PRODUCCION) {
-  salir("El proyecto de pruebas y el de producción tienen el mismo ref. Revisa .env.local.");
+if (!ref) salir("Falta SUPABASE_PROJECT_REF en .env.local.");
+if (!["pruebas", "produccion"].includes(modo)) {
+  salir('TASA_MODO en .env.local debe ser "pruebas" o "produccion".');
 }
 
-// El candado principal: la semilla y las verificaciones existen solo
-// para el proyecto de pruebas. No hay forma de pedirlas en producción.
-if (accion !== "push" && destino !== "pruebas") {
-  salir("La semilla y las verificaciones solo corren en el proyecto de PRUEBAS.");
+// El candado: semilla y verificaciones existen solo en modo pruebas.
+if ((accion === "semilla" || accion === "verificar") && modo !== "pruebas") {
+  salir(`TASA_MODO=${modo}: la semilla y las verificaciones solo corren en modo pruebas.`);
+}
+// Un reset en producción borraría los datos reales. No hay forma de pedirlo.
+if (accion === "reset-produccion" && modo !== "pruebas") {
+  salir("TASA_MODO ya es produccion: este proyecto ya tiene datos reales y no se resetea.");
 }
 
-if (destino === "produccion") {
-  console.log("\n================  PRODUCCIÓN  ================");
-  console.log(`  Proyecto: ${ref}`);
-  console.log("  Solo migraciones. La CLI pedirá confirmar.");
-  console.log("==============================================\n");
+const conPassword = { SUPABASE_DB_PASSWORD: password };
+if ((accion === "push" || accion === "reset-produccion") && !password) {
+  salir("Falta SUPABASE_DB_PASSWORD en .env.local.");
 }
 
-// Amarrar siempre antes de actuar: así el último `link` nunca decide
-// por nosotros a qué base le estamos hablando.
-if (!password && accion === "push") salir(`Falta SUPABASE_DB_PASSWORD_${SUFIJO} en .env.local.`);
-supabase(["link", "--project-ref", ref], password ? { SUPABASE_DB_PASSWORD: password } : {});
+console.log(`\nProyecto ${ref} · modo ${modo.toUpperCase()}\n`);
 
-if (proyectoAmarrado() !== ref) {
-  salir(`La CLI quedó amarrada a ${proyectoAmarrado()} y se esperaba ${ref}. No se hizo nada.`);
-}
+// Amarrar siempre antes de actuar: nunca depende del último `link`.
+supabase(["link", "--project-ref", ref], { env: password ? conPassword : {} });
 
 if (accion === "push") {
-  supabase(["db", "push", "--linked"], { SUPABASE_DB_PASSWORD: password });
-  supabase(["migration", "list", "--linked"], { SUPABASE_DB_PASSWORD: password });
+  supabase(["db", "push", "--linked"], { env: conPassword });
+  supabase(["migration", "list", "--linked"], { env: conPassword });
 } else if (accion === "semilla") {
   supabase(["db", "query", "--linked", "-f", "supabase/semilla_prueba.sql"]);
   console.log("\n✓ Semilla cargada y comprobada.\n");
-} else {
+} else if (accion === "verificar") {
   supabase(["db", "query", "--linked", "-f", "supabase/verificaciones.sql"]);
   console.log("\n✓ Verificaciones correctas (no dejaron rastro).\n");
+} else {
+  await resetProduccion();
+}
+
+async function resetProduccion() {
+  const proyectos = JSON.parse(supabase(["projects", "list", "-o", "json"], { capturar: true }));
+  const nombre = proyectos.find((p) => p.ref === ref)?.name;
+  if (!nombre) salir(`No encontré el proyecto ${ref} en tu cuenta.`);
+
+  console.log("==================  RESET A PRODUCCIÓN  ==================");
+  console.log(`  Proyecto: ${nombre} (${ref})`);
+  console.log("  Se BORRAN todas las tablas y sus datos (semilla incluida),");
+  console.log("  se aplican las migraciones SIN semilla y TASA_MODO pasa a");
+  console.log("  produccion. Después ya no se puede volver a resetear desde aquí.");
+  console.log("==========================================================\n");
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const escrito = (await rl.question(`Escribe el nombre del proyecto (${nombre}) para confirmar: `)).trim();
+  rl.close();
+  if (escrito !== nombre) salir("No coincide. No se hizo nada.");
+
+  supabase(["db", "reset", "--linked", "--no-seed"], { env: conPassword });
+  supabase(["migration", "list", "--linked"], { env: conPassword });
+
+  const texto = readFileSync(archivoEntorno, "utf8").replace(
+    /^(\s*TASA_MODO\s*=).*$/m,
+    "$1produccion"
+  );
+  writeFileSync(archivoEntorno, texto);
+
+  console.log("\n✓ Proyecto en producción: migraciones aplicadas, sin semilla.");
+  console.log("  TASA_MODO=produccion en .env.local.");
+  console.log("  Siguiente: da de alta tu persona como super_admin (ver README).\n");
 }

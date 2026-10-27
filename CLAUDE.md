@@ -67,7 +67,10 @@ la app las muestra, la base las hace cumplir.
 - **Buckets privados** (`comprobantes`, `cotizaciones`), siempre por URL firmada.
 - La llave de servicio de Supabase solo existe en `/api/cron`, protegida con `CRON_SECRET`.
   Nunca en el navegador, nunca en otra ruta.
-- Migraciones numeradas en `supabase/migrations/`; una aplicada no se edita nunca.
+- Migraciones numeradas en `supabase/migrations/`; una aplicada no se edita nunca. Se aplican con
+  la CLI (`npm run db:push`). Un solo proyecto de Supabase: `TASA_MODO` (pruebas|produccion) en
+  `.env.local` decide si se permiten semilla y verificaciones. El paso a producción es
+  `npm run db:reset-produccion`, una sola vez.
 - Verificar contra la base real, no contra los archivos SQL.
 - `npm test` corre migraciones, semilla y verificaciones en PGlite. Toda regla nueva de la base
   lleva su verificación en `supabase/verificaciones.sql` (sección `-- @@ Nombre`).

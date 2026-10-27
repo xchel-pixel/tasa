@@ -2,8 +2,8 @@
 
 Portal para comisionistas de servicios de valuación. Se despliega en `tasa.xgplataform.com`.
 
-> Estado: esquema de base de datos listo y probado. La aplicación de Next.js es la siguiente etapa;
-> este README se completa con ella (variables de entorno, cron y despliegue en Vercel).
+> Estado: base de datos, migraciones por CLI y acceso por código listos. Faltan las pantallas por
+> rol, Notion, correos y el despliegue en Vercel (este README se completa con ellos).
 
 ## Correr la aplicación en tu computadora
 
@@ -12,13 +12,13 @@ npm install
 npm run dev
 ```
 
-Abre `http://localhost:3000`. Necesita en `.env.local` la URL y la llave `anon` del proyecto de
-pruebas (Settings → API Keys). Desde el celular, en la misma red Wi-Fi, entra por la IP de la
-computadora (`http://192.168.x.x:3000`).
+Abre `http://localhost:3100` (3100 y no 3000, para no chocar con Pulso). Necesita `.env.local`
+lleno (ver `.env.example`). Desde el celular, en la misma red Wi-Fi, entra por la IP de la
+computadora (`http://192.168.x.x:3100`).
 
 ### Acceso por código: lo que hay que configurar en Supabase
 
-En el proyecto (pruebas y producción), en **Authentication**:
+En el proyecto, en **Authentication**:
 
 1. **Sign In / Providers → Email**: habilitado, con "Confirm email" activo. "Allow new users
    to sign up" se queda **encendido**: quien decide si alguien entra es `correo_en_padron()`,
@@ -32,7 +32,15 @@ En el proyecto (pruebas y producción), en **Authentication**:
    ```
 3. **Emails → SMTP Settings**: apunta a Resend (host `smtp.resend.com`, puerto 465, usuario
    `resend`, contraseña = una API key de Resend), remitente `@xgplataform.com`.
-4. **URL Configuration → Site URL**: `https://tasa.xgplataform.com` en producción.
+4. **URL Configuration**:
+
+   | | Ahora (pruebas) | Al lanzar |
+   |---|---|---|
+   | Site URL | `http://localhost:3100` | `https://tasa.xgplataform.com` |
+   | Redirect URLs | `http://localhost:3100/**` | `https://tasa.xgplataform.com/**` (y quita la de localhost) |
+
+   El acceso es por código, no por liga, así que estas URLs casi no se usan; Supabase las pide
+   y las pone en los correos. Si algún día se agrega una liga, ya estarán bien.
 
 ## Pruebas locales
 
@@ -46,8 +54,9 @@ vive dentro de Node). No toca Supabase ni necesita internet después de instalar
 
 ## Base de datos (CLI de Supabase)
 
-Las migraciones se empujan con la CLI, que deja registro de cuáles ya se aplicaron en cada
-proyecto. Hay dos proyectos: **pruebas** (con semilla) y **producción** (sin semilla, nunca).
+Tasa usa **un solo proyecto** de Supabase (plan gratuito). Hoy es de pruebas, con semilla;
+antes de lanzar se resetea y queda como producción, sin semilla, en ese mismo proyecto.
+`TASA_MODO` en `.env.local` dice en qué etapa está.
 
 Una sola vez por computadora:
 
@@ -55,22 +64,43 @@ Una sola vez por computadora:
 npx supabase login
 ```
 
-Abre el navegador para autorizar la CLI con tu cuenta de Supabase.
+Luego copia `.env.example` como `.env.local` y llénalo (el archivo dice dónde está cada dato).
 
-Luego copia `.env.example` como `.env.local` y llena el ref y la contraseña de cada proyecto
-(el archivo explica dónde encontrar cada dato).
+| Comando | Qué hace | Modo |
+|---|---|---|
+| `npm run db:push` | Empuja las migraciones pendientes. La CLI pide confirmar | cualquiera |
+| `npm run db:semilla` | Carga la semilla de prueba (una sola vez) y la comprueba | solo pruebas |
+| `npm run db:verificar` | Corre las verificaciones; no dejan rastro | solo pruebas |
+| `npm run db:reset-produccion` | Borra todo, aplica migraciones sin semilla, pasa a producción | solo pruebas |
 
-| Comando | Qué hace |
-|---|---|
-| `npm run db:pruebas` | Amarra el proyecto de pruebas y empuja las migraciones pendientes |
-| `npm run db:pruebas:semilla` | Carga la semilla de prueba (una sola vez) y la comprueba |
-| `npm run db:pruebas:verificar` | Corre las verificaciones; no dejan rastro |
-| `npm run db:produccion` | Amarra producción y empuja migraciones. No hay semilla para producción |
+Cada comando vuelve a amarrar el proyecto antes de actuar. Las migraciones aplicadas quedan
+registradas en el proyecto: `db:push` solo aplica las que falten.
 
-Cada comando vuelve a amarrar el proyecto antes de actuar, así que nunca depende de cuál quedó
-amarrado la última vez. La CLI pide confirmar antes de empujar.
+### Pasar a producción (una sola vez, antes de lanzar)
 
-Después de empujar, comprueba contra la base real (en el SQL Editor):
+```bash
+npm run db:reset-produccion
+```
+
+1. Te pide escribir el nombre del proyecto (`tasa`). Si no coincide, no hace nada.
+2. **Borra todas las tablas y sus datos** (la semilla incluida) y vuelve a aplicar todas las
+   migraciones, sin semilla. La CLI también pide confirmar.
+3. Cambia `TASA_MODO` a `produccion` en `.env.local`. Desde ese momento la semilla, las
+   verificaciones y este mismo reset se niegan a correr: ya hay datos reales.
+4. Da de alta tu persona como super_admin en el SQL Editor:
+   ```sql
+   insert into personas (nombre, correo, rol)
+   values ('Xchel Guerrero', 'xchel@arqosuv.com', 'super_admin');
+   ```
+   Si ya habías entrado durante las pruebas, tu usuario de autenticación sigue existiendo y se
+   amarra solo la próxima vez que entres.
+
+El reset no toca los usuarios de autenticación ni los archivos de Storage. Los usuarios de
+prueba (`@tasa.test`) se pueden borrar desde Authentication → Users.
+
+### Comprobar contra la base real
+
+En el SQL Editor:
 
 ```sql
 select table_name from information_schema.tables
@@ -80,9 +110,6 @@ where table_schema = 'public' order by 1;
 Deben aparecer 16 tablas: `alertas`, `bitacora`, `cierres`, `comisiones`, `comisionistas`,
 `cotizaciones`, `cuentas_receptoras`, `historial_estatus`, `mapeo_estatus`, `marcas`,
 `niveles`, `niveles_mensuales`, `pagos`, `personas`, `servicios`, `solicitudes`.
-
-En producción, después de las migraciones, das de alta tu persona como `super_admin` con tu
-correo real.
 
 ## Variables de entorno (previstas)
 

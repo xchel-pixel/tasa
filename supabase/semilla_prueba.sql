@@ -27,8 +27,8 @@
 --     octubre resulta 5%: como lo provisional solo sube, se queda en
 --     10% (800) y deja de ser provisional.
 --
--- Los correos terminan en .test: no existen. Para entrar con tu correo
--- real, cámbialo en `personas` antes de pedir el código.
+-- Xchel usa su correo real (xchel@arqosuv.com) para poder entrar con
+-- la semilla cargada. Los demás terminan en .test: no existen.
 -- ============================================================
 
 do $$
@@ -42,7 +42,7 @@ declare
   s uuid; p uuid;
 begin
   -- Personas ---------------------------------------------------
-  insert into personas (nombre, correo, rol) values ('Xchel Guerrero', 'xchel@tasa.test', 'super_admin') returning id into v_xchel;
+  insert into personas (nombre, correo, rol) values ('Xchel Guerrero', 'xchel@arqosuv.com', 'super_admin') returning id into v_xchel;
   insert into personas (nombre, correo, rol) values ('Gaby', 'gaby@tasa.test', 'finanzas') returning id into v_gaby;
   insert into personas (nombre, correo, telefono, rol) values ('Ana Prueba',   'ana@tasa.test',   '4420000001', 'comisionista') returning id into v_ana;
   insert into personas (nombre, correo, telefono, rol) values ('Beto Prueba',  'beto@tasa.test',  '4420000002', 'comisionista') returning id into v_beto;

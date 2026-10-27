@@ -4,15 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3100",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "db:pruebas": "node scripts/db.mjs pruebas push",
-    "db:pruebas:semilla": "node scripts/db.mjs pruebas semilla",
-    "db:pruebas:verificar": "node scripts/db.mjs pruebas verificar",
-    "db:produccion": "node scripts/db.mjs produccion push"
+    "db:push": "node scripts/db.mjs push",
+    "db:semilla": "node scripts/db.mjs semilla",
+    "db:verificar": "node scripts/db.mjs verificar",
+    "db:reset-produccion": "node scripts/db.mjs reset-produccion"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
