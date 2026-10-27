@@ -30,7 +30,7 @@ export default function EstadoDelNavegador() {
       </p>
       <p className="mt-1 text-[0.9375rem] leading-6">
         Los botones y los campos no van a responder. Recárgala; si sigue
-        igual, avisa a Xchel o a Gaby que la aplicación no cargó en tu
+        igual, avisa al equipo de Tasa que la aplicación no cargó en tu
         teléfono.
       </p>
     </div>

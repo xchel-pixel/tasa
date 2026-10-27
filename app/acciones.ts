@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { recordarAcceso, olvidarAcceso } from "@/lib/acceso";
+import { obtenerContacto } from "@/lib/contacto";
 
 export type EstadoAcceso = {
   paso: "correo" | "codigo";
@@ -17,8 +18,15 @@ export type EstadoAcceso = {
   reemplazo: boolean;
 };
 
-const FUERA_DEL_PADRON =
-  "Ese correo no está dado de alta en Tasa. Pídele a Xchel que te registre.";
+/**
+ * Sin nombres del equipo en la interfaz: se dice "el administrador" y,
+ * si super_admin configuró un contacto en Ajustes, se agrega.
+ */
+async function fueraDelPadron(): Promise<string> {
+  const contacto = await obtenerContacto();
+  const base = "Ese correo no está dado de alta en Tasa. Pídele al administrador que te registre.";
+  return contacto ? `${base} Contacto: ${contacto}.` : base;
+}
 
 /**
  * Supabase no deja pedir otro código al mismo correo antes de un
@@ -111,7 +119,7 @@ async function enviarCodigo(
   }
 
   if (!enPadron) {
-    return { ...base, paso: "correo", error: FUERA_DEL_PADRON };
+    return { ...base, paso: "correo", error: await fueraDelPadron() };
   }
 
   const { error } = await supabase.auth.signInWithOtp({

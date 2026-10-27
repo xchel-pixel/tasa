@@ -64,6 +64,10 @@ la app las muestra, la base las hace cumplir.
 - **Toda tabla nueva:** RLS encendido, `revoke all on [tabla] from anon;` y GRANT explícito a
   `authenticated` (el proyecto NO expone tablas solo; ver `0010_permisos.sql`). Ver
   `supabase/migrations/LEEME.md`.
+- **Sin nombres del equipo en la interfaz.** Ningún texto fijo menciona a una persona del equipo
+  ni su correo: se dice "el administrador", "Administración" o "el equipo de Tasa". Si hace falta
+  un contacto, sale de `ajustes.contacto_soporte` (función `contacto_soporte()`); vacío = no se
+  muestra. Los nombres que salen de `personas` (el saludo) sí se muestran.
 - **Colores solo por token**: la paleta (marca MGP 2026 y estados) vive en `app/globals.css`. Las
   pantallas usan las clases que salen de ahí; ningún hex suelto. Tipografía Manrope 400/600/700.
   El nombre visible es "Tasa" (componente `Marca`); nunca el logo ni el nombre de MGP.

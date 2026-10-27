@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { cerrarSesion } from "@/app/acciones";
-import { Marca } from "@/components/marca";
+import { Encabezado } from "@/components/encabezado";
+import { obtenerContacto } from "@/lib/contacto";
 import { NOMBRE_DEL_ROL, esStaff, obtenerSesion } from "@/lib/sesion";
 
 /**
@@ -12,22 +13,11 @@ export default async function Inicio() {
   if (!sesion) redirect("/entrar");
 
   const { persona } = sesion;
+  const contacto = persona ? null : await obtenerContacto();
 
   return (
     <>
-      <header className="border-b border-linea bg-fondo px-6 py-4">
-        <div className="mx-auto flex w-full max-w-md items-center justify-between">
-          <Marca className="text-[1.375rem]" />
-          <form action={cerrarSesion}>
-            <button
-              type="submit"
-              className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4"
-            >
-              Cerrar sesión
-            </button>
-          </form>
-        </div>
-      </header>
+      <Encabezado />
 
       <main className="flex flex-1 flex-col px-6 py-8">
         <div className="mx-auto w-full max-w-md">
@@ -50,6 +40,15 @@ export default async function Inicio() {
                   Esta pantalla se construye en la siguiente etapa.
                 </p>
               </section>
+
+              {persona.rol === "super_admin" ? (
+                <Link
+                  href="/ajustes"
+                  className="toque mt-4 text-[0.9375rem] font-semibold text-acento underline underline-offset-4"
+                >
+                  Ajustes
+                </Link>
+              ) : null}
             </>
           ) : (
             <>
@@ -58,7 +57,9 @@ export default async function Inicio() {
               </h1>
               <p className="mt-2 leading-7 text-secundario">
                 Entraste como {sesion.correo}, pero nadie te ha registrado en
-                Tasa. Pídele a Xchel que te dé de alta con este mismo correo.
+                Tasa. Pídele al administrador que te dé de alta con este mismo
+                correo.
+                {contacto ? <> Contacto: {contacto}.</> : null}
               </p>
             </>
           )}

@@ -15,6 +15,7 @@ Archivos numerados que se corren en orden desde el editor SQL de Supabase.
 | `0008_catalogos.sql` | Marcas, cuentas (CLABEs placeholder), servicios, niveles, mapeo |
 | `0009_lectura_notion.sql` | Lectura de Notion (folio desde el título, etapa → estatus) y alertas |
 | `0010_permisos.sql` | GRANT explícitos por tabla y función (el proyecto no expone tablas solo) |
+| `0011_ajustes.sql` | `ajustes.contacto_soporte` (editable por super_admin) y marca XG sin nombre de persona |
 
 Fuera de las migraciones, en `supabase/`:
 

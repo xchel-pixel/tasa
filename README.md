@@ -90,7 +90,7 @@ npm run db:reset-produccion
 4. Da de alta tu persona como super_admin en el SQL Editor:
    ```sql
    insert into personas (nombre, correo, rol)
-   values ('Xchel Guerrero', 'xchel@arqosuv.com', 'super_admin');
+   values ('<tu nombre>', '<tu correo>', 'super_admin');
    ```
    Si ya habías entrado durante las pruebas, tu usuario de autenticación sigue existiendo y se
    amarra solo la próxima vez que entres.
@@ -107,7 +107,7 @@ select table_name from information_schema.tables
 where table_schema = 'public' order by 1;
 ```
 
-Deben aparecer 16 tablas: `alertas`, `bitacora`, `cierres`, `comisiones`, `comisionistas`,
+Deben aparecer 17 tablas: `ajustes`, `alertas`, `bitacora`, `cierres`, `comisiones`, `comisionistas`,
 `cotizaciones`, `cuentas_receptoras`, `historial_estatus`, `mapeo_estatus`, `marcas`,
 `niveles`, `niveles_mensuales`, `pagos`, `personas`, `servicios`, `solicitudes`.
 

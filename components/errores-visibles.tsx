@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
  *
  * Se queda en producción a propósito: los comisionistas usando esto
  * desde su celular no pueden abrir una consola, pero sí pueden leerle
- * el mensaje a Xchel o a Gaby.
+ * el mensaje al equipo de Tasa.
  */
 export default function ErroresVisibles() {
   const [errores, setErrores] = useState<string[]>([]);

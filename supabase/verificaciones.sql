@@ -302,7 +302,7 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'correo_en_padron'::text, 'anon solo ejecuta correo_en_padron');
+  perform pg_temp.igual(v, 'contacto_soporte, correo_en_padron'::text, 'anon solo ejecuta correo_en_padron y contacto_soporte');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -407,6 +407,33 @@ begin
     'anon no lee alertas');
 
   perform set_config('role', 'postgres', true);
+end;
+$$;
+
+-- @@ Ajustes y contacto
+do $$
+begin
+  perform pg_temp.igual(contacto_soporte(), null::text, 'Sin contacto configurado, no hay contacto');
+  perform pg_temp.igual((select nombre from marcas where clave = 'XG'), 'XG'::text,
+    'La marca XG no muestra el nombre de una persona');
+
+  perform pg_temp.como('beto@tasa.test');
+  perform pg_temp.igual((select count(*) from ajustes), 1::bigint, 'El comisionista lee los ajustes');
+  update ajustes set contacto_soporte = 'intruso';
+  perform pg_temp.igual(contacto_soporte(), null::text, 'El comisionista no cambia el contacto');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  update ajustes set contacto_soporte = '  soporte@tasa.test ';
+  perform pg_temp.igual(contacto_soporte(), 'soporte@tasa.test'::text, 'super_admin configura el contacto');
+
+  perform pg_temp.como(null);
+  perform pg_temp.igual(contacto_soporte(), 'soporte@tasa.test'::text,
+    'Sin sesión se ve solo el contacto (para la pantalla de acceso)');
+  perform pg_temp.debe_fallar($q$select * from ajustes$q$, 'permission denied',
+    'Sin sesión no se lee la tabla de ajustes');
+
+  perform set_config('role', 'postgres', true);
+  update ajustes set contacto_soporte = null;
 end;
 $$;
 
