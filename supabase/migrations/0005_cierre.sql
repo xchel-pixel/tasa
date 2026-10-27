@@ -122,6 +122,11 @@ begin
   -- Por si algo se devengó entre preparar y aprobar.
   perform recalcular_comisiones_del_mes(v_mes);
 
+  -- Al aprobar, el porcentaje usado es el definitivo. Solo queda
+  -- provisional algo en el primer mes con movimientos, que no tiene
+  -- cierre anterior del cual sacar nivel: ahí manda el nivel más bajo.
+  update comisiones set provisional = false where mes = v_mes and provisional;
+
   update comisiones set cierre_id = v_cierre.id where mes = v_mes;
 
   update cierres

@@ -1,0 +1,13 @@
+{
+  "name": "tasa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.10",
+    "vitest": "3.2.4"
+  }
+}

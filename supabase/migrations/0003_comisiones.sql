@@ -120,6 +120,10 @@ create table comisiones (
   tipo             text not null check (tipo in ('comision', 'bono', 'ajuste', 'cargo', 'referido')),
   base             numeric(12,2),
   porcentaje       numeric(5,2),
+  -- El nivel de su mes aún no existía al devengarse: se usó el último
+  -- conocido. Se recalcula al aprobar el cierre anterior y se apaga al
+  -- aprobar el suyo.
+  provisional      boolean not null default false,
   monto            numeric(12,2) not null,
   mes              date not null check (mes = mes_de(mes)),
   cierre_id        uuid references cierres(id) on delete restrict,
@@ -239,16 +243,35 @@ create trigger bitacora after insert or update or delete on niveles_mensuales
 -- ------------------------------------------------------------
 
 -- El porcentaje que le toca a un comisionista en un mes.
--- Orden: Élite forzado → el nivel que dejó el cierre anterior →
--- el nivel más bajo (comisionista nuevo, sin cierre previo).
+-- Orden:
+--   1. Élite forzado;
+--   2. el nivel de ese mes (lo dejó la aprobación del cierre anterior);
+--   3. PROVISIONAL: el último nivel que tuvo — si el cierre anterior
+--      todavía no se aprueba, el del mes anterior;
+--   4. PROVISIONAL: el nivel más bajo (comisionista nuevo, sin niveles).
 create or replace function porcentaje_vigente(p_comisionista uuid, p_mes date)
 returns numeric language sql stable security definer set search_path = public as $$
   select coalesce(
     (select porcentaje_forzado from comisionistas where persona_id = p_comisionista),
     (select porcentaje from niveles_mensuales
       where comisionista_id = p_comisionista and mes = mes_de(p_mes)),
+    (select porcentaje from niveles_mensuales
+      where comisionista_id = p_comisionista and mes < mes_de(p_mes)
+      order by mes desc limit 1),
     (select porcentaje from niveles where not es_forzado order by orden limit 1)
   );
+$$;
+
+-- Si el porcentaje de ese mes todavía puede cambiar: no es Élite y el
+-- nivel del mes aún no existe. El estado de cuenta lo marca así.
+create or replace function porcentaje_es_provisional(p_comisionista uuid, p_mes date)
+returns boolean language sql stable security definer set search_path = public as $$
+  select not exists (
+           select 1 from comisionistas
+            where persona_id = p_comisionista and porcentaje_forzado is not null)
+     and not exists (
+           select 1 from niveles_mensuales
+            where comisionista_id = p_comisionista and mes = mes_de(p_mes));
 $$;
 
 -- El nivel que corresponde a `p_mes`, calculado con los 3 meses
@@ -300,7 +323,8 @@ $$;
 
 -- Reajusta el porcentaje de las comisiones de un mes todavía abierto.
 -- Hace falta porque un trabajo puede quedar pagado el día 2 y el nivel
--- de ese mes se conoce hasta que se aprueba el cierre anterior.
+-- de ese mes se conoce hasta que se aprueba el cierre anterior: mientras
+-- tanto la comisión es provisional, con el nivel del mes anterior.
 create or replace function recalcular_comisiones_del_mes(p_mes date)
 returns integer language plpgsql security definer set search_path = public as $$
 declare
@@ -311,21 +335,25 @@ begin
   end if;
 
   update comisiones c
-     set porcentaje = porcentaje_vigente(c.comisionista_id, c.mes),
-         monto      = round(c.base * porcentaje_vigente(c.comisionista_id, c.mes) / 100, 2)
+     set porcentaje  = porcentaje_vigente(c.comisionista_id, c.mes),
+         monto       = round(c.base * porcentaje_vigente(c.comisionista_id, c.mes) / 100, 2),
+         provisional = porcentaje_es_provisional(c.comisionista_id, c.mes)
    where c.mes = mes_de(p_mes)
      and c.tipo = 'comision'
-     and c.porcentaje is distinct from porcentaje_vigente(c.comisionista_id, c.mes);
+     and (c.porcentaje is distinct from porcentaje_vigente(c.comisionista_id, c.mes)
+          or c.provisional is distinct from porcentaje_es_provisional(c.comisionista_id, c.mes));
 
   get diagnostics v_total = row_count;
   return v_total;
 end;
 $$;
 
-revoke all on function porcentaje_vigente(uuid, date), calcular_nivel(uuid, date),
-  recalcular_comisiones_del_mes(date), mes_abierto_desde(date), mes_aprobado(date)
+revoke all on function porcentaje_vigente(uuid, date), porcentaje_es_provisional(uuid, date),
+  calcular_nivel(uuid, date), recalcular_comisiones_del_mes(date),
+  mes_abierto_desde(date), mes_aprobado(date)
   from public, anon;
-grant execute on function porcentaje_vigente(uuid, date), calcular_nivel(uuid, date),
+grant execute on function porcentaje_vigente(uuid, date), porcentaje_es_provisional(uuid, date),
+  calcular_nivel(uuid, date),
   mes_abierto_desde(date), mes_aprobado(date)
   to authenticated;
 

@@ -42,13 +42,20 @@ la app las muestra, la base las hace cumplir.
    fecha del pago que completa el 100%; `mes_cierre` es ese mes o el siguiente abierto.
 4. **Nivel:** promedio de honorarios pagados de los 3 meses anteriores (desde el alta, meses en
    cero incluidos). Se calcula al aprobar el cierre y aplica a todo el mes siguiente.
+   Una comisión devengada antes de aprobar el cierre anterior nace con el último nivel conocido
+   y `provisional = true`; se recalcula al aprobar ese cierre.
 5. **Pagos:** todo entra como `reportado`; luego `confirmado` o `rechazado` (con motivo). Un pago
    no se edita ni regresa.
 6. **"Pagado", "Solicitada", "Cotizada", "Aceptada" y "Cancelada" los decide Tasa.** Lo de en
    medio lo traduce `mapeo_estatus` desde la "Etapa" de Notion.
-7. **El folio lo da Notion.** Tasa nunca genera folios.
+7. **El folio lo da Notion.** Tasa crea la página como "Pendiente de folio – <cliente>"; el
+   proceso de siempre (a mano o la skill tramites-mgp) pone el folio en el título y Tasa lo copia
+   al leer (`MGP-\d{4}-\d{4}`). Sin folio y en "aceptada", el comisionista ve
+   "Aceptada – folio en asignación". Tasa nunca genera folios ni cambia la estructura de Notion.
 8. Total = honorarios + IVA (16% de honorarios, solo si `requiere_factura`) + terceros. La
    comisión siempre sobre honorarios sin IVA.
+9. **"Cancelado" en Notion no cancela:** levanta una alerta en el panel admin. La cancelación se
+   confirma en Tasa (borra la comisión si el mes está abierto, o mete un cargo si ya cerró).
 
 ## Reglas técnicas
 
@@ -60,6 +67,8 @@ la app las muestra, la base las hace cumplir.
   Nunca en el navegador, nunca en otra ruta.
 - Migraciones numeradas en `supabase/migrations/`; una aplicada no se edita nunca.
 - Verificar contra la base real, no contra los archivos SQL.
+- `npm test` corre migraciones, semilla y verificaciones en PGlite. Toda regla nueva de la base
+  lleva su verificación en `supabase/verificaciones.sql` (sección `-- @@ Nombre`).
 - Fechas de corte en `America/Mexico_City`: usar `hoy_mx()` y `mes_de()`, nunca `current_date`.
 
 ## Cómo trabajar con Xchel
@@ -71,5 +80,5 @@ la app las muestra, la base las hace cumplir.
 
 ## Estado
 
-Fase 1 (MVP). Hecho: esquema, semilla de prueba y verificaciones.
+Fase 1 (MVP). Hecho: esquema, semilla de prueba y verificaciones (también en `npm test`).
 Sigue: proyecto de Next.js, acceso, y pantallas.

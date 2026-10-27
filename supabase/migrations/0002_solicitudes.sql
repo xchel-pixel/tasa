@@ -75,8 +75,11 @@ create table solicitudes (
   estatus_publico       text not null default 'solicitada'
                           check (estatus_publico = any (estatus_publicos())),
 
-  -- Notion: la única fuente del folio. Tasa nunca lo inventa.
-  folio                 text unique,
+  -- Notion: la única fuente del folio. Tasa crea la página sin folio
+  -- ("Pendiente de folio – <cliente>"); el proceso de siempre lo pone
+  -- en el título y Tasa lo copia en la siguiente lectura (0009).
+  -- Nulo con estatus "aceptada" = "Aceptada – folio en asignación".
+  folio                 text unique check (folio ~ '^MGP-[0-9]{4}-[0-9]{4}$'),
   notion_page_id        text unique,
   estatus_notion        text,           -- la "Etapa" tal cual viene de Notion
   notion_leido_en       timestamptz,

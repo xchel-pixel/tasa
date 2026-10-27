@@ -5,21 +5,33 @@ Portal para comisionistas de servicios de valuación. Se despliega en `tasa.xgpl
 > Estado: esquema de base de datos listo y probado. La aplicación de Next.js es la siguiente etapa;
 > este README se completa con ella (variables de entorno, cron y despliegue en Vercel).
 
+## Pruebas locales
+
+```bash
+npm install
+npm test
+```
+
+Corre las migraciones, la semilla y `supabase/verificaciones.sql` en PGlite (un Postgres que
+vive dentro de Node). No toca Supabase ni necesita internet después de instalar.
+
 ## Preparar la base de datos
 
-1. Crea un proyecto **nuevo** en Supabase (independiente de Pulso). Región: la más cercana.
-2. En el editor SQL, corre en orden los archivos de `supabase/migrations/` (de `0001` a `0008`).
+1. Crea un proyecto **nuevo** en Supabase (independiente de Pulso).
+2. En el editor SQL, corre en orden los archivos de `supabase/migrations/` (de `0001` a `0009`),
+   uno por consulta. Cada uno debe responder "Success".
 3. Comprueba contra la base real:
    ```sql
    select table_name from information_schema.tables
    where table_schema = 'public' order by 1;
    ```
-   Deben aparecer 15 tablas: `bitacora`, `cierres`, `comisiones`, `comisionistas`,
+   Deben aparecer 16 tablas: `alertas`, `bitacora`, `cierres`, `comisiones`, `comisionistas`,
    `cotizaciones`, `cuentas_receptoras`, `historial_estatus`, `mapeo_estatus`, `marcas`,
    `niveles`, `niveles_mensuales`, `pagos`, `personas`, `servicios`, `solicitudes`.
 4. **Solo en un proyecto de pruebas:** corre `supabase/semilla_prueba.sql` y luego
-   `supabase/verificaciones.sql`. La semilla debe terminar con el aviso "Semilla correcta" y
-   las verificaciones con "Verificaciones correctas". Las verificaciones no dejan rastro.
+   `supabase/verificaciones.sql`. Las dos terminan comprobándose solas: "Success" significa que
+   todo cuadró; si algo no cuadra, se detienen con un error que dice qué regla falló. Las
+   verificaciones no dejan rastro y se pueden correr las veces que sea.
 
 En producción no va la semilla: solo las migraciones, y luego das de alta tu persona como
 `super_admin` con tu correo real.

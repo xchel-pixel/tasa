@@ -6,8 +6,12 @@
 -- mensaje de qué regla no se cumplió. Si todo pasa, el último aviso es
 -- "Verificaciones correctas".
 --
+-- Las mismas secciones (`-- @@ Nombre`) las corre vitest, una prueba
+-- por sección: `npm test`.
+--
 -- Las pruebas de RLS se hacen pasar por la persona de verdad
 -- (`como()`): el editor corre como `postgres`, y ahí el RLS no aplica.
+-- Las secciones dependen de las anteriores: van en orden.
 -- ============================================================
 
 begin;
@@ -47,7 +51,7 @@ begin
 end;
 $$;
 
-create function pg_temp.igual(p_real numeric, p_esperado numeric, p_que text) returns void language plpgsql as $$
+create function pg_temp.igual(p_real anyelement, p_esperado anyelement, p_que text) returns void language plpgsql as $$
 begin
   if p_real is distinct from p_esperado then
     raise exception 'FALLA — %: esperaba %, salió %', p_que, p_esperado, p_real;
@@ -58,89 +62,80 @@ $$;
 
 grant execute on all functions in schema pg_temp to anon, authenticated;
 
+-- @@ Niveles
 do $$
 declare
-  t9  uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0009');
-  t8  uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0008');
-  t7  uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0007');
-  ana uuid := (select id from personas where correo = 'ana@tasa.test');
-  beto uuid := (select id from personas where correo = 'beto@tasa.test');
+  ana   uuid := (select id from personas where correo = 'ana@tasa.test');
+  beto  uuid := (select id from personas where correo = 'beto@tasa.test');
   carla uuid := (select id from personas where correo = 'carla@tasa.test');
-  v numeric;
 begin
-  -- ---------------------------------------------------------
-  -- NIVELES
-  -- ---------------------------------------------------------
-  perform pg_temp.igual((select promedio from calcular_nivel(ana, '2026-10-01')), 12000,
-    'Ana: promedio jul-sep con meses en cero = 36,000 / 3');
-  perform pg_temp.igual((select meses_considerados from calcular_nivel(beto, '2026-10-01')), 2,
+  perform pg_temp.igual((select promedio from calcular_nivel(ana, '2026-07-01')), 36000::numeric,
+    'Ana para julio: solo junio cuenta (alta en junio) → 36,000 / 1');
+  perform pg_temp.igual((select porcentaje from calcular_nivel(ana, '2026-07-01')), 12.50::numeric,
+    'Ana para julio: 36,000 ≥ 30,000 → Socio 12.5%');
+  perform pg_temp.igual((select promedio from calcular_nivel(ana, '2026-08-01')), 18000::numeric,
+    'Ana para agosto: jun + jul (julio en cero cuenta) → 18,000');
+  perform pg_temp.igual((select promedio from calcular_nivel(ana, '2026-09-01')), 12000::numeric,
+    'Ana para septiembre: jun-jul-ago → 12,000, Aliado');
+  perform pg_temp.igual((select porcentaje from calcular_nivel(ana, '2026-10-01')), 5.00::numeric,
+    'Ana para octubre: junio sale de la ventana → 0, Enlace 5%');
+  perform pg_temp.igual((select meses_considerados from calcular_nivel(ana, '2026-12-01')), 3::smallint,
+    'La ventana nunca pasa de 3 meses');
+  perform pg_temp.igual((select meses_considerados from calcular_nivel(beto, '2026-10-01')), 2::smallint,
     'Beto (alta agosto): para octubre cuenta ago y sep');
-  perform pg_temp.igual((select meses_considerados from calcular_nivel(carla, '2026-10-01')), 1,
+  perform pg_temp.igual((select meses_considerados from calcular_nivel(carla, '2026-10-01')), 1::smallint,
     'Carla (alta 15 sep): para octubre cuenta solo sep');
-  perform pg_temp.igual((select porcentaje from calcular_nivel(carla, '2026-10-01')), 5,
-    'Carla sin ventas: Enlace 5%');
-  perform pg_temp.igual((select meses_considerados from calcular_nivel(ana, '2026-12-01')), 3,
-    'Ana para diciembre: ventana de 3 meses (sep-oct-nov)');
-end;
-$$;
-
-do $$
-declare
-  ana uuid := (select id from personas where correo = 'ana@tasa.test');
-  carla uuid := (select id from personas where correo = 'carla@tasa.test');
-begin
-  update comisionistas set fecha_alta = '2026-09-01' where persona_id = ana;
-  perform pg_temp.igual((select porcentaje from calcular_nivel(ana, '2026-10-01')), 12.5,
-    'Ana con alta en sep: 36,000 / 1 mes → Socio 12.5%');
-  update comisionistas set fecha_alta = '2026-06-01' where persona_id = ana;
+  perform pg_temp.igual((select meses_considerados from calcular_nivel(beto, '2026-08-01')), 0::smallint,
+    'Beto para agosto: todavía no estaba dado de alta en la ventana → 0 meses, Enlace');
 
   update comisionistas set porcentaje_forzado = 20 where persona_id = carla;
-  perform pg_temp.igual((select porcentaje from calcular_nivel(carla, '2026-10-01')), 20,
-    'Élite: el porcentaje forzado manda');
-  perform pg_temp.igual(porcentaje_vigente(carla, '2026-10-01'), 20,
+  perform pg_temp.igual((select porcentaje from calcular_nivel(carla, '2026-10-01')), 20::numeric,
+    'Élite: el porcentaje forzado manda en el cálculo');
+  perform pg_temp.igual(porcentaje_vigente(carla, '2026-11-01'), 20::numeric,
     'Élite: también en el porcentaje vigente');
+  perform pg_temp.igual(porcentaje_es_provisional(carla, '2026-11-01'), false,
+    'Élite nunca es provisional');
   update comisionistas set porcentaje_forzado = null where persona_id = carla;
 end;
 $$;
 
--- ---------------------------------------------------------
--- DEVENGO
--- ---------------------------------------------------------
+-- @@ Devengo y pagos
 do $$
 declare
-  t8   uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0008');
-  beto uuid := (select id from personas where correo = 'beto@tasa.test');
+  t5   uuid := (select id from solicitudes where folio = 'MGP-2026-9005');
+  t7   uuid := (select id from solicitudes where folio = 'MGP-2026-9007');
+  t8   uuid := (select id from solicitudes where folio = 'MGP-2026-9008');
+  t9   uuid := (select id from solicitudes where folio = 'MGP-2026-9009');
 begin
-  -- Trabajo 8: 6,000; 3,000 confirmados en sep y 3,000 directos por revisar.
-  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = t8), 0,
+  -- Trabajo 8 (Beto): 6,000. 3,000 confirmados el 26 sep; falta la otra mitad.
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = t8), 0::bigint,
     'Sin el 100% no hay comisión');
 
-  update pagos set estado = 'confirmado' where solicitud_id = t8 and estado = 'reportado';
-
-  perform pg_temp.igual((select extract(day from pagado_en) from solicitudes where id = t8), 26,
-    'pagado_en = fecha del pago que completa (hoy en la semilla: 26)');
-  perform pg_temp.igual((select monto from comisiones where solicitud_id = t8), 300,
-    'Beto: 5% de 6,000 al quedar pagado');
-  perform pg_temp.igual((select count(*) from historial_estatus
-                          where solicitud_id = t8 and estatus_publico = 'pagado'), 1,
-    'El cambio a "pagado" queda en el historial para avisar por correo');
-end;
-$$;
-
-do $$
-declare
-  t5 uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0005');
-  t7 uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0007');
-  t6 uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0006');
-  t9 uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0009');
-  ana uuid := (select id from personas where correo = 'ana@tasa.test');
-begin
-  -- Pago con fecha de un mes ya aprobado: cae en el siguiente abierto.
+  -- La otra mitad llega con fecha 28 sep, pero septiembre ya está aprobado.
   insert into pagos (solicitud_id, via, monto, fecha_pago, referencia)
-  values (t7, 'directo', 9000, '2026-09-30', 'tardío');
-  update pagos set estado = 'confirmado' where referencia = 'tardío';
-  perform pg_temp.igual((select extract(month from pagado_en) from solicitudes where id = t7), 10,
-    'Fecha de pago 2 oct (completa con el de sep): pagado_en es la del que completa');
+  values (t8, 'directo', 3000, '2026-09-28', 'SPEI tardío');
+  update pagos set estado = 'confirmado' where referencia = 'SPEI tardío';
+
+  perform pg_temp.igual((select pagado_en from solicitudes where id = t8), date '2026-09-28',
+    'pagado_en es la fecha del pago que completa el 100% (28 sep)');
+  perform pg_temp.igual((select mes_cierre from solicitudes where id = t8), date '2026-10-01',
+    'Septiembre ya estaba aprobado → el trabajo cae en octubre');
+  perform pg_temp.igual((select monto from comisiones where solicitud_id = t8), 300.00::numeric,
+    'Beto: 5% (su nivel de octubre) de 6,000');
+  perform pg_temp.igual((select provisional from comisiones where solicitud_id = t8), false,
+    'El nivel de octubre ya existe: no es provisional');
+  perform pg_temp.igual((select estatus_publico from solicitudes where id = t8), 'pagado'::text,
+    'El trabajo pasa a "pagado"');
+  perform pg_temp.igual((select count(*) from historial_estatus
+                          where solicitud_id = t8 and estatus_publico = 'pagado'), 1::bigint,
+    'El cambio a "pagado" queda en el historial para avisar por correo');
+
+  -- Orden por fecha de pago, no por orden de confirmación.
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia)
+  values (t7, 'directo', 9000, '2026-10-01', 'anterior');
+  update pagos set estado = 'confirmado' where referencia = 'anterior';
+  perform pg_temp.igual((select pagado_en from solicitudes where id = t7), date '2026-10-02',
+    'Se completa con el pago del 2 oct aunque el del 1 oct se confirmó después');
 
   perform pg_temp.debe_fallar(
     format($q$insert into pagos (solicitud_id, via, monto, fecha_pago, referencia)
@@ -148,13 +143,12 @@ begin
     'ya está pagado', 'No se reciben pagos de un trabajo pagado');
 
   -- Trabajo 5: total 13,920 (12,000 + IVA). Confirmar de más se bloquea.
+  update pagos set estado = 'confirmado' where solicitud_id = t5 and estado = 'reportado';
   insert into pagos (solicitud_id, via, monto, fecha_pago, referencia)
   values (t5, 'directo', 9000, hoy_mx(), 'de más');
-  update pagos set estado = 'confirmado' where solicitud_id = t5 and referencia is null;
   perform pg_temp.debe_fallar(
     format($q$update pagos set estado = 'confirmado' where solicitud_id = %L and referencia = 'de más'$q$, t5),
     'pasaría del total', 'Lo confirmado no puede pasar del total');
-
   perform pg_temp.debe_fallar(
     format($q$update pagos set monto = 1 where solicitud_id = %L and referencia = 'de más'$q$, t5),
     'no se edita', 'Un pago reportado no se edita');
@@ -164,21 +158,22 @@ begin
   perform pg_temp.debe_fallar(
     format($q$update pagos set estado = 'reportado' where solicitud_id = %L and estado = 'confirmado'$q$, t5),
     'ya no cambia', 'Un pago confirmado no regresa');
+  perform pg_temp.debe_fallar(
+    format($q$update solicitudes set monto_honorarios = 1 where id = %L$q$, t9),
+    'ya está pagado', 'Los montos de un trabajo pagado no cambian');
 end;
 $$;
 
--- ---------------------------------------------------------
--- TOPE 30%
--- ---------------------------------------------------------
+-- @@ Tope 30%
 do $$
 declare
-  t9  uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0009');
+  t9  uuid := (select id from solicitudes where folio = 'MGP-2026-9009');
   ana uuid := (select id from personas where correo = 'ana@tasa.test');
 begin
-  -- Trabajo 9: honorarios 36,000 → tope 10,800. Ya tiene 1,800.
+  -- Trabajo 9: honorarios 36,000 → tope 10,800. Ya tiene 1,800 (junio).
   insert into comisiones (comisionista_id, solicitud_id, tipo, monto, mes)
   values (ana, t9, 'bono', 9000, '2026-10-01');
-  perform pg_temp.igual((select sum(monto) from comisiones where solicitud_id = t9), 10800,
+  perform pg_temp.igual((select sum(monto) from comisiones where solicitud_id = t9), 10800.00::numeric,
     'Hasta el 30% exacto se permite');
   perform pg_temp.debe_fallar(
     format($q$insert into comisiones (comisionista_id, solicitud_id, tipo, monto, mes)
@@ -189,23 +184,22 @@ begin
               values (%L, %L, 'referido', 100, '2026-10-01')$q$, ana, t9),
     'Tope de 30%', 'El referido también cuenta para el tope');
   insert into comisiones (comisionista_id, solicitud_id, tipo, monto, mes, nota)
-  values (ana, t9, 'cargo', -500, '2026-10-01', 'los cargos no cuentan para el tope');
+  values (ana, t9, 'cargo', -500, '2026-10-01', 'prueba');
   raise notice 'ok — los cargos no cuentan para el tope';
+  delete from comisiones where solicitud_id = t9 and nota = 'prueba';
 end;
 $$;
 
--- ---------------------------------------------------------
--- CIERRE
--- ---------------------------------------------------------
+-- @@ Cierre
 do $$
 declare
-  t9  uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0009');
-  ana uuid := (select id from personas where correo = 'ana@tasa.test');
-  c_sep uuid := (select id from comisiones where solicitud_id = t9 and tipo = 'comision');
+  t9    uuid := (select id from solicitudes where folio = 'MGP-2026-9009');
+  ana   uuid := (select id from personas where correo = 'ana@tasa.test');
+  c_jun uuid := (select id from comisiones where solicitud_id = t9 and tipo = 'comision');
 begin
   perform pg_temp.debe_fallar(
-    $q$select ejecutar_preparacion_cierre('2026-10-01', null)$q$,
-    'no ha terminado', 'Octubre no se prepara antes del corte');
+    format($q$select ejecutar_preparacion_cierre(%L, null)$q$, mes_de(hoy_mx())),
+    'no ha terminado', 'El mes en curso no se prepara antes del corte');
   perform pg_temp.debe_fallar(
     $q$update cierres set resumen = '{}' where mes = '2026-09-01'$q$,
     'no se reabre', 'Un cierre aprobado no se modifica');
@@ -213,16 +207,16 @@ begin
     $q$delete from cierres where mes = '2026-09-01'$q$,
     'no se borra', 'Un cierre aprobado no se borra');
   perform pg_temp.debe_fallar(
-    format($q$update comisiones set monto = 1 where id = %L$q$, c_sep),
+    format($q$update comisiones set monto = 1 where id = %L$q$, c_jun),
     'solo se puede marcar como pagada', 'La comisión de un mes cerrado no cambia de monto');
   perform pg_temp.debe_fallar(
-    format($q$delete from comisiones where id = %L$q$, c_sep),
+    format($q$delete from comisiones where id = %L$q$, c_jun),
     'registra un cargo', 'La comisión de un mes cerrado no se borra');
   perform pg_temp.debe_fallar(
     format($q$insert into comisiones (comisionista_id, tipo, monto, mes) values (%L, 'ajuste', 10, '2026-09-01')$q$, ana),
     'ya está cerrado', 'No entra nada nuevo a un mes cerrado');
 
-  update comisiones set estado = 'pagada', pagada_en = '2026-10-05' where id = c_sep;
+  update comisiones set estado = 'pagada', pagada_en = '2026-07-05' where id = c_jun;
   raise notice 'ok — lo de un mes cerrado sí se marca pagado';
   perform pg_temp.debe_fallar(
     $q$update comisiones set estado = 'pagada', pagada_en = '2026-10-05' where mes = '2026-10-01' and tipo = 'comision'$q$,
@@ -231,37 +225,84 @@ begin
   -- Cancelar un trabajo cuyo mes ya cerró: entra un cargo, no se borra.
   perform cancelar_trabajo(t9, 'El cliente desistió');
   perform pg_temp.igual(
-    (select monto from comisiones where solicitud_id = t9 and tipo = 'cargo' and nota like 'Cancelación%'),
-    -1800, 'Cancelación posterior al cierre → cargo de -1,800 en el mes abierto');
+    (select monto from comisiones where solicitud_id = t9 and tipo = 'cargo'),
+    -1800.00::numeric, 'Cancelación posterior al cierre → cargo de -1,800 en el mes abierto');
   perform pg_temp.igual(
-    (select count(*) from comisiones where solicitud_id = t9 and tipo = 'bono'), 0,
+    (select count(*) from comisiones where solicitud_id = t9 and tipo = 'bono'), 0::bigint,
     'El bono de un mes abierto se borra al cancelar');
   perform pg_temp.igual(
-    (select count(*) from comisiones where id = c_sep), 1,
-    'La comisión de septiembre sigue intacta');
+    (select count(*) from comisiones where id = c_jun), 1::bigint,
+    'La comisión de junio sigue intacta');
 end;
 $$;
 
--- ---------------------------------------------------------
--- RLS: lo que ve y puede hacer cada quien
--- ---------------------------------------------------------
+-- @@ Lectura de Notion
 do $$
 declare
-  t7 uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0007');
-  t6 uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0006');
-  t5 uuid := (select id from solicitudes where folio = 'PRUEBA-2026-0005');
+  t4  uuid := (select id from solicitudes where notion_page_id = 'simulado-0004');
+  t10 uuid := (select id from solicitudes where folio = 'MGP-2026-9010');
+begin
+  perform pg_temp.igual(
+    registrar_lectura_notion('simulado-0004', 'Pendiente de folio – Inmobiliaria Norte', 'Por asignar', null),
+    'sin_cambios'::text, 'Página sin folio: no pasa nada');
+  perform pg_temp.igual((select folio from solicitudes where id = t4), null::text,
+    'Sigue sin folio → "Aceptada – folio en asignación"');
+
+  perform pg_temp.igual(
+    registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Por asignar', '2026-10-30'),
+    'actualizado'::text, 'Aparece el folio en el título');
+  perform pg_temp.igual((select folio from solicitudes where id = t4), 'MGP-2026-0590'::text,
+    'Tasa copia el folio del título');
+  perform pg_temp.igual((select estatus_publico from solicitudes where id = t4), 'visita_agendada'::text,
+    'Con fecha de visita, "Por asignar" se muestra como visita agendada');
+
+  perform registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'En proceso', '2026-10-30');
+  perform pg_temp.igual((select estatus_publico from solicitudes where id = t4), 'en_elaboracion'::text,
+    '"En proceso" → en elaboración');
+
+  perform registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Etapa nueva', null);
+  perform pg_temp.igual((select estatus_publico from solicitudes where id = t4), 'en_elaboracion'::text,
+    'Una etapa que no está en el mapeo no mueve el estatus');
+
+  perform pg_temp.igual(
+    registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null),
+    'alerta'::text, 'Cancelado en Notion levanta una alerta');
+  perform pg_temp.igual((select estado from solicitudes where id = t4), 'tramite'::text,
+    'Pero NO cancela el trabajo');
+  perform registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null);
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = t4), 1::bigint,
+    'Leer otra vez no duplica la alerta');
+
+  perform cancelar_trabajo(t4, 'Confirmado: el cliente canceló');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = t4 and resuelta_en is null), 0::bigint,
+    'Cancelar en Tasa cierra la alerta');
+
+  perform registrar_lectura_notion('simulado-0010', 'MGP-2026-9010 Daniel Ochoa', 'En proceso', null);
+  perform pg_temp.igual((select estatus_publico from solicitudes where id = t10), 'pagado'::text,
+    'Notion no pisa el "pagado" de Tasa');
+  perform pg_temp.igual(registrar_lectura_notion('no-existe', 'x', 'En proceso', null), 'sin_trabajo'::text,
+    'Una página que no es de Tasa se ignora');
+end;
+$$;
+
+-- @@ Permisos (RLS)
+do $$
+declare
+  t5 uuid := (select id from solicitudes where folio = 'MGP-2026-9005');
+  t6 uuid := (select id from solicitudes where folio = 'MGP-2026-9006');
+  t7 uuid := (select id from solicitudes where folio = 'MGP-2026-9007');
   avaluo uuid := (select id from servicios where nombre = 'Avalúo Comercial');
   beto uuid := (select id from personas where correo = 'beto@tasa.test');
-  v numeric;
 begin
   perform pg_temp.como('beto@tasa.test');
 
-  perform pg_temp.igual((select count(*) from solicitudes), 3, 'Beto ve solo sus 3 trabajos');
-  perform pg_temp.igual((select count(*) from comisiones where comisionista_id <> beto), 0,
+  perform pg_temp.igual((select count(*) from solicitudes), 3::bigint, 'Beto ve solo sus 3 trabajos');
+  perform pg_temp.igual((select count(*) from comisiones where comisionista_id <> beto), 0::bigint,
     'Beto no ve comisiones ajenas');
-  perform pg_temp.igual((select count(*) from personas), 1, 'Beto solo ve su propia persona');
-  perform pg_temp.igual((select count(*) from bitacora), 0, 'Beto no ve la bitácora');
-  perform pg_temp.igual((select count(*) from cuentas_receptoras), 2,
+  perform pg_temp.igual((select count(*) from personas), 1::bigint, 'Beto solo ve su propia persona');
+  perform pg_temp.igual((select count(*) from bitacora), 0::bigint, 'Beto no ve la bitácora');
+  perform pg_temp.igual((select count(*) from alertas), 0::bigint, 'Beto no ve alertas');
+  perform pg_temp.igual((select count(*) from cuentas_receptoras), 2::bigint,
     'Beto ve solo las cuentas de sus trabajos (ROMI y Scotiabank)');
 
   perform pg_temp.debe_fallar(
@@ -282,7 +323,7 @@ begin
     'row-level security', 'El comisionista no registra pagos directos');
   -- Un UPDATE que el RLS no deja ver no truena: toca cero filas.
   execute format($q$update pagos set estado = 'confirmado' where solicitud_id = %L$q$, t5);
-  perform pg_temp.igual((select count(*) from pagos where solicitud_id = t5 and estado = 'reportado'), 1,
+  perform pg_temp.igual((select count(*) from pagos where solicitud_id = t5 and estado = 'reportado'), 1::bigint,
     'El comisionista no confirma pagos (su intento no toca nada)');
   perform pg_temp.debe_fallar(
     $q$select ejecutar_aprobacion_cierre('2026-10-01', null)$q$,
@@ -290,6 +331,9 @@ begin
   perform pg_temp.debe_fallar(
     $q$select preparar_cierre('2026-09-01')$q$,
     'Solo finanzas', 'El comisionista no prepara cierres');
+  perform pg_temp.debe_fallar(
+    $q$select registrar_lectura_notion('simulado-0005', 'x', 'Entregado', null)$q$,
+    'Solo el staff', 'El comisionista no escribe estatus de Notion');
 
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.debe_fallar(
@@ -298,14 +342,15 @@ begin
   perform pg_temp.debe_fallar(
     format($q$update solicitudes set cuenta_receptora_id = (select id from cuentas_receptoras where banco = 'Banregio') where id = %L$q$, t7),
     'solo super_admin', 'Finanzas no cambia la cuenta de un trabajo con pagos confirmados');
-  perform pg_temp.igual((select count(*) from bitacora), 0, 'Finanzas no ve la bitácora');
+  perform pg_temp.igual((select count(*) from bitacora), 0::bigint, 'Finanzas no ve la bitácora');
+  perform pg_temp.igual((select count(*) > 0 from alertas), true, 'Finanzas sí ve las alertas');
 
   perform pg_temp.como('xchel@tasa.test');
   execute format($q$update solicitudes set cuenta_receptora_id = (select id from cuentas_receptoras where banco = 'Banregio') where id = %L$q$, t7);
   perform pg_temp.igual(
     (select count(*) from bitacora where tabla = 'solicitudes' and registro_id = t7::text
         and antes->>'cuenta_receptora_id' is distinct from despues->>'cuenta_receptora_id'
-        and rol = 'super_admin'), 1,
+        and rol = 'super_admin'), 1::bigint,
     'super_admin sí cambia la cuenta, y queda en bitácora con antes y después');
 
   perform pg_temp.como(null);
@@ -315,10 +360,51 @@ begin
     'anon no lee personas');
   perform pg_temp.debe_fallar($q$select count(*) from cuentas_receptoras$q$, 'permission denied',
     'anon no lee cuentas');
+  perform pg_temp.debe_fallar($q$select count(*) from alertas$q$, 'permission denied',
+    'anon no lee alertas');
 
   perform set_config('role', 'postgres', true);
-  raise notice 'Verificaciones correctas.';
 end;
 $$;
+
+-- @@ Porcentaje provisional
+-- Va al final porque cierra octubre: simula que hoy es 5 de noviembre.
+do $$
+declare
+  t5   uuid := (select id from solicitudes where folio = 'MGP-2026-9005');
+  beto uuid := (select id from personas where correo = 'beto@tasa.test');
+begin
+  -- Trabajo 5 (Beto): faltan 6,920 y llegan el 3 de noviembre, con
+  -- octubre todavía sin aprobar.
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia)
+  values (t5, 'directo', 6920, '2026-11-03', 'finiquito nov');
+  update pagos set estado = 'confirmado' where referencia = 'finiquito nov';
+
+  perform pg_temp.igual((select porcentaje from comisiones where solicitud_id = t5), 5.00::numeric,
+    'Nace con el nivel vigente de Beto (octubre, 5%)');
+  perform pg_temp.igual((select provisional from comisiones where solicitud_id = t5), true,
+    'Y marcada como provisional');
+
+  -- Con un umbral más bajo, el cierre de octubre sube a Beto a Aliado:
+  -- sus 6,000 de octubre / 3 meses = 2,000.
+  update niveles set umbral_minimo = 1000 where nombre = 'Aliado';
+  create or replace function hoy_mx() returns date language sql stable as $f$ select date '2026-11-05' $f$;
+
+  perform ejecutar_preparacion_cierre('2026-10-01', null);
+  perform ejecutar_aprobacion_cierre('2026-10-01', null);
+
+  perform pg_temp.igual(porcentaje_vigente(beto, '2026-11-01'), 10.00::numeric,
+    'Al aprobar octubre, Beto queda en Aliado para noviembre');
+  perform pg_temp.igual((select monto from comisiones where solicitud_id = t5), 1200.00::numeric,
+    'La comisión provisional se recalcula: 10% de 12,000');
+  perform pg_temp.igual((select provisional from comisiones where solicitud_id = t5), false,
+    'Y deja de ser provisional');
+  perform pg_temp.igual((select count(*) from comisiones where mes = '2026-10-01' and provisional), 0::bigint,
+    'Nada de un mes aprobado queda provisional');
+end;
+$$;
+
+-- @@ Fin
+do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
 rollback;

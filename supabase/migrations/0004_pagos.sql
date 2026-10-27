@@ -146,8 +146,9 @@ begin
 
   if coalesce(s.monto_honorarios, 0) > 0 then
     v_pct := porcentaje_vigente(s.comisionista_id, v_mes);
-    insert into comisiones (comisionista_id, solicitud_id, tipo, base, porcentaje, monto, mes, nota)
+    insert into comisiones (comisionista_id, solicitud_id, tipo, base, porcentaje, provisional, monto, mes, nota)
     values (s.comisionista_id, s.id, 'comision', s.monto_honorarios, v_pct,
+            porcentaje_es_provisional(s.comisionista_id, v_mes),
             round(s.monto_honorarios * v_pct / 100, 2), v_mes,
             'Devengada al quedar pagado el trabajo');
   end if;

@@ -13,11 +13,13 @@ Archivos numerados que se corren en orden desde el editor SQL de Supabase.
 | `0006_acceso.sql` | Alta por correo y amarre del usuario de autenticación |
 | `0007_storage.sql` | Buckets privados `comprobantes` y `cotizaciones` |
 | `0008_catalogos.sql` | Marcas, cuentas (CLABEs placeholder), servicios, niveles, mapeo |
+| `0009_lectura_notion.sql` | Lectura de Notion (folio desde el título, etapa → estatus) y alertas |
 
 Fuera de las migraciones, en `supabase/`:
 
 - `semilla_prueba.sql` — **solo en un proyecto de pruebas.** 3 comisionistas, 10 trabajos, septiembre aprobado.
 - `verificaciones.sql` — prueba las reglas contra la semilla, dentro de `begin … rollback`.
+  Las mismas secciones corren con `npm test` (vitest + PGlite, ver `pruebas/`).
 
 ## Lo que lleva una tabla nueva
 
