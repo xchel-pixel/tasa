@@ -8,6 +8,8 @@ import { fechaCorta, mesLargo, pesos } from "@/lib/formato";
 import { esStaff, exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import type { FilaComisionista } from "../page";
+import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
+import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { AgregarMovimiento, CambiarActivo, EditarDatos, ForzarElite } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
@@ -64,10 +66,10 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
       .returns<{ id: string; mes: string; monto: string | number; pagado: string | number; pagado_en: string | null; factura_ruta: string | null }[]>(),
     supabase
       .from("pagos_comision")
-      .select("id, fecha, monto, referencia, documento, origenes_pago(nombre)")
+      .select("id, fecha, monto, referencia, documento, estado, motivo_anulacion, origenes_pago(nombre)")
       .eq("comisionista_id", id)
       .order("fecha", { ascending: false })
-      .returns<{ id: string; fecha: string; monto: string | number; referencia: string | null; documento: keyof typeof DOCUMENTO; origenes_pago: { nombre: string } | null }[]>(),
+      .returns<{ id: string; fecha: string; monto: string | number; referencia: string | null; documento: keyof typeof DOCUMENTO; estado: "registrado" | "anulado"; motivo_anulacion: string | null; origenes_pago: { nombre: string } | null }[]>(),
     supabase.from("cuentas_receptoras").select("id, alias").eq("activa", true).order("alias").returns<{ id: string; alias: string }[]>(),
     supabase.from("servicios").select("id, nombre").eq("activo", true).order("nombre").returns<{ id: string; nombre: string }[]>(),
   ]);
@@ -83,6 +85,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   // de comisión, estado de cuenta ni acciones (mezclan marcas).
   const staff = esStaff(yo);
   const activo = r?.activo ?? f.personas.activo;
+  const cerrados = staff ? await mesesCerrados() : new Set<string>();
   // PostgREST no sigue la llave compuesta de un comisionista a otro: el
   // nombre de quien lo refirió se lee aparte.
   const referido = f.referido_por
@@ -162,15 +165,31 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
             <h3 className="mt-4 font-semibold">Pagos registrados</h3>
             <ul className="mt-2 flex flex-col">
               {listaPagos.map((p, i) => (
-                <li key={p.id} className={`flex items-start justify-between gap-3 rounded px-2 py-2 text-[0.9375rem] ${i % 2 ? "bg-alterno" : ""}`}>
-                  <span className="min-w-0">
-                    <span className="block font-semibold">{fechaCorta(p.fecha)}</span>
-                    <span className="block text-secundario">
-                      {p.origenes_pago?.nombre}
-                      {p.referencia ? ` · ${p.referencia}` : ""} · {DOCUMENTO[p.documento]}
+                <li key={p.id} className={`rounded px-2 py-2 text-[0.9375rem] ${i % 2 ? "bg-alterno" : ""}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block font-semibold">{fechaCorta(p.fecha)}</span>
+                      <span className="block text-secundario">
+                        {p.origenes_pago?.nombre}
+                        {p.referencia ? ` · ${p.referencia}` : ""} · {DOCUMENTO[p.documento]}
+                      </span>
                     </span>
-                  </span>
-                  <span className="whitespace-nowrap font-semibold">{pesos(Number(p.monto))}</span>
+                    <span className={`whitespace-nowrap font-semibold ${p.estado === "anulado" ? "text-secundario line-through" : ""}`}>
+                      {pesos(Number(p.monto))}
+                    </span>
+                  </div>
+                  {p.estado === "anulado" ? (
+                    <p className="mt-1 text-secundario"><Etiqueta tono="neutro">Anulado</Etiqueta> {p.motivo_anulacion}</p>
+                  ) : cerrados.has(mesDeFecha(p.fecha)) ? (
+                    <MesCerrado />
+                  ) : (
+                    <AccionConMotivo
+                      que="anular_pago_comision"
+                      id={p.id}
+                      texto="Anular pago"
+                      explicacion="El pago queda anulado (no se borra) y lo que cubrió vuelve a quedar por pagar. El comisionista deja de verlo."
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -236,6 +255,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           mesPedido={typeof mes === "string" ? mes : undefined}
           base={`/admin/comisionistas/${id}`}
           dueno={false}
+          puedeAnular={superAdmin}
         />
       </Seccion>
 

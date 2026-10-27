@@ -144,9 +144,11 @@ Multi-organización (etapa 1): organizaciones, membresías, roles, plataforma, e
 manual con interfaz de conectores y Vault, semilla con XG y Demo Valuadores. Publicado en
 `tasa.xgplataform.com` (Vercel; se publica solo con cada push a main).
 
-Pendiente del panel: catálogos de marcas, cuentas, servicios, niveles y mapeo de estatus; las
-pantallas del deshacer/anular (la base ya existe); tema por organización (color y logo ya están
-en el esquema).
+Deshacer/anular con motivo (ficha del trabajo, bandeja de pagos, ficha del comisionista) y
+catálogos de marcas, cuentas (CLABE con dígito de control) y servicios.
+
+Pendiente del panel: catálogos de niveles y mapeo de estatus; tema por organización (color y
+logo ya están en el esquema).
 
 ## Plan (en este orden)
 
@@ -154,7 +156,9 @@ en el esquema).
    emitir; alta de comisionistas; cuentas receptoras; mapeo de estatus; cierre mensual.
 2. **Aceptación de términos** del comisionista: casilla + fecha, texto editable por super_admin
    que incluya "cuenta personal e intransferible". Ver el plan detallado en README.
-3. **Solicitud pública por liga** (`/s/<slug>`), antes de la tarjeta digital. Ver README.
+3. **Solicitud pública por liga** (`/s/<org>/<slug>`), antes de la tarjeta digital. Ver README.
+   - **Marca opcional en la solicitud:** que el comisionista pueda elegir marca al pedir, para que
+     admin_marca vea las solicitudes de su marca desde el inicio (hoy solo las ve al cotizarse).
 4. **Control de dispositivos**. NO construir antes de terminar el panel. Ver README.
 5. **Etapa 2: conector Notion real** (`/api/cron`, pg_cron + pg_net, CRON_SECRET y llave de
    servicio en Vercel). Antes de construirla, guía paso a paso para Xchel. Después: correos de

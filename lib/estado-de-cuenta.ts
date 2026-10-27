@@ -35,6 +35,10 @@ export type Movimiento = {
   /** Alias de la empresa (cuenta receptora) a la que se asigna. */
   entidad: string;
   servicio: string | null;
+  /** Este movimiento anula a otro (su contrario). */
+  anula_id: string | null;
+  /** Este movimiento fue anulado (existe su contrario). */
+  anulado: boolean;
 };
 
 /** Lo que el comisionista ve de un pago: nunca el origen del dinero. */
@@ -69,6 +73,7 @@ type FilaMovimiento = {
   estado: "devengada" | "pagada";
   pagada_en: string | null;
   nota: string | null;
+  anula_id: string | null;
   cuentas_receptoras: { alias: string } | null;
   servicios: { nombre: string } | null;
   solicitudes: { id: string; folio: string | null; cliente_nombre: string } | null;
@@ -99,7 +104,7 @@ export async function estadoDelMes(personaId: string, mes: string, staff = false
     supabase
       .from("comisiones")
       .select(
-        "id, tipo, base, porcentaje, monto, provisional, estado, pagada_en, nota, cuentas_receptoras(alias), servicios(nombre), solicitudes(id, folio, cliente_nombre)"
+        "id, tipo, base, porcentaje, monto, provisional, estado, pagada_en, nota, anula_id, cuentas_receptoras(alias), servicios(nombre), solicitudes(id, folio, cliente_nombre)"
       )
       .eq("comisionista_id", personaId)
       .eq("mes", mes)
@@ -122,7 +127,9 @@ export async function estadoDelMes(personaId: string, mes: string, staff = false
       .returns<{ id: string; monto: string | number; pagado: string | number; pagado_en: string | null; factura_ruta: string | null } | null>(),
   ]);
 
-  const movimientos: Movimiento[] = (oExplota(movs, "los movimientos") ?? []).map((f) => ({
+  const filasMov = oExplota(movs, "los movimientos") ?? [];
+  const anulados = new Set(filasMov.map((f) => f.anula_id).filter(Boolean));
+  const movimientos: Movimiento[] = filasMov.map((f) => ({
     id: f.id,
     tipo: f.tipo,
     base: f.base === null ? null : Number(f.base),
@@ -135,6 +142,8 @@ export async function estadoDelMes(personaId: string, mes: string, staff = false
     trabajo: f.solicitudes ? { id: f.solicitudes.id, folio: f.solicitudes.folio, cliente: f.solicitudes.cliente_nombre } : null,
     entidad: f.tipo === "arrastre" ? "Saldo arrastrado" : (f.cuentas_receptoras?.alias ?? "Sin cuenta"),
     servicio: f.servicios?.nombre ?? null,
+    anula_id: f.anula_id,
+    anulado: anulados.has(f.id),
   }));
 
   const entidades = new Map<string, number>();
@@ -172,12 +181,14 @@ async function pagosDelPendiente(pendienteId: string, staff: boolean): Promise<P
     const filas = oExplota(
       await supabase
         .from("aplicaciones_pago_comision")
-        .select("monto, pagos_comision(fecha, referencia)")
+        .select("monto, pagos_comision(fecha, referencia, estado)")
         .eq("pendiente_id", pendienteId)
-        .returns<{ monto: string | number; pagos_comision: { fecha: string; referencia: string | null } | null }[]>(),
+        .returns<{ monto: string | number; pagos_comision: { fecha: string; referencia: string | null; estado: string } | null }[]>(),
       "los pagos"
     );
+    // Un pago anulado ya no cubre nada (el comisionista tampoco lo ve).
     return (filas ?? [])
+      .filter((f) => f.pagos_comision?.estado === "registrado")
       .map((f) => ({ fecha: f.pagos_comision?.fecha ?? "", referencia: f.pagos_comision?.referencia ?? null, monto: Number(f.monto) }))
       .sort((a, b) => a.fecha.localeCompare(b.fecha));
   }

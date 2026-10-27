@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { Etiqueta } from "@/components/etiqueta";
 import { SubirFactura } from "@/components/subir-factura";
 import { TIPO_MOVIMIENTO, estadoDelMes, mesesDisponibles, type Movimiento } from "@/lib/estado-de-cuenta";
@@ -16,6 +17,7 @@ export async function VistaEstadoDeCuenta({
   base,
   dueno,
   carpeta,
+  puedeAnular = false,
 }: {
   personaId: string;
   mesPedido: string | undefined;
@@ -25,6 +27,8 @@ export async function VistaEstadoDeCuenta({
   dueno: boolean;
   /** Carpeta del dueño para subir su factura (`{organización}/{persona}`). */
   carpeta?: string;
+  /** admin_org desde la ficha: anula bonos, ajustes y cargos hechos a mano. */
+  puedeAnular?: boolean;
 }) {
   const meses = await mesesDisponibles(personaId);
   const mes = mesPedido && meses.includes(mesPedido) ? mesPedido : (meses[0] ?? mesActual());
@@ -76,7 +80,7 @@ export async function VistaEstadoDeCuenta({
           <ul className="mt-4 flex flex-col">
             {cuenta.movimientos.map((m, i) => (
               <li key={m.id} className={`rounded-lg px-3 py-3 ${i % 2 === 1 ? "bg-alterno" : ""}`}>
-                <Linea m={m} />
+                <Linea m={m} puedeAnular={puedeAnular} mesCerrado={cuenta.publicado} />
               </li>
             ))}
           </ul>
@@ -177,7 +181,8 @@ export async function VistaEstadoDeCuenta({
   );
 }
 
-function Linea({ m }: { m: Movimiento }) {
+function Linea({ m, puedeAnular, mesCerrado }: { m: Movimiento; puedeAnular: boolean; mesCerrado: boolean }) {
+  const manual = !m.trabajo && (m.tipo === "bono" || m.tipo === "ajuste" || m.tipo === "cargo") && !m.anula_id;
   const titulo = m.trabajo ? m.trabajo.cliente : (m.nota ?? TIPO_MOVIMIENTO[m.tipo]);
   return (
     <div>
@@ -199,12 +204,26 @@ function Linea({ m }: { m: Movimiento }) {
         </div>
         <p className={`whitespace-nowrap font-bold ${m.monto < 0 ? "text-error" : "text-texto"}`}>{pesos(m.monto)}</p>
       </div>
-      {m.provisional || m.estado === "pagada" || (m.tipo === "cargo" && m.nota && m.trabajo) ? (
+      {m.provisional || m.estado === "pagada" || m.anulado || m.anula_id || (m.tipo === "cargo" && m.nota && m.trabajo) ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
+          {m.anulado ? <Etiqueta tono="neutro">Anulado</Etiqueta> : null}
+          {m.anula_id ? <Etiqueta tono="neutro">Anulación</Etiqueta> : null}
           {m.provisional ? <Etiqueta tono="proceso">Provisional</Etiqueta> : null}
           {m.estado === "pagada" && m.pagada_en ? <Etiqueta tono="exito">Pagada el {fechaCorta(m.pagada_en)}</Etiqueta> : null}
           {m.tipo === "cargo" && m.nota && m.trabajo ? <span className="text-[0.875rem] text-secundario">{m.nota}</span> : null}
         </div>
+      ) : null}
+      {puedeAnular && manual && !m.anulado ? (
+        mesCerrado ? (
+          <MesCerrado />
+        ) : (
+          <AccionConMotivo
+            que="anular_movimiento"
+            id={m.id}
+            texto="Anular"
+            explicacion="No se borra: entra el movimiento contrario en el mismo mes y los dos suman cero. El comisionista ve ambos."
+          />
+        )
       ) : null}
     </div>
   );

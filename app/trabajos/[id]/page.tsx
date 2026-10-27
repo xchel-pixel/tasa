@@ -8,6 +8,8 @@ import { fechaCorta, pesos } from "@/lib/formato";
 import { exigirPersona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerTrabajo } from "@/lib/trabajos";
+import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
+import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import AceptarCotizacion from "./aceptar-cotizacion";
 import CambiarEstatus from "./cambiar-estatus";
 
@@ -40,6 +42,29 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
     const { data: conector } = await supabase.from("conectores").select("tipo").eq("activo", true).maybeSingle();
     estatusAMano = (conector?.tipo ?? "manual") === "manual";
   }
+  // Quien opera el trabajo (admin_org, finanzas, admin_marca de su marca) puede deshacer y ve
+  // el historial de correcciones; el RLS ya le dejó ver solo lo suyo.
+  const operador = persona.rol === "admin_org" || persona.rol === "finanzas" || persona.rol === "admin_marca";
+  let cerrados = new Set<string>();
+  let correcciones: Correccion[] = [];
+  if (operador) {
+    const supabase = await crearClienteServidor();
+    const [meses, eventos] = await Promise.all([
+      mesesCerrados(),
+      supabase
+        .from("eventos_trabajo")
+        .select("id, accion, motivo, detalle, creado_en, personas(nombre)")
+        .eq("solicitud_id", t.id)
+        .order("creado_en")
+        .returns<Correccion[]>(),
+    ]);
+    cerrados = meses;
+    correcciones = eventos.data ?? [];
+  }
+  // En un mes cerrado no se deshace: ni el mes del pago ni el de la comisión que devengó.
+  const mesCerrado = (pago: { fecha_pago: string; estado: string }) =>
+    cerrados.has(mesDeFecha(pago.fecha_pago)) ||
+    (pago.estado === "confirmado" && Boolean(t.mes_cierre) && cerrados.has(mesDeFecha(t.mes_cierre!)));
   const confirmado = t.pagos.filter((p) => p.estado === "confirmado").reduce((s, p) => s + p.monto, 0);
   const porConfirmar = t.pagos.filter((p) => p.estado === "reportado").reduce((s, p) => s + p.monto, 0);
 
@@ -76,6 +101,14 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
               Administración está preparando la cotización. Te avisamos por correo cuando esté lista.
             </p>
           ) : null}
+          {t.estado === "solicitada" && persona.rol === "comisionista" ? (
+            <AccionConMotivo
+              que="cancelar_solicitud"
+              id={t.id}
+              texto="Cancelar solicitud"
+              explicacion="La solicitud se cancela y Administración ya no la cotiza. Solo se puede mientras no tenga cotización."
+            />
+          ) : null}
 
           {t.estado === "cotizada" && t.cotizacion ? (
             <Seccion titulo="Cotización">
@@ -100,6 +133,14 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                 </a>
               ) : null}
               <AceptarCotizacion cotizacionId={t.cotizacion.id} />
+              {operador ? (
+                <AccionConMotivo
+                  que="anular_cotizacion"
+                  id={t.cotizacion.id}
+                  texto="Anular cotización"
+                  explicacion="La cotización queda anulada (no se borra) y la solicitud vuelve a por cotizar. El comisionista deja de verla."
+                />
+              ) : null}
             </Seccion>
           ) : null}
 
@@ -155,7 +196,34 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                     {p.estado === "rechazado" && p.motivo_rechazo ? (
                       <p className="mt-2 text-[0.9375rem] leading-6 text-error">Motivo: {p.motivo_rechazo}</p>
                     ) : null}
+                    {p.estado === "retirado" && p.motivo_retiro ? (
+                      <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">Retirado: {p.motivo_retiro}</p>
+                    ) : null}
                     {p.nota ? <p className="mt-1 text-[0.9375rem] text-secundario">{p.nota}</p> : null}
+                    {operador && (p.estado === "confirmado" || p.estado === "rechazado") ? (
+                      mesCerrado(p) ? (
+                        <MesCerrado />
+                      ) : (
+                        <AccionConMotivo
+                          que="revertir_pago"
+                          id={p.id}
+                          texto={p.estado === "confirmado" ? "Revertir confirmación" : "Revertir rechazo"}
+                          explicacion={
+                            p.estado === "confirmado"
+                              ? "El pago vuelve a \"Por confirmar\". Si con él el trabajo había quedado pagado, deja de estarlo y la comisión que devengó se quita."
+                              : "El pago vuelve a \"Por confirmar\" para revisarlo otra vez."
+                          }
+                        />
+                      )
+                    ) : null}
+                    {persona.rol === "comisionista" && p.estado === "reportado" && p.reportado_por === persona.id ? (
+                      <AccionConMotivo
+                        que="retirar_pago"
+                        id={p.id}
+                        texto="Retirar"
+                        explicacion="El pago deja de esperar confirmación. Si lo reportaste mal, retíralo y repórtalo de nuevo."
+                      />
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -172,6 +240,24 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
               {t.cliente_correo ? <Dato etiqueta="Correo" valor={t.cliente_correo} /> : null}
             </dl>
           </Seccion>
+
+          {correcciones.length > 0 ? (
+            <Seccion titulo="Correcciones">
+              <ol className="flex flex-col gap-2 border-l-2 border-error pl-4">
+                {correcciones.map((c) => (
+                  <li key={c.id} className="text-[0.9375rem] leading-6">
+                    <span className="font-semibold">{ACCION_CORRECCION[c.accion] ?? c.accion}</span>
+                    <span className="text-secundario">
+                      {" "}· {fechaCorta(c.creado_en)}
+                      {c.personas?.nombre ? ` · ${c.personas.nombre}` : ""}
+                    </span>
+                    {c.detalle ? <span className="block text-secundario">{c.detalle}</span> : null}
+                    {c.motivo ? <span className="block">Motivo: {c.motivo}</span> : null}
+                  </li>
+                ))}
+              </ol>
+            </Seccion>
+          ) : null}
 
           {t.historial.length > 0 ? (
             <Seccion titulo="Historial">
@@ -240,3 +326,20 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
     </div>
   );
 }
+
+type Correccion = {
+  id: string;
+  accion: string;
+  motivo: string | null;
+  detalle: string | null;
+  creado_en: string;
+  personas: { nombre: string } | null;
+};
+
+const ACCION_CORRECCION: Record<string, string> = {
+  revertir_confirmacion: "Confirmación revertida",
+  revertir_rechazo: "Rechazo revertido",
+  retirar_pago: "Pago retirado",
+  anular_cotizacion: "Cotización anulada",
+  cancelar: "Cancelado",
+};

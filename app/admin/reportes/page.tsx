@@ -32,6 +32,7 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
       ? supabase
           .from("pagos_comision")
           .select("monto, documento, origenes_pago(nombre), comisionistas(personas(nombre))")
+          .eq("estado", "registrado")
           .gte("fecha", mes)
           .lt("fecha", mesSiguiente(mes))
           .returns<{ monto: string | number; documento: string; origenes_pago: { nombre: string } | null; comisionistas: { personas: { nombre: string } | null } | null }[]>()

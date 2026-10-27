@@ -100,6 +100,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
       <nav aria-label="Más" className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
         <Enlace href="/admin/comisionistas">Comisionistas</Enlace>
         {staff ? <Enlace href="/admin/reportes">Reportes</Enlace> : null}
+        {persona.rol === "admin_org" ? <Enlace href="/admin/catalogos">Catálogos</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/admin/equipo">Equipo</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/ajustes">Ajustes</Enlace> : null}
         {persona.superPlataforma ? <Enlace href="/plataforma">Plataforma</Enlace> : null}

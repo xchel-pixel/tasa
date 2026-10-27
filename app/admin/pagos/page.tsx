@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { Etiqueta } from "@/components/etiqueta";
-import { VIA_PAGO, type ViaPago } from "@/lib/estatus";
+import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
+import { ESTADO_PAGO, VIA_PAGO, type ViaPago } from "@/lib/estatus";
+import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { fechaCorta, pesos } from "@/lib/formato";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
@@ -30,6 +32,11 @@ type FilaPago = {
   } | null;
 };
 
+/** El instante de hace `n` días, para filtrar por fecha de revisión. */
+function haceDias(n: number) {
+  return new Date(Date.now() - n * 24 * 3600 * 1000).toISOString();
+}
+
 /** Los más viejos primero: el que lleva más tiempo esperando va arriba. */
 export default async function PagosPorConfirmar() {
   await exigirRol(...ROLES_OPERACION);
@@ -49,6 +56,21 @@ export default async function PagosPorConfirmar() {
         .returns<FilaPago[]>(),
       "los pagos por confirmar"
     ) ?? [];
+
+  // Lo revisado en los últimos 30 días, para corregir sin buscar el trabajo.
+  const hace30 = haceDias(30);
+  const [revisados, cerrados] = await Promise.all([
+    supabase
+      .from("pagos")
+      .select("id, monto, fecha_pago, estado, motivo_rechazo, revisado_en, solicitudes(id, cliente_nombre, folio, mes_cierre)")
+      .in("estado", ["confirmado", "rechazado"])
+      .gte("revisado_en", hace30)
+      .order("revisado_en", { ascending: false })
+      .limit(30)
+      .returns<Revisado[]>(),
+    mesesCerrados(),
+  ]);
+  const listaRevisados = oExplota(revisados, "los pagos revisados") ?? [];
 
   // El bucket es privado: cada comprobante se abre con una liga que vence en 10 minutos.
   const ligas = await Promise.all(
@@ -128,6 +150,62 @@ export default async function PagosPorConfirmar() {
           })}
         </ul>
       )}
+
+      {listaRevisados.length > 0 ? (
+        <section className="mt-10">
+          <h2 className="text-[1.125rem] font-bold">Revisados en los últimos 30 días</h2>
+          <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+            Si alguno se confirmó o rechazó por error, regrésalo a &quot;Por confirmar&quot;.
+          </p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {listaRevisados.map((r) => {
+              const cerrado =
+                cerrados.has(mesDeFecha(r.fecha_pago)) ||
+                (r.estado === "confirmado" && Boolean(r.solicitudes?.mes_cierre) && cerrados.has(mesDeFecha(r.solicitudes!.mes_cierre!)));
+              return (
+                <li key={r.id} className="rounded-lg border border-linea px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 text-[0.9375rem]">
+                      <p className="font-semibold">{pesos(Number(r.monto))}</p>
+                      {r.solicitudes ? (
+                        <Link href={`/trabajos/${r.solicitudes.id}`} className="text-acento underline underline-offset-4">
+                          {r.solicitudes.cliente_nombre}
+                        </Link>
+                      ) : null}
+                      <p className="text-secundario">Pago del {fechaCorta(r.fecha_pago)}</p>
+                    </div>
+                    <Etiqueta tono={ESTADO_PAGO[r.estado].tono}>{ESTADO_PAGO[r.estado].texto}</Etiqueta>
+                  </div>
+                  {cerrado ? (
+                    <MesCerrado />
+                  ) : (
+                    <AccionConMotivo
+                      que="revertir_pago"
+                      id={r.id}
+                      texto={r.estado === "confirmado" ? "Revertir confirmación" : "Revertir rechazo"}
+                      explicacion={
+                        r.estado === "confirmado"
+                          ? "El pago vuelve a \"Por confirmar\". Si con él el trabajo había quedado pagado, deja de estarlo y la comisión que devengó se quita."
+                          : "El pago vuelve a \"Por confirmar\" para revisarlo otra vez."
+                      }
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
     </PantallaAdmin>
   );
 }
+
+type Revisado = {
+  id: string;
+  monto: string | number;
+  fecha_pago: string;
+  estado: "confirmado" | "rechazado";
+  motivo_rechazo: string | null;
+  revisado_en: string;
+  solicitudes: { id: string; cliente_nombre: string; folio: string | null; mes_cierre: string | null } | null;
+};

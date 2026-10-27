@@ -44,12 +44,13 @@ export function estatusVisible(estatus: EstatusPublico, folio: string | null) {
 /** Ya no se mueve: no cuenta como "en curso". */
 export const ESTATUS_CERRADOS: EstatusPublico[] = ["pagado", "vencida", "cancelada"];
 
-export type EstadoPago = "reportado" | "confirmado" | "rechazado";
+export type EstadoPago = "reportado" | "confirmado" | "rechazado" | "retirado";
 
 export const ESTADO_PAGO: Record<EstadoPago, { texto: string; tono: Tono }> = {
   reportado: { texto: "Por confirmar", tono: "proceso" },
   confirmado: { texto: "Confirmado", tono: "exito" },
   rechazado: { texto: "Rechazado", tono: "error" },
+  retirado: { texto: "Retirado", tono: "neutro" },
 };
 
 export type ViaPago = "comprobante" | "directo" | "aviso" | "efectivo";

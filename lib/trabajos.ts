@@ -69,6 +69,8 @@ export type Pago = {
   nota: string | null;
   estado: EstadoPago;
   motivo_rechazo: string | null;
+  motivo_retiro: string | null;
+  reportado_por: string | null;
 };
 
 export type Trabajo = {
@@ -93,6 +95,8 @@ export type Trabajo = {
   monto_total: number;
   cuenta: { titular: string; banco: string | null; clabe: string } | null;
   pagado_en: string | null;
+  /** Mes al que cayó la comisión al quedar pagado (para saber si ya cerró). */
+  mes_cierre: string | null;
   motivo_cancelacion: string | null;
   creado_en: string;
   pagos: Pago[];
@@ -146,9 +150,9 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
         `id, folio, tipo, estado, estatus_publico, inmueble_direccion, inmueble_municipio,
          inmueble_clave_catastral, inmueble_descripcion, cliente_nombre, cliente_telefono,
          cliente_correo, requiere_factura, monto_honorarios, monto_iva, monto_terceros,
-         monto_total, pagado_en, motivo_cancelacion, creado_en,
+         monto_total, pagado_en, mes_cierre, motivo_cancelacion, creado_en,
          servicios(nombre), marcas(nombre), cuentas_receptoras(titular, banco, clabe),
-         pagos(id, via, monto, fecha_pago, referencia, nota, recibido_por, estado, motivo_rechazo),
+         pagos(id, via, monto, fecha_pago, referencia, nota, recibido_por, estado, motivo_rechazo, motivo_retiro, reportado_por),
          historial_estatus(estatus_publico, desde),
          cotizaciones(id, estado, monto_honorarios, monto_iva, monto_terceros, monto_total,
                       requiere_factura, vigente_hasta, pdf_ruta, cuentas_receptoras(titular, banco, clabe))`

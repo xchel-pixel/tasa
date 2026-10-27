@@ -777,7 +777,7 @@ begin
   perform pg_temp.debe_fallar(format('select retirar_pago(%L, %L)', p, 'me equivoqué'),
     'ya está confirmado', 'El comisionista no retira un pago ya confirmado');
   perform pg_temp.debe_fallar(format('select revertir_pago(%L, %L)', p, 'x'),
-    'Solo finanzas', 'El comisionista no revierte confirmaciones');
+    'No existe ese pago', 'El comisionista no revierte confirmaciones');
 
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.debe_fallar(format('select revertir_pago(%L, %L)', p, '  '),
@@ -846,7 +846,7 @@ begin
   -- Cotizaciones y solicitudes.
   perform pg_temp.debe_fallar(
     format('select anular_cotizacion(%L, %L)', (select id from cotizaciones where solicitud_id = t2 and estado = 'emitida'), 'x'),
-    'Solo finanzas', 'El comisionista no anula cotizaciones');
+    'No existe esa cotización', 'El comisionista no anula cotizaciones');
   perform pg_temp.como('gaby@tasa.test');
   perform anular_cotizacion((select id from cotizaciones where solicitud_id = t2 and estado = 'emitida'), 'Precio equivocado');
   perform pg_temp.sistema();
@@ -993,7 +993,8 @@ begin
   -- super_plataforma entra a Demo sin ser miembro: actúa como admin_org
   -- y la bitácora lo dice.
   perform pg_temp.como('xchel@arqosuv.com');
-  perform pg_temp.igual((select count(*) from mis_organizaciones()), 2::bigint, 'La plataforma ve todas las organizaciones');
+  perform pg_temp.igual((select count(*) = (select count(*) from organizaciones where activa) from mis_organizaciones()), true,
+    'La plataforma ve todas las organizaciones');
   perform elegir_organizacion(demo);
   perform pg_temp.igual(mi_rol(), 'admin_org'::text, 'En Demo actúa como admin_org');
   update ajustes set dia_limite_pago_comision = 12;
@@ -1014,13 +1015,13 @@ begin
 
   -- admin_marca de AP73 en XG.
   perform pg_temp.como('xchel@arqosuv.com');
-  perform alta_membresia('Admin AP73', 'xchel+ap73@arqosuv.com', 'admin_marca', array[ap73]);
+  perform alta_membresia('Admin AP73', 'verifica-ap73@tasa.test', 'admin_marca', array[ap73]);
   perform pg_temp.debe_fallar($q$select alta_membresia('X', 'x@x.test', 'admin_marca', '{}')$q$,
     'al menos una marca', 'admin_marca sin marca no se puede');
   perform pg_temp.sistema();
-  insert into auth.users (id, email) values (gen_random_uuid(), 'xchel+ap73@arqosuv.com');
+  insert into auth.users (id, email) values (gen_random_uuid(), 'verifica-ap73@tasa.test');
 
-  perform pg_temp.como('xchel+ap73@arqosuv.com');
+  perform pg_temp.como('verifica-ap73@tasa.test');
   perform pg_temp.igual((select bool_and(marca_id = ap73) from solicitudes), true, 'admin_marca ve solo trabajos de su marca');
   perform pg_temp.igual((select count(*) > 0 from solicitudes), true, 'Y sí los ve');
   perform pg_temp.igual((select count(*) from cierres), 0::bigint, 'Sin cierres');
@@ -1097,6 +1098,64 @@ begin
                            from conectores where id = notion), 'activo/0'::text,
     'El siguiente sync bueno lo deja activo y cierra la alerta');
   perform pg_temp.sistema();
+end;
+$$;
+
+-- @@ Deshacer por rol y eventos del trabajo
+-- Hoy: 5 de diciembre. Un trabajo de AP73 y uno de MGP pagados en diciembre.
+do $$
+declare
+  carla uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
+  ap73  uuid := (select id from marcas where organizacion_id = pg_temp.xg() and clave = 'AP73');
+  mgp   uuid := (select id from marcas where organizacion_id = pg_temp.xg() and clave = 'MGP');
+  banregio uuid := (select id from cuentas_receptoras where organizacion_id = pg_temp.xg() and alias = 'Banregio AP73');
+  romi  uuid := (select id from cuentas_receptoras where organizacion_id = pg_temp.xg() and alias = 'ROMI');
+  serv  uuid := (select id from servicios where organizacion_id = pg_temp.xg() and nombre = 'Avalúo Comercial');
+  s_ap73 uuid; s_mgp uuid; p_ap73 uuid; p_mgp uuid;
+begin
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en)
+  values (carla, 'tramite_directo', 'admin', serv, 'Calle AP73', 'Cliente AP73', ap73, banregio, 5000,
+          'tramite', 'entregado', now()) returning id into s_ap73;
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en)
+  values (carla, 'tramite_directo', 'admin', serv, 'Calle MGP', 'Cliente MGP', mgp, romi, 5000,
+          'tramite', 'entregado', now()) returning id into s_mgp;
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia) values (s_ap73, 'directo', 5000, '2026-12-02', 'ap73')
+  returning id into p_ap73;
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia, reportado_por) values (s_mgp, 'directo', 5000, '2026-12-02', 'mgp', carla)
+  returning id into p_mgp;
+  update pagos set estado = 'confirmado' where id in (p_ap73, p_mgp);
+
+  perform pg_temp.como('verifica-ap73@tasa.test');
+  perform pg_temp.igual((select count(*) > 0 from meses_cerrados()), true, 'admin_marca sabe qué meses están cerrados');
+  perform pg_temp.debe_fallar(format('select revertir_pago(%L, %L)', p_mgp, 'x'),
+    'No existe', 'admin_marca no revierte pagos de otra marca');
+  perform revertir_pago(p_ap73, 'Era de otro cliente');
+  perform pg_temp.igual((select estado from pagos where id = p_ap73), 'reportado'::text,
+    'admin_marca revierte la confirmación de un pago de su marca');
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s_ap73), 0::bigint,
+    'Y la comisión que había devengado se revierte');
+  perform pg_temp.igual(
+    (select accion || ': ' || motivo from eventos_trabajo where solicitud_id = s_ap73),
+    'revertir_confirmacion: Era de otro cliente'::text, 'El historial del trabajo anota la reversión con su motivo');
+  update pagos set estado = 'confirmado' where id = p_ap73;
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s_ap73), 1::bigint,
+    'Desde "por confirmar" se vuelve a confirmar y la comisión se devenga otra vez');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform revertir_pago(p_mgp, 'Confirmado por error');
+  perform pg_temp.igual((select estado from pagos where id = p_mgp), 'reportado'::text, 'Finanzas revierte pagos de clientes');
+  perform pg_temp.igual((select count(*) from eventos_trabajo where solicitud_id = s_mgp), 1::bigint,
+    'Finanzas ve el historial del trabajo');
+
+  perform pg_temp.como('xchel+carla@arqosuv.com');
+  perform pg_temp.igual((select count(*) from eventos_trabajo), 0::bigint,
+    'El comisionista no ve el historial interno de deshacer');
+  perform retirar_pago(p_mgp, 'Lo reporté mal');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select accion from eventos_trabajo where solicitud_id = s_mgp order by creado_en desc limit 1),
+    'retirar_pago'::text, 'Retirar un pago también queda en el historial del trabajo');
 end;
 $$;
 
