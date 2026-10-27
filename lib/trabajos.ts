@@ -1,5 +1,5 @@
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
-import type { EstadoPago, EstatusPublico } from "@/lib/estatus";
+import type { EstadoPago, EstatusPublico, ViaPago } from "@/lib/estatus";
 import { mesActual, mesSiguiente } from "@/lib/formato";
 
 /**
@@ -61,8 +61,9 @@ export async function misTrabajos(): Promise<TrabajoEnLista[]> {
 
 export type Pago = {
   id: string;
-  via: "comprobante" | "directo" | "aviso";
+  via: ViaPago;
   monto: number;
+  recibido_por: string | null;
   fecha_pago: string;
   referencia: string | null;
   nota: string | null;
@@ -147,7 +148,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
          cliente_correo, requiere_factura, monto_honorarios, monto_iva, monto_terceros,
          monto_total, pagado_en, motivo_cancelacion, creado_en,
          servicios(nombre), marcas(nombre), cuentas_receptoras(titular, banco, clabe),
-         pagos(id, via, monto, fecha_pago, referencia, nota, estado, motivo_rechazo),
+         pagos(id, via, monto, fecha_pago, referencia, nota, recibido_por, estado, motivo_rechazo),
          historial_estatus(estatus_publico, desde),
          cotizaciones(id, estado, monto_honorarios, monto_iva, monto_terceros, monto_total,
                       requiere_factura, vigente_hasta, pdf_ruta, cuentas_receptoras(titular, banco, clabe))`
@@ -223,7 +224,7 @@ export async function miNivel(personaId: string): Promise<MiNivel> {
     supabase.rpc("porcentaje_es_provisional", { p_comisionista: personaId, p_mes: mes }),
     supabase.rpc("calcular_nivel", { p_comisionista: personaId, p_mes: mesSiguiente(mes) }),
     supabase.from("niveles").select("nombre, orden, umbral_minimo, porcentaje, es_forzado").order("orden").returns<FilaNivel[]>(),
-    supabase.from("comisiones").select("monto, provisional").eq("mes", mes).returns<{ monto: string | number; provisional: boolean }[]>(),
+    supabase.from("comisiones").select("monto, provisional").eq("comisionista_id", personaId).eq("mes", mes).returns<{ monto: string | number; provisional: boolean }[]>(),
   ]);
 
   const porcentaje = Number(oExplota(pct, "tu porcentaje"));

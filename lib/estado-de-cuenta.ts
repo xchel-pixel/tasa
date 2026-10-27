@@ -5,9 +5,12 @@ import { mesActual, mesSiguiente } from "@/lib/formato";
  * El estado de cuenta es la lectura de `comisiones` por mes. Un mes con
  * cierre aprobado está publicado y ya no cambia; el mes abierto se
  * muestra "en curso" porque todavía puede moverse.
+ *
+ * Lo pagado sale del pendiente de pago que deja el cierre: un pendiente
+ * por mes con saldo a favor, que se cubre con uno o varios pagos.
  */
 
-export type TipoMovimiento = "comision" | "bono" | "ajuste" | "cargo" | "referido";
+export type TipoMovimiento = "comision" | "bono" | "ajuste" | "cargo" | "referido" | "arrastre";
 
 export const TIPO_MOVIMIENTO: Record<TipoMovimiento, string> = {
   comision: "Comisión",
@@ -15,6 +18,7 @@ export const TIPO_MOVIMIENTO: Record<TipoMovimiento, string> = {
   ajuste: "Ajuste",
   cargo: "Cargo",
   referido: "Referido",
+  arrastre: "Saldo arrastrado",
 };
 
 export type Movimiento = {
@@ -28,8 +32,21 @@ export type Movimiento = {
   pagada_en: string | null;
   nota: string | null;
   trabajo: { id: string; folio: string | null; cliente: string } | null;
-  /** Alias de la cuenta que recibió el dinero del trabajo (etiqueta, no el titular). */
+  /** Alias de la empresa (cuenta receptora) a la que se asigna. */
   entidad: string;
+  servicio: string | null;
+};
+
+/** Lo que el comisionista ve de un pago: nunca el origen del dinero. */
+export type PagoRecibido = { fecha: string; referencia: string | null; monto: number };
+
+export type Pendiente = {
+  id: string;
+  monto: number;
+  pagado: number;
+  pagado_en: string | null;
+  factura_ruta: string | null;
+  pagos: PagoRecibido[];
 };
 
 export type MesDeCuenta = {
@@ -38,8 +55,7 @@ export type MesDeCuenta = {
   movimientos: Movimiento[];
   porEntidad: { entidad: string; total: number }[];
   total: number;
-  pagado: number;
-  porPagar: number;
+  pendiente: Pendiente | null;
   nivelSiguiente: { nombre: string; porcentaje: number; promedio: number; meses: number } | null;
 };
 
@@ -53,36 +69,39 @@ type FilaMovimiento = {
   estado: "devengada" | "pagada";
   pagada_en: string | null;
   nota: string | null;
-  solicitudes: {
-    id: string;
-    folio: string | null;
-    cliente_nombre: string;
-    cuentas_receptoras: { alias: string } | null;
-  } | null;
+  cuentas_receptoras: { alias: string } | null;
+  servicios: { nombre: string } | null;
+  solicitudes: { id: string; folio: string | null; cliente_nombre: string } | null;
 };
 
 /**
  * Meses que tiene sentido mostrar: el en curso y los que tienen algún
- * movimiento suyo. Un cierre aprobado donde no tuvo nada no aporta.
+ * movimiento. Un cierre aprobado donde no tuvo nada no aporta.
  */
-export async function mesesDisponibles(): Promise<string[]> {
+export async function mesesDisponibles(personaId: string): Promise<string[]> {
   const supabase = await crearClienteServidor();
   const comisiones = oExplota(
-    await supabase.from("comisiones").select("mes").returns<{ mes: string }[]>(),
-    "tus meses"
+    await supabase.from("comisiones").select("mes").eq("comisionista_id", personaId).returns<{ mes: string }[]>(),
+    "los meses"
   );
   const meses = new Set<string>([mesActual(), ...(comisiones ?? []).map((f) => f.mes)]);
   return [...meses].sort().reverse();
 }
 
-export async function estadoDelMes(personaId: string, mes: string): Promise<MesDeCuenta> {
+/**
+ * `staff`: quien mira es Administración (la ficha del comisionista). Lee
+ * los pagos de la tabla; el comisionista los lee por `mis_pagos_comision`,
+ * que no trae el origen.
+ */
+export async function estadoDelMes(personaId: string, mes: string, staff = false): Promise<MesDeCuenta> {
   const supabase = await crearClienteServidor();
-  const [movs, cierre, nivel] = await Promise.all([
+  const [movs, cierre, nivel, pend] = await Promise.all([
     supabase
       .from("comisiones")
       .select(
-        "id, tipo, base, porcentaje, monto, provisional, estado, pagada_en, nota, solicitudes(id, folio, cliente_nombre, cuentas_receptoras(alias))"
+        "id, tipo, base, porcentaje, monto, provisional, estado, pagada_en, nota, cuentas_receptoras(alias), servicios(nombre), solicitudes(id, folio, cliente_nombre)"
       )
+      .eq("comisionista_id", personaId)
       .eq("mes", mes)
       .order("creado_en")
       .returns<FilaMovimiento[]>(),
@@ -94,9 +113,16 @@ export async function estadoDelMes(personaId: string, mes: string): Promise<MesD
       .eq("mes", mesSiguiente(mes))
       .maybeSingle()
       .returns<{ porcentaje: string | number; promedio: string | number; meses_considerados: number; niveles: { nombre: string } | null } | null>(),
+    supabase
+      .from("pendientes_comision")
+      .select("id, monto, pagado, pagado_en, factura_ruta")
+      .eq("comisionista_id", personaId)
+      .eq("mes", mes)
+      .maybeSingle()
+      .returns<{ id: string; monto: string | number; pagado: string | number; pagado_en: string | null; factura_ruta: string | null } | null>(),
   ]);
 
-  const movimientos: Movimiento[] = (oExplota(movs, "tus movimientos") ?? []).map((f) => ({
+  const movimientos: Movimiento[] = (oExplota(movs, "los movimientos") ?? []).map((f) => ({
     id: f.id,
     tipo: f.tipo,
     base: f.base === null ? null : Number(f.base),
@@ -107,26 +133,58 @@ export async function estadoDelMes(personaId: string, mes: string): Promise<MesD
     pagada_en: f.pagada_en,
     nota: f.nota,
     trabajo: f.solicitudes ? { id: f.solicitudes.id, folio: f.solicitudes.folio, cliente: f.solicitudes.cliente_nombre } : null,
-    entidad: f.solicitudes?.cuentas_receptoras?.alias ?? "Sin cuenta",
+    entidad: f.tipo === "arrastre" ? "Saldo arrastrado" : (f.cuentas_receptoras?.alias ?? "Sin cuenta"),
+    servicio: f.servicios?.nombre ?? null,
   }));
 
   const entidades = new Map<string, number>();
   for (const m of movimientos) entidades.set(m.entidad, (entidades.get(m.entidad) ?? 0) + m.monto);
 
-  const total = movimientos.reduce((s, m) => s + m.monto, 0);
-  const pagado = movimientos.filter((m) => m.estado === "pagada").reduce((s, m) => s + m.monto, 0);
-  const n = oExplota(nivel, "tu nivel");
+  const p = oExplota(pend, "el pendiente de pago");
+  const pendiente: Pendiente | null = p
+    ? {
+        id: p.id,
+        monto: Number(p.monto),
+        pagado: Number(p.pagado),
+        pagado_en: p.pagado_en,
+        factura_ruta: p.factura_ruta,
+        pagos: await pagosDelPendiente(p.id, staff),
+      }
+    : null;
+  const n = oExplota(nivel, "el nivel");
 
   return {
     mes,
     publicado: oExplota(cierre, "el cierre")?.estado === "aprobado",
     movimientos,
     porEntidad: [...entidades].map(([entidad, t]) => ({ entidad, total: t })),
-    total,
-    pagado,
-    porPagar: total - pagado,
+    total: movimientos.reduce((s, m) => s + m.monto, 0),
+    pendiente,
     nivelSiguiente: n
       ? { nombre: n.niveles?.nombre ?? "", porcentaje: Number(n.porcentaje), promedio: Number(n.promedio), meses: n.meses_considerados }
       : null,
   };
+}
+
+async function pagosDelPendiente(pendienteId: string, staff: boolean): Promise<PagoRecibido[]> {
+  const supabase = await crearClienteServidor();
+  if (staff) {
+    const filas = oExplota(
+      await supabase
+        .from("aplicaciones_pago_comision")
+        .select("monto, pagos_comision(fecha, referencia)")
+        .eq("pendiente_id", pendienteId)
+        .returns<{ monto: string | number; pagos_comision: { fecha: string; referencia: string | null } | null }[]>(),
+      "los pagos"
+    );
+    return (filas ?? [])
+      .map((f) => ({ fecha: f.pagos_comision?.fecha ?? "", referencia: f.pagos_comision?.referencia ?? null, monto: Number(f.monto) }))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }
+  const filas = oExplota(await supabase.rpc("mis_pagos_comision"), "tus pagos") as
+    | { pendiente_id: string; fecha: string; referencia: string | null; monto: string | number }[]
+    | null;
+  return (filas ?? [])
+    .filter((f) => f.pendiente_id === pendienteId)
+    .map((f) => ({ fecha: f.fecha, referencia: f.referencia, monto: Number(f.monto) }));
 }

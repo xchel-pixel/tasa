@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { DatosBancarios } from "@/components/datos-bancarios";
 import { Encabezado } from "@/components/encabezado";
 import { pesos } from "@/lib/formato";
-import { exigirRol } from "@/lib/sesion";
+import { esStaff, exigirRol } from "@/lib/sesion";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerTrabajo } from "@/lib/trabajos";
 import FormularioPago from "./formulario-pago";
 
@@ -12,7 +13,8 @@ export const metadata = { title: "Reportar pago — Tasa" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]/pagar">) {
-  const persona = await exigirRol("comisionista");
+  const persona = await exigirRol("comisionista", "super_admin", "finanzas");
+  const staff = esStaff(persona);
   const { id } = await params;
   if (!UUID.test(id)) notFound();
 
@@ -26,6 +28,19 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
   const falta = Math.max(0, t.monto_total - confirmado);
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
 
+  // "Quién recibió el efectivo": al staff se le sugieren los nombres del equipo.
+  let equipo: string[] = [];
+  if (staff) {
+    const supabase = await crearClienteServidor();
+    const { data } = await supabase
+      .from("personas")
+      .select("nombre")
+      .in("rol", ["super_admin", "finanzas"])
+      .eq("activo", true)
+      .returns<{ nombre: string }[]>();
+    equipo = (data ?? []).map((p) => p.nombre);
+  }
+
   return (
     <>
       <Encabezado />
@@ -34,7 +49,7 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
           <Link href={`/trabajos/${id}`} className="toque text-[0.9375rem] font-semibold text-acento">
             ← {t.cliente_nombre}
           </Link>
-          <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Reportar pago</h1>
+          <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">{staff ? "Registrar pago" : "Reportar pago"}</h1>
 
           <dl className="mt-4 flex flex-col gap-1 rounded-xl bg-tinte px-4 py-3 text-[0.9375rem]">
             <div className="flex justify-between gap-3">
@@ -67,6 +82,8 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
           <FormularioPago
             solicitudId={id}
             personaId={persona.id}
+            quien={staff ? "staff" : "comisionista"}
+            equipo={equipo}
             sugerido={Math.max(0, falta - porConfirmar)}
             hoy={hoy}
           />

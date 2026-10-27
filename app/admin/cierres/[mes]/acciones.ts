@@ -35,22 +35,3 @@ export async function moverCierre(_previo: EstadoCierre, formData: FormData): Pr
   return { error: null, mensaje: accion === "aprobar" ? "Cierre aprobado y publicado." : "Cierre preparado." };
 }
 
-/** Marca como pagadas las comisiones de un comisionista en un mes aprobado. */
-export async function marcarPagadas(_previo: EstadoCierre, formData: FormData): Promise<EstadoCierre> {
-  await exigirRol("super_admin", "finanzas");
-  const mes = String(formData.get("mes") ?? "");
-  const comisionista = String(formData.get("comisionista") ?? "");
-  const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
-
-  const supabase = await crearClienteServidor();
-  const { error } = await supabase
-    .from("comisiones")
-    .update({ estado: "pagada", pagada_en: fecha })
-    .eq("mes", mes)
-    .eq("comisionista_id", comisionista)
-    .eq("estado", "devengada");
-  if (error) return { error: "No se pudo marcar como pagado. Inténtalo otra vez.", mensaje: null };
-
-  revalidatePath(ruta(mes));
-  return { error: null, mensaje: "Marcado como pagado." };
-}

@@ -5,7 +5,8 @@ import { TIPO_MOVIMIENTO, type TipoMovimiento } from "@/lib/estado-de-cuenta";
 import { mesActual, mesLargo, mesSiguiente, pesos } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
-import { AccionCierre, MarcarPagadas } from "./acciones-cierre";
+import Link from "next/link";
+import { AccionCierre } from "./acciones-cierre";
 
 export const metadata = { title: "Cierre — Tasa" };
 
@@ -35,7 +36,7 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
   const mes = `${param}-01`;
 
   const supabase = await crearClienteServidor();
-  const [lineas, cierre, pendientes] = await Promise.all([
+  const [lineas, cierre, pendientes, porPagar] = await Promise.all([
     supabase
       .from("comisiones")
       .select(
@@ -51,7 +52,15 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
       .eq("estado", "reportado")
       .gte("fecha_pago", mes)
       .lt("fecha_pago", mesSiguiente(mes)),
+    supabase
+      .from("pendientes_comision")
+      .select("comisionista_id, monto, pagado")
+      .eq("mes", mes)
+      .returns<{ comisionista_id: string; monto: string | number; pagado: string | number }[]>(),
   ]);
+  const pendientePor = new Map(
+    (oExplota(porPagar, "los pendientes de pago") ?? []).map((p) => [p.comisionista_id, Number(p.monto) - Number(p.pagado)])
+  );
 
   const filas = oExplota(lineas, "las comisiones del mes") ?? [];
   const estado = oExplota(cierre, "el cierre")?.estado ?? null;
@@ -59,21 +68,19 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
   const terminado = mes < mesActual();
 
   // Agrupado por comisionista, con subtotal por alias de cuenta.
-  const grupos = new Map<string, { nombre: string; lineas: Linea[]; total: number; porCuenta: Map<string, number>; porPagar: number }>();
+  const grupos = new Map<string, { nombre: string; lineas: Linea[]; total: number; porCuenta: Map<string, number> }>();
   for (const l of filas) {
     const g = grupos.get(l.comisionista_id) ?? {
       nombre: l.comisionistas?.personas?.nombre ?? "",
       lineas: [],
       total: 0,
       porCuenta: new Map<string, number>(),
-      porPagar: 0,
     };
     const monto = Number(l.monto);
     const cuenta = l.solicitudes?.cuentas_receptoras?.alias ?? "Sin cuenta";
     g.lineas.push(l);
     g.total += monto;
     g.porCuenta.set(cuenta, (g.porCuenta.get(cuenta) ?? 0) + monto);
-    if (l.estado === "devengada") g.porPagar += monto;
     grupos.set(l.comisionista_id, g);
   }
   const total = filas.reduce((s, l) => s + Number(l.monto), 0);
@@ -138,12 +145,7 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
                 <div key={cuenta} className="flex justify-between"><dt className="text-secundario">{cuenta}</dt><dd className="font-semibold">{pesos(monto)}</dd></div>
               ))}
             </dl>
-            {estado === "aprobado" && g.porPagar !== 0 ? (
-              <MarcarPagadas comisionistaId={id} mes={mes} monto={g.porPagar} />
-            ) : null}
-            {estado === "aprobado" && g.porPagar === 0 ? (
-              <p className="mt-3 text-[0.9375rem] font-semibold text-exito">Pagado completo.</p>
-            ) : null}
+            {estado === "aprobado" ? <EstadoDelPago saldo={pendientePor.get(id)} comisionistaId={id} total={g.total} /> : null}
           </section>
         ))
       )}
@@ -160,5 +162,25 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
         </div>
       ) : null}
     </PantallaAdmin>
+  );
+}
+
+/** Al aprobar, cada quien con saldo a favor tiene un pendiente de pago; se paga desde Comisiones por pagar. */
+function EstadoDelPago({ saldo, comisionistaId, total }: { saldo: number | undefined; comisionistaId: string; total: number }) {
+  if (saldo === undefined) {
+    return (
+      <p className="mt-3 text-[0.9375rem] text-secundario">
+        {total < 0 ? "Sin pago: su saldo negativo pasó al mes siguiente." : "Sin saldo por pagar."}
+      </p>
+    );
+  }
+  if (saldo <= 0) return <p className="mt-3 text-[0.9375rem] font-semibold text-exito">Pagado completo.</p>;
+  return (
+    <Link
+      href={`/admin/comisiones/pagar?c=${comisionistaId}`}
+      className="mt-3 flex min-h-12 items-center justify-center rounded-lg border border-primario px-4 font-semibold text-primario"
+    >
+      Registrar pago · faltan {pesos(saldo)}
+    </Link>
   );
 }

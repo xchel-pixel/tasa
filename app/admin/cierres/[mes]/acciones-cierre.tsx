@@ -3,8 +3,7 @@
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/pantalla-admin";
-import { pesos } from "@/lib/formato";
-import { marcarPagadas, moverCierre, type EstadoCierre } from "./acciones";
+import { moverCierre, type EstadoCierre } from "./acciones";
 
 const INICIAL: EstadoCierre = { error: null, mensaje: null };
 
@@ -27,15 +26,3 @@ export function AccionCierre({ mes, accion, texto }: { mes: string; accion: "pre
   );
 }
 
-export function MarcarPagadas({ comisionistaId, mes, monto }: { comisionistaId: string; mes: string; monto: number }) {
-  const [estado, enviar] = useActionState(marcarPagadas, INICIAL);
-  if (estado.mensaje) return <div className="mt-3"><Aviso estado={estado} /></div>;
-  return (
-    <form action={enviar} className="mt-3 flex flex-col gap-2">
-      <input type="hidden" name="mes" value={mes} />
-      <input type="hidden" name="comisionista" value={comisionistaId} />
-      <BotonEnviar variante="secundario">Marcar {pesos(monto)} como pagado</BotonEnviar>
-      <Aviso estado={estado} />
-    </form>
-  );
-}

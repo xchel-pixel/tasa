@@ -1,0 +1,257 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Etiqueta } from "@/components/etiqueta";
+import { PantallaAdmin } from "@/components/pantalla-admin";
+import { VistaEstadoDeCuenta } from "@/components/vista-estado-de-cuenta";
+import { estatusVisible, type EstatusPublico } from "@/lib/estatus";
+import { fechaCorta, mesLargo, pesos } from "@/lib/formato";
+import { exigirRol } from "@/lib/sesion";
+import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
+import type { FilaComisionista } from "../page";
+import { AgregarMovimiento, CambiarActivo, EditarDatos, ForzarElite } from "./formularios";
+
+export const metadata = { title: "Comisionista — Tasa" };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const DOCUMENTO = { factura: "Factura", recibo: "Recibo simple", ninguno: "Sin documento" } as const;
+
+type Ficha = {
+  persona_id: string;
+  slug: string;
+  rfc: string | null;
+  emite_factura: boolean;
+  porcentaje_forzado: string | number | null;
+  fecha_alta: string;
+  personas: { nombre: string; correo: string; telefono: string | null; activo: boolean } | null;
+  referido: { personas: { nombre: string } | null } | null;
+};
+
+export default async function FichaComisionista({ params, searchParams }: PageProps<"/admin/comisionistas/[id]">) {
+  const yo = await exigirRol("super_admin", "finanzas");
+  const { id } = await params;
+  const { mes } = await searchParams;
+  if (!UUID.test(id)) notFound();
+
+  const supabase = await crearClienteServidor();
+  const [ficha, resumen, niveles, trabajos, pendientes, pagos, cuentas, servicios] = await Promise.all([
+    supabase
+      .from("comisionistas")
+      .select(
+        "persona_id, slug, rfc, emite_factura, porcentaje_forzado, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido:referido_por(personas!comisionistas_persona_id_fkey(nombre))"
+      )
+      .eq("persona_id", id)
+      .maybeSingle()
+      .returns<Ficha | null>(),
+    supabase.rpc("resumen_comisionistas"),
+    supabase
+      .from("niveles_mensuales")
+      .select("mes, porcentaje, promedio, niveles(nombre)")
+      .eq("comisionista_id", id)
+      .order("mes", { ascending: false })
+      .returns<{ mes: string; porcentaje: string | number; promedio: string | number; niveles: { nombre: string } | null }[]>(),
+    supabase
+      .from("solicitudes")
+      .select("id, folio, cliente_nombre, estatus_publico, monto_total")
+      .eq("comisionista_id", id)
+      .order("creado_en", { ascending: false })
+      .returns<{ id: string; folio: string | null; cliente_nombre: string; estatus_publico: EstatusPublico; monto_total: string | number }[]>(),
+    supabase
+      .from("pendientes_comision")
+      .select("id, mes, monto, pagado, pagado_en, factura_ruta")
+      .eq("comisionista_id", id)
+      .order("mes", { ascending: false })
+      .returns<{ id: string; mes: string; monto: string | number; pagado: string | number; pagado_en: string | null; factura_ruta: string | null }[]>(),
+    supabase
+      .from("pagos_comision")
+      .select("id, fecha, monto, referencia, documento, origenes_pago(nombre)")
+      .eq("comisionista_id", id)
+      .order("fecha", { ascending: false })
+      .returns<{ id: string; fecha: string; monto: string | number; referencia: string | null; documento: keyof typeof DOCUMENTO; origenes_pago: { nombre: string } | null }[]>(),
+    supabase.from("cuentas_receptoras").select("id, alias").eq("activa", true).order("alias").returns<{ id: string; alias: string }[]>(),
+    supabase.from("servicios").select("id, nombre").eq("activo", true).order("nombre").returns<{ id: string; nombre: string }[]>(),
+  ]);
+
+  const f = oExplota(ficha, "el comisionista");
+  if (!f || !f.personas) notFound();
+  const r = ((oExplota(resumen, "el resumen") ?? []) as FilaComisionista[]).find((x) => x.persona_id === id);
+  const listaPendientes = oExplota(pendientes, "los pendientes") ?? [];
+  const listaPagos = oExplota(pagos, "los pagos de comisión") ?? [];
+  const saldo = listaPendientes.reduce((s, p) => s + Number(p.monto) - Number(p.pagado), 0);
+  const superAdmin = yo.rol === "super_admin";
+
+  return (
+    <PantallaAdmin titulo={f.personas.nombre} volver={{ href: "/admin/comisionistas", texto: "Comisionistas" }}>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {f.personas.activo ? <Etiqueta tono="exito">Activo</Etiqueta> : <Etiqueta tono="error">Inactivo</Etiqueta>}
+        {r ? (
+          <Etiqueta tono="neutro">
+            {r.nivel} · {Number(r.porcentaje)}%{r.provisional ? " provisional" : ""}
+          </Etiqueta>
+        ) : null}
+      </div>
+      <p className="mt-2 text-[0.9375rem] text-secundario">
+        Último acceso: {r?.ultimo_acceso ? fechaCorta(r.ultimo_acceso) : "nunca ha entrado"}
+      </p>
+
+      <Seccion titulo="Datos">
+        <dl className="flex flex-col gap-1 text-[0.9375rem]">
+          <Dato etiqueta="Correo" valor={f.personas.correo} />
+          <Dato etiqueta="Liga" valor={f.slug} />
+          <Dato etiqueta="Alta" valor={fechaCorta(f.fecha_alta)} />
+          {f.referido?.personas ? <Dato etiqueta="Referido por" valor={f.referido.personas.nombre} /> : null}
+        </dl>
+        <EditarDatos
+          personaId={id}
+          nombre={f.personas.nombre}
+          telefono={f.personas.telefono ?? ""}
+          rfc={f.rfc ?? ""}
+          emiteFactura={f.emite_factura}
+        />
+      </Seccion>
+
+      <Seccion titulo="Pagos de comisión">
+        <dl className="flex items-baseline justify-between rounded-xl bg-tinte px-4 py-3">
+          <dt className="font-semibold">Saldo por pagar</dt>
+          <dd className="text-[1.25rem] font-bold text-primario">{pesos(saldo)}</dd>
+        </dl>
+        {saldo > 0 ? (
+          <Link
+            href={`/admin/comisiones/pagar?c=${id}`}
+            className="mt-3 flex min-h-12 items-center justify-center rounded-lg bg-primario px-4 py-3 font-semibold text-sobre-primario"
+          >
+            Registrar pago
+          </Link>
+        ) : null}
+        {listaPendientes.length > 0 ? (
+          <ul className="mt-3 flex flex-col gap-2">
+            {listaPendientes.map((p) => (
+              <li key={p.id} className="flex items-start justify-between gap-3 rounded-lg border border-linea px-4 py-3 text-[0.9375rem]">
+                <span>
+                  <span className="block font-semibold capitalize">{mesLargo(p.mes)}</span>
+                  <span className="block text-secundario">
+                    {pesos(Number(p.monto))} · pagado {pesos(Number(p.pagado))}
+                    {f.emite_factura ? (p.factura_ruta ? " · con factura" : " · sin factura") : ""}
+                  </span>
+                </span>
+                {p.pagado_en ? (
+                  <Etiqueta tono="exito">Pagado</Etiqueta>
+                ) : (
+                  <span className="whitespace-nowrap font-semibold text-acento">{pesos(Number(p.monto) - Number(p.pagado))}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-[0.9375rem] text-secundario">Todavía no tiene cierres con saldo a su favor.</p>
+        )}
+        {listaPagos.length > 0 ? (
+          <>
+            <h3 className="mt-4 font-semibold">Pagos registrados</h3>
+            <ul className="mt-2 flex flex-col">
+              {listaPagos.map((p, i) => (
+                <li key={p.id} className={`flex items-start justify-between gap-3 rounded px-2 py-2 text-[0.9375rem] ${i % 2 ? "bg-alterno" : ""}`}>
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{fechaCorta(p.fecha)}</span>
+                    <span className="block text-secundario">
+                      {p.origenes_pago?.nombre}
+                      {p.referencia ? ` · ${p.referencia}` : ""} · {DOCUMENTO[p.documento]}
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap font-semibold">{pesos(Number(p.monto))}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[0.875rem] text-secundario">El comisionista ve fecha, referencia y monto; no el origen.</p>
+          </>
+        ) : null}
+      </Seccion>
+
+      <Seccion titulo="Trabajos">
+        {(oExplota(trabajos, "los trabajos") ?? []).length === 0 ? (
+          <p className="text-[0.9375rem] text-secundario">Sin trabajos todavía.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {(oExplota(trabajos, "los trabajos") ?? []).map((t) => {
+              const e = estatusVisible(t.estatus_publico, t.folio);
+              return (
+                <li key={t.id}>
+                  <Link href={`/trabajos/${t.id}`} className="flex items-start justify-between gap-3 rounded-lg border border-linea px-4 py-3">
+                    <span className="min-w-0 text-[0.9375rem]">
+                      <span className="block font-semibold">{t.cliente_nombre}</span>
+                      <span className="block text-secundario">
+                        {t.folio ?? "Sin folio"}
+                        {Number(t.monto_total) > 0 ? ` · ${pesos(Number(t.monto_total))}` : ""}
+                      </span>
+                    </span>
+                    <Etiqueta tono={e.tono}>{e.texto}</Etiqueta>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Seccion>
+
+      <Seccion titulo="Niveles">
+        {(oExplota(niveles, "los niveles") ?? []).length === 0 ? (
+          <p className="text-[0.9375rem] text-secundario">Sin niveles calculados: el primero sale al aprobar su primer cierre.</p>
+        ) : (
+          <ul className="flex flex-col">
+            {(oExplota(niveles, "los niveles") ?? []).map((n, i) => (
+              <li key={n.mes} className={`flex justify-between gap-3 rounded px-2 py-2 text-[0.9375rem] ${i % 2 ? "bg-alterno" : ""}`}>
+                <span className="capitalize">{mesLargo(n.mes)}</span>
+                <span>
+                  <span className="font-semibold">{n.niveles?.nombre} · {Number(n.porcentaje)}%</span>
+                  <span className="text-secundario"> · prom. {pesos(Number(n.promedio))}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {f.porcentaje_forzado !== null ? (
+          <p className="mt-2 text-[0.9375rem] font-semibold text-primario">Élite forzado: {Number(f.porcentaje_forzado)}% manda sobre el nivel calculado.</p>
+        ) : null}
+      </Seccion>
+
+      <Seccion titulo="Estado de cuenta">
+        <VistaEstadoDeCuenta
+          personaId={id}
+          mesPedido={typeof mes === "string" ? mes : undefined}
+          base={`/admin/comisionistas/${id}`}
+          dueno={false}
+        />
+      </Seccion>
+
+      <Seccion titulo="Acciones">
+        <div className="flex flex-col gap-6">
+          {superAdmin ? (
+            <>
+              <AgregarMovimiento personaId={id} cuentas={oExplota(cuentas, "las cuentas") ?? []} servicios={oExplota(servicios, "los servicios") ?? []} />
+              <ForzarElite personaId={id} actual={f.porcentaje_forzado === null ? null : Number(f.porcentaje_forzado)} />
+            </>
+          ) : null}
+          <CambiarActivo personaId={id} activo={f.personas.activo} />
+        </div>
+      </Seccion>
+    </PantallaAdmin>
+  );
+}
+
+function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-8">
+      <h2 className="mb-3 text-[1.125rem] font-bold">{titulo}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-secundario">{etiqueta}</dt>
+      <dd className="text-right font-semibold [overflow-wrap:anywhere]">{valor}</dd>
+    </div>
+  );
+}

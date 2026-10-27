@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PantallaAdmin } from "@/components/pantalla-admin";
-import { VIA_PAGO } from "@/lib/estatus";
+import { Etiqueta } from "@/components/etiqueta";
+import { VIA_PAGO, type ViaPago } from "@/lib/estatus";
 import { fechaCorta, pesos } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
@@ -10,10 +11,11 @@ export const metadata = { title: "Pagos por confirmar — Tasa" };
 
 type FilaPago = {
   id: string;
-  via: "comprobante" | "directo" | "aviso";
+  via: ViaPago;
   monto: string | number;
   fecha_pago: string;
   referencia: string | null;
+  recibido_por: string | null;
   nota: string | null;
   comprobante_ruta: string | null;
   reportado_en: string;
@@ -38,7 +40,7 @@ export default async function PagosPorConfirmar() {
       await supabase
         .from("pagos")
         .select(
-          `id, via, monto, fecha_pago, referencia, nota, comprobante_ruta, reportado_en,
+          `id, via, monto, fecha_pago, referencia, recibido_por, nota, comprobante_ruta, reportado_en,
            solicitudes(id, folio, cliente_nombre, monto_total,
                        comisionistas(personas(nombre)), cuentas_receptoras(alias), pagos(monto, estado))`
         )
@@ -70,13 +72,23 @@ export default async function PagosPorConfirmar() {
               .reduce((t, x) => t + Number(x.monto), 0);
             const falta = Number(s?.monto_total ?? 0) - confirmado;
             return (
-              <li key={p.id} className="rounded-xl border border-linea px-4 py-4">
+              <li
+                key={p.id}
+                className={`rounded-xl border px-4 py-4 ${p.via === "efectivo" ? "border-proceso border-l-4" : "border-linea"}`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[1.25rem] font-bold text-primario">{pesos(Number(p.monto))}</p>
                     <p className="text-[0.9375rem] text-secundario">
-                      {fechaCorta(p.fecha_pago)} · {VIA_PAGO[p.via]}
+                      {fechaCorta(p.fecha_pago)}
+                      {p.via === "efectivo" ? "" : ` · ${VIA_PAGO[p.via]}`}
                     </p>
+                    {p.via === "efectivo" ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Etiqueta tono="proceso">Efectivo</Etiqueta>
+                        <span className="text-[0.9375rem]">Recibió: {p.recibido_por}</span>
+                      </div>
+                    ) : null}
                   </div>
                   {s?.cuentas_receptoras ? (
                     <span className="rounded-full bg-tinte px-3 py-1 text-[0.875rem] font-semibold text-primario">

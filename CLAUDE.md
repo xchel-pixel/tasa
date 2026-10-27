@@ -57,6 +57,20 @@ la app las muestra, la base las hace cumplir.
    comisión siempre sobre honorarios sin IVA.
 9. **"Cancelado" en Notion no cancela:** levanta una alerta en el panel admin. La cancelación se
    confirma en Tasa (borra la comisión si el mes está abierto, o mete un cargo si ya cerró).
+10. **Efectivo:** vía `efectivo`, con quién lo recibió; el recibo es opcional. "Solo aviso" nunca
+    pide archivo.
+11. **Asignación vs pago de comisiones** (dos conceptos separados):
+    - *Asignación* (reportes): todo movimiento lleva empresa (cuenta receptora) y servicio. Los
+      de un trabajo los toman del trabajo; bonos, ajustes y cargos manuales exigen empresa.
+    - *Pago*: al aprobar un cierre nace UN pendiente por comisionista con el total del mes. Si
+      el mes sale negativo no hay pendiente y el negativo pasa como `arrastre` al siguiente mes
+      abierto (el arrastre no cuenta en reportes por empresa). Un pago de comisión cubre uno o
+      varios pendientes, completos o en parte; lleva origen del dinero (catálogo editable),
+      referencia, documento (factura / recibo / ninguno) y comprobante opcional.
+    - El comisionista ve de sus pagos fecha, referencia y monto, **nunca el origen**: lee por
+      `mis_pagos_comision()`, no por la tabla.
+    - Vence el día `ajustes.dia_limite_pago_comision` (10) del mes siguiente al de las
+      comisiones; se calcula, no se guarda. "Esperando factura" solo si `emite_factura`.
 
 ## Reglas técnicas
 
@@ -98,7 +112,10 @@ la app las muestra, la base las hace cumplir.
 Fase 1 (MVP). Hecho: esquema, semilla, verificaciones (`npm test`), migraciones por CLI
 (`npm run db:*`), Next.js con acceso por código, identidad MGP 2026, ajustes (contacto de
 soporte) y las pantallas del comisionista (inicio, ficha, nueva solicitud, reportar pago,
-estado de cuenta).
+estado de cuenta). Panel: pagos por confirmar, solicitudes con PDF, alertas, cierre mensual,
+comisionistas (lista, ficha, alta), comisiones por pagar, reportes y pagos en efectivo.
+
+Pendiente del panel: catálogos de cuentas receptoras, mapeo de estatus y niveles.
 
 ## Plan (en este orden)
 

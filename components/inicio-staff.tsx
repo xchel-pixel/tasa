@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
-import { mesLargo } from "@/lib/formato";
+import { comisionesPorPagar } from "@/lib/comisiones";
+import { mesLargo, pesos } from "@/lib/formato";
 import { pendientesDelPanel } from "@/lib/panel";
 import { NOMBRE_DEL_ROL, type Persona } from "@/lib/sesion";
 
@@ -9,13 +10,17 @@ import { NOMBRE_DEL_ROL, type Persona } from "@/lib/sesion";
  * confirmar primero. Cada renglón dice cuántos hay y lleva a su bandeja.
  */
 export async function InicioStaff({ persona }: { persona: Persona }) {
-  const p = await pendientesDelPanel();
+  const [p, porPagar] = await Promise.all([pendientesDelPanel(), comisionesPorPagar()]);
 
   const cierre = {
     sin_preparar: { texto: "Por preparar", tono: "proceso" as const },
     preparado: { texto: "Por aprobar", tono: "proceso" as const },
     aprobado: { texto: "Aprobado", tono: "exito" as const },
   }[p.cierre.estado];
+
+  const totalPorPagar = porPagar.reduce((s, x) => s + x.saldo, 0);
+  const vencidos = porPagar.filter((x) => x.vencido);
+  const sinFactura = porPagar.filter((x) => x.esperando_factura).length;
 
   return (
     <>
@@ -35,13 +40,47 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
             <Etiqueta tono={cierre.tono}>{cierre.texto}</Etiqueta>
           </Link>
         </li>
+        <li>
+          <Link
+            href="/admin/comisiones"
+            className={`block rounded-xl border px-4 py-4 ${vencidos.length > 0 ? "border-error bg-error-fondo" : "border-linea bg-alterno"}`}
+          >
+            <span className="flex items-center justify-between gap-3">
+              <span className="font-semibold">Comisiones por pagar</span>
+              {totalPorPagar > 0 ? (
+                <span className="font-bold text-primario">{pesos(totalPorPagar)}</span>
+              ) : (
+                <span className="text-[0.9375rem] text-secundario">Al día</span>
+              )}
+            </span>
+            {vencidos.length > 0 ? (
+              <span className="mt-1 block text-[0.9375rem] font-semibold text-error">
+                {vencidos.length === 1 ? "1 vencida" : `${vencidos.length} vencidas`}:{" "}
+                {pesos(vencidos.reduce((s, x) => s + x.saldo, 0))} pasaron su día límite
+              </span>
+            ) : null}
+            {sinFactura > 0 ? (
+              <span className="mt-1 block text-[0.9375rem] text-secundario">
+                {sinFactura === 1 ? "1 espera" : `${sinFactura} esperan`} factura del comisionista
+              </span>
+            ) : null}
+          </Link>
+        </li>
       </ul>
 
-      {persona.rol === "super_admin" ? (
-        <Link href="/ajustes" className="toque mt-6 text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
-          Ajustes
+      <nav aria-label="Más" className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
+        <Link href="/admin/comisionistas" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+          Comisionistas
         </Link>
-      ) : null}
+        <Link href="/admin/reportes" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+          Reportes
+        </Link>
+        {persona.rol === "super_admin" ? (
+          <Link href="/ajustes" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+            Ajustes
+          </Link>
+        ) : null}
+      </nav>
     </>
   );
 }

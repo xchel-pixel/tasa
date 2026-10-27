@@ -191,6 +191,22 @@ begin
   -- Cierre de septiembre: Gaby prepara, Xchel aprueba ------------
   perform ejecutar_preparacion_cierre('2026-09-01', v_gaby);
   perform ejecutar_aprobacion_cierre('2026-09-01', v_xchel);
+
+  -- Pago de comisiones: el cierre de junio dejó a Ana un pendiente de
+  -- 1,800 (vencía el 10 de julio). Gaby le pagó 1,000 el 8 de julio;
+  -- quedan 800, vencidos. Ana emite factura y no la ha subido.
+  update comisionistas set emite_factura = true, rfc = 'PUAA900101AB1' where persona_id = v_ana;
+  perform ejecutar_pago_comision(
+    v_gaby, v_ana, '2026-07-08', (select id from origenes_pago where nombre = 'Scotiabank XG'),
+    'SPEI 1001', null, 'recibo', null,
+    jsonb_build_array(jsonb_build_object(
+      'pendiente_id', (select id from pendientes_comision where comisionista_id = v_ana and mes = '2026-06-01'),
+      'monto', 1000)));
+
+  -- Un pago del cliente en efectivo, sin recibo, por confirmar (trabajo 7).
+  insert into pagos (solicitud_id, via, monto, fecha_pago, recibido_por, nota, reportado_por)
+  select id, 'efectivo', 2000, hoy_mx(), 'Oficina Querétaro', 'Lo dejó en la recepción', v_ana
+    from solicitudes where folio = 'MGP-2026-9007';
 end;
 $$;
 
@@ -229,6 +245,11 @@ begin
 
   if (select count(*) from cierres where estado = 'aprobado') <> 4 then
     raise exception 'Se esperaban 4 cierres aprobados (jun-sep)';
+  end if;
+
+  if (select string_agg(to_char(mes, 'MM') || '=' || monto || '/' || pagado, ' ') from pendientes_comision)
+     is distinct from '06=1800.00/1000.00' then
+    raise exception 'Pendientes de comisión distintos a los esperados (solo junio de Ana, 1000 pagados)';
   end if;
 
   if (select folio from solicitudes where notion_page_id = 'simulado-0004') is not null then

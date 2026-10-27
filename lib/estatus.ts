@@ -52,8 +52,11 @@ export const ESTADO_PAGO: Record<EstadoPago, { texto: string; tono: Tono }> = {
   rechazado: { texto: "Rechazado", tono: "error" },
 };
 
-export const VIA_PAGO: Record<"comprobante" | "directo" | "aviso", string> = {
+export type ViaPago = "comprobante" | "directo" | "aviso" | "efectivo";
+
+export const VIA_PAGO: Record<ViaPago, string> = {
   comprobante: "Comprobante",
   directo: "Registrado por Administración",
   aviso: "Aviso sin archivo",
+  efectivo: "Efectivo",
 };

@@ -505,6 +505,219 @@ begin
 end;
 $$;
 
+-- @@ Efectivo
+-- Un pago en efectivo no lleva archivo; sí quién lo recibió. El trabajo 6
+-- (Carla) sigue abierto; el efectivo de la semilla (trabajo 7) sigue por confirmar.
+do $$
+declare
+  t6    uuid := (select id from solicitudes where folio = 'MGP-2026-9006');
+  carla uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
+  gaby uuid := (select id from personas where correo = 'gaby@tasa.test');
+begin
+  perform pg_temp.como('xchel+carla@arqosuv.com');
+  execute format($q$insert into pagos (solicitud_id, via, monto, fecha_pago, recibido_por, reportado_por)
+                    values (%L, 'efectivo', 500, '2026-11-04', 'Recepción', %L)$q$, t6, carla);
+  raise notice 'ok — el comisionista reporta efectivo sin comprobante';
+  perform pg_temp.debe_fallar(
+    format($q$insert into pagos (solicitud_id, via, monto, fecha_pago, reportado_por)
+              values (%L, 'efectivo', 500, '2026-11-04', %L)$q$, t6, carla),
+    'pagos_efectivo_con_quien', 'El efectivo exige quién lo recibió');
+  perform pg_temp.debe_fallar(
+    format($q$insert into pagos (solicitud_id, via, monto, fecha_pago, reportado_por)
+              values (%L, 'comprobante', 500, '2026-11-04', %L)$q$, t6, carla),
+    'check', 'Con comprobante sigue exigiendo el archivo');
+
+  perform pg_temp.como('gaby@tasa.test');
+  execute format($q$insert into pagos (solicitud_id, via, monto, fecha_pago, recibido_por, reportado_por)
+                    values (%L, 'efectivo', 100, '2026-11-04', 'Gaby', %L)$q$, t6, gaby);
+  perform pg_temp.igual((select count(*) from pagos where via = 'efectivo' and estado = 'reportado'), 3::bigint,
+    'Finanzas también registra efectivo, y todo entra por confirmar');
+  perform set_config('role', 'postgres', true);
+end;
+$$;
+
+-- @@ Comisionistas
+do $$
+declare
+  diego uuid;
+begin
+  perform pg_temp.como('gaby@tasa.test');
+  diego := alta_comisionista('Diego Prueba', ' Xchel+Diego@arqosuv.com ', '4420000004', 'guxd800101ab1',
+                             'diego-prueba', null, true);
+  perform pg_temp.igual((select rol from personas where id = diego), 'comisionista'::text,
+    'Finanzas da de alta un comisionista');
+  perform pg_temp.igual((select correo from personas where id = diego), 'xchel+diego@arqosuv.com'::text,
+    'El correo se guarda limpio y en minúsculas');
+  perform pg_temp.igual((select rfc || '/' || emite_factura from comisionistas where persona_id = diego),
+    'GUXD800101AB1/true'::text, 'RFC en mayúsculas y "emite factura"');
+  perform pg_temp.debe_fallar(
+    $q$select alta_comisionista('Otro', 'xchel+diego@arqosuv.com', null, null, 'otro', null, false)$q$,
+    'ya está dado de alta', 'No se repite un correo');
+  perform pg_temp.debe_fallar(
+    $q$select alta_comisionista('Otro', 'otro@tasa.test', null, null, 'diego-prueba', null, false)$q$,
+    'slug', 'No se repite la liga');
+  perform pg_temp.igual((select count(*) from resumen_comisionistas()), 4::bigint,
+    'El staff ve a los 4 comisionistas en la lista');
+  perform pg_temp.debe_fallar(format('select forzar_elite(%L, 20)', diego),
+    'Solo super_admin', 'Finanzas no fuerza Élite');
+  perform cambiar_activo_comisionista(diego, false);
+  perform pg_temp.igual((select activo from resumen_comisionistas() where persona_id = diego), false,
+    'Finanzas desactiva a un comisionista');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform forzar_elite(diego, 20);
+  perform pg_temp.igual((select nivel || ' ' || porcentaje from resumen_comisionistas() where persona_id = diego),
+    'Élite 20.00'::text, 'super_admin fuerza Élite al 20%');
+
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select count(*) from resumen_comisionistas()), 0::bigint,
+    'Un comisionista no ve la lista de comisionistas');
+  perform pg_temp.debe_fallar(
+    $q$select alta_comisionista('X', 'x@tasa.test', null, null, 'x', null, false)$q$,
+    'Solo finanzas', 'Un comisionista no da de alta a nadie');
+  perform set_config('role', 'postgres', true);
+end;
+$$;
+
+-- @@ Pendientes de comisión
+-- Sigue en el 5 de noviembre (sección anterior): octubre ya está
+-- aprobado. Con los cargos de las secciones previas, Ana cerró octubre
+-- en −500 y Beto en +300.
+do $$
+declare
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  beto  uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
+  carla uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
+  romi  uuid := (select id from cuentas_receptoras where alias = 'ROMI');
+  t10   uuid := (select id from solicitudes where folio = 'MGP-2026-9010');
+begin
+  perform pg_temp.igual((select monto from pendientes_comision where comisionista_id = beto and mes = '2026-10-01'),
+    300.00::numeric, 'Aprobar octubre dejó el pendiente de Beto (300)');
+  perform pg_temp.igual((select count(*) from pendientes_comision where comisionista_id = ana and mes = '2026-10-01'),
+    0::bigint, 'Ana, con octubre en negativo, no tiene pendiente de octubre');
+  perform pg_temp.igual((select sum(monto) from comisiones where comisionista_id = ana and mes = '2026-10-01'),
+    0.00::numeric, 'Su octubre queda en cero');
+  perform pg_temp.igual((select monto from comisiones where comisionista_id = ana and mes = '2026-11-01' and tipo = 'arrastre'),
+    -500.00::numeric, 'Y el negativo entra a noviembre como arrastre');
+  perform pg_temp.igual((select a.alias from comisiones c join cuentas_receptoras a on a.id = c.cuenta_receptora_id
+                          where c.solicitud_id = t10 and c.tipo = 'comision'), 'Scotiabank XG'::text,
+    'La comisión de un trabajo se asigna a la cuenta de ese trabajo');
+  perform pg_temp.igual(vence_pago_comision('2026-09-01'), date '2026-10-10',
+    'Lo de septiembre vence el 10 de octubre');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select vencido from comisiones_por_pagar() where mes = '2026-06-01'), true,
+    'Junio (vencía el 10 de julio) sale vencido');
+  perform pg_temp.igual((select vencido from comisiones_por_pagar() where mes = '2026-10-01'), false,
+    'Octubre (vence el 10 de noviembre) todavía no');
+  perform pg_temp.igual((select esperando_factura from comisiones_por_pagar() where comisionista_id = ana), true,
+    'Ana emite factura y no la ha subido: espera factura');
+  perform pg_temp.igual((select esperando_factura from comisiones_por_pagar() where comisionista_id = beto), false,
+    'Beto no emite factura: no se le espera');
+  perform set_config('role', 'postgres', true);
+  update ajustes set dia_limite_pago_comision = 3;
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select vencido from comisiones_por_pagar() where mes = '2026-10-01'), true,
+    'Con el día límite en 3, octubre ya venció (el parámetro aplica a todos)');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from comisiones_por_pagar()), 0::bigint,
+    'Un comisionista no lee la bandeja de comisiones por pagar');
+  perform set_config('role', 'postgres', true);
+  update ajustes set dia_limite_pago_comision = 10;
+
+  -- Movimientos manuales: siempre con empresa.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select agregar_movimiento(%L, 'cargo', 500, null, null, 'x')$q$, carla),
+    'Elige la empresa', 'Un cargo manual exige empresa');
+  perform agregar_movimiento(carla, 'cargo', 500, romi, null, 'Descuento por papelería');
+  perform pg_temp.igual((select monto from comisiones where comisionista_id = carla and tipo = 'cargo' and mes = '2026-11-01'),
+    -500.00::numeric, 'El cargo manual cae en el mes abierto, en negativo');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format($q$select agregar_movimiento(%L, 'bono', 500, %L, null, 'x')$q$, carla, romi),
+    'Solo super_admin', 'Finanzas no agrega movimientos');
+  perform set_config('role', 'postgres', true);
+
+  -- Noviembre: Beto +1,200 (trabajo 5), Carla −500, Ana −500 (arrastre).
+  create or replace function hoy_mx() returns date language sql stable as $f$ select date '2026-12-05' $f$;
+  perform ejecutar_preparacion_cierre('2026-11-01', null);
+  perform ejecutar_aprobacion_cierre('2026-11-01', null);
+
+  perform pg_temp.igual((select monto from pendientes_comision where comisionista_id = beto and mes = '2026-11-01'),
+    1200.00::numeric, 'Beto tiene su pendiente de noviembre');
+  perform pg_temp.igual((select count(*) from pendientes_comision where comisionista_id = carla), 0::bigint,
+    'Carla, en negativo, no tiene pendiente');
+  perform pg_temp.igual((select monto from comisiones where comisionista_id = carla and mes = '2026-12-01' and tipo = 'arrastre'),
+    -500.00::numeric, 'Su negativo pasa a diciembre');
+  perform pg_temp.igual((select monto from comisiones where comisionista_id = ana and mes = '2026-12-01' and tipo = 'arrastre'),
+    -500.00::numeric, 'Un arrastre que sigue en negativo vuelve a pasar');
+end;
+$$;
+
+-- @@ Pagos de comisión
+-- Hoy: 5 de diciembre (lo dejó la sección anterior).
+do $$
+declare
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  beto uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
+  jun  uuid := (select id from pendientes_comision where comisionista_id = ana and mes = '2026-06-01');
+  oct  uuid := (select id from pendientes_comision where comisionista_id = beto and mes = '2026-10-01');
+  nov  uuid := (select id from pendientes_comision where comisionista_id = beto and mes = '2026-11-01');
+  efectivo uuid := (select id from origenes_pago where nombre = 'Efectivo');
+begin
+  perform pg_temp.como('gaby@tasa.test');
+  -- Un pago cubre todo octubre y una parte de noviembre.
+  perform registrar_pago_comision(beto, '2026-12-04', efectivo, 'Recibo 7', null, 'ninguno', null,
+    jsonb_build_array(jsonb_build_object('pendiente_id', oct, 'monto', 300),
+                      jsonb_build_object('pendiente_id', nov, 'monto', 500)));
+  perform pg_temp.igual((select pagado_en from pendientes_comision where id = oct), date '2026-12-04',
+    'Octubre queda pagado con la fecha del pago que lo completó');
+  perform pg_temp.igual((select bool_and(estado = 'pagada') from comisiones where comisionista_id = beto and mes = '2026-10-01'),
+    true, 'Y sus comisiones quedan "pagada"');
+  perform pg_temp.igual((select pagado from pendientes_comision where id = nov), 500.00::numeric,
+    'Noviembre queda con un pago parcial de 500');
+  perform pg_temp.igual((select monto from pagos_comision where referencia = 'Recibo 7'), 800.00::numeric,
+    'El pago vale la suma de lo que cubre');
+  perform pg_temp.debe_fallar(
+    format($q$select registrar_pago_comision(%L, '2026-12-04', %L, null, null, 'ninguno', null,
+              jsonb_build_array(jsonb_build_object('pendiente_id', %L, 'monto', 800)))$q$, beto, efectivo, nov),
+    'solo tiene', 'No se paga más de lo pendiente');
+  perform pg_temp.debe_fallar(
+    format($q$select registrar_pago_comision(%L, '2026-12-04', %L, null, null, 'ninguno', null,
+              jsonb_build_array(jsonb_build_object('pendiente_id', %L, 'monto', 100)))$q$, beto, efectivo, jun),
+    'no es de este comisionista', 'Un pago no cubre pendientes de otro');
+  perform pg_temp.debe_fallar(
+    format($q$select registrar_pago_comision(%L, '2026-12-31', %L, null, null, 'ninguno', null,
+              jsonb_build_array(jsonb_build_object('pendiente_id', %L, 'monto', 100)))$q$, beto, efectivo, nov),
+    'futura', 'La fecha del pago no puede ser futura');
+
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select count(*) from pendientes_comision), 2::bigint, 'Beto ve solo sus 2 pendientes');
+  perform pg_temp.igual((select count(*) from pagos_comision), 0::bigint,
+    'Beto no lee la tabla de pagos de comisión (ahí está el origen)');
+  perform pg_temp.igual((select count(*) from mis_pagos_comision()), 2::bigint,
+    'Beto ve sus 2 aplicaciones de pago');
+  perform pg_temp.igual(pg_get_function_result('mis_pagos_comision()'::regprocedure) like '%origen%', false,
+    'Lo que el comisionista ve de un pago no trae el origen del dinero');
+  perform pg_temp.debe_fallar(
+    format($q$select registrar_pago_comision(%L, '2026-12-04', %L, null, null, 'ninguno', null, '[]')$q$, beto, efectivo),
+    'Solo finanzas', 'Un comisionista no registra pagos de comisión');
+  perform pg_temp.debe_fallar(format('select subir_factura_comision(%L, %L)', jun, beto || '/x.pdf'),
+    'no es tuyo', 'Beto no sube factura a un pendiente ajeno');
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from pendientes_comision), 1::bigint, 'Ana ve solo su pendiente');
+  perform pg_temp.igual((select count(*) from mis_pagos_comision()), 1::bigint, 'Ana ve solo su pago (el de la semilla)');
+  perform subir_factura_comision(jun, ana || '/factura-jun.pdf');
+  perform pg_temp.igual((select factura_ruta from pendientes_comision where id = jun), ana || '/factura-jun.pdf',
+    'Ana sube su factura del pendiente de junio');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select esperando_factura from comisiones_por_pagar() where pendiente_id = jun), false,
+    'Con la factura subida, ya no espera factura');
+  perform set_config('role', 'postgres', true);
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

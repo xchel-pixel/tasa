@@ -41,7 +41,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
       <main className="flex flex-1 flex-col px-6 py-6">
         <div className="mx-auto w-full max-w-md">
           <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
-            ← Mis trabajos
+            ← {persona.rol === "comisionista" ? "Mis trabajos" : "Panel"}
           </Link>
 
           <div className="mt-2 flex items-start justify-between gap-3">
@@ -119,14 +119,12 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
           {t.estado === "tramite" && !t.pagado_en && t.cuenta ? (
             <Seccion titulo="Dónde depositar">
               <div className="mt-3"><DatosBancarios cuenta={t.cuenta} /></div>
-              {persona.rol === "comisionista" ? (
-                <Link
-                  href={`/trabajos/${t.id}/pagar`}
-                  className="mt-4 flex min-h-12 items-center justify-center rounded-lg bg-primario px-4 py-3 text-[1.0625rem] font-semibold text-sobre-primario"
-                >
-                  Reportar pago
-                </Link>
-              ) : null}
+              <Link
+                href={`/trabajos/${t.id}/pagar`}
+                className="mt-4 flex min-h-12 items-center justify-center rounded-lg bg-primario px-4 py-3 text-[1.0625rem] font-semibold text-sobre-primario"
+              >
+                {persona.rol === "comisionista" ? "Reportar pago" : "Registrar pago"}
+              </Link>
             </Seccion>
           ) : null}
 
@@ -140,6 +138,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                         <p className="font-semibold">{pesos(p.monto)}</p>
                         <p className="text-[0.9375rem] text-secundario">
                           {fechaCorta(p.fecha_pago)} · {VIA_PAGO[p.via]}
+                          {p.recibido_por ? ` · recibió ${p.recibido_por}` : ""}
                         </p>
                       </div>
                       <Etiqueta tono={ESTADO_PAGO[p.estado].tono}>{ESTADO_PAGO[p.estado].texto}</Etiqueta>
