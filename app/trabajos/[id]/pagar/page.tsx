@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { DatosBancarios } from "@/components/datos-bancarios";
 import { Encabezado } from "@/components/encabezado";
 import { pesos } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
@@ -55,6 +56,13 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
               <dd className="text-[1.0625rem] font-bold text-primario">{pesos(falta)}</dd>
             </div>
           </dl>
+
+          {t.cuenta ? (
+            <div className="mt-4">
+              <p className="mb-2 font-semibold">Dónde depositó el cliente</p>
+              <DatosBancarios cuenta={t.cuenta} />
+            </div>
+          ) : null}
 
           <FormularioPago
             solicitudId={id}

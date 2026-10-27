@@ -28,7 +28,7 @@ export type Movimiento = {
   pagada_en: string | null;
   nota: string | null;
   trabajo: { id: string; folio: string | null; cliente: string } | null;
-  /** Titular de la cuenta que recibió el dinero del trabajo. */
+  /** Alias de la cuenta que recibió el dinero del trabajo (etiqueta, no el titular). */
   entidad: string;
 };
 
@@ -57,7 +57,7 @@ type FilaMovimiento = {
     id: string;
     folio: string | null;
     cliente_nombre: string;
-    cuentas_receptoras: { titular: string } | null;
+    cuentas_receptoras: { alias: string } | null;
   } | null;
 };
 
@@ -81,7 +81,7 @@ export async function estadoDelMes(personaId: string, mes: string): Promise<MesD
     supabase
       .from("comisiones")
       .select(
-        "id, tipo, base, porcentaje, monto, provisional, estado, pagada_en, nota, solicitudes(id, folio, cliente_nombre, cuentas_receptoras(titular))"
+        "id, tipo, base, porcentaje, monto, provisional, estado, pagada_en, nota, solicitudes(id, folio, cliente_nombre, cuentas_receptoras(alias))"
       )
       .eq("mes", mes)
       .order("creado_en")
@@ -107,7 +107,7 @@ export async function estadoDelMes(personaId: string, mes: string): Promise<MesD
     pagada_en: f.pagada_en,
     nota: f.nota,
     trabajo: f.solicitudes ? { id: f.solicitudes.id, folio: f.solicitudes.folio, cliente: f.solicitudes.cliente_nombre } : null,
-    entidad: f.solicitudes?.cuentas_receptoras?.titular ?? "Sin cuenta",
+    entidad: f.solicitudes?.cuentas_receptoras?.alias ?? "Sin cuenta",
   }));
 
   const entidades = new Map<string, number>();

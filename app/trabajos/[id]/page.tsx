@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DatosBancarios } from "@/components/datos-bancarios";
 import { Encabezado } from "@/components/encabezado";
 import { Etiqueta } from "@/components/etiqueta";
 import { ESTADO_PAGO, VIA_PAGO, estatusVisible } from "@/lib/estatus";
 import { fechaCorta, pesos } from "@/lib/formato";
 import { exigirPersona } from "@/lib/sesion";
-import { obtenerTrabajo, type Trabajo } from "@/lib/trabajos";
+import { obtenerTrabajo } from "@/lib/trabajos";
 import AceptarCotizacion from "./aceptar-cotizacion";
 
 export const metadata = { title: "Trabajo — Tasa" };
@@ -69,7 +70,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                 terceros={t.cotizacion.monto_terceros}
                 total={t.cotizacion.monto_total}
               />
-              {t.cotizacion.cuenta ? <Cuenta cuenta={t.cotizacion.cuenta} /> : null}
+              {t.cotizacion.cuenta ? <div className="mt-3"><DatosBancarios cuenta={t.cotizacion.cuenta} /></div> : null}
               <AceptarCotizacion cotizacionId={t.cotizacion.id} />
             </Seccion>
           ) : null}
@@ -98,7 +99,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
 
           {t.estado === "tramite" && !t.pagado_en && t.cuenta ? (
             <Seccion titulo="Dónde depositar">
-              <Cuenta cuenta={t.cuenta} />
+              <div className="mt-3"><DatosBancarios cuenta={t.cuenta} /></div>
               {persona.rol === "comisionista" ? (
                 <Link
                   href={`/trabajos/${t.id}/pagar`}
@@ -209,23 +210,6 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
     <div>
       <dt className="text-secundario">{etiqueta}</dt>
       <dd>{valor}</dd>
-    </div>
-  );
-}
-
-function Cuenta({ cuenta }: { cuenta: NonNullable<Trabajo["cuenta"]> }) {
-  // La CLABE en grupos de 3-3-11-1 (banco, plaza, cuenta, control), que es
-  // como se lee en voz alta y como la muestran los bancos.
-  const c = cuenta.clabe;
-  const agrupada = `${c.slice(0, 3)} ${c.slice(3, 6)} ${c.slice(6, 17)} ${c.slice(17)}`;
-  return (
-    <div className="mt-3 rounded-xl border border-linea bg-alterno px-4 py-3">
-      <p className="text-[0.9375rem] text-secundario">CLABE</p>
-      <p className="mt-1 select-all font-bold tabular-nums tracking-wide text-primario text-[1.25rem]">{agrupada}</p>
-      <p className="mt-2 text-[0.9375rem]">
-        {cuenta.titular}
-        {cuenta.banco ? ` · ${cuenta.banco}` : ""}
-      </p>
     </div>
   );
 }

@@ -16,6 +16,7 @@ Archivos numerados que se corren en orden desde el editor SQL de Supabase.
 | `0009_lectura_notion.sql` | Lectura de Notion (folio desde el título, etapa → estatus) y alertas |
 | `0010_permisos.sql` | GRANT explícitos por tabla y función (el proyecto no expone tablas solo) |
 | `0011_ajustes.sql` | `ajustes.contacto_soporte` (editable por super_admin) y marca XG sin nombre de persona |
+| `0012_alias_de_cuenta.sql` | Alias corto de cada cuenta (etiqueta); el titular solo junto a la CLABE |
 
 Fuera de las migraciones, en `supabase/`:
 

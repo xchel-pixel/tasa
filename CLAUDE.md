@@ -68,6 +68,9 @@ la app las muestra, la base las hace cumplir.
   ni su correo: se dice "el administrador", "Administración" o "el equipo de Tasa". Si hace falta
   un contacto, sale de `ajustes.contacto_soporte` (función `contacto_soporte()`); vacío = no se
   muestra. Los nombres que salen de `personas` (el saludo) sí se muestran.
+- **Cuenta receptora: alias vs titular.** En listas, estados de cuenta, subtotales y panel la cuenta
+  se nombra por su `alias`. El `titular` legal solo aparece en `DatosBancarios` (CLABE + titular +
+  banco): ficha del trabajo, reportar pago y PDF de cotización.
 - **Colores solo por token**: la paleta (marca MGP 2026 y estados) vive en `app/globals.css`. Las
   pantallas usan las clases que salen de ahí; ningún hex suelto. Tipografía Manrope 400/600/700.
   El nombre visible es "Tasa" (componente `Marca`); nunca el logo ni el nombre de MGP.

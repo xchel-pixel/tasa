@@ -437,6 +437,26 @@ begin
 end;
 $$;
 
+-- @@ Alias de cuenta
+-- La cuenta se nombra por su alias en todo lo que es etiqueta; el
+-- titular legal solo acompaña a la CLABE.
+do $$
+begin
+  perform pg_temp.igual(
+    (select string_agg(alias, ', ' order by alias) from cuentas_receptoras),
+    'Banregio AP73, ROMI, Scotiabank XG'::text, 'Cada cuenta tiene su alias');
+  perform pg_temp.igual(
+    (select titular from cuentas_receptoras where alias = 'Scotiabank XG'), 'Xchel Guerrero'::text,
+    'El titular real se conserva para los datos bancarios');
+  perform pg_temp.igual(resumen_del_mes('2026-10-01')::text like '%Scotiabank XG%', true,
+    'El resumen del cierre agrupa por alias');
+  perform pg_temp.igual(resumen_del_mes('2026-10-01')::text like '%Xchel Guerrero%', false,
+    'El resumen del cierre no muestra el titular');
+  perform pg_temp.debe_fallar($q$update cuentas_receptoras set alias = '' where alias = 'ROMI'$q$,
+    'cuentas_alias_corto', 'El alias no puede quedar vacío');
+end;
+$$;
+
 -- @@ Porcentaje provisional
 -- Va al final porque cierra octubre: simula que hoy es 5 de noviembre.
 do $$
