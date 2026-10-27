@@ -111,6 +111,52 @@ Deben aparecer 17 tablas: `ajustes`, `alertas`, `bitacora`, `cierres`, `comision
 `cotizaciones`, `cuentas_receptoras`, `historial_estatus`, `mapeo_estatus`, `marcas`,
 `niveles`, `niveles_mensuales`, `pagos`, `personas`, `servicios`, `solicitudes`.
 
+## Plan de lo que falta
+
+En este orden. Lo marcado como **por decidir** se pregunta antes de construir.
+
+1. **Panel de administración**: pagos por confirmar primero, alertas de Notion, cotizar y
+   emitir, alta de comisionistas, cuentas receptoras, mapeo de estatus y cierre mensual.
+
+2. **Aceptación de términos del comisionista**
+   - Casilla + fecha de aceptación guardadas en la base.
+   - Texto de términos editable por super_admin (en Ajustes), que incluya "cuenta personal e
+     intransferible". Se guarda qué versión del texto aceptó cada quien.
+   - **Por decidir:** quién marca la casilla. Si la marca el administrador al dar de alta, no
+     es una aceptación del comisionista. Propuesta: el alta queda pendiente y el comisionista
+     acepta en su primer acceso (no puede usar Tasa hasta aceptar); si el texto cambia, se le
+     vuelve a pedir.
+
+3. **Control de dispositivos** (después del panel)
+   - Tabla `dispositivos`: persona, id de dispositivo (cookie firmada de larga duración),
+     tipo (teléfono/computadora), navegador y sistema, primera vez, último acceso, ciudad
+     aproximada (sin guardar la IP completa) y estado (activo, pendiente, revocado).
+   - Máximo 2 activos por comisionista; el límite es un parámetro que edita super_admin.
+     Administración y finanzas, sin límite.
+   - Un tercer dispositivo valida el código, pero su sesión queda **pendiente de autorizar**:
+     ve "Este dispositivo necesita autorización del administrador" y se crea una alerta.
+   - Comisionista: pantalla "Mis dispositivos" para ver y cerrar sesión en uno.
+   - Super_admin: dispositivos por comisionista, aprobar o revocar, "cerrar todas las
+     sesiones", y alerta si hay accesos desde dos ciudades distintas el mismo día.
+   - El control vive en el servidor: el proxy de sesión consulta el estado del dispositivo en
+     cada petición, así que revocar saca al dispositivo en su siguiente petición.
+   - Pruebas: tercer dispositivo bloqueado, dispositivo revocado pierde acceso, administración
+     sin límite.
+   - Notas para cuando se construya:
+     - La ciudad sale de los encabezados que Vercel agrega a cada petición (`x-vercel-ip-city`):
+       no hace falta un servicio externo ni guardar la IP. En la computadora local no existe.
+     - **Por decidir:** borrar cookies, otro navegador o una ventana privada cuentan como
+       dispositivo nuevo. Con un límite de 2, un comisionista que borra cookies se queda
+       bloqueado hasta que lo autoricen. Propuesta: que un dispositivo sin uso en N días
+       (p. ej. 30) se libere solo.
+     - Consultar el dispositivo en cada petición agrega una lectura a la base por página; es
+       poco para este volumen, pero se mide al construirlo.
+
+4. **Notion** (cron cada 15 min + botón "actualizar"), correos de cambio de estatus y PDF de
+   la cotización.
+
+5. **Despliegue** en `tasa.xgplataform.com` y paso a producción con `npm run db:reset-produccion`.
+
 ## Variables de entorno (previstas)
 
 | Variable | Dónde | Para qué |

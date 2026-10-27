@@ -93,5 +93,16 @@ la app las muestra, la base las hace cumplir.
 ## Estado
 
 Fase 1 (MVP). Hecho: esquema, semilla, verificaciones (`npm test`), migraciones por CLI
-(`npm run db:*`), proyecto Next.js y acceso por código al correo.
-Sigue: pantallas del comisionista y del panel admin.
+(`npm run db:*`), Next.js con acceso por código, identidad MGP 2026, ajustes (contacto de
+soporte) y las pantallas del comisionista (inicio, ficha, nueva solicitud, reportar pago,
+estado de cuenta).
+
+## Plan (en este orden)
+
+1. **Panel de administración**: pagos por confirmar primero; alertas de Notion; cotizar y
+   emitir; alta de comisionistas; cuentas receptoras; mapeo de estatus; cierre mensual.
+2. **Aceptación de términos** del comisionista: casilla + fecha, texto editable por super_admin
+   que incluya "cuenta personal e intransferible". Ver el plan detallado en README.
+3. **Control de dispositivos**. NO construir antes de terminar el panel. Ver README.
+4. Notion (cron cada 15 min + botón), correos de cambio de estatus, PDF de cotización.
+5. Despliegue en `tasa.xgplataform.com` y `npm run db:reset-produccion`.
