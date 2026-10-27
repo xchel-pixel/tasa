@@ -6,6 +6,7 @@ import { Etiqueta } from "@/components/etiqueta";
 import { ESTADO_PAGO, VIA_PAGO, estatusVisible } from "@/lib/estatus";
 import { fechaCorta, pesos } from "@/lib/formato";
 import { exigirPersona } from "@/lib/sesion";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerTrabajo } from "@/lib/trabajos";
 import AceptarCotizacion from "./aceptar-cotizacion";
 
@@ -23,6 +24,14 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
   if (!t) notFound();
 
   const estatus = estatusVisible(t.estatus_publico, t.folio);
+
+  // El PDF vive en un bucket privado: se abre con una liga que vence en 10 minutos.
+  let ligaPdf: string | null = null;
+  if (t.cotizacion?.pdf_ruta) {
+    const supabase = await crearClienteServidor();
+    const { data } = await supabase.storage.from("cotizaciones").createSignedUrl(t.cotizacion.pdf_ruta, 600);
+    ligaPdf = data?.signedUrl ?? null;
+  }
   const confirmado = t.pagos.filter((p) => p.estado === "confirmado").reduce((s, p) => s + p.monto, 0);
   const porConfirmar = t.pagos.filter((p) => p.estado === "reportado").reduce((s, p) => s + p.monto, 0);
 
@@ -71,6 +80,16 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                 total={t.cotizacion.monto_total}
               />
               {t.cotizacion.cuenta ? <div className="mt-3"><DatosBancarios cuenta={t.cotizacion.cuenta} /></div> : null}
+              {ligaPdf ? (
+                <a
+                  href={ligaPdf}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 flex min-h-12 items-center justify-center rounded-lg border border-primario px-4 font-semibold text-primario"
+                >
+                  Descargar PDF para el cliente
+                </a>
+              ) : null}
               <AceptarCotizacion cotizacionId={t.cotizacion.id} />
             </Seccion>
           ) : null}

@@ -127,7 +127,37 @@ En este orden. Lo marcado como **por decidir** se pregunta antes de construir.
      acepta en su primer acceso (no puede usar Tasa hasta aceptar); si el texto cambia, se le
      vuelve a pedir.
 
-3. **Control de dispositivos** (después del panel)
+3. **Solicitud pública por liga del comisionista** (después del panel; antes de la tarjeta
+   digital, que la reutilizará)
+   - Ruta pública `/s/<slug>`. Slug inexistente o comisionista inactivo: "Este enlace no está
+     disponible", sin formulario.
+   - Muestra "Te atiende: <nombre> · Asesor afiliado", sin correo ni teléfono del comisionista
+     (salvo que él lo active después en su tarjeta).
+   - Formulario corto sin cuenta: servicio, tipo (cotización o trámite), inmueble (dirección,
+     municipio, clave catastral opcional), cliente (nombre, teléfono, correo) y comentarios.
+   - Aviso de privacidad: casilla obligatoria con liga al texto (editable por super_admin en
+     Ajustes); se guarda fecha y versión aceptada.
+   - Al enviar: solicitud con origen `enlace`, ligada al comisionista, estatus "Solicitada";
+     acuse al cliente (sin montos) y aviso al comisionista.
+   - Seguridad: anti-bots (Cloudflare Turnstile o equivalente gratuito), campo trampa, límite de
+     envíos por IP y por slug por hora. La inserción va por una función `security definer` con
+     validación; `anon` sigue sin permisos sobre tablas.
+   - Atribución: si el correo o teléfono del cliente ya tiene una solicitud activa de OTRO
+     comisionista en los últimos 60 días, se crea igual con alerta "posible cliente duplicado".
+   - La cotización se emite al comisionista; en su perfil, opción "enviar copia de la cotización
+     a mi cliente" (apagada por omisión).
+   - Inicio del comisionista: botón "Compartir mi liga" (copiar y WhatsApp).
+   - Pruebas: slug inválido, bot bloqueado, límite de envíos, duplicado entre comisionistas,
+     anon sin acceso a tablas.
+   - Notas para cuando se construya:
+     - `origen` hoy acepta portal, tarjeta, referido y admin: hace falta una migración que agregue
+       `enlace`.
+     - **Por decidir:** Turnstile es un servicio externo de Cloudflare (gratuito, con llave). Pide
+       dos variables de entorno y una cuenta de Cloudflare; confirmar antes de integrarlo.
+     - El límite por IP se puede llevar en una tabla con la IP resumida (hash), sin guardarla
+       completa, igual que en el control de dispositivos.
+
+4. **Control de dispositivos** (después del panel)
    - Tabla `dispositivos`: persona, id de dispositivo (cookie firmada de larga duración),
      tipo (teléfono/computadora), navegador y sistema, primera vez, último acceso, ciudad
      aproximada (sin guardar la IP completa) y estado (activo, pendiente, revocado).
@@ -152,10 +182,10 @@ En este orden. Lo marcado como **por decidir** se pregunta antes de construir.
      - Consultar el dispositivo en cada petición agrega una lectura a la base por página; es
        poco para este volumen, pero se mide al construirlo.
 
-4. **Notion** (cron cada 15 min + botón "actualizar"), correos de cambio de estatus y PDF de
+5. **Notion** (cron cada 15 min + botón "actualizar"), correos de cambio de estatus y PDF de
    la cotización.
 
-5. **Despliegue** en `tasa.xgplataform.com` y paso a producción con `npm run db:reset-produccion`.
+6. **Despliegue** en `tasa.xgplataform.com` y paso a producción con `npm run db:reset-produccion`.
 
 ## Variables de entorno (previstas)
 

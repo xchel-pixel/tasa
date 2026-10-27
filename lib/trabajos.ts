@@ -104,6 +104,7 @@ export type Trabajo = {
     monto_total: number;
     requiere_factura: boolean;
     vigente_hasta: string;
+    pdf_ruta: string | null;
     cuenta: { titular: string; banco: string | null; clabe: string } | null;
   } | null;
 };
@@ -130,6 +131,7 @@ type FilaFicha = {
     monto_total: string | number;
     requiere_factura: boolean;
     vigente_hasta: string;
+    pdf_ruta: string | null;
     cuentas_receptoras: Cuenta;
   }[];
 };
@@ -148,7 +150,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
          pagos(id, via, monto, fecha_pago, referencia, nota, estado, motivo_rechazo),
          historial_estatus(estatus_publico, desde),
          cotizaciones(id, estado, monto_honorarios, monto_iva, monto_terceros, monto_total,
-                      requiere_factura, vigente_hasta, cuentas_receptoras(titular, banco, clabe))`
+                      requiere_factura, vigente_hasta, pdf_ruta, cuentas_receptoras(titular, banco, clabe))`
       )
       .eq("id", id)
       .maybeSingle()
@@ -181,6 +183,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
           monto_total: Number(viva.monto_total),
           requiere_factura: viva.requiere_factura,
           vigente_hasta: viva.vigente_hasta,
+          pdf_ruta: viva.pdf_ruta,
           cuenta: viva.cuentas_receptoras,
         }
       : null,

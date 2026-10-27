@@ -106,6 +106,7 @@ estado de cuenta).
    emitir; alta de comisionistas; cuentas receptoras; mapeo de estatus; cierre mensual.
 2. **Aceptación de términos** del comisionista: casilla + fecha, texto editable por super_admin
    que incluya "cuenta personal e intransferible". Ver el plan detallado en README.
-3. **Control de dispositivos**. NO construir antes de terminar el panel. Ver README.
-4. Notion (cron cada 15 min + botón), correos de cambio de estatus, PDF de cotización.
-5. Despliegue en `tasa.xgplataform.com` y `npm run db:reset-produccion`.
+3. **Solicitud pública por liga** (`/s/<slug>`), antes de la tarjeta digital. Ver README.
+4. **Control de dispositivos**. NO construir antes de terminar el panel. Ver README.
+5. Notion (cron cada 15 min + botón), correos de cambio de estatus, PDF de cotización.
+6. Despliegue en `tasa.xgplataform.com` y `npm run db:reset-produccion`.
