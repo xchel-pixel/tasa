@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
+import { InicioComisionista } from "@/components/inicio-comisionista";
 import { obtenerContacto } from "@/lib/contacto";
-import { NOMBRE_DEL_ROL, esStaff, obtenerSesion } from "@/lib/sesion";
+import { NOMBRE_DEL_ROL, obtenerSesion } from "@/lib/sesion";
 
 /**
- * El inicio decide por rol. Por ahora solo confirma quién entró: las
- * pantallas de cada rol son la siguiente etapa.
+ * El inicio decide por rol: el comisionista ve sus trabajos y su mes;
+ * el staff, por ahora, un aviso de lo que viene.
  */
 export default async function Inicio() {
   const sesion = await obtenerSesion();
@@ -21,7 +22,21 @@ export default async function Inicio() {
 
       <main className="flex flex-1 flex-col px-6 py-8">
         <div className="mx-auto w-full max-w-md">
-          {persona ? (
+          {!persona ? (
+            <>
+              <h1 className="text-[1.5rem] font-bold tracking-tight">
+                Tu correo no está dado de alta
+              </h1>
+              <p className="mt-2 leading-7 text-secundario">
+                Entraste como {sesion.correo}, pero nadie te ha registrado en
+                Tasa. Pídele al administrador que te dé de alta con este mismo
+                correo.
+                {contacto ? <> Contacto: {contacto}.</> : null}
+              </p>
+            </>
+          ) : persona.rol === "comisionista" ? (
+            <InicioComisionista persona={persona} />
+          ) : (
             <>
               <h1 className="text-[1.5rem] font-bold tracking-tight">
                 Hola, {persona.nombre.split(" ")[0]}
@@ -32,12 +47,10 @@ export default async function Inicio() {
 
               <section className="mt-8 rounded-xl border border-linea bg-alterno px-5 py-4">
                 <p className="leading-7">
-                  {esStaff(persona)
-                    ? "Aquí vas a ver primero los pagos por confirmar y las alertas de Notion."
-                    : "Aquí vas a ver tus trabajos, su estatus y tu estado de cuenta."}
+                  Aquí vas a ver primero los pagos por confirmar y las alertas de Notion.
                 </p>
                 <p className="mt-2 text-[0.9375rem] text-secundario">
-                  Esta pantalla se construye en la siguiente etapa.
+                  El panel se construye después de las pantallas del comisionista.
                 </p>
               </section>
 
@@ -49,18 +62,6 @@ export default async function Inicio() {
                   Ajustes
                 </Link>
               ) : null}
-            </>
-          ) : (
-            <>
-              <h1 className="text-[1.5rem] font-bold tracking-tight">
-                Tu correo no está dado de alta
-              </h1>
-              <p className="mt-2 leading-7 text-secundario">
-                Entraste como {sesion.correo}, pero nadie te ha registrado en
-                Tasa. Pídele al administrador que te dé de alta con este mismo
-                correo.
-                {contacto ? <> Contacto: {contacto}.</> : null}
-              </p>
             </>
           )}
         </div>
