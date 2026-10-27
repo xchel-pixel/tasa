@@ -3,14 +3,17 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { accionAcceso, type EstadoAcceso } from "@/app/acciones";
+import { Marca } from "@/components/marca";
 import { useMontado } from "@/components/montado";
 import { horaCorta } from "@/lib/formato";
 
+// Sin `outline-none`: el aro de foco azul de globals.css es lo que dice
+// en qué campo se está escribiendo.
 const ENTRADA =
-  "mt-2 w-full rounded-lg border border-linea bg-campo px-4 py-3 text-[1.0625rem] outline-none focus:border-tinta";
+  "mt-2 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
 const LIGA =
-  "toque text-[0.9375rem] text-apagado underline underline-offset-4";
+  "toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4";
 
 /**
  * Cada botón manda su propio `paso` en vez de un campo oculto: así
@@ -27,10 +30,10 @@ export default function FormularioAcceso({
   return (
     <main className="flex flex-1 flex-col justify-center px-6 py-12">
       <div className="mx-auto w-full max-w-sm">
-        <h1 className="text-[1.75rem] font-semibold tracking-tight">
-          Tasa
+        <h1>
+          <Marca className="text-[2rem] leading-none" />
         </h1>
-        <p className="mt-1 text-[0.9375rem] text-apagado">
+        <p className="mt-2 text-[0.9375rem] text-secundario">
           Portal de comisionistas
         </p>
 
@@ -50,7 +53,7 @@ function PasoCorreo({ estado }: { estado: EstadoAcceso }) {
   return (
     <>
       <div>
-        <label htmlFor="correo" className="block font-medium">
+        <label htmlFor="correo" className="block font-semibold">
           Tu correo
         </label>
         <input
@@ -121,7 +124,7 @@ function PasoCodigo({ estado }: { estado: EstadoAcceso }) {
         <input type="hidden" name="correo" value={estado.correo} />
       ) : (
         <div>
-          <label htmlFor="correo" className="block font-medium">
+          <label htmlFor="correo" className="block font-semibold">
             Tu correo
           </label>
           <input
@@ -139,11 +142,11 @@ function PasoCodigo({ estado }: { estado: EstadoAcceso }) {
       )}
 
       <div>
-        <label htmlFor="codigo" className="block font-medium">
+        <label htmlFor="codigo" className="block font-semibold">
           Código
         </label>
 
-        <p className="mt-1 text-[0.9375rem] leading-6 text-apagado">
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
           {!correoFijo ? (
             <>
               El que te llegó por correo. Si pediste más de uno, solo sirve
@@ -153,7 +156,7 @@ function PasoCodigo({ estado }: { estado: EstadoAcceso }) {
             <>
               Te mandamos un código nuevo a {estado.correo}
               {cuando}.{" "}
-              <strong className="text-tinta">
+              <strong className="text-texto">
                 El anterior ya no sirve: usa el del correo más reciente.
               </strong>
             </>
@@ -173,7 +176,7 @@ function PasoCodigo({ estado }: { estado: EstadoAcceso }) {
           maxLength={6}
           required
           autoFocus={Boolean(estado.correo)}
-          className="mt-3 w-full rounded-lg border border-linea bg-campo px-4 py-3 text-center text-[2rem] tracking-[0.3em] outline-none focus:border-tinta"
+          className="mt-3 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-center text-[2rem] tracking-[0.3em] focus:border-acento"
         />
       </div>
 
@@ -197,7 +200,7 @@ function PasoCodigo({ estado }: { estado: EstadoAcceso }) {
         >
           Pedir un código nuevo
         </button>
-        <p className="text-[0.9375rem] leading-6 text-apagado">
+        <p className="text-[0.9375rem] leading-6 text-secundario">
           El que ya te mandamos deja de servir. Si ya te llegó, úsalo.
         </p>
       </div>
@@ -231,7 +234,7 @@ function Errores({ estado }: { estado: EstadoAcceso }) {
   return (
     <>
       {estado.aviso ? (
-        <p className="rounded-lg border border-linea bg-tarjeta px-4 py-3 text-[0.9375rem] leading-6">
+        <p className="rounded-lg bg-proceso-fondo px-4 py-3 text-[0.9375rem] leading-6 text-proceso">
           {estado.aviso}
         </p>
       ) : null}
@@ -264,7 +267,7 @@ function Boton({
       name="paso"
       value={paso}
       disabled={pending}
-      className="min-h-12 w-full rounded-lg bg-acento px-4 py-3 text-[1.0625rem] font-medium text-sobre-acento disabled:opacity-50"
+      className="min-h-12 w-full rounded-lg bg-primario px-4 py-3 text-[1.0625rem] font-semibold text-sobre-primario disabled:opacity-50"
     >
       {pending ? "Un momento…" : children}
     </button>

@@ -64,6 +64,9 @@ la app las muestra, la base las hace cumplir.
 - **Toda tabla nueva:** RLS encendido, `revoke all on [tabla] from anon;` y GRANT explícito a
   `authenticated` (el proyecto NO expone tablas solo; ver `0010_permisos.sql`). Ver
   `supabase/migrations/LEEME.md`.
+- **Colores solo por token**: la paleta (marca MGP 2026 y estados) vive en `app/globals.css`. Las
+  pantallas usan las clases que salen de ahí; ningún hex suelto. Tipografía Manrope 400/600/700.
+  El nombre visible es "Tasa" (componente `Marca`); nunca el logo ni el nombre de MGP.
 - **Buckets privados** (`comprobantes`, `cotizaciones`), siempre por URL firmada.
 - La llave de servicio de Supabase solo existe en `/api/cron`, protegida con `CRON_SECRET`.
   Nunca en el navegador, nunca en otra ruta.

@@ -1,52 +1,78 @@
 @import "tailwindcss";
 
 /* ============================================================
-   IDENTIDAD DE TASA
+   IDENTIDAD DE TASA — paleta de la marca MGP 2026
    ============================================================
-   Clara, sobria, de oficina de valuación: papel blanco, tinta casi
-   negra y un verde profundo como acento. Se lee igual al sol, que es
-   donde un comisionista saca el teléfono para ver si ya le pagaron.
+   ÚNICO lugar donde viven los colores. Las pantallas usan las clases
+   de Tailwind que salen de aquí (bg-primario, text-secundario…), nunca
+   un hex suelto. Cambiar la paleta es cambiar este bloque.
 
-   Tres reglas:
-   1. Tipografía del sistema: texto instantáneo aunque la señal sea mala.
-   2. El rojo es solo para errores y rechazos, nunca adorno.
-   3. Una sola paleta. Mantener dos (clara y oscura) duplica el trabajo
-      y las pruebas sin que nadie lo haya pedido.
+   El nombre visible es "Tasa": ni el logo ni el nombre de MGP aparecen
+   en la interfaz. Solo se toma la paleta.
+
+   Contraste (WCAG AA, calculado):
+     texto / blanco 16.5 · secundario / blanco 5.9 · secundario / tinte 5.1
+     blanco / primario (botón) 11.8 · acento / blanco 5.5 · acento / tinte 4.8
+     estados: éxito 8.3 · proceso 8.2 · error 6.8 · neutro 10.2
+
+   Regla: el rojo, el ámbar y el verde son de ESTADO (pagado, reportado,
+   rechazado…), no de marca. No se usan de adorno.
    ============================================================ */
 
 :root {
   color-scheme: light;
 
-  --papel: #fafaf9;
-  --tarjeta: #ffffff;
-  --campo: #ffffff;
-  --tinta: #1c1917;
-  --apagado: #57534e;
-  --linea: #e7e5e4;
-  --acento: #166534;
-  --sobre-acento: #ffffff;
-  --error: #b91c1c;
+  /* Marca */
+  --primario: #04386c; /* marino: botón principal, encabezado, barra de progreso */
+  --sobre-primario: #ffffff;
+  --acento: #006db3; /* azul: enlaces, cifras destacadas, foco */
+  --tinte: #e7f0f8; /* fondos de totales y resaltados */
+  --alterno: #f3f6fa; /* filas alternas, tarjetas */
+  --texto: #10202f;
+  --secundario: #5a6573;
+  --linea: #d5dbe3; /* divisiones y bordes de tarjeta (decorativos) */
+  --fondo: #ffffff;
+
+  /* El borde de un campo de texto necesita 3:1 contra el fondo para que
+     se vea dónde escribir; --linea da 1.4. Este da 3.0. */
+  --borde-campo: #8a95a3;
+
+  /* Estados: texto oscuro sobre fondo claro del mismo tono */
+  --exito: #14532d;
+  --exito-fondo: #dcfce7;
+  --proceso: #78350f;
+  --proceso-fondo: #fef3c7;
+  --error: #991b1b;
+  --error-fondo: #fee2e2;
+  /* neutro (solicitada, cotizada) = primario sobre tinte */
 }
 
 @theme inline {
-  --color-papel: var(--papel);
-  --color-tarjeta: var(--tarjeta);
-  --color-campo: var(--campo);
-  --color-tinta: var(--tinta);
-  --color-apagado: var(--apagado);
-  --color-linea: var(--linea);
+  --color-primario: var(--primario);
+  --color-sobre-primario: var(--sobre-primario);
   --color-acento: var(--acento);
-  --color-sobre-acento: var(--sobre-acento);
+  --color-tinte: var(--tinte);
+  --color-alterno: var(--alterno);
+  --color-texto: var(--texto);
+  --color-secundario: var(--secundario);
+  --color-linea: var(--linea);
+  --color-fondo: var(--fondo);
+  --color-borde-campo: var(--borde-campo);
+  --color-exito: var(--exito);
+  --color-exito-fondo: var(--exito-fondo);
+  --color-proceso: var(--proceso);
+  --color-proceso-fondo: var(--proceso-fondo);
   --color-error: var(--error);
+  --color-error-fondo: var(--error-fondo);
 
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+  /* Manrope la carga next/font en app/layout.tsx (variable --font-manrope). */
+  --font-sans: var(--font-manrope), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     Arial, sans-serif;
 }
 
 body {
-  background: var(--papel);
-  color: var(--tinta);
+  background: var(--fondo);
+  color: var(--texto);
   font-family: var(--font-sans);
   /* 17px de cuerpo y 15 de secundario: 14 es chico en un teléfono. */
   font-size: 1.0625rem;

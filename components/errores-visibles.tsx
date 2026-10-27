@@ -56,9 +56,9 @@ export default function ErroresVisibles() {
   return (
     <div
       role="alert"
-      className="fixed inset-x-0 top-0 z-50 border-b border-red-900 bg-tarjeta px-4 py-3"
+      className="fixed inset-x-0 top-0 z-50 border-b border-error bg-error-fondo px-4 py-3"
     >
-      <p className="text-[0.75rem] font-semibold uppercase tracking-wider text-red-400">
+      <p className="text-[0.75rem] font-semibold uppercase tracking-wider text-error">
         Algo falló en esta pantalla
       </p>
       <ul className="mt-1 flex flex-col gap-1">
@@ -71,7 +71,7 @@ export default function ErroresVisibles() {
       <button
         type="button"
         onClick={() => setErrores([])}
-        className="toque mt-1 text-[0.9375rem] text-apagado underline underline-offset-4"
+        className="toque mt-1 text-[0.9375rem] text-secundario underline underline-offset-4"
       >
         Ocultar
       </button>

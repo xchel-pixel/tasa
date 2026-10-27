@@ -23,9 +23,9 @@ export default function EstadoDelNavegador() {
   return (
     <div
       role="status"
-      className="aviso-sin-js fixed inset-x-0 bottom-0 z-50 border-t border-red-900 bg-tarjeta px-4 py-3"
+      className="aviso-sin-js fixed inset-x-0 bottom-0 z-50 border-t border-error bg-error-fondo px-4 py-3"
     >
-      <p className="text-[0.75rem] font-semibold uppercase tracking-wider text-red-400">
+      <p className="text-[0.75rem] font-semibold uppercase tracking-wider text-error">
         Esta página no terminó de cargar
       </p>
       <p className="mt-1 text-[0.9375rem] leading-6">
