@@ -9,8 +9,9 @@ import { crearClienteServidor } from "@/lib/supabase/server";
  * que no se haya aceptado ya (`aceptar_cotizacion`). Aquí solo se
  * traduce el error.
  *
- * La página de Notion se crea en la fase de la integración; mientras,
- * el trámite queda en "Aceptada – folio en asignación".
+ * Con conector manual, la base le pone folio al volverse trámite; con
+ * uno externo, queda en "Aceptada – folio en asignación" hasta que el
+ * sistema externo lo dé.
  */
 export async function aceptarCotizacion(
   _previo: { error: string | null },
@@ -42,4 +43,24 @@ export async function aceptarCotizacion(
   revalidatePath("/");
   if (solicitud?.solicitud_id) revalidatePath(`/trabajos/${solicitud.solicitud_id}`);
   return { error: null };
+}
+
+export type EstadoEstatus = { error: string | null; mensaje: string | null };
+
+/**
+ * Conector manual: admin_org (o el admin de la marca) mueve el estatus
+ * de en medio. La base revisa rol, marca, conector y que el trabajo siga
+ * en trámite; el cambio queda en el historial.
+ */
+export async function cambiarEstatus(_previo: EstadoEstatus, formData: FormData): Promise<EstadoEstatus> {
+  await exigirPersona();
+  const solicitud = String(formData.get("solicitud") ?? "");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("cambiar_estatus_manual", {
+    p_solicitud: solicitud,
+    p_estatus: String(formData.get("estatus") ?? ""),
+  });
+  if (error) return { error: error.message || "No se pudo cambiar el estatus.", mensaje: null };
+  revalidatePath(`/trabajos/${solicitud}`);
+  return { error: null, mensaje: "Estatus actualizado. El comisionista ya lo ve." };
 }

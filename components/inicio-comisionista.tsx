@@ -12,7 +12,7 @@ import { miNivel, misTrabajos, type TrabajoEnLista } from "@/lib/trabajos";
  * final.
  */
 export async function InicioComisionista({ persona }: { persona: Persona }) {
-  const [trabajos, nivel] = await Promise.all([misTrabajos(), miNivel(persona.id)]);
+  const [trabajos, nivel] = await Promise.all([misTrabajos(), miNivel(persona.id, persona.organizacion.id)]);
 
   const enCurso = trabajos.filter((t) => !ESTATUS_CERRADOS.includes(t.estatus_publico));
   const cerrados = trabajos.filter((t) => ESTATUS_CERRADOS.includes(t.estatus_publico));

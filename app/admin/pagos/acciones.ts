@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { exigirRol } from "@/lib/sesion";
+import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type EstadoRevision = { error: string | null; mensaje: string | null };
@@ -13,7 +13,7 @@ export type EstadoRevision = { error: string | null; mensaje: string | null };
  * transacción. Aquí solo se traduce el error.
  */
 export async function revisarPago(_previo: EstadoRevision, formData: FormData): Promise<EstadoRevision> {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol(...ROLES_OPERACION);
   const id = String(formData.get("pago") ?? "");
   const decision = String(formData.get("decision") ?? "");
   const motivo = String(formData.get("motivo") ?? "").trim();

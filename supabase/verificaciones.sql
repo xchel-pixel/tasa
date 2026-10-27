@@ -22,12 +22,29 @@ insert into auth.users (id, email)
 select gen_random_uuid(), correo from personas
  where (correo like '%@tasa.test' or correo like 'xchel%@arqosuv.com') and user_id is null;
 
+-- Sin usuario, mi_org() lee tasa.org: lo que se inserta como postgres
+-- nace en XG.
+select set_config('tasa.org', 'a0000000-0000-4000-8000-000000000001', false);
+
+create function pg_temp.xg() returns uuid language sql as $$ select 'a0000000-0000-4000-8000-000000000001'::uuid $$;
+create function pg_temp.notion_xg() returns uuid language sql as $$ select 'a0000000-0000-4000-8000-0000000000c2'::uuid $$;
+
+-- De vuelta a postgres, como sistema dentro de XG.
+create function pg_temp.sistema() returns void language plpgsql as $$
+begin
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('tasa.org', 'a0000000-0000-4000-8000-000000000001', true);
+end;
+$$;
+
 -- Cambia la sesión a la persona con ese correo (o a anon si es nulo).
 create function pg_temp.como(p_correo text) returns void language plpgsql as $$
 begin
   perform set_config('role', 'postgres', true);
   if p_correo is null then
     perform set_config('request.jwt.claims', '', true);
+    perform set_config('tasa.org', '', true);
     perform set_config('role', 'anon', true);
   else
     perform set_config('request.jwt.claims',
@@ -71,31 +88,31 @@ declare
   beto  uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
   carla uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
 begin
-  perform pg_temp.igual((select promedio from calcular_nivel(ana, '2026-07-01')), 36000::numeric,
+  perform pg_temp.igual((select promedio from calcular_nivel(pg_temp.xg(), ana, '2026-07-01')), 36000::numeric,
     'Ana para julio: solo junio cuenta (alta en junio) → 36,000 / 1');
-  perform pg_temp.igual((select porcentaje from calcular_nivel(ana, '2026-07-01')), 12.50::numeric,
+  perform pg_temp.igual((select porcentaje from calcular_nivel(pg_temp.xg(), ana, '2026-07-01')), 12.50::numeric,
     'Ana para julio: 36,000 ≥ 30,000 → Socio 12.5%');
-  perform pg_temp.igual((select promedio from calcular_nivel(ana, '2026-08-01')), 18000::numeric,
+  perform pg_temp.igual((select promedio from calcular_nivel(pg_temp.xg(), ana, '2026-08-01')), 18000::numeric,
     'Ana para agosto: jun + jul (julio en cero cuenta) → 18,000');
-  perform pg_temp.igual((select promedio from calcular_nivel(ana, '2026-09-01')), 12000::numeric,
+  perform pg_temp.igual((select promedio from calcular_nivel(pg_temp.xg(), ana, '2026-09-01')), 12000::numeric,
     'Ana para septiembre: jun-jul-ago → 12,000, Aliado');
-  perform pg_temp.igual((select porcentaje from calcular_nivel(ana, '2026-10-01')), 5.00::numeric,
+  perform pg_temp.igual((select porcentaje from calcular_nivel(pg_temp.xg(), ana, '2026-10-01')), 5.00::numeric,
     'Ana para octubre: junio sale de la ventana → 0, Enlace 5%');
-  perform pg_temp.igual((select meses_considerados from calcular_nivel(ana, '2026-12-01')), 3::smallint,
+  perform pg_temp.igual((select meses_considerados from calcular_nivel(pg_temp.xg(), ana, '2026-12-01')), 3::smallint,
     'La ventana nunca pasa de 3 meses');
-  perform pg_temp.igual((select meses_considerados from calcular_nivel(beto, '2026-10-01')), 2::smallint,
+  perform pg_temp.igual((select meses_considerados from calcular_nivel(pg_temp.xg(), beto, '2026-10-01')), 2::smallint,
     'Beto (alta agosto): para octubre cuenta ago y sep');
-  perform pg_temp.igual((select meses_considerados from calcular_nivel(carla, '2026-10-01')), 1::smallint,
+  perform pg_temp.igual((select meses_considerados from calcular_nivel(pg_temp.xg(), carla, '2026-10-01')), 1::smallint,
     'Carla (alta 15 sep): para octubre cuenta solo sep');
-  perform pg_temp.igual((select meses_considerados from calcular_nivel(beto, '2026-08-01')), 0::smallint,
+  perform pg_temp.igual((select meses_considerados from calcular_nivel(pg_temp.xg(), beto, '2026-08-01')), 0::smallint,
     'Beto para agosto: todavía no estaba dado de alta en la ventana → 0 meses, Enlace');
 
   update comisionistas set porcentaje_forzado = 20 where persona_id = carla;
-  perform pg_temp.igual((select porcentaje from calcular_nivel(carla, '2026-10-01')), 20::numeric,
+  perform pg_temp.igual((select porcentaje from calcular_nivel(pg_temp.xg(), carla, '2026-10-01')), 20::numeric,
     'Élite: el porcentaje forzado manda en el cálculo');
-  perform pg_temp.igual(porcentaje_vigente(carla, '2026-11-01'), 20::numeric,
+  perform pg_temp.igual(porcentaje_vigente(pg_temp.xg(), carla, '2026-11-01'), 20::numeric,
     'Élite: también en el porcentaje vigente');
-  perform pg_temp.igual(porcentaje_es_provisional(carla, '2026-11-01'), false,
+  perform pg_temp.igual(porcentaje_es_provisional(pg_temp.xg(), carla, '2026-11-01'), false,
     'Élite nunca es provisional');
   update comisionistas set porcentaje_forzado = null where persona_id = carla;
 end;
@@ -200,7 +217,7 @@ declare
   c_jun uuid := (select id from comisiones where solicitud_id = t9 and tipo = 'comision');
 begin
   perform pg_temp.debe_fallar(
-    format($q$select ejecutar_preparacion_cierre(%L, null)$q$, mes_de(hoy_mx())),
+    format($q$select ejecutar_preparacion_cierre(pg_temp.xg(), %L, null)$q$, mes_de(hoy_mx())),
     'no ha terminado', 'El mes en curso no se prepara antes del corte');
   perform pg_temp.debe_fallar(
     $q$update cierres set resumen = '{}' where mes = '2026-09-01'$q$,
@@ -241,37 +258,37 @@ $$;
 -- @@ Lectura de Notion
 do $$
 declare
-  t4  uuid := (select id from solicitudes where notion_page_id = 'simulado-0004');
+  t4  uuid := (select id from solicitudes where externo_id = 'simulado-0004');
   t10 uuid := (select id from solicitudes where folio = 'MGP-2026-9010');
 begin
   perform pg_temp.igual(
-    registrar_lectura_notion('simulado-0004', 'Pendiente de folio – Inmobiliaria Norte', 'Por asignar', null),
-    'sin_cambios'::text, 'Página sin folio: no pasa nada');
-  perform pg_temp.igual((select folio from solicitudes where id = t4), null::text,
-    'Sigue sin folio → "Aceptada – folio en asignación"');
+    registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'Pendiente de folio – Inmobiliaria Norte', 'Por asignar', null),
+    'actualizado'::text, 'Página sin folio: solo se anota la etapa externa');
+  perform pg_temp.igual((select folio from solicitudes where id = t4), 'MGP-2026-9011'::text,
+    'Un título sin folio no borra el folio que ya tiene');
 
   perform pg_temp.igual(
-    registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Por asignar', '2026-10-30'),
+    registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Por asignar', '2026-10-30'),
     'actualizado'::text, 'Aparece el folio en el título');
   perform pg_temp.igual((select folio from solicitudes where id = t4), 'MGP-2026-0590'::text,
     'Tasa copia el folio del título');
   perform pg_temp.igual((select estatus_publico from solicitudes where id = t4), 'visita_agendada'::text,
     'Con fecha de visita, "Por asignar" se muestra como visita agendada');
 
-  perform registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'En proceso', '2026-10-30');
+  perform registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'En proceso', '2026-10-30');
   perform pg_temp.igual((select estatus_publico from solicitudes where id = t4), 'en_elaboracion'::text,
     '"En proceso" → en elaboración');
 
-  perform registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Etapa nueva', null);
+  perform registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Etapa nueva', null);
   perform pg_temp.igual((select estatus_publico from solicitudes where id = t4), 'en_elaboracion'::text,
     'Una etapa que no está en el mapeo no mueve el estatus');
 
   perform pg_temp.igual(
-    registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null),
+    registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null),
     'alerta'::text, 'Cancelado en Notion levanta una alerta');
   perform pg_temp.igual((select estado from solicitudes where id = t4), 'tramite'::text,
     'Pero NO cancela el trabajo');
-  perform registrar_lectura_notion('simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null);
+  perform registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null);
   perform pg_temp.igual((select count(*) from alertas where solicitud_id = t4), 1::bigint,
     'Leer otra vez no duplica la alerta');
 
@@ -279,10 +296,10 @@ begin
   perform pg_temp.igual((select count(*) from alertas where solicitud_id = t4 and resuelta_en is null), 0::bigint,
     'Cancelar en Tasa cierra la alerta');
 
-  perform registrar_lectura_notion('simulado-0010', 'MGP-2026-9010 Daniel Ochoa', 'En proceso', null);
+  perform registrar_lectura(pg_temp.notion_xg(), 'simulado-0010', 'MGP-2026-9010 Daniel Ochoa', 'En proceso', null);
   perform pg_temp.igual((select estatus_publico from solicitudes where id = t10), 'pagado'::text,
     'Notion no pisa el "pagado" de Tasa');
-  perform pg_temp.igual(registrar_lectura_notion('no-existe', 'x', 'En proceso', null), 'sin_trabajo'::text,
+  perform pg_temp.igual(registrar_lectura(pg_temp.notion_xg(), 'no-existe', 'x', 'En proceso', null), 'sin_trabajo'::text,
     'Una página que no es de Tasa se ignora');
 end;
 $$;
@@ -319,7 +336,7 @@ begin
     'Nadie borra pagos');
   perform pg_temp.igual(has_table_privilege('authenticated', 'bitacora', 'insert'), false,
     'Nadie escribe la bitácora a mano');
-  perform pg_temp.igual(has_function_privilege('authenticated', 'ejecutar_aprobacion_cierre(date, uuid)', 'execute'), false,
+  perform pg_temp.igual(has_function_privilege('authenticated', 'ejecutar_aprobacion_cierre(uuid, date, uuid)', 'execute'), false,
     'La aprobación interna del cierre no se alcanza desde la app');
   perform pg_temp.igual(has_function_privilege('authenticated', 'vencer_cotizaciones()', 'execute'), false,
     'Vencer cotizaciones es solo del cron');
@@ -334,7 +351,7 @@ declare
   t5 uuid := (select id from solicitudes where folio = 'MGP-2026-9005');
   t6 uuid := (select id from solicitudes where folio = 'MGP-2026-9006');
   t7 uuid := (select id from solicitudes where folio = 'MGP-2026-9007');
-  avaluo uuid := (select id from servicios where nombre = 'Avalúo Comercial');
+  avaluo uuid := (select id from servicios where organizacion_id = pg_temp.xg() and nombre = 'Avalúo Comercial');
   beto uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
 begin
   perform pg_temp.como('xchel+beto@arqosuv.com');
@@ -369,22 +386,22 @@ begin
   perform pg_temp.igual((select count(*) from pagos where solicitud_id = t5 and estado = 'reportado'), 1::bigint,
     'El comisionista no confirma pagos (su intento no toca nada)');
   perform pg_temp.debe_fallar(
-    $q$select ejecutar_aprobacion_cierre('2026-10-01', null)$q$,
+    $q$select ejecutar_aprobacion_cierre(pg_temp.xg(), '2026-10-01', null)$q$,
     'permission denied', 'La función interna del cierre no se alcanza desde el navegador');
   perform pg_temp.debe_fallar(
     $q$select preparar_cierre('2026-09-01')$q$,
     'Solo finanzas', 'El comisionista no prepara cierres');
   perform pg_temp.debe_fallar(
-    $q$select registrar_lectura_notion('simulado-0005', 'x', 'Entregado', null)$q$,
-    'Solo el staff', 'El comisionista no escribe estatus de Notion');
+    $q$select registrar_lectura(pg_temp.notion_xg(), 'simulado-0005', 'x', 'Entregado', null)$q$,
+    'Solo admin_org sincroniza', 'El comisionista no escribe estatus del conector');
 
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.debe_fallar(
     $q$select aprobar_cierre('2026-09-01')$q$,
-    'Solo super_admin', 'Finanzas no aprueba cierres');
+    'Solo admin_org', 'Finanzas no aprueba cierres');
   perform pg_temp.debe_fallar(
     format($q$update solicitudes set cuenta_receptora_id = (select id from cuentas_receptoras where banco = 'Banregio') where id = %L$q$, t7),
-    'solo super_admin', 'Finanzas no cambia la cuenta de un trabajo con pagos confirmados');
+    'solo admin_org', 'Finanzas no cambia la cuenta de un trabajo con pagos confirmados');
   perform pg_temp.igual((select count(*) from bitacora), 0::bigint, 'Finanzas no ve la bitácora');
   perform pg_temp.igual((select count(*) > 0 from alertas), true, 'Finanzas sí ve las alertas');
 
@@ -393,8 +410,8 @@ begin
   perform pg_temp.igual(
     (select count(*) from bitacora where tabla = 'solicitudes' and registro_id = t7::text
         and antes->>'cuenta_receptora_id' is distinct from despues->>'cuenta_receptora_id'
-        and rol = 'super_admin'), 1::bigint,
-    'super_admin sí cambia la cuenta, y queda en bitácora con antes y después');
+        and rol = 'admin_org'), 1::bigint,
+    'admin_org sí cambia la cuenta, y queda en bitácora con antes y después');
 
   perform pg_temp.como(null);
   perform pg_temp.debe_fallar($q$select count(*) from solicitudes$q$, 'permission denied',
@@ -406,7 +423,7 @@ begin
   perform pg_temp.debe_fallar($q$select count(*) from alertas$q$, 'permission denied',
     'anon no lee alertas');
 
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
 end;
 $$;
 
@@ -424,16 +441,23 @@ begin
 
   perform pg_temp.como('xchel@arqosuv.com');
   update ajustes set contacto_soporte = '  soporte@tasa.test ';
-  perform pg_temp.igual(contacto_soporte(), 'soporte@tasa.test'::text, 'super_admin configura el contacto');
+  perform pg_temp.igual(contacto_soporte(), 'soporte@tasa.test'::text, 'admin_org configura el contacto de su organización');
+  perform pg_temp.igual((select contacto_soporte from ajustes where organizacion_id <> pg_temp.xg()), null::text,
+    'Y no toca el de otra organización (ni lo ve)');
+  update ajustes_plataforma set contacto_soporte = 'plataforma@tasa.test';
+
+  perform pg_temp.como('xchel+demo@arqosuv.com');
+  perform pg_temp.igual(contacto_soporte(), 'soporte@demo.test'::text, 'Cada organización ve su propio contacto');
 
   perform pg_temp.como(null);
-  perform pg_temp.igual(contacto_soporte(), 'soporte@tasa.test'::text,
-    'Sin sesión se ve solo el contacto (para la pantalla de acceso)');
+  perform pg_temp.igual(contacto_soporte(), 'plataforma@tasa.test'::text,
+    'Sin sesión se ve el contacto de plataforma (no se sabe de qué organización es)');
   perform pg_temp.debe_fallar($q$select * from ajustes$q$, 'permission denied',
     'Sin sesión no se lee la tabla de ajustes');
 
-  perform set_config('role', 'postgres', true);
-  update ajustes set contacto_soporte = null;
+  perform pg_temp.sistema();
+  update ajustes set contacto_soporte = null where organizacion_id = pg_temp.xg();
+  update ajustes_plataforma set contacto_soporte = null;
 end;
 $$;
 
@@ -443,14 +467,14 @@ $$;
 do $$
 begin
   perform pg_temp.igual(
-    (select string_agg(alias, ', ' order by alias) from cuentas_receptoras),
+    (select string_agg(alias, ', ' order by alias) from cuentas_receptoras where organizacion_id = pg_temp.xg()),
     'Banregio AP73, ROMI, Scotiabank XG'::text, 'Cada cuenta tiene su alias');
   perform pg_temp.igual(
     (select titular from cuentas_receptoras where alias = 'Scotiabank XG'), 'Xchel Guerrero'::text,
     'El titular real se conserva para los datos bancarios');
-  perform pg_temp.igual(resumen_del_mes('2026-10-01')::text like '%Scotiabank XG%', true,
+  perform pg_temp.igual(resumen_del_mes(pg_temp.xg(), '2026-10-01')::text like '%Scotiabank XG%', true,
     'El resumen del cierre agrupa por alias');
-  perform pg_temp.igual(resumen_del_mes('2026-10-01')::text like '%Xchel Guerrero%', false,
+  perform pg_temp.igual(resumen_del_mes(pg_temp.xg(), '2026-10-01')::text like '%Xchel Guerrero%', false,
     'El resumen del cierre no muestra el titular');
   perform pg_temp.debe_fallar($q$update cuentas_receptoras set alias = '' where alias = 'ROMI'$q$,
     'cuentas_alias_corto', 'El alias no puede quedar vacío');
@@ -468,7 +492,7 @@ declare
 begin
   -- Hacia abajo (lo dejó la semilla): Ana nació provisional al 10% y su
   -- nivel real de octubre es 5%. Se respeta el 10%.
-  perform pg_temp.igual(porcentaje_vigente(ana, '2026-10-01'), 5.00::numeric,
+  perform pg_temp.igual(porcentaje_vigente(pg_temp.xg(), ana, '2026-10-01'), 5.00::numeric,
     'El nivel real de Ana en octubre es 5%');
   perform pg_temp.igual((select porcentaje from comisiones where solicitud_id = t10), 10.00::numeric,
     'Si el real es menor, se respeta el provisional (10%)');
@@ -491,16 +515,16 @@ begin
   update niveles set umbral_minimo = 1000 where nombre = 'Aliado';
   create or replace function hoy_mx() returns date language sql stable as $f$ select date '2026-11-05' $f$;
 
-  perform ejecutar_preparacion_cierre('2026-10-01', null);
-  perform ejecutar_aprobacion_cierre('2026-10-01', null);
+  perform ejecutar_preparacion_cierre(pg_temp.xg(), '2026-10-01', null);
+  perform ejecutar_aprobacion_cierre(pg_temp.xg(), '2026-10-01', null);
 
-  perform pg_temp.igual(porcentaje_vigente(beto, '2026-11-01'), 10.00::numeric,
+  perform pg_temp.igual(porcentaje_vigente(pg_temp.xg(), beto, '2026-11-01'), 10.00::numeric,
     'Al aprobar octubre, Beto queda en Aliado para noviembre');
   perform pg_temp.igual((select monto from comisiones where solicitud_id = t5), 1200.00::numeric,
     'Si el real es mayor, la provisional sube: 10% de 12,000');
   perform pg_temp.igual((select provisional from comisiones where solicitud_id = t5), false,
     'Y deja de ser provisional');
-  perform pg_temp.igual((select count(*) from comisiones where mes = '2026-10-01' and provisional), 0::bigint,
+  perform pg_temp.igual((select count(*) from comisiones where organizacion_id = pg_temp.xg() and mes = '2026-10-01' and provisional), 0::bigint,
     'Nada de un mes aprobado queda provisional');
 end;
 $$;
@@ -532,7 +556,7 @@ begin
                     values (%L, 'efectivo', 100, '2026-11-04', 'Gaby', %L)$q$, t6, gaby);
   perform pg_temp.igual((select count(*) from pagos where via = 'efectivo' and estado = 'reportado'), 3::bigint,
     'Finanzas también registra efectivo, y todo entra por confirmar');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
 end;
 $$;
 
@@ -544,7 +568,7 @@ begin
   perform pg_temp.como('gaby@tasa.test');
   diego := alta_comisionista('Diego Prueba', ' Xchel+Diego@arqosuv.com ', '4420000004', 'guxd800101ab1',
                              'diego-prueba', null, true);
-  perform pg_temp.igual((select rol from personas where id = diego), 'comisionista'::text,
+  perform pg_temp.igual((select rol from membresias where persona_id = diego and organizacion_id = pg_temp.xg()), 'comisionista'::text,
     'Finanzas da de alta un comisionista');
   perform pg_temp.igual((select correo from personas where id = diego), 'xchel+diego@arqosuv.com'::text,
     'El correo se guarda limpio y en minúsculas');
@@ -559,7 +583,7 @@ begin
   perform pg_temp.igual((select count(*) from resumen_comisionistas()), 4::bigint,
     'El staff ve a los 4 comisionistas en la lista');
   perform pg_temp.debe_fallar(format('select forzar_elite(%L, 20)', diego),
-    'Solo super_admin', 'Finanzas no fuerza Élite');
+    'Solo admin_org', 'Finanzas no fuerza Élite');
   perform cambiar_activo_comisionista(diego, false);
   perform pg_temp.igual((select activo from resumen_comisionistas() where persona_id = diego), false,
     'Finanzas desactiva a un comisionista');
@@ -575,7 +599,7 @@ begin
   perform pg_temp.debe_fallar(
     $q$select alta_comisionista('X', 'x@tasa.test', null, null, 'x', null, false)$q$,
     'Solo finanzas', 'Un comisionista no da de alta a nadie');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
 end;
 $$;
 
@@ -602,7 +626,7 @@ begin
   perform pg_temp.igual((select a.alias from comisiones c join cuentas_receptoras a on a.id = c.cuenta_receptora_id
                           where c.solicitud_id = t10 and c.tipo = 'comision'), 'Scotiabank XG'::text,
     'La comisión de un trabajo se asigna a la cuenta de ese trabajo');
-  perform pg_temp.igual(vence_pago_comision('2026-09-01'), date '2026-10-10',
+  perform pg_temp.igual(vence_pago_comision(pg_temp.xg(), '2026-09-01'), date '2026-10-10',
     'Lo de septiembre vence el 10 de octubre');
 
   perform pg_temp.como('gaby@tasa.test');
@@ -614,7 +638,7 @@ begin
     'Ana emite factura y no la ha subido: espera factura');
   perform pg_temp.igual((select esperando_factura from comisiones_por_pagar() where comisionista_id = beto), false,
     'Beto no emite factura: no se le espera');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
   update ajustes set dia_limite_pago_comision = 3;
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.igual((select vencido from comisiones_por_pagar() where mes = '2026-10-01'), true,
@@ -622,7 +646,7 @@ begin
   perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.igual((select count(*) from comisiones_por_pagar()), 0::bigint,
     'Un comisionista no lee la bandeja de comisiones por pagar');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
   update ajustes set dia_limite_pago_comision = 10;
 
   -- Movimientos manuales: siempre con empresa.
@@ -634,13 +658,13 @@ begin
     -500.00::numeric, 'El cargo manual cae en el mes abierto, en negativo');
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.debe_fallar(format($q$select agregar_movimiento(%L, 'bono', 500, %L, null, 'x')$q$, carla, romi),
-    'Solo super_admin', 'Finanzas no agrega movimientos');
-  perform set_config('role', 'postgres', true);
+    'Solo admin_org', 'Finanzas no agrega movimientos');
+  perform pg_temp.sistema();
 
   -- Noviembre: Beto +1,200 (trabajo 5), Carla −500, Ana −500 (arrastre).
   create or replace function hoy_mx() returns date language sql stable as $f$ select date '2026-12-05' $f$;
-  perform ejecutar_preparacion_cierre('2026-11-01', null);
-  perform ejecutar_aprobacion_cierre('2026-11-01', null);
+  perform ejecutar_preparacion_cierre(pg_temp.xg(), '2026-11-01', null);
+  perform ejecutar_aprobacion_cierre(pg_temp.xg(), '2026-11-01', null);
 
   perform pg_temp.igual((select monto from pendientes_comision where comisionista_id = beto and mes = '2026-11-01'),
     1200.00::numeric, 'Beto tiene su pendiente de noviembre');
@@ -662,7 +686,7 @@ declare
   jun  uuid := (select id from pendientes_comision where comisionista_id = ana and mes = '2026-06-01');
   oct  uuid := (select id from pendientes_comision where comisionista_id = beto and mes = '2026-10-01');
   nov  uuid := (select id from pendientes_comision where comisionista_id = beto and mes = '2026-11-01');
-  efectivo uuid := (select id from origenes_pago where nombre = 'Efectivo');
+  efectivo uuid := (select id from origenes_pago where organizacion_id = pg_temp.xg() and nombre = 'Efectivo');
 begin
   perform pg_temp.como('gaby@tasa.test');
   -- Un pago cubre todo octubre y una parte de noviembre.
@@ -701,20 +725,20 @@ begin
   perform pg_temp.debe_fallar(
     format($q$select registrar_pago_comision(%L, '2026-12-04', %L, null, null, 'ninguno', null, '[]')$q$, beto, efectivo),
     'Solo finanzas', 'Un comisionista no registra pagos de comisión');
-  perform pg_temp.debe_fallar(format('select subir_factura_comision(%L, %L)', jun, beto || '/x.pdf'),
+  perform pg_temp.debe_fallar(format('select subir_factura_comision(%L, %L)', jun, pg_temp.xg() || '/' || beto || '/x.pdf'),
     'no es tuyo', 'Beto no sube factura a un pendiente ajeno');
 
   perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.igual((select count(*) from pendientes_comision), 1::bigint, 'Ana ve solo su pendiente');
   perform pg_temp.igual((select count(*) from mis_pagos_comision()), 1::bigint, 'Ana ve solo su pago (el de la semilla)');
-  perform subir_factura_comision(jun, ana || '/factura-jun.pdf');
-  perform pg_temp.igual((select factura_ruta from pendientes_comision where id = jun), ana || '/factura-jun.pdf',
+  perform subir_factura_comision(jun, pg_temp.xg() || '/' || ana || '/factura-jun.pdf');
+  perform pg_temp.igual((select factura_ruta from pendientes_comision where id = jun), pg_temp.xg() || '/' || ana || '/factura-jun.pdf',
     'Ana sube su factura del pendiente de junio');
 
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.igual((select esperando_factura from comisiones_por_pagar() where pendiente_id = jun), false,
     'Con la factura subida, ya no espera factura');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
 end;
 $$;
 
@@ -726,7 +750,7 @@ declare
   beto  uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
   carla uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
   romi  uuid := (select id from cuentas_receptoras where alias = 'ROMI');
-  avaluo uuid := (select id from servicios where nombre = 'Avalúo Comercial');
+  avaluo uuid := (select id from servicios where organizacion_id = pg_temp.xg() and nombre = 'Avalúo Comercial');
   t9    uuid := (select id from solicitudes where folio = 'MGP-2026-9009');
   t2    uuid := (select id from solicitudes where cliente_nombre = 'Jorge Salinas');
   t1    uuid := (select id from solicitudes where cliente_nombre = 'Laura Méndez');
@@ -759,7 +783,7 @@ begin
   perform pg_temp.debe_fallar(format('select revertir_pago(%L, %L)', p, '  '),
     'Escribe el motivo', 'Revertir pide motivo');
   perform revertir_pago(p, 'Se confirmó el pago equivocado');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
   perform pg_temp.igual((select estado from pagos where id = p), 'reportado'::text,
     'Revertir la confirmación regresa el pago a "reportado"');
   perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s and tipo = 'comision'), 0::bigint,
@@ -776,7 +800,7 @@ begin
   update pagos set estado = 'rechazado', motivo_rechazo = 'No se ve la cuenta' where id = p;
   perform pg_temp.como('gaby@tasa.test');
   perform revertir_pago(p, 'Sí se veía la cuenta');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
   perform pg_temp.igual((select estado || '/' || coalesce(motivo_rechazo, '-') from pagos where id = p), 'reportado/-'::text,
     'Revertir un rechazo lo regresa a "reportado" sin motivo de rechazo');
   perform pg_temp.debe_fallar(format($q$update pagos set estado = 'reportado' where id = %L$q$,
@@ -809,7 +833,7 @@ begin
   -- Anular un pago de comisión (diciembre, abierto).
   perform pg_temp.como('gaby@tasa.test');
   perform anular_pago_comision(recibo, 'Se registró al comisionista equivocado');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
   perform pg_temp.igual((select pagado || '/' || coalesce(pagado_en::text, '-') from pendientes_comision where id = oct),
     '0.00/-'::text, 'Anular el pago le devuelve al pendiente su saldo');
   perform pg_temp.igual((select bool_and(estado = 'devengada') from comisiones where comisionista_id = beto and mes = '2026-10-01'),
@@ -825,7 +849,7 @@ begin
     'Solo finanzas', 'El comisionista no anula cotizaciones');
   perform pg_temp.como('gaby@tasa.test');
   perform anular_cotizacion((select id from cotizaciones where solicitud_id = t2 and estado = 'emitida'), 'Precio equivocado');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
   perform pg_temp.igual((select estado || '/' || estatus_publico from solicitudes where id = t2), 'solicitada/solicitada'::text,
     'Anular la cotización regresa la solicitud a "por cotizar"');
 
@@ -844,14 +868,235 @@ begin
   mov := agregar_movimiento(ana, 'bono', 700, romi, null, 'Bono de diciembre');
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.debe_fallar(format('select anular_movimiento(%L, %L)', mov, 'x'),
-    'Solo super_admin', 'Finanzas no anula movimientos');
+    'Solo admin_org', 'Finanzas no anula movimientos');
   perform pg_temp.como('xchel@arqosuv.com');
   perform anular_movimiento(mov, 'Era para otra persona');
   perform pg_temp.igual((select sum(monto) from comisiones where id = mov or anula_id = mov), 0.00::numeric,
     'Anular un bono mete su contrario: los dos suman cero y ninguno se borra');
   perform pg_temp.debe_fallar(format('select anular_movimiento(%L, %L)', mov, 'x'),
     'ya estaba anulado', 'No se anula dos veces');
-  perform set_config('role', 'postgres', true);
+  perform pg_temp.sistema();
+end;
+$$;
+
+-- @@ Aislamiento entre organizaciones
+-- Demo Valuadores no ve ni toca nada de XG, y al revés.
+do $$
+declare
+  demo   uuid := (select id from organizaciones where slug = 'demo');
+  t_xg   uuid := (select id from solicitudes where folio = 'MGP-2026-9006');
+  p_xg   uuid := (select id from pagos where estado = 'confirmado' and organizacion_id = pg_temp.xg() limit 1);
+  c_xg   uuid := (select id from cotizaciones where organizacion_id = pg_temp.xg() and estado = 'aceptada' limit 1);
+  pend_xg uuid := (select id from pendientes_comision where organizacion_id = pg_temp.xg() limit 1);
+  ana    uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  v_demo_com uuid := (select id from personas where correo = 'xchel+demo@arqosuv.com');
+  orig_demo uuid := (select id from origenes_pago where organizacion_id = (select id from organizaciones where slug = 'demo') limit 1);
+begin
+  perform pg_temp.como('xchel+demo-admin@arqosuv.com');
+  perform pg_temp.igual((select count(*) from solicitudes), 2::bigint, 'Demo ve solo sus 2 trabajos');
+  perform pg_temp.igual((select count(*) from solicitudes where organizacion_id <> demo), 0::bigint, 'Ningún trabajo de XG');
+  perform pg_temp.igual((select count(*) from pagos where organizacion_id <> demo), 0::bigint, 'Ningún pago de XG');
+  perform pg_temp.igual((select count(*) from comisiones where organizacion_id <> demo), 0::bigint, 'Ninguna comisión de XG');
+  perform pg_temp.igual((select count(*) from cierres), 0::bigint, 'Ningún cierre de XG');
+  perform pg_temp.igual((select count(*) from pendientes_comision), 0::bigint, 'Ningún pendiente de XG');
+  perform pg_temp.igual((select count(*) from cuentas_receptoras), 1::bigint, 'Solo su cuenta (no ve CLABEs de XG)');
+  perform pg_temp.igual((select string_agg(clave, ',') from marcas), 'DV'::text, 'Solo su marca');
+  perform pg_temp.igual((select count(*) from personas), 2::bigint, 'Solo las personas de su organización');
+  perform pg_temp.igual((select count(*) from alertas), 0::bigint, 'Ninguna alerta de XG');
+  perform pg_temp.igual((select count(*) from bitacora where organizacion_id is distinct from demo), 0::bigint,
+    'Su bitácora, no la de XG');
+  perform pg_temp.igual((select string_agg(slug, ',') from organizaciones), 'demo'::text, 'Solo ve su organización');
+  perform pg_temp.igual((select count(*) from resumen_comisionistas()), 1::bigint, 'Su único comisionista');
+  perform pg_temp.igual((select count(*) from comisiones_por_pagar()), 0::bigint, 'Ningún pendiente ajeno por pagar');
+
+  -- Escribir sobre XG: no pasa nada o truena.
+  execute format($q$update solicitudes set cliente_nombre = 'hackeado' where id = %L$q$, t_xg);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select cliente_nombre from solicitudes where id = t_xg), 'Sofía Lara'::text,
+    'Un update a un trabajo de XG no toca nada');
+  perform pg_temp.como('xchel+demo-admin@arqosuv.com');
+  perform pg_temp.debe_fallar(
+    format($q$insert into pagos (solicitud_id, organizacion_id, via, monto, fecha_pago, referencia, reportado_por)
+              values (%L, %L, 'directo', 1, '2026-10-01', 'x', (select id from personas where correo = 'xchel+demo-admin@arqosuv.com'))$q$,
+           t_xg, pg_temp.xg()),
+    'row-level security', 'No registra pagos en un trabajo de XG');
+  perform pg_temp.debe_fallar(
+    format($q$insert into solicitudes (organizacion_id, comisionista_id, tipo, servicio_id, inmueble_direccion, cliente_nombre)
+              values (%L, %L, 'cotizacion', (select id from servicios where organizacion_id = %L limit 1), 'x', 'y')$q$,
+           pg_temp.xg(), ana, pg_temp.xg()),
+    'row-level security', 'No crea trabajos dentro de XG');
+  perform pg_temp.debe_fallar(format('select cancelar_trabajo(%L, %L)', t_xg, 'x'), 'No existe', 'No cancela trabajos de XG');
+  perform pg_temp.debe_fallar(format('select revertir_pago(%L, %L)', p_xg, 'x'), 'No existe', 'No revierte pagos de XG');
+  perform pg_temp.debe_fallar(format('select aceptar_cotizacion(%L)', c_xg), 'No existe', 'No acepta cotizaciones de XG');
+  perform pg_temp.debe_fallar(
+    format($q$select registrar_pago_comision(%L, '2026-10-01', %L, null, null, 'ninguno', null,
+              jsonb_build_array(jsonb_build_object('pendiente_id', %L, 'monto', 1)))$q$, ana, orig_demo, pend_xg),
+    'no es de esta organización', 'No paga pendientes de XG');
+
+  -- Storage: solo su carpeta dentro de su organización.
+  perform pg_temp.debe_fallar(
+    format($q$insert into storage.objects (bucket_id, name) values ('comprobantes', %L)$q$,
+           pg_temp.xg() || '/' || (select id from personas where correo = 'xchel+demo-admin@arqosuv.com') || '/x.jpg'),
+    'row-level security', 'No sube archivos a la carpeta de XG');
+  execute format($q$insert into storage.objects (bucket_id, name) values ('comprobantes', %L)$q$,
+                 demo || '/' || (select id from personas where correo = 'xchel+demo-admin@arqosuv.com') || '/ok.jpg');
+  raise notice 'ok — sube a su propia carpeta';
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from storage.objects where name like demo || '/%'), 0::bigint,
+    'Ana no ve archivos de Demo');
+  perform pg_temp.igual((select count(*) from solicitudes where organizacion_id = demo), 0::bigint, 'Ana no ve trabajos de Demo');
+
+  -- Las llaves compuestas: ni siquiera postgres mezcla organizaciones.
+  perform pg_temp.sistema();
+  perform pg_temp.debe_fallar(
+    format($q$insert into solicitudes (organizacion_id, comisionista_id, tipo, servicio_id, inmueble_direccion, cliente_nombre)
+              values (%L, %L, 'cotizacion', (select id from servicios where organizacion_id = %L limit 1), 'x', 'y')$q$,
+           demo, v_demo_com, pg_temp.xg()),
+    'foreign key', 'Un trabajo de Demo no puede usar un servicio de XG');
+end;
+$$;
+
+-- @@ Una persona en dos organizaciones
+do $$
+declare
+  demo uuid := (select id from organizaciones where slug = 'demo');
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+begin
+  perform pg_temp.como('xchel+demo-admin@arqosuv.com');
+  perform pg_temp.igual(alta_comisionista('Otra Ana', 'XCHEL+ANA@arqosuv.com', null, null, 'ana', null, false), ana,
+    'Dar de alta un correo que ya existe reutiliza a la persona');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from mis_organizaciones()), 2::bigint, 'Ana ahora elige entre dos organizaciones');
+  perform elegir_organizacion(demo);
+  perform pg_temp.igual(mi_org(), demo, 'Ana cambia a Demo');
+  perform pg_temp.igual((select count(*) from comisiones), 0::bigint, 'En Demo no ve sus comisiones de XG');
+  perform pg_temp.igual(porcentaje_vigente(demo, ana, hoy_mx()), 8.00::numeric, 'En Demo tiene el nivel de Demo (8%)');
+  perform elegir_organizacion(pg_temp.xg());
+  perform pg_temp.igual((select count(*) > 0 from comisiones), true, 'De vuelta en XG ve lo suyo');
+
+  perform pg_temp.como('xchel+demo@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select elegir_organizacion(%L)', pg_temp.xg()),
+    'No perteneces', 'Nadie entra a una organización donde no tiene membresía');
+  perform pg_temp.sistema();
+end;
+$$;
+
+-- @@ Plataforma, equipo y admin de marca
+do $$
+declare
+  demo uuid := (select id from organizaciones where slug = 'demo');
+  ap73 uuid := (select id from marcas where organizacion_id = pg_temp.xg() and clave = 'AP73');
+  t_mgp  uuid := (select id from solicitudes where cliente_nombre = 'Cliente Deshacer');
+  nueva uuid;
+begin
+  -- super_plataforma entra a Demo sin ser miembro: actúa como admin_org
+  -- y la bitácora lo dice.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from mis_organizaciones()), 2::bigint, 'La plataforma ve todas las organizaciones');
+  perform elegir_organizacion(demo);
+  perform pg_temp.igual(mi_rol(), 'admin_org'::text, 'En Demo actúa como admin_org');
+  update ajustes set dia_limite_pago_comision = 12;
+  perform pg_temp.igual(
+    (select rol from bitacora where tabla = 'ajustes' and organizacion_id = demo order by id desc limit 1),
+    'super_plataforma'::text, 'La bitácora registra que fue la plataforma');
+  nueva := crear_organizacion('Otra Org', 'otra-org', 'OTR', 'Admin Otra', 'admin@otra.test');
+  perform pg_temp.igual((select count(*) from niveles where organizacion_id = nueva), 0::bigint,
+    'Desde Demo no ve los niveles de la organización nueva');
+  perform elegir_organizacion(pg_temp.xg());
+
+  perform pg_temp.como('xchel+demo-admin@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select crear_organizacion('X', 'x', 'XX', 'x', 'x@x.test')$q$,
+    'Solo la plataforma', 'Un admin_org no da de alta organizaciones');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from niveles where organizacion_id = nueva), 5::bigint,
+    'La organización nueva nace con sus niveles, ajustes y conector manual');
+
+  -- admin_marca de AP73 en XG.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform alta_membresia('Admin AP73', 'xchel+ap73@arqosuv.com', 'admin_marca', array[ap73]);
+  perform pg_temp.debe_fallar($q$select alta_membresia('X', 'x@x.test', 'admin_marca', '{}')$q$,
+    'al menos una marca', 'admin_marca sin marca no se puede');
+  perform pg_temp.sistema();
+  insert into auth.users (id, email) values (gen_random_uuid(), 'xchel+ap73@arqosuv.com');
+
+  perform pg_temp.como('xchel+ap73@arqosuv.com');
+  perform pg_temp.igual((select bool_and(marca_id = ap73) from solicitudes), true, 'admin_marca ve solo trabajos de su marca');
+  perform pg_temp.igual((select count(*) > 0 from solicitudes), true, 'Y sí los ve');
+  perform pg_temp.igual((select count(*) from cierres), 0::bigint, 'Sin cierres');
+  perform pg_temp.igual((select count(*) from pendientes_comision), 0::bigint, 'Sin pendientes de comisión');
+  perform pg_temp.igual((select count(*) from pagos_comision), 0::bigint, 'Sin pagos de comisión');
+  perform pg_temp.igual((select count(*) from bitacora), 0::bigint, 'Sin bitácora');
+  perform pg_temp.igual(
+    (select coalesce(bool_and(c.cuenta_receptora_id in (select id from cuentas_receptoras where marca_id = ap73)), true)
+       from comisiones c),
+    true, 'Comisiones solo de su marca');
+  perform pg_temp.igual((select count(*) > 0 and bool_and(saldo_por_pagar is null) from resumen_comisionistas()), true,
+    'Ve a los comisionistas, sin el saldo por pagar (mezcla marcas)');
+  perform pg_temp.debe_fallar(format('select cambiar_estatus_manual(%L, %L)', t_mgp, 'en_revision'),
+    'el admin de la marca', 'No cambia el estatus de un trabajo de otra marca');
+
+  -- Estatus a mano (conector manual).
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform cambiar_estatus_manual(t_mgp, 'en_revision');
+  perform pg_temp.igual((select estatus_publico from solicitudes where id = t_mgp), 'en_revision'::text,
+    'admin_org mueve el estatus a mano');
+  perform pg_temp.igual((select count(*) from historial_estatus where solicitud_id = t_mgp and estatus_publico = 'en_revision'),
+    1::bigint, 'El historial lo anota');
+  perform pg_temp.debe_fallar(format('select cambiar_estatus_manual(%L, %L)', t_mgp, 'pagado'),
+    'no se pone a mano', '"Pagado" no se pone a mano');
+  perform activar_conector('notion');
+  perform pg_temp.debe_fallar(format('select cambiar_estatus_manual(%L, %L)', t_mgp, 'entregado'),
+    'lo lee el conector', 'Con conector externo el estatus no se mueve a mano');
+  perform activar_conector('manual');
+  perform pg_temp.sistema();
+end;
+$$;
+
+-- @@ Conectores y credenciales
+do $$
+declare
+  manual uuid := 'a0000000-0000-4000-8000-0000000000c1';
+  notion uuid := 'a0000000-0000-4000-8000-0000000000c2';
+begin
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select guardar_credencial_conector(%L, %L)', manual, 'x'),
+    'no usa credencial', 'El conector manual no lleva credencial');
+  perform guardar_credencial_conector(notion, 'secret_abc');
+  perform pg_temp.igual((select credencial_guardada_en is not null from conectores where id = notion), true,
+    'admin_org guarda la credencial');
+  perform pg_temp.debe_fallar($q$select decrypted_secret from vault.decrypted_secrets$q$, 'permission denied',
+    'Nadie con sesión lee Vault');
+  perform pg_temp.debe_fallar(format('select credencial_conector(%L)', notion), 'permission denied',
+    'Nadie con sesión descifra la credencial');
+  perform pg_temp.debe_fallar(format($q$update conectores set credencial_id = null where id = %L$q$, notion),
+    'permission denied', 'La credencial no se toca por la tabla');
+  update conectores set configuracion = '{"base_de_datos": "abc", "valor_cancelado": "Cancelado"}' where id = notion;
+  perform pg_temp.igual((select configuracion->>'base_de_datos' from conectores where id = notion), 'abc'::text,
+    'admin_org edita la configuración');
+  perform guardar_credencial_conector(notion, 'secret_nuevo');
+
+  perform pg_temp.sistema();
+  perform pg_temp.igual(credencial_conector(notion), 'secret_nuevo'::text, 'Solo el sistema la descifra, y se reemplaza');
+
+  perform pg_temp.como('xchel+demo-admin@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select guardar_credencial_conector(%L, %L)', notion, 'x'),
+    'No existe', 'Otra organización no toca el conector de XG');
+  perform pg_temp.debe_fallar(format('select registrar_error_conector(%L, %L, %L)', notion, 'otro', 'x'),
+    'Solo admin_org', 'Ni registra errores en él');
+
+  -- Un error nunca es silencioso: estado "error" y una alerta.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_error_conector(notion, 'propiedad_no_encontrada', 'No existe la propiedad "Etapa"');
+  perform registrar_error_conector(notion, 'propiedad_no_encontrada', 'No existe la propiedad "Etapa"');
+  perform pg_temp.igual((select estado from conectores where id = notion), 'error'::text, 'El conector queda en error');
+  perform pg_temp.igual((select count(*) from alertas where conector_id = notion and resuelta_en is null), 1::bigint,
+    'Una alerta para admin_org, sin duplicarse');
+  perform registrar_sync_ok(notion);
+  perform pg_temp.igual((select estado || '/' || (select count(*) from alertas where conector_id = notion and resuelta_en is null)
+                           from conectores where id = notion), 'activo/0'::text,
+    'El siguiente sync bueno lo deja activo y cierra la alerta');
+  perform pg_temp.sistema();
 end;
 $$;
 

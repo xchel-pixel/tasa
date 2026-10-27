@@ -5,7 +5,18 @@
 Portal para comisionistas de servicios de valuación inmobiliaria. Se despliega en
 `tasa.xgplataform.com`. Se abre en el celular desde el navegador: **móvil primero**.
 
-Tres roles: `super_admin` (Xchel), `finanzas` (Gaby) y `comisionista`.
+**Multi-organización.** Cada organización (XG es la de Xchel) está aislada: datos, niveles,
+cuentas, servicios, ajustes, cierres y conector propios. Dentro, las **marcas** (MGP, AP73,
+Arqos, XG) comparten comisionistas y niveles.
+
+- La **persona** es global (un correo). Lo que hace en cada organización lo dice su
+  **membresía**: `admin_org`, `finanzas`, `admin_marca` (solo sus marcas; sin cierres,
+  pendientes, pagos de comisión, reportes globales ni bitácora), `equipo` (sin comisión, sin
+  pantallas todavía) o `comisionista`.
+- `super_plataforma` (Xchel) es aparte: da de alta organizaciones y entra a cualquiera como
+  admin_org; en una que no es suya, una franja fija lo dice y la bitácora lo registra.
+- La organización activa vive en `personas.organizacion_activa`; con varias, se elige en
+  `/organizacion` (selector en la barra).
 
 Xchel es valuador inmobiliario, no programador de profesión. Construye con ayuda de IA.
 Explica las decisiones técnicas en términos de consecuencia, no de jerga.
@@ -48,14 +59,21 @@ la app las muestra, la base las hace cumplir.
 5. **Pagos:** todo entra como `reportado`; luego `confirmado` o `rechazado` (con motivo). Un pago
    no se edita ni regresa.
 6. **"Pagado", "Solicitada", "Cotizada", "Aceptada" y "Cancelada" los decide Tasa.** Lo de en
-   medio lo traduce `mapeo_estatus` desde la "Etapa" de Notion.
-7. **El folio lo da Notion.** Tasa crea la página como "Pendiente de folio – <cliente>"; el
-   proceso de siempre (a mano o la skill tramites-mgp) pone el folio en el título y Tasa lo copia
-   al leer (`MGP-\d{4}-\d{4}`). Sin folio y en "aceptada", el comisionista ve
-   "Aceptada – folio en asignación". Tasa nunca genera folios ni cambia la estructura de Notion.
+   medio lo mueve el **conector** de la organización (uno activo por organización):
+   - `manual` (hoy, todas): admin_org o el admin de la marca cambian el estatus desde la ficha
+     (`cambiar_estatus_manual`, con historial). El folio lo genera Tasa al volverse trámite:
+     `PREFIJO-AAAA-NNNN` con el prefijo de la organización.
+   - `notion` (etapa 2), `sheets` y `webhook` (plan): crean el registro externo al aceptar
+     (desde el cron, máx. 15 min) y leen estatus/folio/visita/cancelación por
+     `registrar_lectura`, traduciendo con el `mapeo_estatus` del conector.
+7. **Con conector externo el folio lo da el sistema externo** (`PREFIJO-AAAA-NNNN` en el
+   título); sin folio y en "aceptada" se ve "Aceptada – folio en asignación". Tasa nunca cambia la
+   estructura del sistema externo. Credenciales cifradas en Supabase Vault: nadie con sesión las
+   lee; solo el cron (`credencial_conector`). Un error de sync deja el conector en "error" y una
+   alerta para admin_org; nunca falla en silencio.
 8. Total = honorarios + IVA (16% de honorarios, solo si `requiere_factura`) + terceros. La
    comisión siempre sobre honorarios sin IVA.
-9. **"Cancelado" en Notion no cancela:** levanta una alerta en el panel admin. La cancelación se
+9. **"Cancelado" en el sistema externo no cancela:** levanta una alerta en el panel admin. La cancelación se
    confirma en Tasa (borra la comisión si el mes está abierto, o mete un cargo si ya cerró).
 10. **Efectivo:** vía `efectivo`, con quién lo recibió; el recibo es opcional. "Solo aviso" nunca
     pide archivo.
@@ -74,14 +92,21 @@ la app las muestra, la base las hace cumplir.
 
 ## Reglas técnicas
 
-- Sin columna de empresa: Tasa es un solo negocio. El RLS se amarra a la persona y su rol.
+- **Toda tabla de negocio lleva `organizacion_id`** (por omisión `mi_org()`) y su RLS empieza por
+  `organizacion_id = (select mi_org())`. Las relaciones son **llaves compuestas** (organización +
+  id): la base impide que algo apunte a otra organización. Toda consulta por comisionista lleva
+  también la organización (la misma persona puede serlo en dos). Las funciones internas reciben
+  `p_org`; las que llama la app la toman de la sesión. Sin usuario (semilla, editor, cron),
+  `mi_org()` lee `tasa.org`.
+- Storage: `{organización}/{persona}/…` (comprobantes, facturas) y
+  `{organización}/{trabajo}/…` (PDF de cotización).
 - **Toda tabla nueva:** RLS encendido, `revoke all on [tabla] from anon;` y GRANT explícito a
   `authenticated` (el proyecto NO expone tablas solo; ver `0010_permisos.sql`). Ver
   `supabase/migrations/LEEME.md`.
 - **Sin nombres del equipo en la interfaz.** Ningún texto fijo menciona a una persona del equipo
   ni su correo: se dice "el administrador", "Administración" o "el equipo de Tasa". Si hace falta
-  un contacto, sale de `ajustes.contacto_soporte` (función `contacto_soporte()`); vacío = no se
-  muestra. Los nombres que salen de `personas` (el saludo) sí se muestran.
+  un contacto, sale de `ajustes.contacto_soporte` de la organización, o del de plataforma sin
+  sesión (función `contacto_soporte()`); vacío = no se muestra. Los nombres que salen de `personas` (el saludo) sí se muestran.
 - **Cuenta receptora: alias vs titular.** En listas, estados de cuenta, subtotales y panel la cuenta
   se nombra por su `alias`. El `titular` legal solo aparece en `DatosBancarios` (CLABE + titular +
   banco): ficha del trabajo, reportar pago y PDF de cotización.
@@ -94,7 +119,8 @@ la app las muestra, la base las hace cumplir.
 - Migraciones numeradas en `supabase/migrations/`; una aplicada no se edita nunca. Se aplican con
   la CLI (`npm run db:push`). Un solo proyecto de Supabase: `TASA_MODO` (pruebas|produccion) en
   `.env.local` decide si se permiten semilla y verificaciones. El paso a producción es
-  `npm run db:reset-produccion`, una sola vez.
+  `npm run db:reset-produccion`, una sola vez. Tras un cambio de estructura, `npm run db:resembrar`
+  (solo pruebas) deja la base en cero con la semilla.
 - Verificar contra la base real, no contra los archivos SQL.
 - `npm test` corre migraciones, semilla y verificaciones en PGlite. Toda regla nueva de la base
   lleva su verificación en `supabase/verificaciones.sql` (sección `-- @@ Nombre`).
@@ -114,8 +140,13 @@ Fase 1 (MVP). Hecho: esquema, semilla, verificaciones (`npm test`), migraciones 
 soporte) y las pantallas del comisionista (inicio, ficha, nueva solicitud, reportar pago,
 estado de cuenta). Panel: pagos por confirmar, solicitudes con PDF, alertas, cierre mensual,
 comisionistas (lista, ficha, alta), comisiones por pagar, reportes y pagos en efectivo.
+Multi-organización (etapa 1): organizaciones, membresías, roles, plataforma, equipo, conector
+manual con interfaz de conectores y Vault, semilla con XG y Demo Valuadores. Publicado en
+`tasa.xgplataform.com` (Vercel; se publica solo con cada push a main).
 
-Pendiente del panel: catálogos de cuentas receptoras, mapeo de estatus y niveles.
+Pendiente del panel: catálogos de marcas, cuentas, servicios, niveles y mapeo de estatus; las
+pantallas del deshacer/anular (la base ya existe); tema por organización (color y logo ya están
+en el esquema).
 
 ## Plan (en este orden)
 
@@ -125,5 +156,7 @@ Pendiente del panel: catálogos de cuentas receptoras, mapeo de estatus y nivele
    que incluya "cuenta personal e intransferible". Ver el plan detallado en README.
 3. **Solicitud pública por liga** (`/s/<slug>`), antes de la tarjeta digital. Ver README.
 4. **Control de dispositivos**. NO construir antes de terminar el panel. Ver README.
-5. Notion (cron cada 15 min + botón), correos de cambio de estatus, PDF de cotización.
-6. Despliegue en `tasa.xgplataform.com` y `npm run db:reset-produccion`.
+5. **Etapa 2: conector Notion real** (`/api/cron`, pg_cron + pg_net, CRON_SECRET y llave de
+   servicio en Vercel). Antes de construirla, guía paso a paso para Xchel. Después: correos de
+   cambio de estatus; conectores `sheets` y `webhook`.
+6. `npm run db:reset-produccion` cuando se lance.

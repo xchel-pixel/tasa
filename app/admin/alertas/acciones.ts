@@ -12,7 +12,7 @@ export type EstadoAlerta = { error: string | null; mensaje: string | null };
  *   · descartar: Notion se equivocó; queda la nota en la alerta.
  */
 export async function resolverAlerta(_previo: EstadoAlerta, formData: FormData): Promise<EstadoAlerta> {
-  await exigirRol("super_admin");
+  await exigirRol("admin_org");
   const alerta = String(formData.get("alerta") ?? "");
   const solicitud = String(formData.get("solicitud") ?? "");
   const decision = String(formData.get("decision") ?? "");

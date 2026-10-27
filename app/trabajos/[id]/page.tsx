@@ -9,6 +9,7 @@ import { exigirPersona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerTrabajo } from "@/lib/trabajos";
 import AceptarCotizacion from "./aceptar-cotizacion";
+import CambiarEstatus from "./cambiar-estatus";
 
 export const metadata = { title: "Trabajo — Tasa" };
 
@@ -31,6 +32,13 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
     const supabase = await crearClienteServidor();
     const { data } = await supabase.storage.from("cotizaciones").createSignedUrl(t.cotizacion.pdf_ruta, 600);
     ligaPdf = data?.signedUrl ?? null;
+  }
+  // Sin conector externo, admin_org o el admin de la marca mueven el estatus a mano.
+  let estatusAMano = false;
+  if ((persona.rol === "admin_org" || persona.rol === "admin_marca") && t.estado === "tramite" && !t.pagado_en) {
+    const supabase = await crearClienteServidor();
+    const { data: conector } = await supabase.from("conectores").select("tipo").eq("activo", true).maybeSingle();
+    estatusAMano = (conector?.tipo ?? "manual") === "manual";
   }
   const confirmado = t.pagos.filter((p) => p.estado === "confirmado").reduce((s, p) => s + p.monto, 0);
   const porConfirmar = t.pagos.filter((p) => p.estado === "reportado").reduce((s, p) => s + p.monto, 0);
@@ -55,6 +63,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
             </div>
             <Etiqueta tono={estatus.tono}>{estatus.texto}</Etiqueta>
           </div>
+          {estatusAMano ? <CambiarEstatus solicitudId={t.id} actual={t.estatus_publico} /> : null}
 
           {t.estado === "cancelada" && t.motivo_cancelacion ? (
             <p className="mt-4 rounded-lg bg-error-fondo px-4 py-3 text-[0.9375rem] leading-6 text-error">

@@ -3,7 +3,7 @@ import { PantallaAdmin } from "@/components/pantalla-admin";
 import { Etiqueta } from "@/components/etiqueta";
 import { VIA_PAGO, type ViaPago } from "@/lib/estatus";
 import { fechaCorta, pesos } from "@/lib/formato";
-import { exigirRol } from "@/lib/sesion";
+import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import RevisarPago from "./revisar-pago";
 
@@ -32,7 +32,7 @@ type FilaPago = {
 
 /** Los más viejos primero: el que lleva más tiempo esperando va arriba. */
 export default async function PagosPorConfirmar() {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol(...ROLES_OPERACION);
   const supabase = await crearClienteServidor();
 
   const pagos =

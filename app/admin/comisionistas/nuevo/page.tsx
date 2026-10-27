@@ -6,7 +6,7 @@ import FormularioAlta from "./formulario-alta";
 export const metadata = { title: "Alta de comisionista — Tasa" };
 
 export default async function NuevoComisionista() {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol("admin_org", "finanzas");
   const supabase = await crearClienteServidor();
   const filas =
     oExplota(

@@ -2,14 +2,24 @@
 
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { Aviso } from "@/components/pantalla-admin";
-import { guardarAjustes, guardarOrigen, type EstadoAjustes } from "./acciones";
+import { Aviso } from "@/components/aviso";
+import { guardarAjustes, guardarOrigen, guardarPrefijo, usarConectorManual, type EstadoAjustes } from "./acciones";
 
 const INICIAL: EstadoAjustes = { mensaje: null, error: null };
 const ENTRADA =
   "mt-3 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
-export default function FormularioAjustes({ contacto, diaLimite }: { contacto: string; diaLimite: number }) {
+export default function FormularioAjustes({
+  contacto,
+  diaLimite,
+  terminos,
+  aviso,
+}: {
+  contacto: string;
+  diaLimite: number;
+  terminos: string;
+  aviso: string;
+}) {
   const [estado, enviar] = useActionState(guardarAjustes, INICIAL);
 
   return (
@@ -37,8 +47,51 @@ export default function FormularioAjustes({ contacto, diaLimite }: { contacto: s
           defaultValue={diaLimite} className={`${ENTRADA} max-w-28`} />
       </div>
 
+      <div>
+        <label htmlFor="terminos" className="block font-semibold">Términos para los comisionistas</label>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          El texto que aceptarán al entrar (la aceptación llega en la siguiente etapa).
+        </p>
+        <textarea id="terminos" name="terminos" rows={5} maxLength={20000} defaultValue={terminos} className={ENTRADA} />
+      </div>
+
+      <div>
+        <label htmlFor="aviso_privacidad" className="block font-semibold">Aviso de privacidad</label>
+        <textarea id="aviso_privacidad" name="aviso_privacidad" rows={5} maxLength={20000} defaultValue={aviso}
+          className={ENTRADA} />
+      </div>
+
       <Aviso estado={estado} />
       <BotonEnviar pendiente="Guardando…">Guardar</BotonEnviar>
+    </form>
+  );
+}
+
+/** El prefijo de los folios que genera Tasa. */
+export function FormularioPrefijo({ prefijo }: { prefijo: string }) {
+  const [estado, enviar] = useActionState(guardarPrefijo, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-3">
+      <label htmlFor="prefijo_folio" className="block font-semibold">Prefijo de folio</label>
+      <p className="-mt-2 text-[0.9375rem] leading-6 text-secundario">
+        Con el conector manual, Tasa pone el folio al aceptarse un trabajo: PREFIJO-AAAA-NNNN. Cambiarlo aplica a los
+        siguientes; los que ya tienen folio no cambian.
+      </p>
+      <input id="prefijo_folio" name="prefijo_folio" required maxLength={6} pattern="[A-Za-z0-9]{2,6}" defaultValue={prefijo}
+        className={`${ENTRADA.replace("mt-3 ", "")} max-w-40 uppercase`} />
+      <BotonEnviar variante="secundario">Guardar prefijo</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
+
+/** Volver a manual si el conector activo es otro (hoy solo manual está disponible). */
+export function VolverAManual() {
+  const [estado, enviar] = useActionState(usarConectorManual, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-2">
+      <BotonEnviar variante="secundario">Usar el conector manual</BotonEnviar>
+      <Aviso estado={estado} />
     </form>
   );
 }

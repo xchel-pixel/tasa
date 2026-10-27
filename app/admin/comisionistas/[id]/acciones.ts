@@ -22,7 +22,7 @@ async function llamar(personaId: string, fn: string, args: Record<string, unknow
 }
 
 export async function editarDatos(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol("admin_org", "finanzas");
   const id = String(formData.get("persona_id") ?? "");
   const rfc = String(formData.get("rfc") ?? "").trim().toUpperCase();
   if (rfc && !RFC.test(rfc)) return { error: "El RFC no tiene el formato correcto (12 o 13 caracteres).", mensaje: null };
@@ -36,7 +36,7 @@ export async function editarDatos(_previo: EstadoFicha, formData: FormData): Pro
 }
 
 export async function cambiarActivo(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol("admin_org", "finanzas");
   const id = String(formData.get("persona_id") ?? "");
   const activo = formData.get("activo") === "true";
   return llamar(id, "cambiar_activo_comisionista", { p_persona: id, p_activo: activo },
@@ -44,7 +44,7 @@ export async function cambiarActivo(_previo: EstadoFicha, formData: FormData): P
 }
 
 export async function forzarElite(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
-  await exigirRol("super_admin");
+  await exigirRol("admin_org");
   const id = String(formData.get("persona_id") ?? "");
   const quitar = formData.get("quitar") === "true";
   const pct = Number(String(formData.get("porcentaje") ?? "").replace(",", "."));
@@ -56,7 +56,7 @@ export async function forzarElite(_previo: EstadoFicha, formData: FormData): Pro
 }
 
 export async function agregarMovimiento(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
-  await exigirRol("super_admin");
+  await exigirRol("admin_org");
   const id = String(formData.get("persona_id") ?? "");
   const monto = Number(String(formData.get("monto") ?? "").replace(/[$,\s]/g, ""));
   if (!Number.isFinite(monto) || monto === 0) return { error: "Escribe el monto.", mensaje: null };

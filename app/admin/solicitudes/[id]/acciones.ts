@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { fechaCorta } from "@/lib/formato";
 import { generarPdfCotizacion } from "@/lib/pdf-cotizacion";
-import { exigirRol } from "@/lib/sesion";
+import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type EstadoPrecio = { error: string | null; mensaje: string | null };
@@ -19,10 +19,11 @@ const numero = (v: FormDataEntryValue | null) => {
  *   · cotización: se emite (la base reemplaza la anterior y deja la
  *     solicitud en "cotizada") y se genera el PDF;
  *   · trámite directo: el precio se pone en la solicitud y arranca como
- *     trámite ("Aceptada – folio en asignación" hasta que Notion dé folio).
+ *     trámite. Con conector manual Tasa le pone folio; con uno externo,
+ *     "Aceptada – folio en asignación" hasta que el sistema externo lo dé.
  */
 export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Promise<EstadoPrecio> {
-  const persona = await exigirRol("super_admin", "finanzas");
+  const persona = await exigirRol(...ROLES_OPERACION);
   const solicitud = String(formData.get("solicitud") ?? "");
   const tipo = String(formData.get("tipo") ?? "");
   const marca = String(formData.get("marca") ?? "");
@@ -124,7 +125,7 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
       total: Number(cot.monto_total),
       cuenta: cot.cuentas_receptoras!,
     });
-    const ruta = `${solicitud}/${cot.id}.pdf`;
+    const ruta = `${persona.organizacion.id}/${solicitud}/${cot.id}.pdf`;
     const subida = await supabase.storage.from("cotizaciones").upload(ruta, pdf, { contentType: "application/pdf" });
     if (subida.error) throw subida.error;
     const { error: errorRuta } = await supabase.from("cotizaciones").update({ pdf_ruta: ruta }).eq("id", cot.id);

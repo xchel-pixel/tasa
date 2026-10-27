@@ -9,14 +9,14 @@ export type EstadoCierre = { error: string | null; mensaje: string | null };
 const ruta = (mes: string) => `/admin/cierres/${mes.slice(0, 7)}`;
 
 /**
- * Preparar (finanzas o super_admin) y aprobar (solo super_admin). Las
+ * Preparar (finanzas o admin_org) y aprobar (solo admin_org). Las
  * funciones de la base revisan el rol, que el mes haya terminado, el
  * orden de los meses y bloquean el cierre al aprobar.
  */
 export async function moverCierre(_previo: EstadoCierre, formData: FormData): Promise<EstadoCierre> {
   const accion = String(formData.get("accion") ?? "");
   const mes = String(formData.get("mes") ?? "");
-  await exigirRol(...(accion === "aprobar" ? (["super_admin"] as const) : (["super_admin", "finanzas"] as const)));
+  await exigirRol(...(accion === "aprobar" ? (["admin_org"] as const) : (["admin_org", "finanzas"] as const)));
 
   if (accion === "aprobar" && formData.get("confirmo") !== "on") {
     return { error: "Marca la casilla: un cierre aprobado no se reabre.", mensaje: null };

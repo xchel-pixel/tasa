@@ -5,7 +5,7 @@ import { PantallaAdmin } from "@/components/pantalla-admin";
 import { VistaEstadoDeCuenta } from "@/components/vista-estado-de-cuenta";
 import { estatusVisible, type EstatusPublico } from "@/lib/estatus";
 import { fechaCorta, mesLargo, pesos } from "@/lib/formato";
-import { exigirRol } from "@/lib/sesion";
+import { esStaff, exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import type { FilaComisionista } from "../page";
 import { AgregarMovimiento, CambiarActivo, EditarDatos, ForzarElite } from "./formularios";
@@ -24,11 +24,11 @@ type Ficha = {
   porcentaje_forzado: string | number | null;
   fecha_alta: string;
   personas: { nombre: string; correo: string; telefono: string | null; activo: boolean } | null;
-  referido: { personas: { nombre: string } | null } | null;
+  referido_por: string | null;
 };
 
 export default async function FichaComisionista({ params, searchParams }: PageProps<"/admin/comisionistas/[id]">) {
-  const yo = await exigirRol("super_admin", "finanzas");
+  const yo = await exigirRol(...ROLES_OPERACION);
   const { id } = await params;
   const { mes } = await searchParams;
   if (!UUID.test(id)) notFound();
@@ -38,7 +38,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
     supabase
       .from("comisionistas")
       .select(
-        "persona_id, slug, rfc, emite_factura, porcentaje_forzado, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido:referido_por(personas!comisionistas_persona_id_fkey(nombre))"
+        "persona_id, slug, rfc, emite_factura, porcentaje_forzado, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por"
       )
       .eq("persona_id", id)
       .maybeSingle()
@@ -78,12 +78,21 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   const listaPendientes = oExplota(pendientes, "los pendientes") ?? [];
   const listaPagos = oExplota(pagos, "los pagos de comisión") ?? [];
   const saldo = listaPendientes.reduce((s, p) => s + Number(p.monto) - Number(p.pagado), 0);
-  const superAdmin = yo.rol === "super_admin";
+  const superAdmin = yo.rol === "admin_org";
+  // admin_marca ve al comisionista con los datos de sus marcas: sin pagos
+  // de comisión, estado de cuenta ni acciones (mezclan marcas).
+  const staff = esStaff(yo);
+  const activo = r?.activo ?? f.personas.activo;
+  // PostgREST no sigue la llave compuesta de un comisionista a otro: el
+  // nombre de quien lo refirió se lee aparte.
+  const referido = f.referido_por
+    ? ((await supabase.from("personas").select("nombre").eq("id", f.referido_por).maybeSingle()).data?.nombre ?? null)
+    : null;
 
   return (
     <PantallaAdmin titulo={f.personas.nombre} volver={{ href: "/admin/comisionistas", texto: "Comisionistas" }}>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        {f.personas.activo ? <Etiqueta tono="exito">Activo</Etiqueta> : <Etiqueta tono="error">Inactivo</Etiqueta>}
+        {activo ? <Etiqueta tono="exito">Activo</Etiqueta> : <Etiqueta tono="error">Inactivo</Etiqueta>}
         {r ? (
           <Etiqueta tono="neutro">
             {r.nivel} · {Number(r.porcentaje)}%{r.provisional ? " provisional" : ""}
@@ -99,17 +108,20 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           <Dato etiqueta="Correo" valor={f.personas.correo} />
           <Dato etiqueta="Liga" valor={f.slug} />
           <Dato etiqueta="Alta" valor={fechaCorta(f.fecha_alta)} />
-          {f.referido?.personas ? <Dato etiqueta="Referido por" valor={f.referido.personas.nombre} /> : null}
+          {referido ? <Dato etiqueta="Referido por" valor={referido} /> : null}
         </dl>
-        <EditarDatos
-          personaId={id}
-          nombre={f.personas.nombre}
-          telefono={f.personas.telefono ?? ""}
-          rfc={f.rfc ?? ""}
-          emiteFactura={f.emite_factura}
-        />
+        {staff ? (
+          <EditarDatos
+            personaId={id}
+            nombre={f.personas.nombre}
+            telefono={f.personas.telefono ?? ""}
+            rfc={f.rfc ?? ""}
+            emiteFactura={f.emite_factura}
+          />
+        ) : null}
       </Seccion>
 
+      {staff ? (
       <Seccion titulo="Pagos de comisión">
         <dl className="flex items-baseline justify-between rounded-xl bg-tinte px-4 py-3">
           <dt className="font-semibold">Saldo por pagar</dt>
@@ -167,6 +179,8 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
         ) : null}
       </Seccion>
 
+      ) : null}
+
       <Seccion titulo="Trabajos">
         {(oExplota(trabajos, "los trabajos") ?? []).length === 0 ? (
           <p className="text-[0.9375rem] text-secundario">Sin trabajos todavía.</p>
@@ -214,6 +228,8 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
         ) : null}
       </Seccion>
 
+      {staff ? (
+      <>
       <Seccion titulo="Estado de cuenta">
         <VistaEstadoDeCuenta
           personaId={id}
@@ -231,9 +247,11 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
               <ForzarElite personaId={id} actual={f.porcentaje_forzado === null ? null : Number(f.porcentaje_forzado)} />
             </>
           ) : null}
-          <CambiarActivo personaId={id} activo={f.personas.activo} />
+          <CambiarActivo personaId={id} activo={activo} />
         </div>
       </Seccion>
+      </>
+      ) : null}
     </PantallaAdmin>
   );
 }

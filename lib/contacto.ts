@@ -1,7 +1,7 @@
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 /**
- * El medio de contacto que configura super_admin en Ajustes. Nulo si
+ * El medio de contacto que configura admin_org en Ajustes (o el de plataforma). Nulo si
  * está vacío: en ese caso las pantallas no muestran contacto.
  *
  * Funciona sin sesión (la usa la pantalla de acceso). Si la consulta

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { comisionesPorPagar, desgloseDelMes } from "@/lib/comisiones";
-import { exigirRol } from "@/lib/sesion";
+import { carpetaDe, exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import FormularioPagoComision from "./formulario-pago-comision";
 
@@ -10,7 +10,7 @@ export const metadata = { title: "Registrar pago de comisión — Tasa" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function PagarComision({ searchParams }: PageProps<"/admin/comisiones/pagar">) {
-  const persona = await exigirRol("super_admin", "finanzas");
+  const persona = await exigirRol("admin_org", "finanzas");
   const { c } = await searchParams;
   if (typeof c !== "string" || !UUID.test(c)) notFound();
 
@@ -45,7 +45,7 @@ export default async function PagarComision({ searchParams }: PageProps<"/admin/
           <p className="mt-1 text-[1.0625rem] font-semibold">{nombre}</p>
           <FormularioPagoComision
             comisionistaId={c}
-            personaId={persona.id}
+            carpeta={carpetaDe(persona)}
             hoy={hoy}
             origenes={oExplota(origenes, "los orígenes") ?? []}
             pendientes={pendientes.map((p) => ({

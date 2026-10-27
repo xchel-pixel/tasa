@@ -11,14 +11,14 @@ export const metadata = { title: "Reportes — Tasa" };
  * Dos lecturas distintas de un mes:
  *   · ASIGNACIÓN: comisiones del mes por empresa, servicio y comisionista
  *     (sin arrastres: el cargo original ya cuenta en su mes);
- *   · PAGO (solo super_admin): pagos de comisión hechos ese mes por
+ *   · PAGO (solo admin_org): pagos de comisión hechos ese mes por
  *     origen del dinero, y los que se pagaron sin factura.
  */
 export default async function Reportes({ searchParams }: PageProps<"/admin/reportes">) {
-  const persona = await exigirRol("super_admin", "finanzas");
+  const persona = await exigirRol("admin_org", "finanzas");
   const { mes: pedido } = await searchParams;
   const mes = typeof pedido === "string" && /^\d{4}-\d{2}-01$/.test(pedido) ? pedido : mesActual();
-  const superAdmin = persona.rol === "super_admin";
+  const superAdmin = persona.rol === "admin_org";
 
   const supabase = await crearClienteServidor();
   const [comisiones, pagos] = await Promise.all([

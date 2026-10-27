@@ -20,7 +20,7 @@ export type EstadoAcceso = {
 
 /**
  * Sin nombres del equipo en la interfaz: se dice "el administrador" y,
- * si super_admin configuró un contacto en Ajustes, se agrega.
+ * si admin_org configuró un contacto en Ajustes, se agrega.
  */
 async function fueraDelPadron(): Promise<string> {
   const contacto = await obtenerContacto();

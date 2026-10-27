@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { Aviso } from "@/components/pantalla-admin";
+import { Aviso } from "@/components/aviso";
 import { revisarPago, type EstadoRevision } from "./acciones";
 
 const INICIAL: EstadoRevision = { error: null, mensaje: null };

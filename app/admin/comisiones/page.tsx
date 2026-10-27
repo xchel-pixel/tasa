@@ -9,7 +9,7 @@ export const metadata = { title: "Comisiones por pagar — Tasa" };
 
 /** Por comisionista, el que tiene lo más vencido primero. */
 export default async function ComisionesPorPagar() {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol("admin_org", "finanzas");
   const pendientes = await comisionesPorPagar();
 
   const grupos = new Map<string, { nombre: string; filas: PorPagar[] }>();

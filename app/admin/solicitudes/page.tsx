@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { fechaCorta } from "@/lib/formato";
-import { exigirRol } from "@/lib/sesion";
+import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 
 export const metadata = { title: "Solicitudes por cotizar — Tasa" };
@@ -19,7 +19,7 @@ type Fila = {
 
 /** Lo que espera precio: solicitudes nuevas y cotizaciones vencidas que se pueden reemitir. */
 export default async function SolicitudesPorCotizar() {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol(...ROLES_OPERACION);
   const supabase = await crearClienteServidor();
   const filas =
     oExplota(

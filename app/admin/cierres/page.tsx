@@ -16,7 +16,7 @@ const ESTADO = {
 
 /** Todos los meses con movimientos o con cierre, del más reciente al más viejo. */
 export default async function Cierres() {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol("admin_org", "finanzas");
   const supabase = await crearClienteServidor();
   const [comisiones, cierres] = await Promise.all([
     supabase.from("comisiones").select("mes, monto").returns<{ mes: string; monto: string | number }[]>(),
@@ -32,7 +32,7 @@ export default async function Cierres() {
   return (
     <PantallaAdmin titulo="Cierre mensual">
       <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
-        Finanzas prepara el mes cuando termina; super_admin lo aprueba. Un cierre aprobado no se reabre.
+        Finanzas prepara el mes cuando termina; Administración lo aprueba. Un cierre aprobado no se reabre.
       </p>
       <ul className="mt-4 flex flex-col gap-3">
         {meses.map((m) => {

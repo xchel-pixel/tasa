@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { Aviso } from "@/components/pantalla-admin";
+import { Aviso } from "@/components/aviso";
 import { pesos } from "@/lib/formato";
 import { ponerPrecio, type EstadoPrecio } from "./acciones";
 

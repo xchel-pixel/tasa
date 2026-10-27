@@ -13,7 +13,7 @@ export type EstadoPagoComision = { error: string | null; mensaje: string | null 
  * comisiones como pagadas. Revisa saldos, dueño y fecha.
  */
 export async function registrarPagoComision(_previo: EstadoPagoComision, formData: FormData): Promise<EstadoPagoComision> {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol("admin_org", "finanzas");
   const comisionista = String(formData.get("comisionista_id") ?? "");
   const documento = String(formData.get("documento") ?? "");
   let aplicaciones: { pendiente_id: string; monto: number }[];

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { Aviso } from "@/components/pantalla-admin";
+import { Aviso } from "@/components/aviso";
 import { agregarMovimiento, cambiarActivo, editarDatos, forzarElite, type EstadoFicha } from "./acciones";
 
 const INICIAL: EstadoFicha = { error: null, mensaje: null };

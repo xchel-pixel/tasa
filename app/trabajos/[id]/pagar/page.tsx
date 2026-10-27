@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { DatosBancarios } from "@/components/datos-bancarios";
 import { Encabezado } from "@/components/encabezado";
 import { pesos } from "@/lib/formato";
-import { esStaff, exigirRol } from "@/lib/sesion";
+import { carpetaDe, exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerTrabajo } from "@/lib/trabajos";
 import FormularioPago from "./formulario-pago";
@@ -13,8 +13,9 @@ export const metadata = { title: "Reportar pago — Tasa" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]/pagar">) {
-  const persona = await exigirRol("comisionista", "super_admin", "finanzas");
-  const staff = esStaff(persona);
+  const persona = await exigirRol("comisionista", ...ROLES_OPERACION);
+  // admin_org, finanzas y admin_marca registran; el comisionista reporta.
+  const staff = persona.rol !== "comisionista";
   const { id } = await params;
   if (!UUID.test(id)) notFound();
 
@@ -33,12 +34,12 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
   if (staff) {
     const supabase = await crearClienteServidor();
     const { data } = await supabase
-      .from("personas")
-      .select("nombre")
-      .in("rol", ["super_admin", "finanzas"])
-      .eq("activo", true)
-      .returns<{ nombre: string }[]>();
-    equipo = (data ?? []).map((p) => p.nombre);
+      .from("membresias")
+      .select("personas(nombre)")
+      .in("rol", ["admin_org", "finanzas", "admin_marca"])
+      .eq("activa", true)
+      .returns<{ personas: { nombre: string } | null }[]>();
+    equipo = (data ?? []).map((m) => m.personas?.nombre ?? "").filter(Boolean);
   }
 
   return (
@@ -81,7 +82,7 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
 
           <FormularioPago
             solicitudId={id}
-            personaId={persona.id}
+            carpeta={carpetaDe(persona)}
             quien={staff ? "staff" : "comisionista"}
             equipo={equipo}
             sugerido={Math.max(0, falta - porConfirmar)}

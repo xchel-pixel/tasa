@@ -16,7 +16,7 @@ type Subida =
  */
 export function CampoArchivo({
   bucket,
-  personaId,
+  carpeta,
   nombre,
   etiqueta,
   ayuda,
@@ -25,7 +25,8 @@ export function CampoArchivo({
   onCambio,
 }: {
   bucket: "comprobantes" | "facturas";
-  personaId: string;
+  /** `{organización}/{persona}` de quien sube. */
+  carpeta: string;
   nombre: string;
   etiqueta: string;
   ayuda?: string;
@@ -44,7 +45,7 @@ export function CampoArchivo({
     setSubida({ paso: "subiendo" });
     onCambio?.(null);
     try {
-      const ruta = await subirArchivo(bucket, personaId, elegido, { xml });
+      const ruta = await subirArchivo(bucket, carpeta, elegido, { xml });
       setSubida({ paso: "listo", ruta, nombre: elegido.name });
       onCambio?.(ruta);
     } catch (falla) {

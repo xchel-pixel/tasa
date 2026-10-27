@@ -9,13 +9,14 @@ const DOCUMENTO_MAXIMO = 5 * 1024 * 1024;
 
 /**
  * Sube un archivo directo al bucket privado, a la carpeta de quien lo
- * sube (`{personaId}/{uuid}.ext`: la política del bucket no deja otra).
+ * sube dentro de su organización (`{organización}/{persona}/{uuid}.ext`:
+ * la política del bucket no deja otra).
  * Las fotos se achican en el teléfono: una de 3 o 4 MB queda en unos
  * 300 KB, que sí suben con mala señal. Al servidor solo llega la ruta.
  */
 export async function subirArchivo(
   bucket: "comprobantes" | "facturas",
-  personaId: string,
+  carpeta: string,
   archivo: File,
   { xml = false }: { xml?: boolean } = {}
 ): Promise<string> {
@@ -31,7 +32,7 @@ export async function subirArchivo(
     : esXml
       ? [archivo, "xml", "text/xml"]
       : [await achicar(archivo), "jpg", "image/jpeg"];
-  const ruta = `${personaId}/${crypto.randomUUID()}.${extension}`;
+  const ruta = `${carpeta}/${crypto.randomUUID()}.${extension}`;
 
   const { error } = await crearClienteNavegador().storage.from(bucket).upload(ruta, cuerpo, { contentType: tipo });
   if (error) throw error;

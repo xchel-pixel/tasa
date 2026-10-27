@@ -215,14 +215,14 @@ type FilaNivel = { nombre: string; orden: number; umbral_minimo: string | null; 
  * `calcular_nivel` de la base con el mes siguiente: es exactamente lo
  * que hará el cierre si el mes terminara hoy.
  */
-export async function miNivel(personaId: string): Promise<MiNivel> {
+export async function miNivel(personaId: string, orgId: string): Promise<MiNivel> {
   const supabase = await crearClienteServidor();
   const mes = mesActual();
 
   const [pct, prov, proy, niveles, comisiones] = await Promise.all([
-    supabase.rpc("porcentaje_vigente", { p_comisionista: personaId, p_mes: mes }),
-    supabase.rpc("porcentaje_es_provisional", { p_comisionista: personaId, p_mes: mes }),
-    supabase.rpc("calcular_nivel", { p_comisionista: personaId, p_mes: mesSiguiente(mes) }),
+    supabase.rpc("porcentaje_vigente", { p_org: orgId, p_comisionista: personaId, p_mes: mes }),
+    supabase.rpc("porcentaje_es_provisional", { p_org: orgId, p_comisionista: personaId, p_mes: mes }),
+    supabase.rpc("calcular_nivel", { p_org: orgId, p_comisionista: personaId, p_mes: mesSiguiente(mes) }),
     supabase.from("niveles").select("nombre, orden, umbral_minimo, porcentaje, es_forzado").order("orden").returns<FilaNivel[]>(),
     supabase.from("comisiones").select("monto, provisional").eq("comisionista_id", personaId).eq("mes", mes).returns<{ monto: string | number; provisional: boolean }[]>(),
   ]);

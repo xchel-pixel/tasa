@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BloqueNivel } from "@/components/bloque-nivel";
 import { Encabezado } from "@/components/encabezado";
 import { VistaEstadoDeCuenta } from "@/components/vista-estado-de-cuenta";
-import { exigirRol } from "@/lib/sesion";
+import { carpetaDe, exigirRol } from "@/lib/sesion";
 import { miNivel } from "@/lib/trabajos";
 
 export const metadata = { title: "Estado de cuenta — Tasa" };
@@ -14,7 +14,7 @@ export const metadata = { title: "Estado de cuenta — Tasa" };
 export default async function EstadoDeCuenta({ searchParams }: PageProps<"/estado-de-cuenta">) {
   const persona = await exigirRol("comisionista");
   const { mes } = await searchParams;
-  const nivel = await miNivel(persona.id);
+  const nivel = await miNivel(persona.id, persona.organizacion.id);
 
   return (
     <>
@@ -35,6 +35,7 @@ export default async function EstadoDeCuenta({ searchParams }: PageProps<"/estad
             mesPedido={typeof mes === "string" ? mes : undefined}
             base="/estado-de-cuenta"
             dueno
+            carpeta={carpetaDe(persona)}
           />
         </div>
       </main>

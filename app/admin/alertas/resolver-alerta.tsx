@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { Aviso } from "@/components/pantalla-admin";
+import { Aviso } from "@/components/aviso";
 import { resolverAlerta, type EstadoAlerta } from "./acciones";
 
 export default function ResolverAlerta({ alertaId, solicitudId }: { alertaId: string; solicitudId: string }) {

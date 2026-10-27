@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { PantallaAdmin } from "@/components/pantalla-admin";
-import { exigirRol } from "@/lib/sesion";
+import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import FormularioPrecio from "./formulario-precio";
 
@@ -25,7 +25,7 @@ type Solicitud = {
 };
 
 export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/[id]">) {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol(...ROLES_OPERACION);
   const { id } = await params;
   if (!UUID.test(id)) notFound();
 

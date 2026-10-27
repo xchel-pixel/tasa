@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { Aviso } from "@/components/pantalla-admin";
+import { Aviso } from "@/components/aviso";
 import { moverCierre, type EstadoCierre } from "./acciones";
 
 const INICIAL: EstadoCierre = { error: null, mensaje: null };

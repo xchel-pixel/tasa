@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { CampoArchivo } from "@/components/campo-archivo";
 import { Etiqueta } from "@/components/etiqueta";
-import { Aviso } from "@/components/pantalla-admin";
+import { Aviso } from "@/components/aviso";
 import { mesLargo, pesos } from "@/lib/formato";
 import { registrarPagoComision, type EstadoPagoComision } from "./acciones";
 
@@ -26,13 +26,13 @@ type PendienteParaPagar = {
  */
 export default function FormularioPagoComision({
   comisionistaId,
-  personaId,
+  carpeta,
   hoy,
   origenes,
   pendientes,
 }: {
   comisionistaId: string;
-  personaId: string;
+  carpeta: string;
   hoy: string;
   origenes: { id: string; nombre: string }[];
   pendientes: PendienteParaPagar[];
@@ -144,7 +144,7 @@ export default function FormularioPagoComision({
           ))}
         </div>
       </fieldset>
-      <CampoArchivo bucket="comprobantes" personaId={personaId} nombre="comprobante_ruta"
+      <CampoArchivo bucket="comprobantes" carpeta={carpeta} nombre="comprobante_ruta"
         etiqueta="Comprobante" ayuda="Foto o PDF de la transferencia o del recibo de efectivo." opcional />
       <div>
         <label htmlFor="nota" className="block font-semibold">

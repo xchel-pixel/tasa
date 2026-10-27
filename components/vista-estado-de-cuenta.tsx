@@ -15,6 +15,7 @@ export async function VistaEstadoDeCuenta({
   mesPedido,
   base,
   dueno,
+  carpeta,
 }: {
   personaId: string;
   mesPedido: string | undefined;
@@ -22,6 +23,8 @@ export async function VistaEstadoDeCuenta({
   base: string;
   /** Quien mira es el propio comisionista: sube su factura. */
   dueno: boolean;
+  /** Carpeta del dueño para subir su factura (`{organización}/{persona}`). */
+  carpeta?: string;
 }) {
   const meses = await mesesDisponibles(personaId);
   const mes = mesPedido && meses.includes(mesPedido) ? mesPedido : (meses[0] ?? mesActual());
@@ -156,7 +159,7 @@ export async function VistaEstadoDeCuenta({
               Ver factura o recibo
             </a>
           ) : null}
-          {dueno ? <SubirFactura pendienteId={p.id} personaId={personaId} reemplaza={Boolean(p.factura_ruta)} /> : null}
+          {dueno && carpeta ? <SubirFactura pendienteId={p.id} carpeta={carpeta} reemplaza={Boolean(p.factura_ruta)} /> : null}
         </section>
       ) : null}
 

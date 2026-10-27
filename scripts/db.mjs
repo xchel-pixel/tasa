@@ -5,6 +5,9 @@
  *   npm run db:push               → empuja migraciones pendientes (cualquier modo)
  *   npm run db:semilla            → carga la semilla de prueba (solo TASA_MODO=pruebas)
  *   npm run db:verificar          → corre las verificaciones (solo pruebas; no dejan rastro)
+ *   npm run db:resembrar          → BORRA todo, aplica migraciones y carga la semilla
+ *                                   (solo pruebas). Pide escribir RESEMBRAR; con
+ *                                   `-- --si` no pregunta.
  *   npm run db:reset-produccion   → BORRA todo, aplica migraciones sin semilla y pasa
  *                                   TASA_MODO a produccion. Pide escribir el nombre del proyecto.
  *
@@ -50,7 +53,7 @@ function supabase(args, { env = {}, capturar = false } = {}) {
   return r.stdout;
 }
 
-const ACCIONES = ["push", "semilla", "verificar", "reset-produccion"];
+const ACCIONES = ["push", "semilla", "verificar", "resembrar", "reset-produccion"];
 if (!ACCIONES.includes(accion)) salir(`Uso: node scripts/db.mjs <${ACCIONES.join("|")}>`);
 
 const entorno = leerEntorno();
@@ -64,7 +67,7 @@ if (!["pruebas", "produccion"].includes(modo)) {
 }
 
 // El candado: semilla y verificaciones existen solo en modo pruebas.
-if ((accion === "semilla" || accion === "verificar") && modo !== "pruebas") {
+if (["semilla", "verificar", "resembrar"].includes(accion) && modo !== "pruebas") {
   salir(`TASA_MODO=${modo}: la semilla y las verificaciones solo corren en modo pruebas.`);
 }
 // Un reset en producción borraría los datos reales. No hay forma de pedirlo.
@@ -73,7 +76,7 @@ if (accion === "reset-produccion" && modo !== "pruebas") {
 }
 
 const conPassword = { SUPABASE_DB_PASSWORD: password };
-if ((accion === "push" || accion === "reset-produccion") && !password) {
+if (["push", "resembrar", "reset-produccion"].includes(accion) && !password) {
   salir("Falta SUPABASE_DB_PASSWORD en .env.local.");
 }
 
@@ -91,8 +94,25 @@ if (accion === "push") {
 } else if (accion === "verificar") {
   supabase(["db", "query", "--linked", "-f", "supabase/verificaciones.sql"]);
   console.log("\n✓ Verificaciones correctas (no dejaron rastro).\n");
+} else if (accion === "resembrar") {
+  await resembrar();
 } else {
   await resetProduccion();
+}
+
+/** Datos de prueba desde cero: lo que hace falta tras un cambio de estructura. */
+async function resembrar() {
+  if (!process.argv.includes("--si")) {
+    console.log("Se BORRAN todos los datos de este proyecto de pruebas, se aplican");
+    console.log("las migraciones desde cero y se carga la semilla.\n");
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const escrito = (await rl.question("Escribe RESEMBRAR para confirmar: ")).trim();
+    rl.close();
+    if (escrito !== "RESEMBRAR") salir("No coincide. No se hizo nada.");
+  }
+  supabase(["db", "reset", "--linked", "--no-seed", "--yes"], { env: conPassword });
+  supabase(["db", "query", "--linked", "-f", "supabase/semilla_prueba.sql"]);
+  console.log("\n✓ Base de pruebas desde cero, con la semilla cargada y comprobada.\n");
 }
 
 async function resetProduccion() {

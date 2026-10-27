@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { esStaff, exigirRol } from "@/lib/sesion";
+import { carpetaDe, exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type EstadoReporte = { error: string | null };
@@ -16,8 +16,9 @@ export type EstadoReporte = { error: string | null };
  * El archivo ya se subió al bucket desde el teléfono; aquí llega la ruta.
  */
 export async function reportarPago(_previo: EstadoReporte, formData: FormData): Promise<EstadoReporte> {
-  const persona = await exigirRol("comisionista", "super_admin", "finanzas");
-  const staff = esStaff(persona);
+  const persona = await exigirRol("comisionista", ...ROLES_OPERACION);
+  // admin_org, finanzas y admin_marca registran; el comisionista reporta.
+  const staff = persona.rol !== "comisionista";
 
   const solicitudId = String(formData.get("solicitud_id") ?? "");
   const via = String(formData.get("via") ?? "");
@@ -51,7 +52,7 @@ export async function reportarPago(_previo: EstadoReporte, formData: FormData): 
   if (via === "comprobante" && !ruta) return { error: "Sube el comprobante, o elige \"Solo aviso, sin archivo\"." };
   // La ruta la puso el teléfono: se comprueba que esté en la carpeta de
   // quien reporta. La política del bucket ya no le dejó subir a otra.
-  if (ruta && !ruta.startsWith(`${persona.id}/`)) return { error: "El archivo no es válido. Súbelo otra vez." };
+  if (ruta && !ruta.startsWith(`${carpetaDe(persona)}/`)) return { error: "El archivo no es válido. Súbelo otra vez." };
   if (via === "aviso" && !nota) return { error: "Cuéntanos cómo pagó el cliente (banco, referencia, a nombre de quién)." };
   if (via === "efectivo" && !recibidoPor) return { error: "Escribe quién recibió el efectivo." };
   if (via === "directo" && !referencia) return { error: "Escribe la referencia del banco." };

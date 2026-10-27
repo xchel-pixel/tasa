@@ -11,7 +11,7 @@ const RFC = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
 
 /** Persona y comisionista nacen juntas en `alta_comisionista` (una sola transacción). */
 export async function altaComisionista(_previo: EstadoAlta, formData: FormData): Promise<EstadoAlta> {
-  await exigirRol("super_admin", "finanzas");
+  await exigirRol("admin_org", "finanzas");
   const campo = (n: string) => String(formData.get(n) ?? "").trim();
   const rfc = campo("rfc").toUpperCase();
   const slug = campo("slug").toLowerCase();

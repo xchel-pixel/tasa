@@ -7,11 +7,13 @@ import { obtenerSesion } from "@/lib/sesion";
 
 /**
  * El inicio decide por rol: el comisionista ve sus trabajos y su mes;
- * el staff, lo que le toca hacer hoy.
+ * el staff, lo que le toca hacer hoy. Sin organización elegida, primero
+ * se elige.
  */
 export default async function Inicio() {
   const sesion = await obtenerSesion();
   if (!sesion) redirect("/entrar");
+  if (sesion.sinOrganizacion) redirect(sesion.superPlataforma ? "/plataforma" : "/organizacion");
 
   const { persona } = sesion;
   const contacto = persona ? null : await obtenerContacto();
@@ -36,6 +38,14 @@ export default async function Inicio() {
             </>
           ) : persona.rol === "comisionista" ? (
             <InicioComisionista persona={persona} />
+          ) : persona.rol === "equipo" ? (
+            <>
+              <h1 className="text-[1.5rem] font-bold tracking-tight">Hola, {persona.nombre.split(" ")[0]}</h1>
+              <p className="mt-2 leading-7 text-secundario">
+                Ya eres parte del equipo de {persona.organizacion.nombre}. Tus herramientas todavía no están
+                listas; aquí aparecerán.
+              </p>
+            </>
           ) : (
             <InicioStaff persona={persona} />
           )}

@@ -4,16 +4,16 @@ import { useActionState, useState } from "react";
 import { subirFactura, type EstadoFactura } from "@/app/estado-de-cuenta/acciones";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { CampoArchivo } from "@/components/campo-archivo";
-import { Aviso } from "@/components/pantalla-admin";
+import { Aviso } from "@/components/aviso";
 
 /** El comisionista sube la factura o el recibo de su pago del mes. */
 export function SubirFactura({
   pendienteId,
-  personaId,
+  carpeta,
   reemplaza,
 }: {
   pendienteId: string;
-  personaId: string;
+  carpeta: string;
   reemplaza: boolean;
 }) {
   const [estado, enviar] = useActionState<EstadoFactura, FormData>(subirFactura, { error: null, mensaje: null });
@@ -25,7 +25,7 @@ export function SubirFactura({
       <input type="hidden" name="pendiente_id" value={pendienteId} />
       <CampoArchivo
         bucket="facturas"
-        personaId={personaId}
+        carpeta={carpeta}
         nombre="factura_ruta"
         etiqueta={reemplaza ? "Reemplazar factura o recibo" : "Tu factura o recibo"}
         ayuda="PDF, XML o foto."

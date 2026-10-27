@@ -30,7 +30,7 @@ type Linea = {
  * de ese mes que nadie ha confirmado).
  */
 export default async function CierreDelMes({ params }: PageProps<"/admin/cierres/[mes]">) {
-  const persona = await exigirRol("super_admin", "finanzas");
+  const persona = await exigirRol("admin_org", "finanzas");
   const { mes: param } = await params;
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(param)) notFound();
   const mes = `${param}-01`;
@@ -153,11 +153,11 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
       {terminado && estado !== "aprobado" ? (
         <div className="mt-6 flex flex-col gap-3">
           <AccionCierre mes={mes} accion="preparar" texto={estado === "preparado" ? "Volver a preparar" : "Preparar cierre"} />
-          {estado === "preparado" && persona.rol === "super_admin" ? (
+          {estado === "preparado" && persona.rol === "admin_org" ? (
             <AccionCierre mes={mes} accion="aprobar" texto="Aprobar cierre" />
           ) : null}
-          {estado === "preparado" && persona.rol !== "super_admin" ? (
-            <p className="text-[0.9375rem] text-secundario">Listo para que super_admin lo apruebe.</p>
+          {estado === "preparado" && persona.rol !== "admin_org" ? (
+            <p className="text-[0.9375rem] text-secundario">Listo para que Administración lo apruebe.</p>
           ) : null}
         </div>
       ) : null}

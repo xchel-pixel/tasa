@@ -10,10 +10,15 @@ export async function guardarAjustes(
   _previo: EstadoAjustes,
   formData: FormData
 ): Promise<EstadoAjustes> {
-  await exigirRol("super_admin");
+  const persona = await exigirRol("admin_org");
 
   const contacto = String(formData.get("contacto_soporte") ?? "").trim();
   const dia = Number(formData.get("dia_limite_pago_comision"));
+  const terminos = String(formData.get("terminos") ?? "").trim();
+  const aviso = String(formData.get("aviso_privacidad") ?? "").trim();
+  if (terminos.length > 20000 || aviso.length > 20000) {
+    return { mensaje: null, error: "Los textos van hasta 20,000 caracteres." };
+  }
   if (contacto.length > 120) {
     return { mensaje: null, error: "Máximo 120 caracteres." };
   }
@@ -25,10 +30,16 @@ export async function guardarAjustes(
   const { error, count } = await supabase
     .from("ajustes")
     .update(
-      { contacto_soporte: contacto || null, dia_limite_pago_comision: dia, actualizado_en: new Date().toISOString() },
+      {
+        contacto_soporte: contacto || null,
+        dia_limite_pago_comision: dia,
+        terminos: terminos || null,
+        aviso_privacidad: aviso || null,
+        actualizado_en: new Date().toISOString(),
+      },
       { count: "exact" }
     )
-    .eq("id", true);
+    .eq("organizacion_id", persona.organizacion.id);
 
   // Un update que el RLS no deja pasar no truena: toca cero filas.
   if (error || count !== 1) {
@@ -45,7 +56,7 @@ export async function guardarAjustes(
 
 /** Catálogo de orígenes del dinero para pagar comisiones. No se borran: se apagan. */
 export async function guardarOrigen(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
-  await exigirRol("super_admin");
+  await exigirRol("admin_org");
   const id = String(formData.get("id") ?? "");
   const nombre = String(formData.get("nombre") ?? "").trim();
   if (!nombre || nombre.length > 40) return { mensaje: null, error: "El nombre va de 1 a 40 caracteres." };
@@ -59,4 +70,29 @@ export async function guardarOrigen(_previo: EstadoAjustes, formData: FormData):
   }
   revalidatePath("/ajustes");
   return { mensaje: id ? "Guardado." : "Agregado.", error: null };
+}
+
+/** El prefijo con el que Tasa genera folios (conector manual). Aplica a los siguientes. */
+export async function guardarPrefijo(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
+  const persona = await exigirRol("admin_org");
+  const prefijo = String(formData.get("prefijo_folio") ?? "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{2,6}$/.test(prefijo)) return { mensaje: null, error: "De 2 a 6 letras o números." };
+  const supabase = await crearClienteServidor();
+  const { error, count } = await supabase
+    .from("organizaciones")
+    .update({ prefijo_folio: prefijo }, { count: "exact" })
+    .eq("id", persona.organizacion.id);
+  if (error || count !== 1) return { mensaje: null, error: "No se pudo guardar. Inténtalo otra vez." };
+  revalidatePath("/ajustes");
+  return { mensaje: `Guardado: los siguientes folios serán ${prefijo}-AAAA-NNNN.`, error: null };
+}
+
+/** Por ahora solo "manual" está disponible; los demás llegan con su etapa. */
+export async function usarConectorManual(_previo: EstadoAjustes): Promise<EstadoAjustes> {
+  await exigirRol("admin_org");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("activar_conector", { p_tipo: "manual" });
+  if (error) return { mensaje: null, error: error.message || "No se pudo cambiar el conector." };
+  revalidatePath("/ajustes");
+  return { mensaje: "Conector manual activo: el estatus se mueve desde la ficha y Tasa pone los folios.", error: null };
 }

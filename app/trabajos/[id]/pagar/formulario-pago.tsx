@@ -29,14 +29,14 @@ const OPCIONES: Record<"comisionista" | "staff", { via: Via; titulo: string; det
  */
 export default function FormularioPago({
   solicitudId,
-  personaId,
+  carpeta,
   quien,
   sugerido,
   hoy,
   equipo,
 }: {
   solicitudId: string;
-  personaId: string;
+  carpeta: string;
   quien: "comisionista" | "staff";
   sugerido: number;
   hoy: string;
@@ -111,7 +111,7 @@ export default function FormularioPago({
             <CampoArchivo
               key={via}
               bucket="comprobantes"
-              personaId={personaId}
+              carpeta={carpeta}
               nombre="comprobante_ruta"
               etiqueta={via === "efectivo" ? "Recibo" : "Comprobante"}
               ayuda={via === "efectivo" ? "Foto del recibo, si hay." : "Foto o PDF de la transferencia o del depósito."}
