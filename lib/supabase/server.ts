@@ -27,7 +27,7 @@ export function oExplota<T>(
  * y Route Handlers. Lee y escribe la cookie de sesión.
  *
  * Usa la llave `anon`, igual que el navegador. El RLS decide qué se ve.
- * La llave de servicio solo existe en `/api/cron` (fase de Notion).
+ * La llave secreta solo existe en `/api/cron`.
  */
 export async function crearClienteServidor() {
   const almacen = await cookies();

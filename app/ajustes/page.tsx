@@ -1,23 +1,21 @@
 import Link from "next/link";
 import { Encabezado } from "@/components/encabezado";
 import { Etiqueta } from "@/components/etiqueta";
-import { fechaCorta } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
-import FormularioAjustes, { FilaOrigen, FormularioPrefijo, VolverAManual } from "./formulario-ajustes";
+import { ActivarNotion, ConfigNotion, VolverAManualBoton, type DatosNotion } from "./conector-notion";
+import FormularioAjustes, { FilaOrigen, FormularioPrefijo } from "./formulario-ajustes";
 
 export const metadata = { title: "Ajustes — Tasa" };
 
-type Conector = {
+type Conector = Omit<DatosNotion, "mapeo_estatus"> & {
   tipo: "manual" | "notion" | "sheets" | "webhook";
-  estado: "activo" | "error" | "pausado";
-  ultimo_sync: string | null;
-  ultimo_error: string | null;
+  mapeo_estatus: { valor_externo: string; estatus_publico: string }[];
 };
 
 const CONECTORES: { tipo: Conector["tipo"]; nombre: string; detalle: string; listo: boolean }[] = [
   { tipo: "manual", nombre: "Manual", detalle: "Sin sistema externo. El estatus se mueve desde la ficha del trabajo y Tasa pone el folio.", listo: true },
-  { tipo: "notion", nombre: "Notion", detalle: "Crea la página al aceptarse el trámite y lee etapa, folio y fecha de visita.", listo: false },
+  { tipo: "notion", nombre: "Notion", detalle: "Crea la página al aceptarse el trámite y lee etapa, folio y fecha de visita.", listo: true },
   { tipo: "sheets", nombre: "Google Sheets", detalle: "Una hoja de cálculo con columnas validadas.", listo: false },
   { tipo: "webhook", nombre: "Webhook", detalle: "Para Zapier, Make o un sistema propio, con firma secreta.", listo: false },
 ];
@@ -47,13 +45,13 @@ export default async function Ajustes() {
       .returns<{ prefijo_folio: string } | null>(),
     supabase
       .from("conectores")
-      .select("tipo, estado, ultimo_sync, ultimo_error")
-      .eq("activo", true)
-      .maybeSingle()
-      .returns<Conector | null>(),
+      .select("id, tipo, activo, estado, configuracion, mapeo_campos, credencial_guardada_en, ultimo_sync, ultimo_error, mapeo_estatus(valor_externo, estatus_publico)")
+      .returns<Conector[]>(),
   ]);
   const a = oExplota(ajustes, "los ajustes");
-  const activo = oExplota(conector, "el conector");
+  const conectores = oExplota(conector, "los conectores") ?? [];
+  const activo = conectores.find((c) => c.activo) ?? null;
+  const notion = conectores.find((c) => c.tipo === "notion") ?? null;
 
   return (
     <>
@@ -99,15 +97,20 @@ export default async function Ajustes() {
                 );
               })}
             </ul>
-            {activo && activo.tipo !== "manual" ? (
-              <>
-                <p className="mt-3 text-[0.9375rem] leading-6 text-secundario">
-                  {activo.ultimo_sync ? `Última sincronización: ${fechaCorta(activo.ultimo_sync)}.` : "Todavía no sincroniza."}
-                  {activo.ultimo_error ? ` Último error: ${activo.ultimo_error}` : ""}
-                </p>
-                <VolverAManual />
-              </>
-            ) : null}
+            <div className="mt-4 rounded-xl border border-linea px-4 py-4">
+              <h3 className="font-bold">Notion</h3>
+              {notion ? <ConfigNotion d={notion} /> : null}
+              {activo?.tipo === "notion" ? (
+                <div className="mt-4"><VolverAManualBoton /></div>
+              ) : (
+                <>
+                  <p className="mt-3 text-[0.9375rem] leading-6 text-secundario">
+                    Antes de activar: guarda el secreto y usa &quot;Probar conexión&quot;.
+                  </p>
+                  <ActivarNotion />
+                </>
+              )}
+            </div>
           </section>
 
           <section className="mt-10">

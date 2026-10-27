@@ -141,7 +141,9 @@ soporte) y las pantallas del comisionista (inicio, ficha, nueva solicitud, repor
 estado de cuenta). Panel: pagos por confirmar, solicitudes con PDF, alertas, cierre mensual,
 comisionistas (lista, ficha, alta), comisiones por pagar, reportes y pagos en efectivo.
 Multi-organización (etapa 1): organizaciones, membresías, roles, plataforma, equipo, conector
-manual con interfaz de conectores y Vault, semilla con XG y Demo Valuadores. Publicado en
+manual con interfaz de conectores y Vault, semilla con XG y Demo Valuadores. Conector Notion
+(etapa 2): `/api/cron` (CRON_SECRET + SUPABASE_SECRET_KEY, solo ahí), pg_cron cada 15 min con el
+secreto en Vault (`cron_secret`), adaptador en `lib/conectores/`. Publicado en
 `tasa.xgplataform.com` (Vercel; se publica solo con cada push a main).
 
 Deshacer/anular con motivo (ficha del trabajo, bandeja de pagos, ficha del comisionista) y
@@ -160,9 +162,7 @@ logo ya están en el esquema).
    - **Marca opcional en la solicitud:** que el comisionista pueda elegir marca al pedir, para que
      admin_marca vea las solicitudes de su marca desde el inicio (hoy solo las ve al cotizarse).
 4. **Control de dispositivos**. NO construir antes de terminar el panel. Ver README.
-5. **Etapa 2: conector Notion real** (`/api/cron`, pg_cron + pg_net, CRON_SECRET y llave de
-   servicio en Vercel). Antes de construirla, guía paso a paso para Xchel. Después: correos de
-   cambio de estatus; conectores `sheets` y `webhook`.
+5. Correos de cambio de estatus; conectores `sheets` y `webhook`.
 6. `npm run db:reset-produccion` cuando se lance. En esa misma migración (ya sin la semilla de
    prueba, cuyas CLABE no pasan el dígito de control): validar el **dígito de control de la CLABE
    también en la base** (check o disparador), no solo en la pantalla de Catálogos.

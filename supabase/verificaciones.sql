@@ -259,7 +259,7 @@ $$;
 do $$
 declare
   t4  uuid := (select id from solicitudes where externo_id = 'simulado-0004');
-  t10 uuid := (select id from solicitudes where folio = 'MGP-2026-9010');
+  t10 uuid := (select id from solicitudes where organizacion_id = pg_temp.xg() and estatus_publico = 'pagado' and externo_id is not null order by folio limit 1);
 begin
   perform pg_temp.igual(
     registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'Pendiente de folio – Inmobiliaria Norte', 'Por asignar', null),
@@ -296,7 +296,7 @@ begin
   perform pg_temp.igual((select count(*) from alertas where solicitud_id = t4 and resuelta_en is null), 0::bigint,
     'Cancelar en Tasa cierra la alerta');
 
-  perform registrar_lectura(pg_temp.notion_xg(), 'simulado-0010', 'MGP-2026-9010 Daniel Ochoa', 'En proceso', null);
+  perform registrar_lectura(pg_temp.notion_xg(), (select externo_id from solicitudes where id = t10), (select folio from solicitudes where id = t10), 'En proceso', null);
   perform pg_temp.igual((select estatus_publico from solicitudes where id = t10), 'pagado'::text,
     'Notion no pisa el "pagado" de Tasa');
   perform pg_temp.igual(registrar_lectura(pg_temp.notion_xg(), 'no-existe', 'x', 'En proceso', null), 'sin_trabajo'::text,
@@ -1156,6 +1156,59 @@ begin
   perform pg_temp.sistema();
   perform pg_temp.igual((select accion from eventos_trabajo where solicitud_id = s_mgp order by creado_en desc limit 1),
     'retirar_pago'::text, 'Retirar un pago también queda en el historial del trabajo');
+end;
+$$;
+
+-- @@ Cron: qué se crea en el conector externo
+-- Solo lo aceptado después de activar el conector, y nunca dos veces.
+do $$
+declare
+  notion uuid := 'a0000000-0000-4000-8000-0000000000c2';
+  carla  uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
+  mgp    uuid := (select id from marcas where organizacion_id = pg_temp.xg() and clave = 'MGP');
+  romi   uuid := (select id from cuentas_receptoras where organizacion_id = pg_temp.xg() and alias = 'ROMI');
+  serv   uuid := (select id from servicios where organizacion_id = pg_temp.xg() and nombre = 'Avalúo Comercial');
+  s      uuid;
+begin
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform activar_conector('notion');
+  perform pg_temp.debe_fallar(format('select * from reclamar_por_crear(%L)', notion), 'permission denied',
+    'Con sesión nadie reclama trámites del cron');
+  perform pg_temp.sistema();
+
+  perform pg_temp.igual((select count(*) from conectores_para_sincronizar() where id = notion), 1::bigint,
+    'Notion activo y con credencial entra al cron');
+  perform pg_temp.igual((select mapeo_campos->>'titulo' from conectores where id = notion), 'Projects'::text,
+    'El título de la base de Trámites se llama "Projects"');
+
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, monto_terceros, estado, estatus_publico, aceptada_en)
+  values (carla, 'tramite_directo', 'admin', serv, 'Calle Notion 1', 'Cliente Notion', mgp, romi, 9000, 1200,
+          'tramite', 'aceptada', now()) returning id into s;
+  perform pg_temp.igual((select folio from solicitudes where id = s), null::text,
+    'Con conector externo Tasa ya no pone folio');
+
+  perform pg_temp.igual((select string_agg(cliente_nombre, ',') from reclamar_por_crear(notion)), 'Cliente Notion'::text,
+    'Solo se reclama lo aceptado después de activar (los trabajos de prueba viejos no suben)');
+  perform pg_temp.igual((select count(*) from reclamar_por_crear(notion)), 0::bigint,
+    'Lo reclamado no se vuelve a reclamar mientras se crea (sin duplicados)');
+  perform liberar_por_crear(notion, s);
+  perform pg_temp.igual((select monto_honorarios || '/' || monto_terceros || '/' || servicio from reclamar_por_crear(notion)),
+    '9000.00/1200.00/Avalúo Comercial'::text, 'Si falló, se libera y trae los datos para crear la página');
+  perform registrar_registro_externo(notion, s, 'pagina-notion-1');
+  perform liberar_por_crear(notion, s);
+  perform pg_temp.igual((select count(*) from reclamar_por_crear(notion)), 0::bigint,
+    'Con su registro externo ya no se vuelve a crear');
+  perform pg_temp.igual(registrar_lectura(notion, 'pagina-notion-1', 'MGP-2026-0700 Cliente Notion', 'En proceso', null),
+    'actualizado'::text, 'Y desde ahí se lee: folio y etapa');
+  perform pg_temp.igual((select folio || '/' || estatus_publico from solicitudes where id = s), 'MGP-2026-0700/en_elaboracion'::text,
+    'Folio del título y etapa traducida');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform activar_conector('manual');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from conectores_para_sincronizar() where id = notion), 0::bigint,
+    'Apagado, el cron ya no lo corre');
 end;
 $$;
 
