@@ -23,8 +23,9 @@
 --       octubre         0 / 3      → Enlace 5%   (junio sale de la ventana)
 --   · 2 de octubre: cobra el trabajo 10 (8,000) con septiembre todavía
 --     abierto. La comisión nace PROVISIONAL con el nivel vigente
---     (septiembre, 10%) = 800. Al aprobar septiembre se recalcula al
---     nivel real de octubre (5%) = 400 y deja de ser provisional.
+--     (septiembre, 10%) = 800. Al aprobar septiembre, su nivel real de
+--     octubre resulta 5%: como lo provisional solo sube, se queda en
+--     10% (800) y deja de ser provisional.
 --
 -- Los correos terminan en .test: no existen. Para entrar con tu correo
 -- real, cámbialo en `personas` antes de pedir el código.
@@ -219,8 +220,9 @@ begin
          from niveles_mensuales where comisionista_id = ana);
   end if;
 
+  -- El nivel real de octubre es 5%, pero lo provisional solo sube.
   select monto into v from comisiones where solicitud_id = t10 and tipo = 'comision';
-  if v is distinct from 400.00 then raise exception 'Comisión del trabajo 10: esperaba 400 (5%%), hay %', v; end if;
+  if v is distinct from 800.00 then raise exception 'Comisión del trabajo 10: esperaba 800 (se respeta el 10%% provisional), hay %', v; end if;
   if (select provisional from comisiones where solicitud_id = t10) then
     raise exception 'La comisión del trabajo 10 ya no debía ser provisional';
   end if;

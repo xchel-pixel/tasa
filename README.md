@@ -15,26 +15,45 @@ npm test
 Corre las migraciones, la semilla y `supabase/verificaciones.sql` en PGlite (un Postgres que
 vive dentro de Node). No toca Supabase ni necesita internet después de instalar.
 
-## Preparar la base de datos
+## Base de datos (CLI de Supabase)
 
-1. Crea un proyecto **nuevo** en Supabase (independiente de Pulso).
-2. En el editor SQL, corre en orden los archivos de `supabase/migrations/` (de `0001` a `0009`),
-   uno por consulta. Cada uno debe responder "Success".
-3. Comprueba contra la base real:
-   ```sql
-   select table_name from information_schema.tables
-   where table_schema = 'public' order by 1;
-   ```
-   Deben aparecer 16 tablas: `alertas`, `bitacora`, `cierres`, `comisiones`, `comisionistas`,
-   `cotizaciones`, `cuentas_receptoras`, `historial_estatus`, `mapeo_estatus`, `marcas`,
-   `niveles`, `niveles_mensuales`, `pagos`, `personas`, `servicios`, `solicitudes`.
-4. **Solo en un proyecto de pruebas:** corre `supabase/semilla_prueba.sql` y luego
-   `supabase/verificaciones.sql`. Las dos terminan comprobándose solas: "Success" significa que
-   todo cuadró; si algo no cuadra, se detienen con un error que dice qué regla falló. Las
-   verificaciones no dejan rastro y se pueden correr las veces que sea.
+Las migraciones se empujan con la CLI, que deja registro de cuáles ya se aplicaron en cada
+proyecto. Hay dos proyectos: **pruebas** (con semilla) y **producción** (sin semilla, nunca).
 
-En producción no va la semilla: solo las migraciones, y luego das de alta tu persona como
-`super_admin` con tu correo real.
+Una sola vez por computadora:
+
+```bash
+npx supabase login
+```
+
+Abre el navegador para autorizar la CLI con tu cuenta de Supabase.
+
+Luego copia `.env.example` como `.env.local` y llena el ref y la contraseña de cada proyecto
+(el archivo explica dónde encontrar cada dato).
+
+| Comando | Qué hace |
+|---|---|
+| `npm run db:pruebas` | Amarra el proyecto de pruebas y empuja las migraciones pendientes |
+| `npm run db:pruebas:semilla` | Carga la semilla de prueba (una sola vez) y la comprueba |
+| `npm run db:pruebas:verificar` | Corre las verificaciones; no dejan rastro |
+| `npm run db:produccion` | Amarra producción y empuja migraciones. No hay semilla para producción |
+
+Cada comando vuelve a amarrar el proyecto antes de actuar, así que nunca depende de cuál quedó
+amarrado la última vez. La CLI pide confirmar antes de empujar.
+
+Después de empujar, comprueba contra la base real (en el SQL Editor):
+
+```sql
+select table_name from information_schema.tables
+where table_schema = 'public' order by 1;
+```
+
+Deben aparecer 16 tablas: `alertas`, `bitacora`, `cierres`, `comisiones`, `comisionistas`,
+`cotizaciones`, `cuentas_receptoras`, `historial_estatus`, `mapeo_estatus`, `marcas`,
+`niveles`, `niveles_mensuales`, `pagos`, `personas`, `servicios`, `solicitudes`.
+
+En producción, después de las migraciones, das de alta tu persona como `super_admin` con tu
+correo real.
 
 ## Variables de entorno (previstas)
 

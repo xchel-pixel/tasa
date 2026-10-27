@@ -325,6 +325,10 @@ $$;
 -- Hace falta porque un trabajo puede quedar pagado el día 2 y el nivel
 -- de ese mes se conoce hasta que se aprueba el cierre anterior: mientras
 -- tanto la comisión es provisional, con el nivel del mes anterior.
+--
+-- Lo provisional SOLO SUBE: si el nivel real resulta mayor, se ajusta
+-- hacia arriba; si resulta menor, se respeta el provisional. Lo que el
+-- comisionista ya vio en su estado de cuenta no se le quita.
 create or replace function recalcular_comisiones_del_mes(p_mes date)
 returns integer language plpgsql security definer set search_path = public as $$
 declare
@@ -334,14 +338,24 @@ begin
     raise exception 'El mes % está cerrado', to_char(p_mes, 'YYYY-MM');
   end if;
 
+  with nuevo as (
+    select c.id,
+           case when c.provisional
+                then greatest(c.porcentaje, porcentaje_vigente(c.comisionista_id, c.mes))
+                else porcentaje_vigente(c.comisionista_id, c.mes)
+           end as porcentaje,
+           porcentaje_es_provisional(c.comisionista_id, c.mes) as provisional
+      from comisiones c
+     where c.mes = mes_de(p_mes) and c.tipo = 'comision'
+  )
   update comisiones c
-     set porcentaje  = porcentaje_vigente(c.comisionista_id, c.mes),
-         monto       = round(c.base * porcentaje_vigente(c.comisionista_id, c.mes) / 100, 2),
-         provisional = porcentaje_es_provisional(c.comisionista_id, c.mes)
-   where c.mes = mes_de(p_mes)
-     and c.tipo = 'comision'
-     and (c.porcentaje is distinct from porcentaje_vigente(c.comisionista_id, c.mes)
-          or c.provisional is distinct from porcentaje_es_provisional(c.comisionista_id, c.mes));
+     set porcentaje  = n.porcentaje,
+         monto       = round(c.base * n.porcentaje / 100, 2),
+         provisional = n.provisional
+    from nuevo n
+   where c.id = n.id
+     and (c.porcentaje is distinct from n.porcentaje
+          or c.provisional is distinct from n.provisional);
 
   get diagnostics v_total = row_count;
   return v_total;

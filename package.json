@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:pruebas": "node scripts/db.mjs pruebas push",
+    "db:pruebas:semilla": "node scripts/db.mjs pruebas semilla",
+    "db:pruebas:verificar": "node scripts/db.mjs pruebas verificar",
+    "db:produccion": "node scripts/db.mjs produccion push"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.10",

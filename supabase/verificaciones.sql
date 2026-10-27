@@ -372,8 +372,19 @@ $$;
 do $$
 declare
   t5   uuid := (select id from solicitudes where folio = 'MGP-2026-9005');
+  t10  uuid := (select id from solicitudes where folio = 'MGP-2026-9010');
+  ana  uuid := (select id from personas where correo = 'ana@tasa.test');
   beto uuid := (select id from personas where correo = 'beto@tasa.test');
 begin
+  -- Hacia abajo (lo dejó la semilla): Ana nació provisional al 10% y su
+  -- nivel real de octubre es 5%. Se respeta el 10%.
+  perform pg_temp.igual(porcentaje_vigente(ana, '2026-10-01'), 5.00::numeric,
+    'El nivel real de Ana en octubre es 5%');
+  perform pg_temp.igual((select porcentaje from comisiones where solicitud_id = t10), 10.00::numeric,
+    'Si el real es menor, se respeta el provisional (10%)');
+  perform pg_temp.igual((select monto from comisiones where solicitud_id = t10), 800.00::numeric,
+    'Y el monto no baja (800)');
+
   -- Trabajo 5 (Beto): faltan 6,920 y llegan el 3 de noviembre, con
   -- octubre todavía sin aprobar.
   insert into pagos (solicitud_id, via, monto, fecha_pago, referencia)
@@ -396,7 +407,7 @@ begin
   perform pg_temp.igual(porcentaje_vigente(beto, '2026-11-01'), 10.00::numeric,
     'Al aprobar octubre, Beto queda en Aliado para noviembre');
   perform pg_temp.igual((select monto from comisiones where solicitud_id = t5), 1200.00::numeric,
-    'La comisión provisional se recalcula: 10% de 12,000');
+    'Si el real es mayor, la provisional sube: 10% de 12,000');
   perform pg_temp.igual((select provisional from comisiones where solicitud_id = t5), false,
     'Y deja de ser provisional');
   perform pg_temp.igual((select count(*) from comisiones where mes = '2026-10-01' and provisional), 0::bigint,

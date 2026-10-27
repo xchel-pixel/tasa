@@ -43,7 +43,8 @@ la app las muestra, la base las hace cumplir.
 4. **Nivel:** promedio de honorarios pagados de los 3 meses anteriores (desde el alta, meses en
    cero incluidos). Se calcula al aprobar el cierre y aplica a todo el mes siguiente.
    Una comisión devengada antes de aprobar el cierre anterior nace con el último nivel conocido
-   y `provisional = true`; se recalcula al aprobar ese cierre.
+   y `provisional = true`; al aprobar ese cierre sube si el nivel real es mayor y se respeta si
+   es menor (lo provisional solo sube).
 5. **Pagos:** todo entra como `reportado`; luego `confirmado` o `rechazado` (con motivo). Un pago
    no se edita ni regresa.
 6. **"Pagado", "Solicitada", "Cotizada", "Aceptada" y "Cancelada" los decide Tasa.** Lo de en
