@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { BloqueNivel } from "@/components/bloque-nivel";
 import { Etiqueta } from "@/components/etiqueta";
 import { ESTATUS_CERRADOS, estatusVisible } from "@/lib/estatus";
-import { mesActual, mesLargo, pesos } from "@/lib/formato";
+import { pesos } from "@/lib/formato";
 import type { Persona } from "@/lib/sesion";
 import { miNivel, misTrabajos, type TrabajoEnLista } from "@/lib/trabajos";
 
@@ -22,40 +23,24 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
         Hola, {persona.nombre.split(" ")[0]}
       </h1>
 
-      <section className="mt-6 rounded-xl bg-tinte px-5 py-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="font-semibold">Comisión de {mesLargo(mesActual())}</p>
-          {nivel.comision_mes_provisional ? <Etiqueta tono="proceso">Provisional</Etiqueta> : null}
-        </div>
-        <p className="mt-1 text-[1.75rem] font-bold text-primario">{pesos(nivel.comision_mes)}</p>
+      <div className="mt-6">
+        <BloqueNivel nivel={nivel} />
+      </div>
 
-        <p className="mt-3 text-[0.9375rem] text-secundario">
-          Tu nivel: <strong className="font-semibold text-texto">{nivel.nivel}</strong> ·{" "}
-          {nivel.porcentaje}%{nivel.provisional ? " (provisional)" : ""}
-        </p>
-
-        {nivel.siguiente ? (
-          <>
-            <div
-              className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-fondo"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(nivel.avance * 100)}
-              aria-label={`Avance hacia ${nivel.siguiente.nombre}`}
-            >
-              <div className="h-full rounded-full bg-primario" style={{ width: `${nivel.avance * 100}%` }} />
-            </div>
-            <p className="mt-2 text-[0.9375rem] leading-6">
-              Te faltan <strong className="font-semibold text-acento">{pesos(nivel.faltante)}</strong> en
-              honorarios pagados este mes para subir a {nivel.siguiente.nombre} (
-              {nivel.siguiente.porcentaje}%) el mes que entra.
-            </p>
-          </>
-        ) : (
-          <p className="mt-2 text-[0.9375rem] leading-6">Estás en el nivel más alto.</p>
-        )}
-      </section>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <Link
+          href="/solicitudes/nueva"
+          className="flex min-h-12 items-center justify-center rounded-lg bg-primario px-3 py-3 text-center text-[1rem] font-semibold text-sobre-primario"
+        >
+          Nueva solicitud
+        </Link>
+        <Link
+          href="/estado-de-cuenta"
+          className="flex min-h-12 items-center justify-center rounded-lg border border-primario px-3 py-3 text-center text-[1rem] font-semibold text-primario"
+        >
+          Estado de cuenta
+        </Link>
+      </div>
 
       <Lista titulo="En curso" trabajos={enCurso} vacio="No tienes trabajos en curso." />
       {cerrados.length > 0 ? <Lista titulo="Terminados" trabajos={cerrados} /> : null}

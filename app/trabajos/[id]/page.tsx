@@ -13,7 +13,7 @@ export const metadata = { title: "Trabajo — Tasa" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]">) {
-  await exigirPersona();
+  const persona = await exigirPersona();
   const { id } = await params;
   // Una dirección inventada no es un error de la base: es "no existe".
   if (!UUID.test(id)) notFound();
@@ -99,6 +99,14 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
           {t.estado === "tramite" && !t.pagado_en && t.cuenta ? (
             <Seccion titulo="Dónde depositar">
               <Cuenta cuenta={t.cuenta} />
+              {persona.rol === "comisionista" ? (
+                <Link
+                  href={`/trabajos/${t.id}/pagar`}
+                  className="mt-4 flex min-h-12 items-center justify-center rounded-lg bg-primario px-4 py-3 text-[1.0625rem] font-semibold text-sobre-primario"
+                >
+                  Reportar pago
+                </Link>
+              ) : null}
             </Seccion>
           ) : null}
 

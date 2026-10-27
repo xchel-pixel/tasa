@@ -20,7 +20,7 @@ begin;
 -- todavía no tenga (Xchel ya puede tener el suyo si entró con su correo).
 insert into auth.users (id, email)
 select gen_random_uuid(), correo from personas
- where (correo like '%@tasa.test' or correo = 'xchel@arqosuv.com') and user_id is null;
+ where (correo like '%@tasa.test' or correo like 'xchel%@arqosuv.com') and user_id is null;
 
 -- Cambia la sesión a la persona con ese correo (o a anon si es nulo).
 create function pg_temp.como(p_correo text) returns void language plpgsql as $$
@@ -67,9 +67,9 @@ grant execute on all functions in schema pg_temp to anon, authenticated;
 -- @@ Niveles
 do $$
 declare
-  ana   uuid := (select id from personas where correo = 'ana@tasa.test');
-  beto  uuid := (select id from personas where correo = 'beto@tasa.test');
-  carla uuid := (select id from personas where correo = 'carla@tasa.test');
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  beto  uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
+  carla uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
 begin
   perform pg_temp.igual((select promedio from calcular_nivel(ana, '2026-07-01')), 36000::numeric,
     'Ana para julio: solo junio cuenta (alta en junio) → 36,000 / 1');
@@ -170,7 +170,7 @@ $$;
 do $$
 declare
   t9  uuid := (select id from solicitudes where folio = 'MGP-2026-9009');
-  ana uuid := (select id from personas where correo = 'ana@tasa.test');
+  ana uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
 begin
   -- Trabajo 9: honorarios 36,000 → tope 10,800. Ya tiene 1,800 (junio).
   insert into comisiones (comisionista_id, solicitud_id, tipo, monto, mes)
@@ -196,7 +196,7 @@ $$;
 do $$
 declare
   t9    uuid := (select id from solicitudes where folio = 'MGP-2026-9009');
-  ana   uuid := (select id from personas where correo = 'ana@tasa.test');
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
   c_jun uuid := (select id from comisiones where solicitud_id = t9 and tipo = 'comision');
 begin
   perform pg_temp.debe_fallar(
@@ -335,9 +335,9 @@ declare
   t6 uuid := (select id from solicitudes where folio = 'MGP-2026-9006');
   t7 uuid := (select id from solicitudes where folio = 'MGP-2026-9007');
   avaluo uuid := (select id from servicios where nombre = 'Avalúo Comercial');
-  beto uuid := (select id from personas where correo = 'beto@tasa.test');
+  beto uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
 begin
-  perform pg_temp.como('beto@tasa.test');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
 
   perform pg_temp.igual((select count(*) from solicitudes), 3::bigint, 'Beto ve solo sus 3 trabajos');
   perform pg_temp.igual((select count(*) from comisiones where comisionista_id <> beto), 0::bigint,
@@ -417,7 +417,7 @@ begin
   perform pg_temp.igual((select nombre from marcas where clave = 'XG'), 'XG'::text,
     'La marca XG no muestra el nombre de una persona');
 
-  perform pg_temp.como('beto@tasa.test');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
   perform pg_temp.igual((select count(*) from ajustes), 1::bigint, 'El comisionista lee los ajustes');
   update ajustes set contacto_soporte = 'intruso';
   perform pg_temp.igual(contacto_soporte(), null::text, 'El comisionista no cambia el contacto');
@@ -443,8 +443,8 @@ do $$
 declare
   t5   uuid := (select id from solicitudes where folio = 'MGP-2026-9005');
   t10  uuid := (select id from solicitudes where folio = 'MGP-2026-9010');
-  ana  uuid := (select id from personas where correo = 'ana@tasa.test');
-  beto uuid := (select id from personas where correo = 'beto@tasa.test');
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  beto uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
 begin
   -- Hacia abajo (lo dejó la semilla): Ana nació provisional al 10% y su
   -- nivel real de octubre es 5%. Se respeta el 10%.

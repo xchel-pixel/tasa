@@ -27,8 +27,8 @@
 --     octubre resulta 5%: como lo provisional solo sube, se queda en
 --     10% (800) y deja de ser provisional.
 --
--- Xchel usa su correo real (xchel@arqosuv.com) para poder entrar con
--- la semilla cargada. Los demás terminan en .test: no existen.
+-- Xchel y los 3 comisionistas usan correos reales (alias xchel+…@arqosuv.com)
+-- para poder entrar con la semilla cargada. Gaby sigue en .test.
 -- ============================================================
 
 do $$
@@ -44,9 +44,9 @@ begin
   -- Personas ---------------------------------------------------
   insert into personas (nombre, correo, rol) values ('Xchel Guerrero', 'xchel@arqosuv.com', 'super_admin') returning id into v_xchel;
   insert into personas (nombre, correo, rol) values ('Gaby', 'gaby@tasa.test', 'finanzas') returning id into v_gaby;
-  insert into personas (nombre, correo, telefono, rol) values ('Ana Prueba',   'ana@tasa.test',   '4420000001', 'comisionista') returning id into v_ana;
-  insert into personas (nombre, correo, telefono, rol) values ('Beto Prueba',  'beto@tasa.test',  '4420000002', 'comisionista') returning id into v_beto;
-  insert into personas (nombre, correo, telefono, rol) values ('Carla Prueba', 'carla@tasa.test', '4420000003', 'comisionista') returning id into v_carla;
+  insert into personas (nombre, correo, telefono, rol) values ('Ana Prueba',   'xchel+ana@arqosuv.com',   '4420000001', 'comisionista') returning id into v_ana;
+  insert into personas (nombre, correo, telefono, rol) values ('Beto Prueba',  'xchel+beto@arqosuv.com',  '4420000002', 'comisionista') returning id into v_beto;
+  insert into personas (nombre, correo, telefono, rol) values ('Carla Prueba', 'xchel+carla@arqosuv.com', '4420000003', 'comisionista') returning id into v_carla;
 
   insert into comisionistas (persona_id, slug, fecha_alta) values
     (v_ana,   'ana-prueba',   '2026-06-01'),
@@ -199,7 +199,7 @@ $$;
 -- ============================================================
 do $$
 declare
-  ana uuid := (select id from personas where correo = 'ana@tasa.test');
+  ana uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
   t10 uuid := (select id from solicitudes where folio = 'MGP-2026-9010');
   v numeric;
 begin
