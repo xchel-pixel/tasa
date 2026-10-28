@@ -28,7 +28,7 @@ export function EditarDatos({
         </div>
         <div>
           <label htmlFor="rfc" className="block font-semibold">RFC</label>
-          <input id="rfc" name="rfc" maxLength={13} defaultValue={rfc} className={`${ENTRADA} uppercase`} />
+          <input id="rfc" name="rfc" maxLength={20} defaultValue={rfc} className={`${ENTRADA} uppercase`} />
         </div>
         <label className="flex items-start gap-3 text-[0.9375rem] leading-6">
           <input type="checkbox" name="emite_factura" defaultChecked={emiteFactura} className="mt-1 h-5 w-5 accent-primario" />

@@ -24,13 +24,13 @@ export default function FormularioOrganizacion() {
       </div>
       <div>
         <label htmlFor="slug" className="block font-semibold">Slug</label>
-        <input id="slug" name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" key={aSlug(nombre)}
+        <input id="slug" name="slug" required key={aSlug(nombre)}
           defaultValue={aSlug(nombre)} className={ENTRADA} />
         <p className="mt-1 text-[0.9375rem] text-secundario">Va en su liga pública: …/s/slug/comisionista.</p>
       </div>
       <div>
         <label htmlFor="prefijo" className="block font-semibold">Prefijo de folio</label>
-        <input id="prefijo" name="prefijo" required pattern="[A-Za-z0-9]{2,6}" maxLength={6}
+        <input id="prefijo" name="prefijo" required maxLength={6}
           className={`${ENTRADA} uppercase`} />
         <p className="mt-1 text-[0.9375rem] text-secundario">2 a 6 letras o números: PREFIJO-AAAA-NNNN.</p>
       </div>

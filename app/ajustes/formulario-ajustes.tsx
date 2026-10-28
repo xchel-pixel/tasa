@@ -77,7 +77,7 @@ export function FormularioPrefijo({ prefijo }: { prefijo: string }) {
         Con el conector manual, Tasa pone el folio al aceptarse un trabajo: PREFIJO-AAAA-NNNN. Cambiarlo aplica a los
         siguientes; los que ya tienen folio no cambian.
       </p>
-      <input id="prefijo_folio" name="prefijo_folio" required maxLength={6} pattern="[A-Za-z0-9]{2,6}" defaultValue={prefijo}
+      <input id="prefijo_folio" name="prefijo_folio" required maxLength={6} defaultValue={prefijo}
         className={`${ENTRADA.replace("mt-3 ", "")} max-w-40 uppercase`} />
       <BotonEnviar variante="secundario">Guardar prefijo</BotonEnviar>
       <Aviso estado={estado} />

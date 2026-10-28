@@ -1,12 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { errorDeRfc, errorDeTelefono, limpiarRfc, limpiarTelefono } from "@/lib/limpiar";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type EstadoFicha = { error: string | null; mensaje: string | null };
-
-const RFC = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
 
 /**
  * Cada acción llama a su función de la base, que revisa el rol: lo de
@@ -24,12 +23,14 @@ async function llamar(personaId: string, fn: string, args: Record<string, unknow
 export async function editarDatos(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
   await exigirRol("admin_org", "finanzas");
   const id = String(formData.get("persona_id") ?? "");
-  const rfc = String(formData.get("rfc") ?? "").trim().toUpperCase();
-  if (rfc && !RFC.test(rfc)) return { error: "El RFC no tiene el formato correcto (12 o 13 caracteres).", mensaje: null };
+  const rfc = limpiarRfc(String(formData.get("rfc") ?? ""));
+  const telefono = limpiarTelefono(String(formData.get("telefono") ?? ""));
+  const error = errorDeRfc(rfc) ?? errorDeTelefono(telefono);
+  if (error) return { error, mensaje: null };
   return llamar(id, "actualizar_comisionista", {
     p_persona: id,
     p_nombre: String(formData.get("nombre") ?? ""),
-    p_telefono: String(formData.get("telefono") ?? ""),
+    p_telefono: telefono,
     p_rfc: rfc,
     p_emite_factura: formData.get("emite_factura") === "on",
   }, "Datos guardados.");

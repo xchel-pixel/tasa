@@ -10,3 +10,13 @@ export function clabeValida(clabe: string): boolean {
   for (let i = 0; i < 17; i++) suma += (Number(clabe[i]) * pesos[i % 3]) % 10;
   return (10 - (suma % 10)) % 10 === Number(clabe[17]);
 }
+
+/** Quita espacios, guiones y puntos: la CLABE se copia de muchas formas. */
+export const limpiarClabe = (texto: string) => texto.replace(/[\s.\-]/g, "");
+
+/** El motivo, en palabras, por el que una CLABE (ya limpia) no sirve; nulo si sirve. */
+export function errorDeClabe(clabe: string): string | null {
+  if (!/^\d{18}$/.test(clabe)) return "La CLABE debe tener 18 dígitos.";
+  if (!clabeValida(clabe)) return "El dígito de control no coincide, revisa la CLABE.";
+  return null;
+}

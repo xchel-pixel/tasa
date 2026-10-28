@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Aviso } from "@/components/aviso";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { eliminar, guardarCuenta, guardarMarca, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
@@ -99,15 +99,15 @@ export function FormularioMarca({ marca, cuentas }: { marca?: Marca; cuentas: Cu
         </Campo>
         <div className="grid grid-cols-3 gap-2">
           <Campo etiqueta="Color">
-            <input name="color" type="text" placeholder="#04386C" pattern="#[0-9a-fA-F]{6}" defaultValue={marca?.color ?? ""}
+            <input name="color" type="text" placeholder="#04386C" defaultValue={marca?.color ?? ""}
               className={ENTRADA} />
           </Campo>
           <Campo etiqueta="Acento">
-            <input name="color_acento" type="text" placeholder="#006DB3" pattern="#[0-9a-fA-F]{6}"
+            <input name="color_acento" type="text" placeholder="#006DB3"
               defaultValue={marca?.color_acento ?? ""} className={ENTRADA} />
           </Campo>
           <Campo etiqueta="Fondo claro">
-            <input name="color_claro" type="text" placeholder="#E7F0F8" pattern="#[0-9a-fA-F]{6}"
+            <input name="color_claro" type="text" placeholder="#E7F0F8"
               defaultValue={marca?.color_claro ?? ""} className={ENTRADA} />
           </Campo>
         </div>
@@ -166,11 +166,37 @@ export function FormularioMarca({ marca, cuentas }: { marca?: Marca; cuentas: Cu
   );
 }
 
-/** El logo va en su propio formulario: se sube aparte de los textos. */
+/**
+ * El logo va en su propio formulario. El botón visible es una <label>
+ * amarrada al campo de archivo (que queda oculto a la vista, pero no
+ * apagado): tocarla abre el selector en escritorio y en el celular, y al
+ * elegir la imagen se sube sola.
+ */
 function Logo({ marca }: { marca: Marca }) {
-  const [estado, enviar] = useActionState(subirLogo, INICIAL);
+  const [estado, enviar, pendiente] = useActionState(subirLogo, INICIAL);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const formulario = useRef<HTMLFormElement>(null);
+  const id = `logo-${marca.id}`;
+
+  function alElegir(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    if (archivo.type === "image/svg+xml") {
+      setAviso("El SVG todavía no se puede imprimir en la cotización. Expórtalo como PNG (fondo transparente) y súbelo.");
+    } else if (!["image/png", "image/jpeg"].includes(archivo.type)) {
+      setAviso("El logo va en PNG o JPG.");
+    } else if (archivo.size > 900_000) {
+      setAviso("El logo pesa más de 900 KB: redúcelo (la cotización lo imprime a unos 5 cm).");
+    } else {
+      setAviso(null);
+      formulario.current?.requestSubmit();
+      return;
+    }
+    e.target.value = "";
+  }
+
   return (
-    <form action={enviar} className="flex flex-col gap-2 rounded-lg border border-linea p-3">
+    <form ref={formulario} action={enviar} className="flex flex-col gap-2 rounded-lg border border-linea p-3">
       <input type="hidden" name="id" value={marca.id} />
       <span className="text-[0.9375rem] font-bold">Logo de la cotización</span>
       {marca.logo_url ? (
@@ -179,9 +205,17 @@ function Logo({ marca }: { marca: Marca }) {
       ) : (
         <span className="text-[0.875rem] text-secundario">Sin logo: la cotización imprime la clave de la marca.</span>
       )}
-      <input name="logo" type="file" accept="image/png,image/jpeg" required className="text-[0.9375rem]" />
-      <BotonEnviar variante="secundario" pendiente="Subiendo…">Subir logo</BotonEnviar>
-      <Aviso estado={estado} />
+      <input id={id} name="logo" type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={alElegir}
+        className="sr-only" />
+      <label
+        htmlFor={id}
+        aria-disabled={pendiente}
+        className={`flex min-h-12 w-full cursor-pointer items-center justify-center rounded-lg border border-primario bg-fondo px-4 py-3 text-[1rem] font-semibold text-primario ${pendiente ? "pointer-events-none opacity-50" : ""}`}
+      >
+        {pendiente ? "Subiendo…" : marca.logo_url ? "Cambiar logo" : "Elegir imagen del logo"}
+      </label>
+      <span className="text-[0.875rem] text-secundario">PNG o JPG, de preferencia con fondo transparente.</span>
+      {aviso ? <p className="text-[0.9375rem] leading-6 text-error">{aviso}</p> : <Aviso estado={estado} />}
     </form>
   );
 }
@@ -203,11 +237,11 @@ export function FormularioCuenta({ cuenta, marcas }: { cuenta?: Cuenta; marcas: 
             <input name="banco" maxLength={60} defaultValue={cuenta?.banco ?? ""} className={ENTRADA} />
           </Campo>
           <Campo etiqueta="RFC (opcional)">
-            <input name="rfc" maxLength={13} defaultValue={cuenta?.rfc ?? ""} className={`${ENTRADA} uppercase`} />
+            <input name="rfc" maxLength={20} defaultValue={cuenta?.rfc ?? ""} className={`${ENTRADA} uppercase`} />
           </Campo>
         </div>
         <Campo etiqueta="CLABE (18 dígitos)">
-          <input name="clabe" required inputMode="numeric" maxLength={18} pattern="[0-9]{18}" defaultValue={cuenta?.clabe}
+          <input name="clabe" required inputMode="numeric" maxLength={30} defaultValue={cuenta?.clabe}
             className={`${ENTRADA} font-mono tracking-wider`} />
         </Campo>
         <Campo etiqueta="Marca">

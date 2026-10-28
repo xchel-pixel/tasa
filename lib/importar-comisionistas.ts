@@ -1,3 +1,5 @@
+import { errorDeRfc, errorDeTelefono, limpiarRfc, limpiarTelefono } from "@/lib/limpiar";
+
 /**
  * Lee la tabla de comisionistas que se pega desde Excel o Google Sheets
  * (columnas separadas por tabulador; también acepta coma o punto y coma).
@@ -22,7 +24,6 @@ export type FilaImportada = {
   errores: string[];
 };
 
-const RFC = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
 const CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export const MAXIMO_FILAS = 300;
 
@@ -42,16 +43,18 @@ export function parsearTabla(texto: string): FilaImportada[] {
     const celdas = cruda.split(separador(cruda)).map((c) => c.trim().replace(/^"|"$/g, ""));
     if (filas.length === 0 && i === lineas.findIndex((l) => l.trim()) && celdas.some((c) => /correo|e-?mail/i.test(c))) return;
 
-    const [nombre = "", correoCrudo = "", telefono = "", rfcCrudo = "", facturaCruda = "", eliteCruda = ""] = celdas;
+    const [nombre = "", correoCrudo = "", telefonoCrudo = "", rfcCrudo = "", facturaCruda = "", eliteCruda = ""] = celdas;
     const correo = correoCrudo.toLowerCase();
-    const rfc = rfcCrudo.toUpperCase();
+    const rfc = limpiarRfc(rfcCrudo);
+    const telefono = limpiarTelefono(telefonoCrudo);
     const elite = eliteCruda ? Number(eliteCruda.replace(/[%\s]/g, "")) : null;
     const errores: string[] = [];
 
     if (!nombre) errores.push("falta el nombre");
     if (!CORREO.test(correo)) errores.push("correo no válido");
     else if (vistos.has(correo)) errores.push("correo repetido en la tabla");
-    if (rfc && !RFC.test(rfc)) errores.push("RFC con formato incorrecto");
+    if (errorDeRfc(rfc)) errores.push("RFC con formato incorrecto");
+    if (errorDeTelefono(telefono)) errores.push("teléfono sin 10 dígitos");
     if (elite !== null && !(elite > 0 && elite <= 30)) errores.push("el porcentaje élite va de más de 0 a 30");
     vistos.add(correo);
 

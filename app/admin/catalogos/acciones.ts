@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { clabeValida } from "@/lib/clabe";
+import { errorDeClabe, limpiarClabe } from "@/lib/clabe";
+import { errorDeRfc, limpiarRfc } from "@/lib/limpiar";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -71,6 +72,7 @@ export async function subirLogo(_previo: EstadoCatalogo, f: FormData): Promise<E
   const archivo = f.get("logo");
   if (!(archivo instanceof File) || archivo.size === 0) return falla("Elige la imagen del logo.");
   const tipo = archivo.type === "image/png" ? "png" : archivo.type === "image/jpeg" ? "jpg" : null;
+  if (archivo.type === "image/svg+xml") return falla("El SVG todavía no se puede imprimir en la cotización. Expórtalo como PNG y súbelo.");
   if (!tipo) return falla("El logo va en PNG o JPG.");
   if (archivo.size > 900_000) return falla("El logo pesa más de 900 KB: redúcelo (el PDF lo imprime a unos 5 cm).");
 
@@ -86,11 +88,13 @@ export async function subirLogo(_previo: EstadoCatalogo, f: FormData): Promise<E
 export async function guardarCuenta(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
   await exigirRol("admin_org");
   const id = campo(f, "id");
-  const clabe = campo(f, "clabe").replace(/\s/g, "");
+  const clabe = limpiarClabe(campo(f, "clabe"));
+  const rfc = limpiarRfc(campo(f, "rfc"));
   const alias = campo(f, "alias");
   if (!alias || alias.length > 30) return falla("El alias va de 1 a 30 caracteres (es la etiqueta corta: \"Scotiabank XG\").");
   if (!campo(f, "titular")) return falla("Falta el titular.");
-  if (!clabeValida(clabe)) return falla("La CLABE no es válida: son 18 dígitos y el último no cuadra. Revísala dígito por dígito.");
+  const errorDato = errorDeClabe(clabe) ?? errorDeRfc(rfc);
+  if (errorDato) return falla(errorDato);
   if (!campo(f, "marca_id")) return falla("Elige la marca.");
 
   const datos = {
@@ -98,7 +102,7 @@ export async function guardarCuenta(_previo: EstadoCatalogo, f: FormData): Promi
     titular: campo(f, "titular"),
     banco: campo(f, "banco") || null,
     clabe,
-    rfc: campo(f, "rfc").toUpperCase() || null,
+    rfc: rfc || null,
     marca_id: campo(f, "marca_id"),
     activa: id ? f.get("activa") === "on" : true,
   };

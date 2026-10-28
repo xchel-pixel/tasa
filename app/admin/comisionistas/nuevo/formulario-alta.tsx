@@ -53,7 +53,7 @@ export default function FormularioAlta({ existentes }: { existentes: { id: strin
         <label htmlFor="rfc" className="block font-semibold">
           RFC <span className="font-normal text-secundario">(opcional)</span>
         </label>
-        <input id="rfc" name="rfc" maxLength={13} autoCapitalize="characters" className={`${ENTRADA} uppercase`} />
+        <input id="rfc" name="rfc" maxLength={20} autoCapitalize="characters" className={`${ENTRADA} uppercase`} />
       </div>
       <label className="flex items-start gap-3 text-[0.9375rem] leading-6">
         <input type="checkbox" name="emite_factura" className="mt-1 h-5 w-5 accent-primario" />
@@ -64,7 +64,7 @@ export default function FormularioAlta({ existentes }: { existentes: { id: strin
         <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
           Para su futura liga de solicitudes (todavía no se publica): …/s/<strong>{valorSlug || "…"}</strong>
         </p>
-        <input id="slug" name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxLength={40} value={valorSlug}
+        <input id="slug" name="slug" required maxLength={40} value={valorSlug}
           onChange={(e) => { setSlugTocado(true); setSlug(e.target.value.toLowerCase()); }} className={ENTRADA} />
         <p className="mt-1 text-[0.9375rem] text-secundario">Minúsculas, números y guiones.</p>
       </div>
