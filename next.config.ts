@@ -27,6 +27,11 @@ function direccionesLocales(): string[] {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: direccionesLocales(),
+  // Las fuentes del PDF se leen del disco al emitir una cotización; sin
+  // esto Vercel no las sube y el PDF falla solo en producción.
+  outputFileTracingIncludes: {
+    "/admin/solicitudes/[id]": ["./assets/fuentes/**"],
+  },
 };
 
 export default nextConfig;

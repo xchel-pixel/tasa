@@ -16,6 +16,7 @@ export default async function Inicio() {
   if (sesion.sinOrganizacion) redirect(sesion.superPlataforma ? "/plataforma" : "/organizacion");
 
   const { persona } = sesion;
+  if (persona?.debeAceptarTerminos) redirect("/terminos");
   const contacto = persona ? null : await obtenerContacto();
 
   return (

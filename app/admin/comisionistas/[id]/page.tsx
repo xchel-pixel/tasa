@@ -91,6 +91,13 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   const referido = f.referido_por
     ? ((await supabase.from("personas").select("nombre").eq("id", f.referido_por).maybeSingle()).data?.nombre ?? null)
     : null;
+  const { data: terminos } = await supabase
+    .from("aceptaciones_terminos")
+    .select("version, aceptado_en")
+    .eq("persona_id", id)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   return (
     <PantallaAdmin titulo={f.personas.nombre} volver={{ href: "/admin/comisionistas", texto: "Comisionistas" }}>
@@ -112,6 +119,10 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           <Dato etiqueta="Liga" valor={f.slug} />
           <Dato etiqueta="Alta" valor={fechaCorta(f.fecha_alta)} />
           {referido ? <Dato etiqueta="Referido por" valor={referido} /> : null}
+          <Dato
+            etiqueta="Términos"
+            valor={terminos ? `aceptados el ${fechaCorta(terminos.aceptado_en)} (versión ${terminos.version})` : "sin aceptar"}
+          />
         </dl>
         {staff ? (
           <EditarDatos

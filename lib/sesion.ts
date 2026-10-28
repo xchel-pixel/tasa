@@ -18,6 +18,8 @@ export type Persona = {
   visitante: boolean;
   /** Entre cuántas organizaciones puede elegir (selector de la barra). */
   organizaciones: number;
+  /** Comisionista con términos nuevos sin aceptar: no pasa de /terminos. */
+  debeAceptarTerminos: boolean;
 };
 
 export type Sesion = {
@@ -40,6 +42,7 @@ type FilaSesion = {
   organizacion: Organizacion | null;
   visitante: boolean;
   organizaciones: number;
+  debe_aceptar_terminos: boolean;
 };
 
 async function leerSesion(supabase: ClienteServidor): Promise<FilaSesion | null> {
@@ -97,6 +100,7 @@ export const obtenerSesion = cache(async (): Promise<Sesion | null> => {
       superPlataforma: fila.super_plataforma,
       visitante: fila.visitante,
       organizaciones: Number(fila.organizaciones),
+      debeAceptarTerminos: Boolean(fila.debe_aceptar_terminos),
     },
   };
 });
@@ -104,13 +108,15 @@ export const obtenerSesion = cache(async (): Promise<Sesion | null> => {
 /**
  * Para pantallas que no existen sin persona. Sin sesión, a /entrar;
  * sin organización elegida, a elegirla; con cuenta pero sin alta, al
- * inicio, que es la pantalla que sabe explicárselo.
+ * inicio, que es la pantalla que sabe explicárselo; con términos por
+ * aceptar, a aceptarlos.
  */
 export async function exigirPersona(): Promise<Persona> {
   const sesion = await obtenerSesion();
   if (!sesion) redirect("/entrar");
   if (sesion.sinOrganizacion) redirect("/organizacion");
   if (!sesion.persona) redirect("/");
+  if (sesion.persona.debeAceptarTerminos) redirect("/terminos");
   return sesion.persona;
 }
 

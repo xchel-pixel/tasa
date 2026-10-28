@@ -2,10 +2,43 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { fechaCorta } from "@/lib/formato";
-import { generarPdfCotizacion } from "@/lib/pdf-cotizacion";
+import { fuentesDe } from "@/lib/fuentes-pdf";
+import { generarPdfCotizacion, type LogoPdf, type MarcaPdf } from "@/lib/pdf-cotizacion";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
+
+type CotizacionEmitida = {
+  id: string;
+  numero: string;
+  monto_honorarios: string | number;
+  monto_iva: string | number;
+  monto_terceros: string | number;
+  monto_total: string | number;
+  requiere_factura: boolean;
+  vigente_hasta: string;
+  cuentas_receptoras: { titular: string; banco: string | null; clabe: string } | null;
+  solicitudes: {
+    cliente_nombre: string;
+    inmueble_direccion: string;
+    inmueble_municipio: string | null;
+    inmueble_clave_catastral: string | null;
+    inmueble_descripcion: string | null;
+    comisionistas: { personas: { nombre: string } | null } | null;
+    servicios: { nombre: string; alcance: string | null; tiempo_entrega: string | null; documentos: string | null; aviso: string | null } | null;
+    marcas: (MarcaPdf & { tipografia: "adventor" | "manrope"; logo_ruta: string | null }) | null;
+  } | null;
+};
+
+/** El logo de la marca desde el bucket privado `marcas`; sin logo, el PDF imprime la clave. */
+async function logoDe(supabase: Awaited<ReturnType<typeof crearClienteServidor>>, ruta: string | null): Promise<LogoPdf> {
+  if (!ruta) return null;
+  const { data, error } = await supabase.storage.from("marcas").download(ruta);
+  if (error || !data) {
+    console.error(`[tasa] No se pudo leer el logo ${ruta}: ${error?.message}`);
+    return null;
+  }
+  return { bytes: new Uint8Array(await data.arrayBuffer()), tipo: /.png$/i.test(ruta) ? "png" : "jpg" };
+}
 
 export type EstadoPrecio = { error: string | null; mensaje: string | null };
 
@@ -83,27 +116,16 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
       emitida_por: persona.id,
     })
     .select(
-      `id, monto_honorarios, monto_iva, monto_terceros, monto_total, requiere_factura, vigente_hasta,
+      `id, numero, monto_honorarios, monto_iva, monto_terceros, monto_total, requiere_factura, vigente_hasta,
        cuentas_receptoras(titular, banco, clabe),
-       solicitudes(cliente_nombre, inmueble_direccion, inmueble_municipio, servicios(nombre))`
+       solicitudes(cliente_nombre, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral, inmueble_descripcion,
+         comisionistas(personas(nombre)),
+         servicios(nombre, alcance, tiempo_entrega, documentos, aviso),
+         marcas(clave, nombre_legal, direccion, correo, telefonos, firmante, firmante_cargo, formas_pago,
+                color, color_acento, color_claro, tipografia, hoja, logo_ruta))`
     )
     .single()
-    .returns<{
-      id: string;
-      monto_honorarios: string | number;
-      monto_iva: string | number;
-      monto_terceros: string | number;
-      monto_total: string | number;
-      requiere_factura: boolean;
-      vigente_hasta: string;
-      cuentas_receptoras: { titular: string; banco: string | null; clabe: string } | null;
-      solicitudes: {
-        cliente_nombre: string;
-        inmueble_direccion: string;
-        inmueble_municipio: string | null;
-        servicios: { nombre: string } | null;
-      } | null;
-    }>();
+    .returns<CotizacionEmitida>();
 
   if (error || !cot) {
     console.error(`[tasa] No se pudo emitir la cotización: ${error?.message}`);
@@ -112,19 +134,32 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
 
   // La cotización ya existe. Si el PDF falla, se avisa, pero no se pierde lo emitido.
   try {
-    const pdf = await generarPdfCotizacion({
-      referencia: cot.id.slice(0, 8).toUpperCase(),
-      emitida: fechaCorta(hoy),
-      vigente_hasta: fechaCorta(cot.vigente_hasta),
-      cliente: cot.solicitudes?.cliente_nombre ?? "",
-      servicio: cot.solicitudes?.servicios?.nombre ?? "",
-      inmueble: [cot.solicitudes?.inmueble_direccion, cot.solicitudes?.inmueble_municipio].filter(Boolean).join(", "),
-      honorarios: Number(cot.monto_honorarios),
-      iva: cot.requiere_factura ? Number(cot.monto_iva) : null,
-      terceros: Number(cot.monto_terceros),
-      total: Number(cot.monto_total),
-      cuenta: cot.cuentas_receptoras!,
-    });
+    const s = cot.solicitudes!;
+    const m = s.marcas!;
+    const pdf = await generarPdfCotizacion(
+      {
+        numero: cot.numero,
+        fecha: hoy,
+        vigente_hasta: cot.vigente_hasta,
+        cliente: s.cliente_nombre,
+        inmueble: {
+          ubicacion: [s.inmueble_direccion, s.inmueble_municipio].filter(Boolean).join(", "),
+          clave_catastral: s.inmueble_clave_catastral,
+          descripcion: s.inmueble_descripcion,
+        },
+        servicio: s.servicios ?? { nombre: "", alcance: null, tiempo_entrega: null, documentos: null, aviso: null },
+        honorarios: Number(cot.monto_honorarios),
+        terceros: Number(cot.monto_terceros),
+        requiere_factura: cot.requiere_factura,
+        iva: cot.requiere_factura ? Number(cot.monto_iva) : 0,
+        total: Number(cot.monto_total),
+        cuenta: cot.cuentas_receptoras!,
+        comisionista: s.comisionistas?.personas?.nombre ?? "",
+        marca: m,
+      },
+      await fuentesDe(m.tipografia),
+      await logoDe(supabase, m.logo_ruta)
+    );
     const ruta = `${persona.organizacion.id}/${solicitud}/${cot.id}.pdf`;
     const subida = await supabase.storage.from("cotizaciones").upload(ruta, pdf, { contentType: "application/pdf" });
     if (subida.error) throw subida.error;

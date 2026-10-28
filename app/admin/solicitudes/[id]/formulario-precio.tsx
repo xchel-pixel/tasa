@@ -12,10 +12,10 @@ const ENTRADA =
 type Marca = { id: string; nombre: string; cuenta_sugerida_id: string | null };
 type Cuenta = { id: string; alias: string; banco: string | null; marca_id: string };
 
-/** Vigencia por omisión: 15 días. */
-function enQuinceDias(): string {
+/** Vigencia por omisión: 30 días. */
+function enTreintaDias(): string {
   const d = new Date();
-  d.setDate(d.getDate() + 15);
+  d.setDate(d.getDate() + 30);
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(d);
 }
 
@@ -103,7 +103,7 @@ export default function FormularioPrecio({
       {tipo === "cotizacion" ? (
         <div>
           <label htmlFor="vigencia" className="block font-semibold">Vigente hasta</label>
-          <input id="vigencia" name="vigencia" type="date" required defaultValue={enQuinceDias()} className={ENTRADA} />
+          <input id="vigencia" name="vigencia" type="date" required defaultValue={enTreintaDias()} className={ENTRADA} />
         </div>
       ) : null}
 

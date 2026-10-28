@@ -82,9 +82,17 @@ begin
   select id into v_mgp  from marcas where organizacion_id = xg and clave = 'MGP';
   select id into v_ap73 from marcas where organizacion_id = xg and clave = 'AP73';
   select id into v_xg   from marcas where organizacion_id = xg and clave = 'XG';
-  select id into v_romi     from cuentas_receptoras where organizacion_id = xg and alias = 'ROMI';
-  select id into v_banregio from cuentas_receptoras where organizacion_id = xg and alias = 'Banregio AP73';
-  select id into v_scotia   from cuentas_receptoras where organizacion_id = xg and alias = 'Scotiabank XG';
+  -- Las cuentas de relleno de 0008 no pasan el dígito de control y 0021
+  -- las quita: la semilla trae las suyas, con CLABE de prueba válidas.
+  insert into cuentas_receptoras (titular, banco, clabe, marca_id, alias)
+  values ('ROMI', 'Fondeadora', '002180000000000012', v_mgp, 'ROMI') returning id into v_romi;
+  insert into cuentas_receptoras (titular, banco, clabe, marca_id, alias)
+  values ('AP73', 'Banregio', '002180000000000025', v_ap73, 'Banregio AP73') returning id into v_banregio;
+  insert into cuentas_receptoras (titular, banco, clabe, marca_id, alias)
+  values ('Xchel Guerrero', 'Scotiabank', '002180000000000038', v_xg, 'Scotiabank XG') returning id into v_scotia;
+  update marcas set cuenta_sugerida_id = v_romi where id = v_mgp;
+  update marcas set cuenta_sugerida_id = v_banregio where id = v_ap73;
+  update marcas set cuenta_sugerida_id = v_scotia where id = v_xg;
 
   -- 9. Pagado en junio, dos parciales (Ana) --------------------
   --    36,000 + IVA 5,760 + terceros 1,500 = 43,260
@@ -255,7 +263,7 @@ begin
   select id into v_serv from servicios where organizacion_id = demo and nombre = 'Avalúo Comercial';
   insert into marcas (clave, nombre) values ('DV', 'Demo Valuadores') returning id into v_marca;
   insert into cuentas_receptoras (titular, banco, clabe, marca_id, alias)
-  values ('Demo Valuadores SA', 'BBVA', '000000000000000099', v_marca, 'BBVA Demo') returning id into v_cuenta;
+  values ('Demo Valuadores SA', 'BBVA', '002180000000000999', v_marca, 'BBVA Demo') returning id into v_cuenta;
   update marcas set cuenta_sugerida_id = v_cuenta where id = v_marca;
 
   insert into personas (nombre, correo, organizacion_activa)

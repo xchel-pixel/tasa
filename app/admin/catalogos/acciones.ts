@@ -28,9 +28,11 @@ export async function guardarMarca(_previo: EstadoCatalogo, f: FormData): Promis
   const clave = campo(f, "clave").toUpperCase();
   const nombre = campo(f, "nombre");
   const color = campo(f, "color");
+  const acento = campo(f, "color_acento");
+  const claro = campo(f, "color_claro");
   if (!/^[A-Z0-9]{2,10}$/.test(clave)) return falla("La clave va de 2 a 10 letras o números (p. ej. MGP).");
   if (!nombre) return falla("Falta el nombre.");
-  if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return falla("El color no es válido.");
+  if ([color, acento, claro].some((c) => c && !/^#[0-9a-fA-F]{6}$/.test(c))) return falla("Un color no es válido: va como #04386C.");
 
   const datos = {
     clave,
@@ -38,6 +40,18 @@ export async function guardarMarca(_previo: EstadoCatalogo, f: FormData): Promis
     color: color || null,
     cuenta_sugerida_id: campo(f, "cuenta_sugerida_id") || null,
     activa: id ? f.get("activa") === "on" : true,
+    // Lo que imprime el PDF de la cotización.
+    nombre_legal: campo(f, "nombre_legal") || null,
+    direccion: campo(f, "direccion") || null,
+    correo: campo(f, "correo") || null,
+    telefonos: campo(f, "telefonos") || null,
+    firmante: campo(f, "firmante") || null,
+    firmante_cargo: campo(f, "firmante_cargo") || null,
+    formas_pago: campo(f, "formas_pago") || null,
+    color_acento: acento || null,
+    color_claro: claro || null,
+    tipografia: campo(f, "tipografia") === "manrope" ? "manrope" : "adventor",
+    hoja: campo(f, "hoja") === "oficio" ? "oficio" : "carta",
   };
   const supabase = await crearClienteServidor();
   const { error } = id
@@ -45,6 +59,28 @@ export async function guardarMarca(_previo: EstadoCatalogo, f: FormData): Promis
     : await supabase.from("marcas").insert(datos);
   if (error) return traducir(error, "una marca");
   return listo(id ? "Marca guardada." : "Marca agregada.");
+}
+
+/**
+ * El logo del PDF, al bucket privado `marcas`. Cada subida es un archivo
+ * nuevo (las cotizaciones ya emitidas no cambian: su PDF ya está hecho).
+ */
+export async function subirLogo(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  const persona = await exigirRol("admin_org");
+  const id = campo(f, "id");
+  const archivo = f.get("logo");
+  if (!(archivo instanceof File) || archivo.size === 0) return falla("Elige la imagen del logo.");
+  const tipo = archivo.type === "image/png" ? "png" : archivo.type === "image/jpeg" ? "jpg" : null;
+  if (!tipo) return falla("El logo va en PNG o JPG.");
+  if (archivo.size > 900_000) return falla("El logo pesa más de 900 KB: redúcelo (el PDF lo imprime a unos 5 cm).");
+
+  const supabase = await crearClienteServidor();
+  const ruta = `${persona.organizacion.id}/${id}-${Date.now()}.${tipo}`;
+  const subida = await supabase.storage.from("marcas").upload(ruta, archivo, { contentType: archivo.type });
+  if (subida.error) return falla("No se pudo subir el logo. Inténtalo otra vez.");
+  const { error, count } = await supabase.from("marcas").update({ logo_ruta: ruta }, { count: "exact" }).eq("id", id);
+  if (error || count !== 1) return falla("Se subió el logo pero no se pudo asignar a la marca.");
+  return listo("Logo actualizado. Sale en las cotizaciones que emitas desde ahora.");
 }
 
 export async function guardarCuenta(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
@@ -79,10 +115,17 @@ export async function guardarServicio(_previo: EstadoCatalogo, f: FormData): Pro
   const id = campo(f, "id");
   const nombre = campo(f, "nombre");
   if (!nombre) return falla("Falta el nombre.");
+  // Lo que imprime el PDF de la cotización para este servicio.
+  const textos = {
+    alcance: campo(f, "alcance") || null,
+    tiempo_entrega: campo(f, "tiempo_entrega") || null,
+    documentos: campo(f, "documentos") || null,
+    aviso: campo(f, "aviso") || null,
+  };
   const supabase = await crearClienteServidor();
   const { error } = id
-    ? await supabase.from("servicios").update({ nombre, activo: f.get("activo") === "on" }).eq("id", id)
-    : await supabase.from("servicios").insert({ nombre, orden: 99 });
+    ? await supabase.from("servicios").update({ nombre, activo: f.get("activo") === "on", ...textos }).eq("id", id)
+    : await supabase.from("servicios").insert({ nombre, orden: 99, ...textos });
   if (error) return traducir(error, "un servicio");
   return listo(id ? "Servicio guardado." : "Servicio agregado.");
 }

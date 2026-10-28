@@ -16,15 +16,30 @@ export default async function Catalogos() {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
   const [marcas, cuentas, servicios] = await Promise.all([
-    supabase.from("marcas").select("id, clave, nombre, color, cuenta_sugerida_id, activa").order("clave").returns<Marca[]>(),
+    supabase
+      .from("marcas")
+      .select(
+        "id, clave, nombre, color, cuenta_sugerida_id, activa, nombre_legal, direccion, correo, telefonos, firmante, firmante_cargo, formas_pago, color_acento, color_claro, tipografia, hoja, logo_ruta"
+      )
+      .order("clave")
+      .returns<Marca[]>(),
     supabase
       .from("cuentas_receptoras")
       .select("id, alias, titular, banco, clabe, rfc, marca_id, activa")
       .order("alias")
       .returns<Cuenta[]>(),
-    supabase.from("servicios").select("id, nombre, activo").order("orden").order("nombre").returns<Servicio[]>(),
+    supabase
+      .from("servicios")
+      .select("id, nombre, activo, alcance, tiempo_entrega, documentos, aviso")
+      .order("orden")
+      .order("nombre")
+      .returns<Servicio[]>(),
   ]);
-  const listaMarcas = oExplota(marcas, "las marcas") ?? [];
+  const conLogo = oExplota(marcas, "las marcas") ?? [];
+  // Vista previa del logo: URL firmada por una hora (el bucket es privado).
+  const rutas = conLogo.flatMap((m) => (m.logo_ruta ? [m.logo_ruta] : []));
+  const firmadas = rutas.length ? ((await supabase.storage.from("marcas").createSignedUrls(rutas, 3600)).data ?? []) : [];
+  const listaMarcas = conLogo.map((m) => ({ ...m, logo_url: firmadas.find((x) => x.path === m.logo_ruta)?.signedUrl ?? null }));
   const listaCuentas = oExplota(cuentas, "las cuentas") ?? [];
   const listaServicios = oExplota(servicios, "los servicios") ?? [];
 

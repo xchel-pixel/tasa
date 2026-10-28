@@ -1,34 +1,91 @@
 import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, test } from "vitest";
-import { generarPdfCotizacion } from "@/lib/pdf-cotizacion";
+import { fuentesDe } from "@/lib/fuentes-pdf";
+import { enLetras, generarPdfCotizacion, type DatosPdf, type MarcaPdf } from "@/lib/pdf-cotizacion";
 
 /**
- * El PDF de la cotización: que se genere con acentos y ñ (las fuentes
- * estándar de PDF los traen), que sea una sola hoja y que lleve los
- * datos bancarios. Con PDF_MUESTRA=ruta guarda el archivo para verlo.
+ * El PDF de la marca ejecutora: que se genere con cada tipografía y
+ * hoja, que no mencione Tasa y que la regla del IVA se respete. Con
+ * PDF_MUESTRA=<carpeta> guarda un PDF por marca para verlo.
  */
-describe("PDF de cotización", () => {
-  test("se genera con desglose y datos bancarios", async () => {
-    const bytes = await generarPdfCotizacion({
-      referencia: "A1B2C3D4",
-      emitida: "26 oct 2026",
-      vigente_hasta: "10 nov 2026",
-      cliente: "Jorge Salinas Muñoz",
-      servicio: "Avalúo Hacendario",
-      inmueble: "Calle Hidalgo 45, El Pueblito, Corregidora",
-      honorarios: 9500,
-      iva: 1520,
-      terceros: 2300,
-      total: 13320,
-      cuenta: { titular: "AP73", banco: "Banregio", clabe: "000000000000000002" },
-    });
 
-    expect(Buffer.from(bytes.slice(0, 5)).toString()).toBe("%PDF-");
-    const doc = await PDFDocument.load(bytes);
-    expect(doc.getPageCount()).toBe(1);
-    expect(doc.getTitle()).toBe("Cotización A1B2C3D4");
+const marcas: Record<string, MarcaPdf> = {
+  MGP: {
+    clave: "MGP", nombre_legal: "MGP Ingeniería & Consultoría Inmobiliaria",
+    direccion: "High Park Corporate Centro Sur, Oficina 15H, C.P. 76090, Querétaro, Qro.",
+    correo: "avaluosmgp@gmail.com", telefonos: "442 682 1525 · 442 109 1882",
+    firmante: "M. en C. Mitzin Xchel Guerrero Solorio", firmante_cargo: "Director de Operaciones",
+    formas_pago: "Efectivo | Al momento de la visita al inmueble.",
+    color: "#04386C", color_acento: "#006DB3", color_claro: "#E7F0F8", hoja: "carta",
+  },
+  AP73: {
+    clave: "AP73", nombre_legal: "AP73 · Adrián Puente",
+    direccion: "High Park Corporate Centro Sur, Oficina 15H, C.P. 76090, Querétaro, Qro.",
+    correo: "gerencia@ap73.mx · apuente@ap73.mx", telefonos: "442 682 1525 · 442 426 1073",
+    firmante: "M. en C. Adrián Gonzalo Puente Suárez", firmante_cargo: "Tasador con registro en el Estado de Querétaro",
+    formas_pago: "Tarjeta de débito o crédito | Solicite su liga de pago en línea.\nEfectivo | Al momento de la visita al inmueble.",
+    color: "#262626", color_acento: "#262626", color_claro: "#EFEFEF", hoja: "oficio",
+  },
+  ARQOS: {
+    clave: "ARQOS", nombre_legal: "ARQOS Unidad de Valuación en Inteligencia Inmobiliaria, S.A. de C.V.",
+    direccion: "High Park Corporate Centro Sur, Oficina 15H, C.P. 76090, Querétaro, Qro.",
+    correo: "avaluosmgp@gmail.com", telefonos: "442 682 1525 · 442 109 1882",
+    firmante: "M. en C. Mitzin Xchel Guerrero Solorio", firmante_cargo: "Director de Operaciones",
+    formas_pago: "Efectivo | Al momento de la visita al inmueble.",
+    color: "#1F3C6E", color_acento: "#1F3C6E", color_claro: "#E8EDF5", hoja: "carta",
+  },
+};
 
-    if (process.env.PDF_MUESTRA) writeFileSync(process.env.PDF_MUESTRA, bytes);
+const base = (marca: MarcaPdf, factura: boolean): DatosPdf => ({
+  numero: "261103-T1",
+  fecha: "2026-11-03",
+  vigente_hasta: "2026-12-03",
+  cliente: "Jorge Salinas Muñoz",
+  inmueble: { ubicacion: "Calle Hidalgo 45, El Pueblito, Corregidora", clave_catastral: "060100101404002", descripcion: "Casa habitación de dos niveles." },
+  servicio: {
+    nombre: "Avalúo Comercial",
+    alcance: "Revisión documental, inspección física, investigación de mercado e informe firmado por perito valuador.",
+    tiempo_entrega: "5 días hábiles posteriores a la visita",
+    documentos: "Escritura o título de propiedad.\nBoleta predial vigente.",
+    aviso: "El avalúo es válido únicamente para el propósito declarado durante 6 meses.",
+  },
+  honorarios: 9500,
+  terceros: 2300,
+  requiere_factura: factura,
+  iva: factura ? 1520 : 0,
+  total: factura ? 13320 : 11800,
+  cuenta: { titular: "Conjuntos Habitacionales y Comerciales ROMI, S.A. de C.V.", banco: "Fondeadora", clabe: "699180600008088771" },
+  comisionista: "Beto Prueba",
+  marca,
+});
+
+/** El texto que se ve en el PDF (las fuentes insertadas guardan el texto en hexadecimal). */
+async function tamanoHoja(bytes: Uint8Array) {
+  const doc = await PDFDocument.load(bytes);
+  return { paginas: doc.getPageCount(), alto: doc.getPage(0).getHeight(), autor: doc.getAuthor() ?? "", titulo: doc.getTitle() };
+}
+
+describe("PDF de cotización por marca", () => {
+  test("números en letras", () => {
+    expect(enLetras(13320)).toBe("TRECE MIL TRESCIENTOS VEINTE PESOS 00/100 M.N.");
+    expect(enLetras(1001.5)).toBe("MIL UN PESOS 50/100 M.N.");
   });
+
+  for (const [clave, marca] of Object.entries(marcas)) {
+    test(`${clave}: se genera con su tipografía y hoja, sin mencionar Tasa`, async () => {
+      const fuentes = await fuentesDe(clave === "MGP" ? "manrope" : "adventor");
+      const bytes = await generarPdfCotizacion(base(marca, clave !== "ARQOS"), fuentes);
+      expect(Buffer.from(bytes.slice(0, 5)).toString()).toBe("%PDF-");
+      const info = await tamanoHoja(bytes);
+      expect(info.paginas).toBeLessThanOrEqual(2);
+      expect(info.alto).toBe(marca.hoja === "oficio" ? 1008 : 792);
+      expect(info.titulo).toBe("Cotización 261103-T1");
+      expect(info.autor).toBe(marca.nombre_legal);
+      expect(Buffer.from(bytes).toString("latin1")).not.toMatch(/Tasa/);
+      expect(bytes.length).toBeLessThan(clave === "MGP" ? 150_000 : 500_000);
+      if (process.env.PDF_MUESTRA) writeFileSync(join(process.env.PDF_MUESTRA, `muestra-${clave}.pdf`), bytes);
+    });
+  }
 });

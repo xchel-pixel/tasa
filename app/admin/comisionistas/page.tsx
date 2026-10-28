@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { fechaCorta, pesos } from "@/lib/formato";
-import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
+import { esStaff, exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 
 export const metadata = { title: "Comisionistas — Tasa" };
@@ -29,7 +29,7 @@ const FILTROS = [
 
 /** Buscador y filtro van en la dirección (`?q=…&ver=…`): se pueden compartir y regresar. */
 export default async function Comisionistas({ searchParams }: PageProps<"/admin/comisionistas">) {
-  await exigirRol(...ROLES_OPERACION);
+  const staff = esStaff(await exigirRol(...ROLES_OPERACION));
   const { q, ver } = await searchParams;
   const texto = typeof q === "string" ? q.trim() : "";
   const filtro = FILTROS.find((f) => f.clave === ver)?.clave ?? "activos";
@@ -50,6 +50,11 @@ export default async function Comisionistas({ searchParams }: PageProps<"/admin/
       >
         Dar de alta
       </Link>
+      {staff ? (
+        <Link href="/admin/comisionistas/importar" className="toque mt-2 block text-center text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+          Importar varios desde una tabla
+        </Link>
+      ) : null}
 
       <form className="mt-4" role="search">
         {filtro !== "activos" ? <input type="hidden" name="ver" value={filtro} /> : null}

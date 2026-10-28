@@ -50,7 +50,7 @@ export default function FormularioAjustes({
       <div>
         <label htmlFor="terminos" className="block font-semibold">Términos para los comisionistas</label>
         <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
-          El texto que aceptarán al entrar (la aceptación llega en la siguiente etapa).
+          El texto que aceptan al entrar. Si lo cambias, cada comisionista tendrá que volver a aceptarlo antes de seguir usando Tasa.
         </p>
         <textarea id="terminos" name="terminos" rows={5} maxLength={20000} defaultValue={terminos} className={ENTRADA} />
       </div>

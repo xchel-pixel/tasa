@@ -1212,6 +1212,57 @@ begin
 end;
 $$;
 
+-- @@ CLABE, términos y número de cotización
+do $$
+declare
+  mgp  uuid := (select id from marcas where organizacion_id = pg_temp.xg() and clave = 'MGP');
+  t2   uuid := (select id from solicitudes where cliente_nombre = 'Laura Méndez');
+  romi uuid := (select id from cuentas_receptoras where organizacion_id = pg_temp.xg() and alias = 'ROMI');
+  v    integer;
+begin
+  -- CLABE: el dígito de control lo revisa la base.
+  perform pg_temp.igual(clabe_valida('699180600008088771'), true, 'Una CLABE real pasa el dígito de control');
+  perform pg_temp.igual(clabe_valida('699180600008088772'), false, 'Con el último dígito mal, no pasa');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(
+    format($q$insert into cuentas_receptoras (titular, clabe, marca_id, alias) values ('X', '000000000000000001', %L, 'Mala')$q$, mgp),
+    'cuentas_clabe_valida', 'La base no acepta una CLABE con el dígito de control mal');
+  perform pg_temp.igual((select count(*) from cuentas_receptoras where clabe = '000000000000000001'), 0::bigint,
+    'Las cuentas de relleno sin uso ya no existen');
+
+  -- Términos.
+  update ajustes set terminos = 'Tu cuenta es personal e intransferible.';
+  select terminos_version into v from ajustes;
+  perform pg_temp.igual(v, 1, 'Publicar términos crea la versión 1');
+  perform pg_temp.igual(debo_aceptar_terminos(), false, 'El staff no los acepta');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(debo_aceptar_terminos(), true, 'El comisionista tiene que aceptarlos');
+  perform pg_temp.igual((mi_sesion()->>'debe_aceptar_terminos')::boolean, true, 'La sesión lo dice (la app lo manda a aceptar)');
+  perform pg_temp.debe_fallar('select aceptar_terminos(7)', 'cambiaron', 'No se acepta una versión que no es la vigente');
+  perform aceptar_terminos(1);
+  perform pg_temp.igual(debo_aceptar_terminos(), false, 'Aceptados, ya no se le piden');
+  perform pg_temp.como('xchel@arqosuv.com');
+  update ajustes set terminos = 'Tu cuenta es personal e intransferible. Nueva cláusula.';
+  perform pg_temp.igual((select count(*) from aceptaciones_terminos where version = 1), 1::bigint,
+    'El staff ve quién aceptó y cuándo');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(debo_aceptar_terminos(), true, 'Si el texto cambia, hay que volver a aceptar');
+  perform pg_temp.debe_fallar($q$insert into aceptaciones_terminos (persona_id, version) values (mi_persona_id(), 2)$q$,
+    'permission denied', 'Nadie se marca como aceptado por la tabla');
+
+  -- Número de cotización: AAMMDD-T#, consecutivo del día.
+  perform pg_temp.sistema();
+  update solicitudes set estado = 'solicitada', estatus_publico = 'solicitada' where id = t2;
+  insert into cotizaciones (solicitud_id, monto_honorarios, cuenta_receptora_id, vigente_hasta)
+  values (t2, 5000, romi, hoy_mx() + 30);
+  perform pg_temp.igual(
+    (select numero ~ ('^' || to_char(hoy_mx(), 'YYMMDD') || '-T[0-9]+$') from cotizaciones where solicitud_id = t2 and estado = 'emitida'),
+    true, 'La cotización nace con número AAMMDD-T#');
+  perform pg_temp.igual((select count(*) = count(distinct numero) from cotizaciones where organizacion_id = pg_temp.xg()), true,
+    'Ningún número se repite');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
