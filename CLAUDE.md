@@ -177,6 +177,7 @@ logo ya están en el esquema).
      admin_marca vea las solicitudes de su marca desde el inicio (hoy solo las ve al cotizarse).
 4. **Control de dispositivos**. NO construir antes de terminar el panel. Ver README.
 5. Correos de cambio de estatus; conectores `sheets` y `webhook`.
-6. `npm run db:reset-produccion` cuando se lance. En esa misma migración (ya sin la semilla de
-   prueba, cuyas CLABE no pasan el dígito de control): validar el **dígito de control de la CLABE
-   también en la base** (check o disparador), no solo en la pantalla de Catálogos.
+6. `npm run db:reset-produccion` cuando se lance. (El dígito de control de la CLABE ya está en
+   la base: 0021; con la base reseteada la regla queda validada para todas las cuentas.)
+7. **Referidos** y 8. **Herramientas y membresías**: reglas, esquema y lo por decidir en
+   `docs/referidos-y-herramientas.md`. No construir sin resolver antes sus "por decidir".

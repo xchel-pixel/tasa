@@ -187,6 +187,19 @@ En este orden. Lo marcado como **por decidir** se pregunta antes de construir.
 
 6. **Despliegue** en `tasa.xgplataform.com` y paso a producción con `npm run db:reset-produccion`.
 
+7. **Referidos** (después del paso a producción). Vínculo de 12 meses desde el primer trabajo
+   pagado del referido, editable por vínculo con motivo; el referidor cobra solo si tuvo un
+   trabajo pagado en los últimos 3 meses; a los 6 meses sin trabajos pierde sus referidos
+   (aviso a los 4). Escalón 2–5%, un solo nivel, antifraude, tope 30%. Reglas, esquema y lo
+   **por decidir** en `docs/referidos-y-herramientas.md`.
+
+8. **Herramientas y membresías.** Consulta catastral, estimación rápida y OV express; cupos
+   mensuales por nivel y por membresía (Básica $490, Pro $990), adicionales con cargo,
+   bonificación de la membresía desde Aliado. Primero como pedido que atiende el equipo; las
+   automáticas después, con su propio plan. Ver `docs/referidos-y-herramientas.md`.
+
+Ya hecho de las reglas de niveles (0023): tasa de bienvenida, arranque y Élite con vencimiento.
+
 ## Variables de entorno (previstas)
 
 | Variable | Dónde | Para qué |
