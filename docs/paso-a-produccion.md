@@ -246,7 +246,8 @@ ajustes
 - **Llave:** `RESEND_API_KEY` ya está en Vercel (proyecto tasa, Production, Secret).
 - **Remitente:** `Tasa <no-reply@xgplataform.com>`.
 - **Reply-To:** el contacto de soporte de la organización (Ajustes). Si está vacío, sin Reply-To.
-  Si el contacto es un teléfono y no un correo, tampoco lleva Reply-To.
+  Si el contacto es un teléfono y no un correo, tampoco lleva Reply-To. En XG:
+  **soporte@xgplataform.com** (también es el contacto que se ve en pantallas).
 - Los dos textos son **editables en Ajustes** (`ajustes.correo_bienvenida` y
   `ajustes.correo_rechazo`); estos son los de origen. Las variables entre corchetes las llena
   Tasa al enviar.
@@ -254,7 +255,7 @@ ajustes
 **Bienvenida**
 
 ```
-Asunto: Bienvenido a Tasa
+Asunto: Te damos la bienvenida a Tasa
 
 Hola, [NOMBRE]:
 
@@ -271,7 +272,7 @@ Tu nivel inicial: [NIVEL Y %] hasta el [FECHA].
 
 Si tienes dudas, escríbenos a [CONTACTO DE SOPORTE].
 
-Bienvenido.
+Te damos la bienvenida.
 ```
 
 **Rechazo**
@@ -294,6 +295,19 @@ Cómo se llenan las variables:
   inicial…" sale sin "hasta el [FECHA]": "Tu nivel inicial: Enlace 5%."
 - Si no hay contacto de soporte, el renglón "Si tienes dudas…" no sale.
 - El mismo texto (ya llenado) es el de "Copiar mensaje para WhatsApp".
+
+### Aviso de privacidad (lo que se muestra en `/alta/<org>`)
+
+El aviso es el de la organización (Ajustes → Aviso de privacidad); la solicitud guarda su versión
+y fecha. Para XG:
+
+- **Responsable:** Conjuntos Habitacionales y Comerciales ROMI, S.A. de C.V.
+- **Domicilio:** High Park Corporate Centro Sur, Oficina 15H, C.P. 76090, Querétaro, Qro.
+- **Contacto para derechos ARCO y para oponerse a finalidades secundarias:**
+  soporte@xgplataform.com.
+- Debe nombrar el **RFC y la CSF** como datos recabados, con su finalidad: pago de comisiones y
+  verificación de identidad.
+- **Texto completo:** llega en la hoja de la carga de producción.
 
 Estado: **todo listo para construir**; se construye cuando Xchel dé la orden del paso a
 producción.
@@ -342,12 +356,13 @@ Desc, Peritaje para el Poder Judicial, Topografía, Deslinde Catastral, Otros.
 | Élite | se asigna a mano | el que tú digas |
 
 **Ajustes de XG:**
-- contacto de soporte;
+- contacto de soporte: **soporte@xgplataform.com** (ya definido; es también el Reply-To);
 - día límite de pago de comisiones (hoy 10);
 - prefijo de folio (MGP);
 - **texto de términos** (debe incluir "cuenta personal e intransferible"; borrador en
-  `docs/terminos-borrador.md`) y **aviso de privacidad** (debe nombrar RFC y CSF como datos
-  recabados, con su finalidad: pago de comisiones y verificación de identidad);
+  `docs/terminos-borrador.md`) y **aviso de privacidad**: responsable, domicilio y contacto ARCO
+  ya definidos (§4b); el texto completo llega en la hoja de la carga;
+- correos de bienvenida y rechazo: los textos de §4b (asunto "Te damos la bienvenida a Tasa");
 - orígenes del dinero: hoy Scotiabank XG, Banorte personal, Efectivo y Otra.
 
 **Comisionistas iniciales** (una tabla, puede ser de Excel):
