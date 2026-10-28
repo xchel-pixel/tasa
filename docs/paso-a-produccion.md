@@ -144,42 +144,75 @@ obligatorio** y **Constancia de Situación Fiscal (CSF)**. No se pide CURP.
    - Campos: nombre completo, correo, teléfono, **RFC** (12 o 13 caracteres, formato y **dígito
      verificador** del SAT), **CSF en PDF** (obligatoria, máx. 5 MB) y aceptación del **aviso de
      privacidad** (se guarda versión y fecha).
-   - Anti-bots y límite de envíos como en la solicitud pública por liga. `anon` solo inserta por
-     una función `security definer`; no lee ni escribe tablas.
+   - **Anti-bots sin dependencia nueva:** campo trampa, tiempo mínimo de llenado y límite de
+     envíos por IP resumida (hash) y por organización. Turnstile solo si llega spam.
+   - `anon` solo inserta por una función `security definer`; no lee ni escribe tablas.
+   - Un RFC cuyo dígito no cuadra se rechaza con: "Revisa tu RFC. Si está bien escrito,
+     escríbenos a <contacto de soporte>".
    - La CSF va a un bucket privado nuevo, `altas`.
-2. **Bandeja "Solicitudes de alta"** (admin_org decide; finanzas solo lee): datos, CSF por URL
-   firmada, **aprobar** o **rechazar con motivo**.
-   - Aprobar crea persona + membresía comisionista + perfil (con el referidor si vino por liga,
-     sujeto al antifraude de `docs/referidos-y-herramientas.md`) y manda el **correo de
-     bienvenida** con el acceso.
-   - Rechazar no crea nada y manda un **correo genérico** con el motivo, si se escribió.
-3. **RFC único por organización** entre comisionistas activos y solicitudes pendientes. Si
+2. **Captura por finanzas:** finanzas (y admin_org) puede **capturar una solicitud en nombre de
+   alguien**, con los mismos campos y la CSF. Queda **pendiente** con "capturada por". Si el
+   dígito del RFC no cuadra, se captura igual marcada "RFC por revisar". El aviso de privacidad
+   de una solicitud capturada lo acepta la persona en su primer acceso, junto con los términos.
+3. **Bandeja "Solicitudes de alta":** finanzas la ve; **solo admin_org aprueba o rechaza**
+   (con motivo). Datos, CSF por URL firmada, "capturada por", "posible duplicado" y "RFC por
+   revisar".
+   - **Aprobar** crea persona + membresía comisionista + perfil (con el referidor si vino por
+     liga, sujeto al antifraude de `docs/referidos-y-herramientas.md`) y manda el **correo de
+     bienvenida**. La pantalla de aprobación tiene además **"Copiar mensaje para WhatsApp"**
+     con el mismo texto, de respaldo.
+   - **Rechazar** no crea nada y manda un **correo genérico** con el motivo, si se escribió.
+4. **RFC único por organización** entre comisionistas activos y solicitudes pendientes. Si
    coincide, la solicitud no se bloquea: se marca **"posible duplicado"** para que admin_org
    decida.
-4. **Alta directa** por admin_org: se mantiene, pero exige RFC y CSF, o la marca **"CSF
-   pendiente"**.
-5. **Comisionistas ya existentes** (pruebas e importación): RFC obligatorio; la CSF puede quedar
+5. **RFC revisado a mano:** si el dígito verificador no cuadra (RFC antiguo), **solo admin_org**
+   puede aprobar o dar de alta con la casilla **"RFC revisado a mano"**; exige CSF (no puede
+   quedar pendiente) y queda en bitácora (quién, cuándo, qué RFC).
+6. **Alta directa e importación: solo admin_org.** Exige RFC y CSF, o la marca **"CSF
+   pendiente"**. Finanzas ya no da altas directas ni importa (cambia lo construido: hoy sí puede).
+7. **Comisionistas ya existentes** (pruebas e importación): RFC obligatorio; la CSF puede quedar
    pendiente, con aviso en su inicio para subirla él mismo.
-6. El **aviso de privacidad** debe nombrar el RFC y la CSF como datos recabados y su finalidad:
-   pago de comisiones y verificación de identidad (va en los datos del punto 5).
+8. **Correos** con una **llave de Resend propia de Tasa** (`RESEND_API_KEY`, solo del servidor;
+   el dominio `xgplataform.com` ya está verificado), llamando a su API con `fetch`, sin librería
+   nueva.
+   - **Bienvenida:** nombre, cómo entrar con su correo y el código, cómo agregar Tasa a la
+     pantalla de inicio, su nivel inicial y hasta qué fecha (bienvenida o arranque) y el
+     contacto de soporte. **El texto base lo manda Xchel** (borrador de la hoja).
+   - **Rechazo:** genérico, con el motivo si se escribió.
+   - Si el envío falla, la aprobación no se deshace: se avisa en pantalla y queda el botón de
+     WhatsApp.
+9. **CSF de solicitudes rechazadas:** el archivo se borra a los **90 días** del rechazo; la
+   solicitud se conserva (sin el archivo). Lo hace `/api/cron` (ya tiene la llave del servidor
+   y corre cada 15 minutos), no SQL directo sobre Storage.
+10. El **aviso de privacidad** debe nombrar el RFC y la CSF como datos recabados y su
+    finalidad: pago de comisiones y verificación de identidad (va en los datos del punto 5).
 
 ### Esquema propuesto
 
 ```
 solicitudes_alta
   organizacion_id, id, nombre, correo, telefono, rfc
-  csf_ruta text            -- bucket altas: {organización}/{solicitud}/csf.pdf
+  csf_ruta text            -- bucket altas: {organización}/{solicitud}/csf.pdf; nula tras borrarla
+  csf_borrada_en timestamptz
   referidor_id null        -- del ?ref=, si el slug existe y está activo
-  aviso_version, aviso_aceptado_en
+  aviso_version null, aviso_aceptado_en null   -- nulos si la capturó finanzas
+  capturada_por null       -- persona de finanzas o admin_org; nulo si llegó por la liga
   estado 'subiendo' | 'pendiente' | 'aprobada' | 'rechazada'
-  posible_duplicado boolean, coincidencias text[]
-  decidida_por, decidida_en, motivo, persona_id (la creada al aprobar)
+  posible_duplicado boolean, rfc_por_revisar boolean, coincidencias text[]
+  decidida_por, decidida_en, motivo, rfc_revisado_a_mano boolean
+  persona_id null          -- la creada al aprobar
+  correo_enviado_en null, correo_error text null
   creada_en, ip_resumen (hash, para el límite de envíos)
 
 comisionistas
-  rfc            → not null (con el check de formato y dígito verificador)
+  rfc            → not null (con el check de formato y dígito verificador,
+                    salvo rfc_revisado_a_mano)
+  + rfc_revisado_a_mano boolean default false
   + csf_ruta text null      -- nula = "CSF pendiente"
   + csf_subida_en timestamptz
+
+ajustes
+  + correo_bienvenida text  -- el texto base, editable en Ajustes
 ```
 
 - `rfc_valido(text)` en la base (como `clabe_valida`): formato y dígito verificador.
@@ -188,7 +221,10 @@ comisionistas
   `{org}/{id}/csf.pdf` de una solicitud que está en `subiendo` y tiene menos de 30 minutos;
   `confirmar_alta(id)` la pasa a `pendiente` cuando el archivo existe. Así no hace falta la
   llave de servicio fuera de `/api/cron`.
-- `aprobar_alta(id)` / `rechazar_alta(id, motivo)` (admin_org).
+- `capturar_alta(...)` (finanzas, admin_org): igual, sin aviso y con `capturada_por`.
+- `aprobar_alta(id, p_rfc_revisado)` / `rechazar_alta(id, motivo)`: solo admin_org.
+- El envío de correos va en la acción del servidor después de aprobar o rechazar; la llave de
+  Resend nunca llega al navegador.
 
 ### Pruebas
 
@@ -198,26 +234,18 @@ comisionistas
 - Aprobar crea acceso: persona, membresía, perfil; con referidor si vino por liga.
 - Rechazar no crea nada.
 - `anon` no lee CSF ni solicitudes, ni sube un archivo a una solicitud que no está en `subiendo`.
-- Finanzas ve la bandeja pero no aprueba.
+- Finanzas captura una solicitud (queda pendiente, con "capturada por") pero no aprueba, no
+  rechaza, no da alta directa y no importa.
+- RFC con dígito que no cuadra: solo admin_org lo aprueba con "RFC revisado a mano" y CSF; queda
+  en bitácora.
+- La CSF de una solicitud rechazada hace 90 días se borra; la de 89 días no; la solicitud queda.
 
-### Por decidir antes de construir
+### Lo que falta de Xchel para construirla
 
-- **Anti-bots.** Turnstile (Cloudflare) sigue "por decidir": es un servicio externo con llave.
-  *Recomendación:* empezar sin dependencia nueva (campo trampa, tiempo mínimo de llenado y límite
-  de envíos por IP resumida y por organización) y agregar Turnstile solo si llega basura.
-- **Correos de bienvenida y rechazo.** Hoy Tasa solo manda el código de acceso (por el SMTP de
-  Supabase). Mandar correos propios pide **una llave de Resend para Tasa** (`RESEND_API_KEY`,
-  solo del servidor) y llamar a su API con `fetch`, sin librería nueva. *Alternativa sin llave:*
-  sin correo de bienvenida; al aprobar, la pantalla da un mensaje para copiar y mandar por
-  WhatsApp, y el comisionista entra con su correo.
-- **Finanzas pierde el alta directa.** Hoy finanzas también da de alta (y importa). Con esta
-  regla solo admin_org aprueba y da de alta directa; finanzas queda en lectura. Confirmar.
-- **Dígito verificador del RFC.** El algoritmo del SAT es público y lo cumplen los RFC emitidos
-  por el SAT; si alguien trae uno antiguo que no cuadra, admin_org lo puede dar de alta directa
-  con una casilla "RFC revisado a mano". Confirmar si se quiere esa salida.
-- **CSF de solicitudes rechazadas.** Es un dato personal que ya no sirve. *Recomendación:* que
-  se borre el archivo a los 90 días del rechazo (la solicitud queda, sin el archivo). No toca
-  dinero, así que no choca con la regla de no borrar.
+- **Llave de Resend para Tasa** (`RESEND_API_KEY`) en Vercel, Production, como Sensitive. No se
+  pega en el chat.
+- **Texto base del correo de bienvenida** (el borrador de la hoja).
+- Dirección de envío (propuesta: `Tasa <hola@xgplataform.com>`).
 
 ---
 
@@ -354,5 +382,5 @@ Si los términos se aceptan al entrar (punto pendiente del plan), el mensaje lo 
   invitar, porque ahí va "cuenta personal e intransferible".
 - Correos de cambio de estatus: pueden ir después.
 - Control de dispositivos y solicitud pública por liga: después.
-- **Alta por solicitud con RFC y CSF (4b): antes del reset.** Sus "por decidir" (anti-bots,
-  correos con Resend, finanzas sin alta) se resuelven antes de construirla.
+- **Alta por solicitud con RFC y CSF (4b): antes del reset.** Decisiones tomadas; falta la llave
+  de Resend y el texto base del correo de bienvenida.
