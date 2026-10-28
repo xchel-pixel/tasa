@@ -11,7 +11,9 @@ export default async function ImportarComisionistas() {
     <PantallaAdmin titulo="Importar comisionistas" volver={{ href: "/admin/comisionistas", texto: "Comisionistas" }}>
       <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
         Copia de tu hoja de cálculo las columnas, en este orden: <strong>nombre, correo</strong>, teléfono, RFC, factura
-        (sí/no) y porcentaje élite. Solo nombre y correo son obligatorios. Si copias el encabezado, se salta solo.
+        (sí/no), porcentaje élite y tasa de bienvenida (sí/no, o el número de meses: solo administración puede pedir otro
+        número que el de la organización). Solo nombre y correo son obligatorios. Quien no lleva bienvenida arranca en
+        el nivel de arranque. Si copias el encabezado, se salta solo.
       </p>
       <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
         Nadie recibe correo al importarse: cada quien entra con su correo cuando le compartas la liga de Tasa. La liga

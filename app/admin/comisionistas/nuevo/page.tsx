@@ -1,12 +1,14 @@
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { exigirRol } from "@/lib/sesion";
+import { tratosDeLaOrg } from "@/lib/tratos";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import FormularioAlta from "./formulario-alta";
 
 export const metadata = { title: "Alta de comisionista — Tasa" };
 
 export default async function NuevoComisionista() {
-  await exigirRol("admin_org", "finanzas");
+  const persona = await exigirRol("admin_org", "finanzas");
+  const tratos = await tratosDeLaOrg(persona.organizacion.id);
   const supabase = await crearClienteServidor();
   const filas =
     oExplota(
@@ -23,6 +25,8 @@ export default async function NuevoComisionista() {
         Con el alta ya puede entrar: escribe su correo en la pantalla de acceso y le llega el código.
       </p>
       <FormularioAlta
+        tratos={tratos}
+        puedeCambiarMeses={persona.rol === "admin_org"}
         existentes={filas
           .map((f) => ({ id: f.persona_id, nombre: f.personas?.nombre ?? "", slug: f.slug }))
           .sort((a, b) => a.nombre.localeCompare(b.nombre))}

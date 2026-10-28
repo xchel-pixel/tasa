@@ -5,7 +5,8 @@ import { errorDeRfc, errorDeTelefono, limpiarRfc, limpiarTelefono } from "@/lib/
  * (columnas separadas por tabulador; también acepta coma o punto y coma).
  *
  * Columnas, en este orden: nombre, correo, teléfono, RFC, factura (sí/no),
- * porcentaje élite. Solo nombre y correo son obligatorios. Si el primer
+ * porcentaje élite y tasa de bienvenida (sí/no, o el número de meses).
+ * Solo nombre y correo son obligatorios. Si el primer
  * renglón trae "correo", se toma como encabezado y se salta.
  *
  * Es pura: la usan la vista previa (en el navegador) y la importación
@@ -21,10 +22,14 @@ export type FilaImportada = {
   emite_factura: boolean;
   /** Porcentaje fijo (nivel Élite); nulo si no se forzó. */
   elite: number | null;
+  bienvenida: boolean;
+  /** Meses pedidos en la tabla; nulo = los de la organización. */
+  mesesBienvenida: number | null;
   errores: string[];
 };
 
 const CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const SI = /^(s[ií]|si|x|1|true|factura|bienvenida)$/i;
 export const MAXIMO_FILAS = 300;
 
 function separador(linea: string): string | RegExp {
@@ -43,11 +48,13 @@ export function parsearTabla(texto: string): FilaImportada[] {
     const celdas = cruda.split(separador(cruda)).map((c) => c.trim().replace(/^"|"$/g, ""));
     if (filas.length === 0 && i === lineas.findIndex((l) => l.trim()) && celdas.some((c) => /correo|e-?mail/i.test(c))) return;
 
-    const [nombre = "", correoCrudo = "", telefonoCrudo = "", rfcCrudo = "", facturaCruda = "", eliteCruda = ""] = celdas;
+    const [nombre = "", correoCrudo = "", telefonoCrudo = "", rfcCrudo = "", facturaCruda = "", eliteCruda = "", bienvenidaCruda = ""] = celdas;
     const correo = correoCrudo.toLowerCase();
     const rfc = limpiarRfc(rfcCrudo);
     const telefono = limpiarTelefono(telefonoCrudo);
     const elite = eliteCruda ? Number(eliteCruda.replace(/[%\s]/g, "")) : null;
+    const mesesBienvenida = /^\d+$/.test(bienvenidaCruda) ? Number(bienvenidaCruda) : null;
+    const bienvenida = mesesBienvenida !== null ? mesesBienvenida > 0 : SI.test(bienvenidaCruda);
     const errores: string[] = [];
 
     if (!nombre) errores.push("falta el nombre");
@@ -56,6 +63,7 @@ export function parsearTabla(texto: string): FilaImportada[] {
     if (errorDeRfc(rfc)) errores.push("RFC con formato incorrecto");
     if (errorDeTelefono(telefono)) errores.push("teléfono sin 10 dígitos");
     if (elite !== null && !(elite > 0 && elite <= 30)) errores.push("el porcentaje élite va de más de 0 a 30");
+    if (mesesBienvenida !== null && mesesBienvenida > 12) errores.push("la bienvenida va de 1 a 12 meses");
     vistos.add(correo);
 
     filas.push({
@@ -64,8 +72,10 @@ export function parsearTabla(texto: string): FilaImportada[] {
       correo,
       telefono,
       rfc,
-      emite_factura: /^(s[ií]|si|x|1|true|factura)$/i.test(facturaCruda),
+      emite_factura: SI.test(facturaCruda),
       elite,
+      bienvenida,
+      mesesBienvenida: bienvenida ? mesesBienvenida : null,
       errores,
     });
   });

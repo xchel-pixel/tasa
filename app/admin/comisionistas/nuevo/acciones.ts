@@ -30,6 +30,9 @@ export async function altaComisionista(_previo: EstadoAlta, formData: FormData):
     p_slug: slug,
     p_referido_por: campo("referido_por") || null,
     p_emite_factura: formData.get("emite_factura") === "on",
+    p_bienvenida: formData.get("bienvenida") === "on",
+    // La base solo respeta los meses si quien da el alta es admin_org.
+    p_meses_bienvenida: formData.get("meses_bienvenida") ? Number(formData.get("meses_bienvenida")) : null,
   });
   // Los mensajes de la base ya están escritos para leerse ("Ese correo ya está dado de alta").
   if (error) return { error: error.message || "No se pudo dar de alta. Inténtalo otra vez.", mensaje: null };

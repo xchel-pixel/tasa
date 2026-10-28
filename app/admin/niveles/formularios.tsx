@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Aviso } from "@/components/aviso";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { borrarNivel, guardarNivel, type EstadoNivel } from "./acciones";
+import { borrarNivel, guardarNivel, guardarTratos, type EstadoNivel } from "./acciones";
 
 const INICIAL: EstadoNivel = { error: null, mensaje: null };
 const ENTRADA =
@@ -60,5 +60,49 @@ export function FormularioNivel({ nivel }: { nivel?: Nivel }) {
         </form>
       ) : null}
     </div>
+  );
+}
+
+export function FormularioTratos({
+  niveles,
+  valores,
+}: {
+  niveles: Nivel[];
+  valores: { bienvenida_nivel_id: string | null; bienvenida_meses: number; arranque_nivel_id: string | null; arranque_meses: number };
+}) {
+  const [estado, enviar] = useActionState(guardarTratos, INICIAL);
+  const opciones = niveles.filter((n) => !n.es_forzado);
+  const selector = (nombre: string, valor: string | null) => (
+    <select name={nombre} defaultValue={valor ?? ""} className={ENTRADA}>
+      {opciones.map((n) => (
+        <option key={n.id} value={n.id}>{n.nombre} · {Number(n.porcentaje)}%</option>
+      ))}
+    </select>
+  );
+  return (
+    <form action={enviar} className="flex flex-col gap-3">
+      <div className="grid grid-cols-[1fr_6rem] gap-2">
+        <label className="block text-[0.9375rem] font-semibold">
+          Tasa de bienvenida
+          {selector("bienvenida_nivel_id", valores.bienvenida_nivel_id)}
+        </label>
+        <label className="block text-[0.9375rem] font-semibold">
+          Meses
+          <input name="bienvenida_meses" type="number" min={1} max={12} defaultValue={valores.bienvenida_meses} className={ENTRADA} />
+        </label>
+      </div>
+      <div className="grid grid-cols-[1fr_6rem] gap-2">
+        <label className="block text-[0.9375rem] font-semibold">
+          Arranque (nuevos)
+          {selector("arranque_nivel_id", valores.arranque_nivel_id)}
+        </label>
+        <label className="block text-[0.9375rem] font-semibold">
+          Meses
+          <input name="arranque_meses" type="number" min={0} max={12} defaultValue={valores.arranque_meses} className={ENTRADA} />
+        </label>
+      </div>
+      <BotonEnviar variante="secundario">Guardar trato inicial</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
   );
 }

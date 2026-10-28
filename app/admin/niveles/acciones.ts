@@ -88,3 +88,32 @@ function listo(mensaje: string): EstadoNivel {
   revalidatePath("/admin/niveles");
   return { error: null, mensaje };
 }
+
+/**
+ * El trato inicial de la organización: con qué nivel y cuántos meses
+ * entra la tasa de bienvenida y el arranque. Aplica a las altas que
+ * vengan; quien ya lo tiene conserva sus fechas.
+ */
+export async function guardarTratos(_previo: EstadoNivel, f: FormData): Promise<EstadoNivel> {
+  const persona = await exigirRol("admin_org");
+  const mesesB = Number(campo(f, "bienvenida_meses"));
+  const mesesA = Number(campo(f, "arranque_meses"));
+  if (!Number.isInteger(mesesB) || mesesB < 1 || mesesB > 12) return falla("La bienvenida va de 1 a 12 meses.");
+  if (!Number.isInteger(mesesA) || mesesA < 0 || mesesA > 12) return falla("El arranque va de 0 a 12 meses (0 = sin arranque).");
+
+  const supabase = await crearClienteServidor();
+  const { error, count } = await supabase
+    .from("ajustes")
+    .update(
+      {
+        bienvenida_nivel_id: campo(f, "bienvenida_nivel_id") || null,
+        bienvenida_meses: mesesB,
+        arranque_nivel_id: campo(f, "arranque_nivel_id") || null,
+        arranque_meses: mesesA,
+      },
+      { count: "exact" }
+    )
+    .eq("organizacion_id", persona.organizacion.id);
+  if (error || count !== 1) return falla("No se pudo guardar. Inténtalo otra vez.");
+  return listo("Guardado. Aplica a las altas que vengan.");
+}

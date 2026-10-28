@@ -52,8 +52,25 @@ export async function forzarElite(_previo: EstadoFicha, formData: FormData): Pro
   if (!quitar && (!Number.isFinite(pct) || pct <= 0 || pct > 30)) {
     return { error: "El porcentaje va de más de 0 hasta 30 (el tope por trabajo).", mensaje: null };
   }
-  return llamar(id, "forzar_elite", { p_persona: id, p_porcentaje: quitar ? null : pct },
-    quitar ? "Quitado: vuelve a su nivel calculado." : `Élite al ${pct}%: aplica a lo que se devengue desde hoy.`);
+  const vence = String(formData.get("vence") ?? "") || null;
+  return llamar(id, "forzar_elite", { p_persona: id, p_porcentaje: quitar ? null : pct, p_vence: quitar ? null : vence },
+    quitar
+      ? "Quitado: vuelve a su nivel calculado."
+      : `Élite al ${pct}%${vence ? ` hasta el mes de ${vence}` : ""}: aplica a lo que se devengue desde hoy.`);
+}
+
+/** Bienvenida desde este mes, o quitarla. Los meses los respeta la base solo si es admin_org. */
+export async function ponerBienvenida(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
+  await exigirRol("admin_org", "finanzas");
+  const id = String(formData.get("persona_id") ?? "");
+  if (formData.get("quitar") === "true") {
+    return llamar(id, "poner_trato_inicial", { p_persona: id, p_trato: null, p_meses: null, p_desde: null },
+      "Tasa de bienvenida quitada: su nivel sale del promedio desde el siguiente cierre.");
+  }
+  if (formData.get("bienvenida") !== "on") return { error: "Marca la casilla de tasa de bienvenida.", mensaje: null };
+  const meses = formData.get("meses_bienvenida") ? Number(formData.get("meses_bienvenida")) : null;
+  return llamar(id, "poner_trato_inicial", { p_persona: id, p_trato: "bienvenida", p_meses: meses, p_desde: null },
+    "Tasa de bienvenida puesta desde este mes.");
 }
 
 export async function agregarMovimiento(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {

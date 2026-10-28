@@ -210,6 +210,8 @@ export type MiNivel = {
   avance: number;
   comision_mes: number;
   comision_mes_provisional: boolean;
+  /** Tasa de bienvenida, arranque, Élite con vencimiento o bajada escalonada, en una frase. */
+  trato: string | null;
 };
 
 type FilaNivel = { nombre: string; orden: number; umbral_minimo: string | null; porcentaje: string | null; es_forzado: boolean };
@@ -223,12 +225,13 @@ export async function miNivel(personaId: string, orgId: string): Promise<MiNivel
   const supabase = await crearClienteServidor();
   const mes = mesActual();
 
-  const [pct, prov, proy, niveles, comisiones] = await Promise.all([
+  const [pct, prov, proy, niveles, comisiones, trato] = await Promise.all([
     supabase.rpc("porcentaje_vigente", { p_org: orgId, p_comisionista: personaId, p_mes: mes }),
     supabase.rpc("porcentaje_es_provisional", { p_org: orgId, p_comisionista: personaId, p_mes: mes }),
     supabase.rpc("calcular_nivel", { p_org: orgId, p_comisionista: personaId, p_mes: mesSiguiente(mes) }),
     supabase.from("niveles").select("nombre, orden, umbral_minimo, porcentaje, es_forzado").order("orden").returns<FilaNivel[]>(),
     supabase.from("comisiones").select("monto, provisional").eq("comisionista_id", personaId).eq("mes", mes).returns<{ monto: string | number; provisional: boolean }[]>(),
+    supabase.rpc("mi_trato"),
   ]);
 
   const porcentaje = Number(oExplota(pct, "tu porcentaje"));
@@ -264,5 +267,29 @@ export async function miNivel(personaId: string, orgId: string): Promise<MiNivel
     avance: siguiente ? Math.min(1, Math.max(0, (promedio - piso) / (siguiente.umbral - piso))) : 1,
     comision_mes: lineas.reduce((t, l) => t + Number(l.monto), 0),
     comision_mes_provisional: lineas.some((l) => l.provisional),
+    trato: fraseDelTrato(trato.data as MiTrato | null, porcentaje),
   };
+}
+
+type MiTrato = {
+  trato: "bienvenida" | "arranque" | null;
+  hasta: string | null;
+  vigente: boolean;
+  porcentaje: number | null;
+  elite_vence: string | null;
+  motivo_mes: string | null;
+} | null;
+
+/** "Tasa de bienvenida 15% hasta el 31/01/2027", o nada. */
+function fraseDelTrato(t: MiTrato, porcentaje: number): string | null {
+  if (!t) return null;
+  const dma = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
+  if (t.elite_vence) return `Élite ${porcentaje}% hasta el ${dma(t.elite_vence)}`;
+  if (t.vigente && t.hasta && t.trato) {
+    return `${t.trato === "bienvenida" ? "Tasa de bienvenida" : "Tasa de arranque"} ${Number(t.porcentaje)}% hasta el ${dma(t.hasta)}`;
+  }
+  if (t.motivo_mes === "escalon") {
+    return "Terminó tu bienvenida: tu nivel baja uno por cierre hasta el que da tu promedio. Si tu promedio sube, subes de inmediato.";
+  }
+  return null;
 }

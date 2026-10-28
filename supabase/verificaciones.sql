@@ -971,7 +971,8 @@ begin
   perform elegir_organizacion(demo);
   perform pg_temp.igual(mi_org(), demo, 'Ana cambia a Demo');
   perform pg_temp.igual((select count(*) from comisiones), 0::bigint, 'En Demo no ve sus comisiones de XG');
-  perform pg_temp.igual(porcentaje_vigente(demo, ana, hoy_mx()), 8.00::numeric, 'En Demo tiene el nivel de Demo (8%)');
+  perform pg_temp.igual(porcentaje_vigente(demo, ana, hoy_mx()), 12.00::numeric,
+    'En Demo arranca con el piso de arranque de Demo (su segundo nivel, 12%), no con el de XG');
   perform elegir_organizacion(pg_temp.xg());
   perform pg_temp.igual((select count(*) > 0 from comisiones), true, 'De vuelta en XG ve lo suyo');
 
@@ -1260,6 +1261,119 @@ begin
     true, 'La cotización nace con número AAMMDD-T#');
   perform pg_temp.igual((select count(*) = count(distinct numero) from cotizaciones where organizacion_id = pg_temp.xg()), true,
     'Ningún número se repite');
+end;
+$$;
+
+-- @@ Tasa de bienvenida, arranque y Élite que vence
+-- Cada "cierre" se simula guardando el nivel que calcula la base para
+-- ese mes, en orden, como lo hace la aprobación del cierre.
+create function pg_temp.cerrar_nivel(p_com uuid, p_mes date) returns text language plpgsql as $$
+declare
+  n record;
+begin
+  select * into n from calcular_nivel(pg_temp.xg(), p_com, p_mes);
+  insert into niveles_mensuales (organizacion_id, comisionista_id, mes, nivel_id, porcentaje, promedio, meses_considerados, motivo)
+  values (pg_temp.xg(), p_com, p_mes, n.nivel_id, n.porcentaje, n.promedio, n.meses_considerados, n.motivo)
+  on conflict (organizacion_id, comisionista_id, mes) do update
+     set nivel_id = excluded.nivel_id, porcentaje = excluded.porcentaje, promedio = excluded.promedio,
+         meses_considerados = excluded.meses_considerados, motivo = excluded.motivo;
+  return to_char(p_mes, 'MM') || '=' || n.porcentaje || ' ' || n.motivo;
+end;
+$$;
+
+do $$
+declare
+  nora  uuid;
+  nico  uuid;
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  carla uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
+  plus  uuid := (select id from niveles where organizacion_id = pg_temp.xg() and nombre = 'Socio Plus');
+  serie text;
+begin
+  -- Alta con bienvenida: 3 meses desde el mes del alta, en Socio Plus.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(pg_temp.xg());
+  nora := alta_comisionista('Nora Bienvenida', 'nora@tasa.test', null, null, 'nora-bienvenida', null, false, true, 3);
+  perform pg_temp.igual((select trato_inicial || ' ' || trato_desde || '→' || trato_hasta from comisionistas where persona_id = nora),
+    'bienvenida ' || mes_de(hoy_mx()) || '→' || ((mes_de(hoy_mx()) + interval '3 months')::date - 1),
+    'El alta con bienvenida guarda inicio y fin (último día del tercer mes)');
+  perform pg_temp.igual((select trato_nivel_id from comisionistas where persona_id = nora), plus, 'La bienvenida es Socio Plus');
+  perform pg_temp.igual(porcentaje_vigente(pg_temp.xg(), nora, hoy_mx()), 15.00::numeric,
+    'Desde el primer día cobra 15% (provisional, sin esperar cierre)');
+
+  -- Alta sin bienvenida: arranque.
+  nico := alta_comisionista('Nico Nuevo', 'nico@tasa.test', null, null, 'nico-nuevo', null, false);
+  perform pg_temp.igual((select trato_inicial from comisionistas where persona_id = nico), 'arranque',
+    'Sin bienvenida, el alta nace con arranque');
+  perform pg_temp.igual(porcentaje_vigente(pg_temp.xg(), nico, hoy_mx()), 10.00::numeric,
+    'El nuevo arranca en Aliado 10%, no en Enlace 5%');
+
+  -- Finanzas no cambia la cantidad de meses: usa la de la organización.
+  perform pg_temp.como('gaby@tasa.test');
+  perform poner_trato_inicial(nico, 'bienvenida', 9, hoy_mx());
+  perform pg_temp.igual((select trato_hasta from comisionistas where persona_id = nico),
+    ((mes_de(hoy_mx()) + interval '3 months')::date - 1), 'Finanzas pide 9 meses y quedan los 3 de la organización');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform poner_trato_inicial(nico, 'arranque', null, hoy_mx());
+
+  -- Las fechas se fijan para que la serie no dependa de hoy.
+  perform pg_temp.sistema();
+  update comisionistas set fecha_alta = '2026-06-01', trato_desde = '2026-06-01', trato_hasta = '2026-08-31'
+   where persona_id = nora;
+  update comisionistas set fecha_alta = '2026-09-01', trato_desde = '2026-09-01', trato_hasta = '2026-10-31'
+   where persona_id = nico;
+
+  -- 1. Bienvenida 3 meses, sin volumen: baja de a un nivel por cierre.
+  select string_agg(pg_temp.cerrar_nivel(nora, m::date), ' ' order by m) into serie
+    from generate_series('2026-06-01'::date, '2026-12-01', interval '1 month') m;
+  perform pg_temp.igual(serie,
+    '06=15.00 bienvenida 07=15.00 bienvenida 08=15.00 bienvenida 09=12.50 escalon 10=10.00 escalon 11=5.00 promedio 12=5.00 promedio',
+    'Bienvenida jun–ago; luego 12.5 → 10 → su nivel real (5%), un escalón por cierre');
+
+  -- 3. Nuevo sin bienvenida: Aliado sus 2 primeros meses, luego la escalera normal (sin escalones).
+  select string_agg(pg_temp.cerrar_nivel(nico, m::date), ' ' order by m) into serie
+    from generate_series('2026-09-01'::date, '2026-11-01', interval '1 month') m;
+  perform pg_temp.igual(serie, '09=10.00 arranque 10=10.00 arranque 11=5.00 promedio',
+    'Arranque sep–oct en 10%; en noviembre baja directo a su nivel real');
+
+  -- 2. Volumen alto durante la bienvenida: sube de inmediato. Para que
+  -- haya algo arriba de 15% se agrega un nivel de 18%.
+  insert into niveles (organizacion_id, nombre, orden, umbral_minimo, porcentaje)
+  values (pg_temp.xg(), 'Diamante', 9, 35000, 18.00);
+  update comisionistas set trato_inicial = 'bienvenida', trato_nivel_id = plus,
+         trato_desde = '2026-06-01', trato_hasta = '2026-08-31'
+   where persona_id = ana and organizacion_id = pg_temp.xg();
+  select string_agg(pg_temp.cerrar_nivel(ana, m::date), ' ' order by m) into serie
+    from generate_series('2026-07-01'::date, '2026-10-01', interval '1 month') m;
+  perform pg_temp.igual(serie, '07=18.00 promedio 08=15.00 bienvenida 09=12.50 escalon 10=10.00 escalon',
+    'Ana: en julio su promedio (36,000) la sube a 18% antes de terminar la bienvenida; agosto vuelve al piso; luego escalones');
+  perform pg_temp.igual(porcentaje_es_provisional(pg_temp.xg(), ana, '2026-10-15'), false, 'Con nivel del mes ya no es provisional');
+
+  -- 4. Élite con vencimiento: manda hasta el mes del vencimiento, después vuelve el promedio.
+  update comisionistas set porcentaje_forzado = 20, elite_vence = '2026-11-30'
+   where persona_id = carla and organizacion_id = pg_temp.xg();
+  perform pg_temp.igual((select porcentaje || ' ' || motivo from calcular_nivel(pg_temp.xg(), carla, '2026-11-01')),
+    '20.00 elite', 'Élite vigente en noviembre (vence el 30)');
+  perform pg_temp.igual((select motivo from calcular_nivel(pg_temp.xg(), carla, '2026-12-01')), 'promedio',
+    'En diciembre el Élite ya venció: nivel por promedio');
+  perform pg_temp.igual(porcentaje_vigente(pg_temp.xg(), carla, '2026-11-20') = 20, true, 'Noviembre se paga al 20%');
+  perform pg_temp.igual(porcentaje_vigente(pg_temp.xg(), carla, '2026-12-05') < 20, true, 'Diciembre ya no');
+  perform pg_temp.igual(porcentaje_es_provisional(pg_temp.xg(), carla, '2027-03-05'), true,
+    'Vencido el Élite, en un mes sin cierre la comisión vuelve a nacer provisional');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select forzar_elite(%L, 20, %L)', carla, '2020-01-01'), 'anterior a hoy',
+    'El Élite no se pone ya vencido');
+  perform pg_temp.debe_fallar(format('select forzar_elite(%L, 31)', carla), 'check',
+    'El Élite tampoco pasa del tope de 30%');
+  perform forzar_elite(carla, null);
+  perform pg_temp.igual((select elite_vence from comisionistas where persona_id = carla), null::date,
+    'Quitar el Élite borra también su vencimiento');
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(mi_trato()->>'trato', 'bienvenida', 'El comisionista ve su propio trato');
+  perform pg_temp.debe_fallar(format('select poner_trato_inicial(%L, %L, 3, null)', ana, 'bienvenida'), 'Solo finanzas',
+    'Un comisionista no se pone la bienvenida solo');
 end;
 $$;
 

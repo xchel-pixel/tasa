@@ -20,6 +20,7 @@ export function BloqueNivel({ nivel }: { nivel: MiNivel }) {
         Tu nivel: <strong className="font-semibold text-texto">{nivel.nivel}</strong> · {nivel.porcentaje}%
         {nivel.provisional ? " (provisional)" : ""}
       </p>
+      {nivel.trato ? <p className="mt-1 text-[0.9375rem] font-semibold text-primario">{nivel.trato}</p> : null}
 
       {nivel.siguiente ? (
         <>

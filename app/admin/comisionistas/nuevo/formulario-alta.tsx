@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
+import { CampoBienvenida } from "@/components/campo-bienvenida";
+import type { TratosOrg } from "@/lib/tratos";
 import { altaComisionista, type EstadoAlta } from "./acciones";
 
 const ENTRADA =
@@ -19,7 +21,15 @@ function sugerirSlug(nombre: string) {
     .slice(0, 40);
 }
 
-export default function FormularioAlta({ existentes }: { existentes: { id: string; nombre: string; slug: string }[] }) {
+export default function FormularioAlta({
+  existentes,
+  tratos,
+  puedeCambiarMeses,
+}: {
+  existentes: { id: string; nombre: string; slug: string }[];
+  tratos: TratosOrg;
+  puedeCambiarMeses: boolean;
+}) {
   const [estado, enviar] = useActionState<EstadoAlta, FormData>(altaComisionista, { error: null, mensaje: null });
   const [nombre, setNombre] = useState("");
   const [slug, setSlug] = useState("");
@@ -77,6 +87,8 @@ export default function FormularioAlta({ existentes }: { existentes: { id: strin
           {existentes.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
         </select>
       </div>
+
+      <CampoBienvenida bienvenida={tratos.bienvenida} arranque={tratos.arranque} puedeCambiarMeses={puedeCambiarMeses} />
 
       <Aviso estado={estado} />
       <BotonEnviar>Dar de alta</BotonEnviar>

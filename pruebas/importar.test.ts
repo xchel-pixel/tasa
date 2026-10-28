@@ -20,6 +20,21 @@ describe("Importar comisionistas", () => {
     expect(filas[3]).toMatchObject({ nombre: "Dora Peña", emite_factura: true, elite: 18, errores: [] });
   });
 
+  test("tasa de bienvenida: sí/no o número de meses", () => {
+    const [a, b, c, d] = parsearTabla(
+      [
+        "Uno\tuno@c.com\t\t\t\t\tsí",
+        "Dos\tdos@c.com\t\t\t\t\t6",
+        "Tres\ttres@c.com",
+        "Cuatro\tcuatro@c.com\t\t\t\t\t15",
+      ].join("\n")
+    );
+    expect([a.bienvenida, a.mesesBienvenida]).toEqual([true, null]);
+    expect([b.bienvenida, b.mesesBienvenida]).toEqual([true, 6]);
+    expect([c.bienvenida, c.mesesBienvenida]).toEqual([false, null]);
+    expect(d.errores).toEqual(["la bienvenida va de 1 a 12 meses"]);
+  });
+
   test("la liga sale del nombre y no choca con las que ya existen", () => {
     expect(slugDe("José Ángel Pérez Núñez")).toBe("jose-angel-perez");
     const ocupados = new Set(["ana-lopez"]);

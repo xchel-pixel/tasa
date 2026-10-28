@@ -3,7 +3,9 @@
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
-import { agregarMovimiento, cambiarActivo, editarDatos, forzarElite, type EstadoFicha } from "./acciones";
+import { CampoBienvenida } from "@/components/campo-bienvenida";
+import type { TratosOrg } from "@/lib/tratos";
+import { agregarMovimiento, cambiarActivo, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
 
 const INICIAL: EstadoFicha = { error: null, mensaje: null };
 const ENTRADA =
@@ -58,7 +60,7 @@ export function CambiarActivo({ personaId, activo }: { personaId: string; activo
   );
 }
 
-export function ForzarElite({ personaId, actual }: { personaId: string; actual: number | null }) {
+export function ForzarElite({ personaId, actual, vence }: { personaId: string; actual: number | null; vence: string | null }) {
   const [estado, enviar] = useActionState(forzarElite, INICIAL);
   return (
     <div className="rounded-xl border border-linea px-4 py-4">
@@ -71,6 +73,10 @@ export function ForzarElite({ personaId, actual }: { personaId: string; actual: 
         <input type="hidden" name="persona_id" value={personaId} />
         <label htmlFor="porcentaje" className="block font-semibold">Porcentaje (máximo 30)</label>
         <input id="porcentaje" name="porcentaje" inputMode="decimal" defaultValue={actual ?? ""} className={ENTRADA.replace("mt-2 ", "")} />
+        <label htmlFor="vence" className="block font-semibold">
+          Vence <span className="font-normal text-secundario">(opcional; aplica hasta el mes de esta fecha)</span>
+        </label>
+        <input id="vence" name="vence" type="date" defaultValue={vence ?? ""} className={ENTRADA.replace("mt-2 ", "")} />
         <BotonEnviar variante="secundario">{actual === null ? "Forzar Élite" : "Cambiar porcentaje"}</BotonEnviar>
         <Aviso estado={estado} />
       </form>
@@ -81,6 +87,36 @@ export function ForzarElite({ personaId, actual }: { personaId: string; actual: 
           <BotonEnviar variante="peligro">Quitar Élite</BotonEnviar>
         </form>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Dar la tasa de bienvenida a quien ya está dado de alta (o quitársela).
+ * Empieza este mes; quitarla lo deja en la escalera normal.
+ */
+export function TasaDeBienvenida({
+  personaId, tratos, puedeCambiarMeses, tiene,
+}: { personaId: string; tratos: TratosOrg; puedeCambiarMeses: boolean; tiene: boolean }) {
+  const [estado, enviar] = useActionState(ponerBienvenida, INICIAL);
+  return (
+    <div className="rounded-xl border border-linea px-4 py-4">
+      <p className="font-semibold">Tasa de bienvenida</p>
+      <form action={enviar} className="mt-3 flex flex-col gap-3">
+        <input type="hidden" name="persona_id" value={personaId} />
+        {tiene ? (
+          <>
+            <input type="hidden" name="quitar" value="true" />
+            <BotonEnviar variante="peligro">Quitar tasa de bienvenida</BotonEnviar>
+          </>
+        ) : (
+          <>
+            <CampoBienvenida bienvenida={tratos.bienvenida} arranque={tratos.arranque} puedeCambiarMeses={puedeCambiarMeses} marcada />
+            <BotonEnviar variante="secundario">Dar tasa de bienvenida desde este mes</BotonEnviar>
+          </>
+        )}
+        <Aviso estado={estado} />
+      </form>
     </div>
   );
 }

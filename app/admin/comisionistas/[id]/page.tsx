@@ -10,11 +10,15 @@ import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import type { FilaComisionista } from "../page";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
-import { AgregarMovimiento, CambiarActivo, EditarDatos, ForzarElite } from "./formularios";
+import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
+import { AgregarMovimiento, CambiarActivo, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Por qué quedó en ese nivel ese mes (lo que no dice, es por su promedio). */
+const MOTIVO = { promedio: "", bienvenida: "bienvenida", arranque: "arranque", escalon: "bajando un nivel", elite: "Élite" } as const;
 
 const DOCUMENTO = { factura: "Factura", recibo: "Recibo simple", ninguno: "Sin documento" } as const;
 
@@ -24,6 +28,11 @@ type Ficha = {
   rfc: string | null;
   emite_factura: boolean;
   porcentaje_forzado: string | number | null;
+  elite_vence: string | null;
+  trato_inicial: "bienvenida" | "arranque" | null;
+  trato_nivel_id: string | null;
+  trato_desde: string | null;
+  trato_hasta: string | null;
   fecha_alta: string;
   personas: { nombre: string; correo: string; telefono: string | null; activo: boolean } | null;
   referido_por: string | null;
@@ -40,7 +49,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
     supabase
       .from("comisionistas")
       .select(
-        "persona_id, slug, rfc, emite_factura, porcentaje_forzado, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por"
+        "persona_id, slug, rfc, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por"
       )
       .eq("persona_id", id)
       .maybeSingle()
@@ -48,10 +57,10 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
     supabase.rpc("resumen_comisionistas"),
     supabase
       .from("niveles_mensuales")
-      .select("mes, porcentaje, promedio, niveles(nombre)")
+      .select("mes, porcentaje, promedio, motivo, niveles(nombre)")
       .eq("comisionista_id", id)
       .order("mes", { ascending: false })
-      .returns<{ mes: string; porcentaje: string | number; promedio: string | number; niveles: { nombre: string } | null }[]>(),
+      .returns<{ mes: string; porcentaje: string | number; promedio: string | number; motivo: keyof typeof MOTIVO; niveles: { nombre: string } | null }[]>(),
     supabase
       .from("solicitudes")
       .select("id, folio, cliente_nombre, estatus_publico, monto_total")
@@ -90,6 +99,10 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   // nombre de quien lo refirió se lee aparte.
   const referido = f.referido_por
     ? ((await supabase.from("personas").select("nombre").eq("id", f.referido_por).maybeSingle()).data?.nombre ?? null)
+    : null;
+  const tratos = await tratosDeLaOrg(yo.organizacion.id);
+  const nivelDelTrato = f.trato_nivel_id
+    ? (await supabase.from("niveles").select("nombre, porcentaje").eq("id", f.trato_nivel_id).maybeSingle()).data
     : null;
   const { data: terminos } = await supabase
     .from("aceptaciones_terminos")
@@ -248,13 +261,24 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
                 <span>
                   <span className="font-semibold">{n.niveles?.nombre} · {Number(n.porcentaje)}%</span>
                   <span className="text-secundario"> · prom. {pesos(Number(n.promedio))}</span>
+                  {MOTIVO[n.motivo] ? <span className="text-secundario"> · {MOTIVO[n.motivo]}</span> : null}
                 </span>
               </li>
             ))}
           </ul>
         )}
+        {f.trato_inicial && f.trato_desde && f.trato_hasta ? (
+          <p className="mt-2 text-[0.9375rem] font-semibold text-primario">
+            {f.trato_inicial === "bienvenida" ? "Tasa de bienvenida" : "Arranque"}: {nivelDelTrato?.nombre}{" "}
+            {Number(nivelDelTrato?.porcentaje)}% del {fechaDMA(f.trato_desde)} al {fechaDMA(f.trato_hasta)}
+            {f.trato_inicial === "bienvenida" ? ". Al terminar baja un nivel por cierre hasta su nivel real." : "."}
+          </p>
+        ) : null}
         {f.porcentaje_forzado !== null ? (
-          <p className="mt-2 text-[0.9375rem] font-semibold text-primario">Élite forzado: {Number(f.porcentaje_forzado)}% manda sobre el nivel calculado.</p>
+          <p className="mt-2 text-[0.9375rem] font-semibold text-primario">
+            Élite forzado: {Number(f.porcentaje_forzado)}% manda sobre el nivel calculado
+            {f.elite_vence ? `, hasta el ${fechaDMA(f.elite_vence)}` : ""}.
+          </p>
         ) : null}
       </Seccion>
 
@@ -275,9 +299,12 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           {superAdmin ? (
             <>
               <AgregarMovimiento personaId={id} cuentas={oExplota(cuentas, "las cuentas") ?? []} servicios={oExplota(servicios, "los servicios") ?? []} />
-              <ForzarElite personaId={id} actual={f.porcentaje_forzado === null ? null : Number(f.porcentaje_forzado)} />
+              <ForzarElite personaId={id} actual={f.porcentaje_forzado === null ? null : Number(f.porcentaje_forzado)}
+                vence={f.elite_vence} />
             </>
           ) : null}
+          <TasaDeBienvenida personaId={id} tratos={tratos} puedeCambiarMeses={superAdmin}
+            tiene={f.trato_inicial === "bienvenida"} />
           <CambiarActivo personaId={id} activo={activo} />
         </div>
       </Seccion>

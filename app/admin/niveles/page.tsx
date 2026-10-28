@@ -2,7 +2,7 @@ import { PantallaAdmin } from "@/components/pantalla-admin";
 import { pesos } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
-import { FormularioNivel, type Nivel } from "./formularios";
+import { FormularioNivel, FormularioTratos, type Nivel } from "./formularios";
 
 export const metadata = { title: "Niveles — Tasa" };
 
@@ -12,8 +12,13 @@ export const metadata = { title: "Niveles — Tasa" };
  * no toca lo ya calculado.
  */
 export default async function Niveles() {
-  await exigirRol("admin_org");
+  const persona = await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
+  const { data: ajustes } = await supabase
+    .from("ajustes")
+    .select("bienvenida_nivel_id, bienvenida_meses, arranque_nivel_id, arranque_meses")
+    .eq("organizacion_id", persona.organizacion.id)
+    .maybeSingle();
   const resultado = await supabase
     .from("niveles")
     .select("id, nombre, umbral_minimo, porcentaje, es_forzado")
@@ -49,6 +54,27 @@ export default async function Niveles() {
           </div>
         </details>
       </div>
+
+      <section className="mt-8">
+        <h2 className="text-[1.125rem] font-bold">Trato inicial</h2>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          Un piso durante los primeros meses, desde el mes del alta. <strong>Tasa de bienvenida</strong>: para quien ya
+          trabajaba con ustedes; se marca en el alta y al terminar baja un nivel por cierre hasta su nivel real.{" "}
+          <strong>Arranque</strong>: para todos los demás; al terminar sigue la escalera normal. En los dos, si su
+          promedio da más, cobra más desde ese cierre.
+        </p>
+        <div className="mt-3">
+          <FormularioTratos
+            niveles={niveles}
+            valores={{
+              bienvenida_nivel_id: ajustes?.bienvenida_nivel_id ?? null,
+              bienvenida_meses: ajustes?.bienvenida_meses ?? 3,
+              arranque_nivel_id: ajustes?.arranque_nivel_id ?? null,
+              arranque_meses: ajustes?.arranque_meses ?? 2,
+            }}
+          />
+        </div>
+      </section>
     </PantallaAdmin>
   );
 }

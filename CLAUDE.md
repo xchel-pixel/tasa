@@ -56,6 +56,20 @@ la app las muestra, la base las hace cumplir.
    Una comisión devengada antes de aprobar el cierre anterior nace con el último nivel conocido
    y `provisional = true`; al aprobar ese cierre sube si el nivel real es mayor y se respeta si
    es menor (lo provisional solo sube).
+   **Trato inicial** (0023, se fija en el alta y se ve en la ficha y en el inicio):
+   - *Tasa de bienvenida* (quien ya trabajaba con la organización; casilla en alta, importación
+     o ficha): piso de Socio Plus 15% durante N meses (3 por omisión; solo admin_org cambia N).
+     Al terminar, si su promedio lo pone más abajo, **baja un nivel por cierre**
+     (15 → 12.5 → 10 → real); la transición acaba en cuanto el escalón alcanza su nivel real.
+   - *Arranque* (todos los demás): piso de Aliado 10% sus primeros 2 meses; luego la escalera
+     normal, sin escalones.
+   - Los dos son **pisos**: si el promedio da más, sube de inmediato. Los meses cuentan desde el
+     mes del alta, inclusive. Nivel, meses y defaults se cambian en Niveles → Trato inicial.
+   - `niveles_mensuales.motivo` dice por qué quedó cada mes: promedio, bienvenida, arranque,
+     escalon o elite.
+   **Élite:** porcentaje fijo para casos especiales, con vencimiento opcional (aplica hasta el mes
+   de esa fecha, inclusive; después vuelve el promedio, sin escalones). Manda sobre todo lo demás.
+   Borrador en lenguaje del comisionista: `docs/terminos-borrador.md`.
 5. **Pagos:** todo entra como `reportado`; luego `confirmado` o `rechazado` (con motivo). Un pago
    no se edita ni regresa.
 6. **"Pagado", "Solicitada", "Cotizada", "Aceptada" y "Cancelada" los decide Tasa.** Lo de en

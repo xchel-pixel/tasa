@@ -40,6 +40,8 @@ export async function importarComisionistas(_previo: EstadoImportar, f: FormData
       p_slug: slugLibre(fila.nombre, ocupados),
       p_referido_por: null,
       p_emite_factura: fila.emite_factura,
+      p_bienvenida: fila.bienvenida,
+      p_meses_bienvenida: fila.mesesBienvenida,
     });
     if (error) {
       const yaEstaba = /ya está dado de alta/i.test(error.message);
@@ -47,7 +49,7 @@ export async function importarComisionistas(_previo: EstadoImportar, f: FormData
       continue;
     }
 
-    let mensaje = "Dado de alta.";
+    let mensaje = fila.bienvenida ? "Dado de alta, con tasa de bienvenida." : "Dado de alta.";
     if (fila.elite !== null) {
       if (persona.rol !== "admin_org") {
         mensaje = "Dado de alta, sin el porcentaje élite (solo administración lo pone).";
