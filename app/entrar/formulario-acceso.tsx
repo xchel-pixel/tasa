@@ -31,7 +31,7 @@ export default function FormularioAcceso({
     <main className="flex flex-1 flex-col justify-center px-6 py-12">
       <div className="mx-auto w-full max-w-sm">
         <h1>
-          <Marca className="text-[2rem] leading-none" />
+          <Marca alto={72} prioridad />
         </h1>
         <p className="mt-2 text-[0.9375rem] text-secundario">
           Portal de comisionistas

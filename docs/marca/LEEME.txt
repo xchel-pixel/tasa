@@ -1,0 +1,13 @@
+Marca Tasa · versión C3 (porcentaje, colores invertidos)
+
+Colores: marino #04386C, azul #006DB3; sobre fondo marino: blanco #FFFFFF y azul claro #5AA9E6.
+Tipografía de la palabra: Manrope ExtraBold (800).
+
+Archivos
+- tasa-logo-horizontal.png: símbolo + palabra, para fondos claros (encabezado, pantalla de acceso).
+- tasa-logo-horizontal-blanco.png: para fondos marino u oscuros.
+- tasa-simbolo.png / tasa-simbolo.svg: solo el símbolo, fondos claros.
+- tasa-simbolo-blanco.png: solo el símbolo, fondos oscuros.
+- tasa-icono-512.png / tasa-icono-192.png / apple-touch-icon.png: ícono de app (pantalla de inicio del celular, PWA).
+- favicon.svg / favicon-32.png / favicon-16.png: pestaña del navegador.
+- tasa-muestra-sobre-marino.png: solo de referencia visual.

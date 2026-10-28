@@ -27,7 +27,7 @@ export async function Encabezado() {
         <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3">
           <div className="min-w-0">
             <Link href="/" className="toque">
-              <Marca className="text-[1.375rem]" />
+              <Marca alto={44} />
             </Link>
             {persona ? (
               <p className="truncate text-[0.875rem] text-secundario">
