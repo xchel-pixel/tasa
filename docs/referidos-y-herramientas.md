@@ -155,13 +155,31 @@ llaves, términos de uso de los sitios) se presenta aparte antes de construir.
 - **Términos:** la OV express incluida es para prospección; si el cliente final paga una OV, va
   como trámite normal con comisión.
 
+### Membresías vs. comisiones (regla; se construye en esta fase)
+
+1. **Comisiones y bonos de referido se calculan solo sobre honorarios de trabajos pagados.** Las
+   cuotas de membresía **nunca** generan comisión ni bono de referido para nadie.
+2. **La membresía no cambia el % de comisión** (eso lo da el nivel por volumen); solo da cupos de
+   herramientas. Se mantiene la **bonificación** de la membresía al alcanzar Aliado por **nivel
+   real**.
+3. **Pagar membresía no cuenta para "referido activo":** solo cuentan los referidos con ≥1
+   trabajo pagado en los últimos 3 meses (regla 2 de Referidos).
+4. **Reconocimiento en especie** (parámetro `cortesia_primera_membresia`, lo activa o apaga
+   admin_org; **activado por omisión**): cuando un referido paga su **primera** membresía, su
+   referidor recibe **1 OV express de cortesía**, **no acumulable** (si ya tiene una sin usar, no
+   se le da otra) y que **vence a los 60 días**. Sin pago en dinero.
+5. **La cuota se paga con saldo positivo de comisiones** (descuento en el estado de cuenta del
+   mes) **o por transferencia** (reportada y confirmada a mano).
+
 ### Cobro
 
 - **Adicionales → cargo en su estado de cuenta** (tipo `cargo`, ya existe): se descuenta de su
   siguiente pago de comisión. **Sin saldo positivo**, el adicional se pide **prepagado**: sube su
   comprobante y se confirma a mano, como cualquier pago.
-- **Membresía → prepagada** por transferencia, reportada y confirmada a mano (sin pasarela). Se
-  activa al confirmarse.
+- **Membresía:** con saldo positivo de comisiones, **descuento en el estado de cuenta del mes**
+  (un `cargo` por la cuota, que no entra a ninguna base de comisión ni de bono); si no alcanza o
+  lo prefiere, **por transferencia**, reportada y confirmada a mano (sin pasarela). Se activa al
+  quedar pagada (cargo aplicado o pago confirmado).
 
 ### Esquema
 
@@ -170,6 +188,7 @@ herramienta (texto con check): 'consulta_catastral' | 'estimacion_rapida' | 'ov_
 
 ajustes
   + uso_justo_estimaciones smallint default 100
+  + cortesia_primera_membresia boolean default true
 
 planes_membresia
   organizacion_id, id, clave ('basica' | 'pro' | …), nombre, cuota numeric, activo
@@ -181,21 +200,30 @@ cupos                                    -- una fila por (nivel o plan) × herra
 precios_herramienta                      -- adicionales: 1,200 / 60 / 50
   organizacion_id, herramienta, precio numeric
 
-membresias                               -- una por comisionista y mes
+cuotas_membresia                         -- una por comisionista y mes (`membresias` ya es
+                                         -- la tabla de roles por organización)
   organizacion_id, id, comisionista_id, plan_id, mes date
   estado 'por_pagar' | 'pagada' | 'bonificada' | 'cancelada'
-  pago_id null, bonificada_por_nivel_id null
+  pagada_con 'saldo' | 'transferencia' null
+  pago_id null, cargo_id null, bonificada_por_nivel_id null
   unique (organizacion_id, comisionista_id, mes)
+
+cortesias_herramienta                    -- reconocimiento en especie (regla 4)
+  organizacion_id, id, comisionista_id, herramienta ('ov_express'), motivo
+  origen_comisionista_id                 -- el referido que pagó su primera membresía
+  otorgada_en, vence_en (otorgada + 60 días), usada_en null, pedido_id null
+  -- no acumulable: a lo más una vigente sin usar por comisionista y herramienta
 
 pedidos_herramienta                      -- tabla propia, FUERA de solicitudes; bitácora de uso
   organizacion_id, id, comisionista_id, herramienta, mes date
   datos jsonb (ubicación, clave catastral, superficies…)
   estado 'pedida' | 'por_prepagar' | 'entregada' | 'cancelada'
   pedido_en, entregado_en, entregado_por, entregable_ruta (bucket privado)
-  fuente 'cupo' | 'adicional' (se fija al entregar), cargo_id null (comisiones tipo 'cargo'),
+  fuente 'cupo' | 'cortesia' | 'adicional' (se fija al entregar), cargo_id null (comisiones tipo 'cargo'),
   pago_id null (si fue prepagado)
 ```
 
+- Un pedido puede consumir una cortesía vigente antes que el cupo (`fuente` 'cortesia').
 - **Nunca genera comisión, folio, conector ni cierre**: por eso no vive en `solicitudes`. En la
   pantalla del comisionista se ve como un tipo más al pedir ("Herramienta").
 - `cupo_disponible(p_comisionista, p_herramienta, p_mes)`: cupo efectivo menos entregados del

@@ -44,6 +44,10 @@ export default function FormularioAcceso({
             <PasoCorreo estado={estado} />
           )}
         </form>
+
+        <p className="mt-12">
+          <a href="/privacidad" className={LIGA}>Aviso de privacidad</a>
+        </p>
       </div>
     </main>
   );

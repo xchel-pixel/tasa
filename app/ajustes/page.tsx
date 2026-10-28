@@ -28,9 +28,16 @@ export default async function Ajustes() {
   const [ajustes, origenes, organizacion, conector] = await Promise.all([
     supabase
       .from("ajustes")
-      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad")
+      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo")
       .maybeSingle()
-      .returns<{ contacto_soporte: string | null; dia_limite_pago_comision: number; terminos: string | null; aviso_privacidad: string | null } | null>(),
+      .returns<{
+        contacto_soporte: string | null;
+        dia_limite_pago_comision: number;
+        terminos: string | null;
+        aviso_privacidad: string | null;
+        correo_bienvenida: string | null;
+        correo_rechazo: string | null;
+      } | null>(),
     supabase
       .from("origenes_pago")
       .select("id, nombre, activo")
@@ -69,6 +76,9 @@ export default async function Ajustes() {
             diaLimite={a?.dia_limite_pago_comision ?? 10}
             terminos={a?.terminos ?? ""}
             aviso={a?.aviso_privacidad ?? ""}
+            correoBienvenida={a?.correo_bienvenida ?? ""}
+            correoRechazo={a?.correo_rechazo ?? ""}
+            slug={persona.organizacion.slug}
           />
 
           <section className="mt-10">

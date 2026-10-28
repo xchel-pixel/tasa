@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
+import { CampoArchivo } from "@/components/campo-archivo";
 import { CampoBienvenida } from "@/components/campo-bienvenida";
 import type { TratosOrg } from "@/lib/tratos";
 import { altaComisionista, type EstadoAlta } from "./acciones";
@@ -22,10 +23,13 @@ function sugerirSlug(nombre: string) {
 }
 
 export default function FormularioAlta({
+  carpetaCsf,
   existentes,
   tratos,
   puedeCambiarMeses,
 }: {
+  /** `{organización}/directa` en el bucket `altas`. */
+  carpetaCsf: string;
   existentes: { id: string; nombre: string; slug: string }[];
   tratos: TratosOrg;
   puedeCambiarMeses: boolean;
@@ -34,6 +38,7 @@ export default function FormularioAlta({
   const [nombre, setNombre] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTocado, setSlugTocado] = useState(false);
+  const [csf, setCsf] = useState<string | null>(null);
 
   // Mientras no lo editen a mano, la liga sigue al nombre; si ya existe, le agrega un número.
   let sugerido = sugerirSlug(nombre);
@@ -60,11 +65,25 @@ export default function FormularioAlta({
         <input id="telefono" name="telefono" type="tel" inputMode="tel" maxLength={20} className={ENTRADA} />
       </div>
       <div>
-        <label htmlFor="rfc" className="block font-semibold">
-          RFC <span className="font-normal text-secundario">(opcional)</span>
-        </label>
-        <input id="rfc" name="rfc" maxLength={20} autoCapitalize="characters" className={`${ENTRADA} uppercase`} />
+        <label htmlFor="rfc" className="block font-semibold">RFC</label>
+        <input id="rfc" name="rfc" required maxLength={20} autoCapitalize="characters" className={`${ENTRADA} uppercase`} />
       </div>
+      <CampoArchivo bucket="altas" carpeta={carpetaCsf} nombre="csf_ruta" soloPdf opcional
+        etiqueta="Constancia de Situación Fiscal (PDF)" onCambio={(r) => setCsf(r)} />
+      {csf ? (
+        <label className="flex items-start gap-3 text-[0.9375rem] leading-6">
+          <input type="checkbox" name="rfc_revisado" className="mt-1 h-5 w-5 accent-primario" />
+          <span>
+            <span className="block font-semibold">RFC revisado a mano</span>
+            Solo si el último carácter no cuadra (RFC antiguo) y lo comparaste con la constancia. Queda en la bitácora.
+          </span>
+        </label>
+      ) : (
+        <label className="flex items-start gap-3 text-[0.9375rem] leading-6">
+          <input type="checkbox" name="csf_pendiente" className="mt-1 h-5 w-5 accent-primario" />
+          <span>CSF pendiente: la sube él desde su inicio</span>
+        </label>
+      )}
       <label className="flex items-start gap-3 text-[0.9375rem] leading-6">
         <input type="checkbox" name="emite_factura" className="mt-1 h-5 w-5 accent-primario" />
         Emite factura por sus comisiones

@@ -6,7 +6,8 @@ import { errorDeRfc, errorDeTelefono, limpiarRfc, limpiarTelefono } from "@/lib/
  *
  * Columnas, en este orden: nombre, correo, teléfono, RFC, factura (sí/no),
  * porcentaje élite y tasa de bienvenida (sí/no, o el número de meses).
- * Solo nombre y correo son obligatorios. Si el primer
+ * Nombre, correo y RFC (con su dígito verificador) son obligatorios; la
+ * CSF queda pendiente y cada quien la sube desde su inicio. Si el primer
  * renglón trae "correo", se toma como encabezado y se salta.
  *
  * Es pura: la usan la vista previa (en el navegador) y la importación
@@ -60,7 +61,8 @@ export function parsearTabla(texto: string): FilaImportada[] {
     if (!nombre) errores.push("falta el nombre");
     if (!CORREO.test(correo)) errores.push("correo no válido");
     else if (vistos.has(correo)) errores.push("correo repetido en la tabla");
-    if (errorDeRfc(rfc)) errores.push("RFC con formato incorrecto");
+    if (!rfc) errores.push("falta el RFC");
+    else if (errorDeRfc(rfc)) errores.push("RFC que no cuadra (formato o dígito verificador)");
     if (errorDeTelefono(telefono)) errores.push("teléfono sin 10 dígitos");
     if (elite !== null && !(elite > 0 && elite <= 30)) errores.push("el porcentaje élite va de más de 0 a 30");
     if (mesesBienvenida !== null && mesesBienvenida > 12) errores.push("la bienvenida va de 1 a 12 meses");

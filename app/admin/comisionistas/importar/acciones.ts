@@ -17,7 +17,7 @@ export type EstadoImportar = { error: string | null; resultados: ResultadoFila[]
  * El porcentaje élite solo lo pone admin_org (igual que en la ficha).
  */
 export async function importarComisionistas(_previo: EstadoImportar, f: FormData): Promise<EstadoImportar> {
-  const persona = await exigirRol("admin_org", "finanzas");
+  const persona = await exigirRol("admin_org");
   const filas = parsearTabla(String(f.get("tabla") ?? ""));
   if (filas.length === 0) return { error: "Pega la tabla primero.", resultados: null };
   if (filas.length > MAXIMO_FILAS) return { error: `Máximo ${MAXIMO_FILAS} renglones por importación.`, resultados: null };

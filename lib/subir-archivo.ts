@@ -15,15 +15,16 @@ const DOCUMENTO_MAXIMO = 5 * 1024 * 1024;
  * 300 KB, que sí suben con mala señal. Al servidor solo llega la ruta.
  */
 export async function subirArchivo(
-  bucket: "comprobantes" | "facturas",
+  bucket: "comprobantes" | "facturas" | "altas",
   carpeta: string,
   archivo: File,
-  { xml = false }: { xml?: boolean } = {}
+  { xml = false, soloPdf = false }: { xml?: boolean; soloPdf?: boolean } = {}
 ): Promise<string> {
   const esPdf = archivo.type === "application/pdf";
   const esXml = xml && (archivo.type.includes("xml") || archivo.name.toLowerCase().endsWith(".xml"));
   const esImagen = archivo.type.startsWith("image/");
 
+  if (soloPdf && !esPdf) throw new Error("Tiene que ser PDF.");
   if (!esPdf && !esXml && !esImagen) throw new Error(xml ? "Sube un PDF, un XML o una foto." : "Sube una foto o un PDF.");
   if ((esPdf || esXml) && archivo.size > DOCUMENTO_MAXIMO) throw new Error("El archivo pesa más de 5 MB.");
 

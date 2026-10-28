@@ -56,7 +56,7 @@ export default async function Terminos() {
 
           <div className="mt-4 rounded-lg border border-linea p-4 leading-7 whitespace-pre-line">{texto}</div>
 
-          {persona.debeAceptarTerminos ? <FormularioTerminos version={ajustes!.terminos_version} /> : null}
+          {persona.debeAceptarTerminos ? <FormularioTerminos version={ajustes!.terminos_version} ligaAviso={`/privacidad?org=${persona.organizacion.slug}`} /> : null}
         </div>
       </main>
     </>

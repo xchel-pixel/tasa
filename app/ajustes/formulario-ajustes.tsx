@@ -14,11 +14,17 @@ export default function FormularioAjustes({
   diaLimite,
   terminos,
   aviso,
+  correoBienvenida,
+  correoRechazo,
+  slug,
 }: {
   contacto: string;
   diaLimite: number;
   terminos: string;
   aviso: string;
+  correoBienvenida: string;
+  correoRechazo: string;
+  slug: string;
 }) {
   const [estado, enviar] = useActionState(guardarAjustes, INICIAL);
 
@@ -30,7 +36,8 @@ export default function FormularioAjustes({
         </label>
         <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
           Correo o teléfono que ven los comisionistas y quien no está dado de alta cuando
-          necesitan ayuda. Vacío: no se muestra ningún contacto.
+          necesitan ayuda. Si es un correo, las respuestas a los correos de Tasa le llegan ahí. Vacío: no se muestra
+          ningún contacto.
         </p>
         <input id="contacto_soporte" name="contacto_soporte" maxLength={120} defaultValue={contacto} className={ENTRADA} />
       </div>
@@ -57,7 +64,30 @@ export default function FormularioAjustes({
 
       <div>
         <label htmlFor="aviso_privacidad" className="block font-semibold">Aviso de privacidad</label>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          Se publica en /privacidad y se acepta al pedir el alta en /alta/{slug}. [ENLACE] y [FECHA] los llena Tasa
+          (la dirección del aviso y el día en que guardas esta versión).
+        </p>
         <textarea id="aviso_privacidad" name="aviso_privacidad" rows={5} maxLength={20000} defaultValue={aviso}
+          className={ENTRADA} />
+      </div>
+
+      <div>
+        <label htmlFor="correo_bienvenida" className="block font-semibold">Correo de bienvenida</label>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          Sale al aprobar una solicitud de alta. La primera línea &quot;Asunto: …&quot; es el asunto. Tasa llena [NOMBRE], [NIVEL Y %],
+          [FECHA] y [CONTACTO DE SOPORTE].
+        </p>
+        <textarea id="correo_bienvenida" name="correo_bienvenida" rows={8} maxLength={5000} defaultValue={correoBienvenida}
+          className={ENTRADA} />
+      </div>
+
+      <div>
+        <label htmlFor="correo_rechazo" className="block font-semibold">Correo de rechazo</label>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          [MOTIVO OPCIONAL] es el motivo que escribas al rechazar; si no escribes, desaparece.
+        </p>
+        <textarea id="correo_rechazo" name="correo_rechazo" rows={4} maxLength={2000} defaultValue={correoRechazo}
           className={ENTRADA} />
       </div>
 

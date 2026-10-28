@@ -70,10 +70,10 @@ begin
     (v_xchel, xg, 'admin_org'), (v_gaby, xg, 'finanzas'),
     (v_ana, xg, 'comisionista'), (v_beto, xg, 'comisionista'), (v_carla, xg, 'comisionista');
 
-  insert into comisionistas (persona_id, slug, fecha_alta) values
-    (v_ana,   'ana-prueba',   '2026-06-01'),
-    (v_beto,  'beto-prueba',  '2026-08-01'),
-    (v_carla, 'carla-prueba', '2026-09-15');
+  insert into comisionistas (persona_id, slug, fecha_alta, rfc) values
+    (v_ana,   'ana-prueba',   '2026-06-01', 'PUAA900101AB4'),
+    (v_beto,  'beto-prueba',  '2026-08-01', 'PUBB900101AB5'),
+    (v_carla, 'carla-prueba', '2026-09-15', 'PUCC900101AB6');
 
   -- Catálogos de XG (vienen de 0008) ----------------------------
   select id into v_avaluo from servicios where organizacion_id = xg and nombre = 'Avalúo Comercial';
@@ -225,7 +225,7 @@ begin
   -- Pago de comisiones: el cierre de junio dejó a Ana un pendiente de
   -- 1,800 (vencía el 10 de julio). Gaby le pagó 1,000 el 8 de julio;
   -- quedan 800, vencidos. Ana emite factura y no la ha subido.
-  update comisionistas set emite_factura = true, rfc = 'PUAA900101AB1' where persona_id = v_ana;
+  update comisionistas set emite_factura = true, rfc = 'PUAA900101AB4' where persona_id = v_ana;
   perform ejecutar_pago_comision(
     xg, v_gaby, v_ana, '2026-07-08', (select id from origenes_pago where organizacion_id = xg and nombre = 'Scotiabank XG'),
     'SPEI 1001', null, 'recibo', null,
@@ -272,7 +272,7 @@ begin
   values ('Comisionista Demo', 'xchel+demo@arqosuv.com', demo) returning id into v_com;
   insert into membresias (persona_id, organizacion_id, rol) values
     (v_adm, demo, 'admin_org'), (v_com, demo, 'comisionista');
-  insert into comisionistas (persona_id, slug, fecha_alta) values (v_com, 'demo', '2026-09-01');
+  insert into comisionistas (persona_id, slug, fecha_alta, rfc) values (v_com, 'demo', '2026-09-01', 'DEMO900101AB7');
 
   -- Pagado el 15 de octubre: comisión de 8% sobre 20,000 = 1,600.
   insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, inmueble_municipio,

@@ -29,7 +29,8 @@ const FILTROS = [
 
 /** Buscador y filtro van en la dirección (`?q=…&ver=…`): se pueden compartir y regresar. */
 export default async function Comisionistas({ searchParams }: PageProps<"/admin/comisionistas">) {
-  const staff = esStaff(await exigirRol(...ROLES_OPERACION));
+  const persona = await exigirRol(...ROLES_OPERACION);
+  const staff = esStaff(persona);
   const { q, ver } = await searchParams;
   const texto = typeof q === "string" ? q.trim() : "";
   const filtro = FILTROS.find((f) => f.clave === ver)?.clave ?? "activos";
@@ -44,16 +45,20 @@ export default async function Comisionistas({ searchParams }: PageProps<"/admin/
 
   return (
     <PantallaAdmin titulo="Comisionistas">
-      <Link
-        href="/admin/comisionistas/nuevo"
-        className="mt-4 flex min-h-12 items-center justify-center rounded-lg bg-primario px-4 py-3 font-semibold text-sobre-primario"
-      >
-        Dar de alta
-      </Link>
+      {/* Las altas nacen de una solicitud; la directa y la importación son solo de admin_org. */}
       {staff ? (
-        <Link href="/admin/comisionistas/importar" className="toque mt-2 block text-center text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
-          Importar varios desde una tabla
+        <Link
+          href="/admin/altas"
+          className="mt-4 flex min-h-12 items-center justify-center rounded-lg bg-primario px-4 py-3 font-semibold text-sobre-primario"
+        >
+          Solicitudes de alta
         </Link>
+      ) : null}
+      {persona.rol === "admin_org" ? (
+        <div className="mt-2 flex justify-center gap-5 text-[0.9375rem] font-semibold">
+          <Link href="/admin/comisionistas/nuevo" className="toque text-acento underline underline-offset-4">Alta directa</Link>
+          <Link href="/admin/comisionistas/importar" className="toque text-acento underline underline-offset-4">Importar desde una tabla</Link>
+        </div>
       ) : null}
 
       <form className="mt-4" role="search">

@@ -185,8 +185,9 @@ En este orden. Lo marcado como **por decidir** se pregunta antes de construir.
 5. **Notion** (cron cada 15 min + botón "actualizar"), correos de cambio de estatus y PDF de
    la cotización.
 
-6. **Alta de comisionistas por solicitud** (antes del paso a producción): `/alta/<org>` pública,
-   RFC obligatorio y CSF, bandeja de aprobación para admin_org. Ver `docs/paso-a-produccion.md` §4b.
+6. **Alta de comisionistas por solicitud** — **construida (0024)**: `/alta/<org>` pública,
+   RFC obligatorio y CSF, bandeja de aprobación para admin_org, correos por Resend y aviso de
+   privacidad en `/privacidad`. Ver `docs/paso-a-produccion.md` §4b.
    Después, **despliegue** en `tasa.xgplataform.com` y paso a producción con
    `npm run db:reset-produccion`.
 

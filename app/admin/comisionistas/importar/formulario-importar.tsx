@@ -50,7 +50,7 @@ export function FormularioImportar() {
           rows={8}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder={"Nombre\tCorreo\tTeléfono\tRFC\tFactura\tÉlite %\tBienvenida\nAna López\tana@correo.com\t4421234567\t\tno\t\tsí"}
+          placeholder={"Nombre\tCorreo\tTeléfono\tRFC\tFactura\tÉlite %\tBienvenida\nAna López\tana@correo.com\t4421234567\tLOPA800101AB7\tno\t\tsí"}
           className="mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 font-mono text-[0.875rem] focus:border-acento"
         />
       </label>

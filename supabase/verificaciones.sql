@@ -79,6 +79,9 @@ begin
 end;
 $$;
 
+-- Un RFC de prueba con su dígito verificador correcto.
+create function pg_temp.rfc(p_base text) returns text language sql as $$ select p_base || rfc_digito(p_base) $$;
+
 grant execute on all functions in schema pg_temp to anon, authenticated;
 
 -- @@ Niveles
@@ -319,7 +322,8 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'contacto_soporte, correo_en_padron'::text, 'anon solo ejecuta correo_en_padron y contacto_soporte');
+  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, pedir_alta'::text,
+    'anon solo ejecuta lo de la pantalla de acceso, la solicitud de alta y el aviso de privacidad');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -566,20 +570,36 @@ declare
   diego uuid;
 begin
   perform pg_temp.como('gaby@tasa.test');
-  diego := alta_comisionista('Diego Prueba', ' Xchel+Diego@arqosuv.com ', '4420000004', 'guxd800101ab1',
+  perform pg_temp.debe_fallar(
+    $q$select alta_comisionista('Diego Prueba', 'xchel+diego@arqosuv.com', '4420000004', 'GUXD800101AB3', 'diego-prueba', null, true)$q$,
+    'Solo admin_org', 'Finanzas ya no da altas directas (captura una solicitud)');
+  perform pg_temp.como('xchel@arqosuv.com');
+  diego := alta_comisionista('Diego Prueba', ' Xchel+Diego@arqosuv.com ', '4420000004', 'guxd800101ab3',
                              'diego-prueba', null, true);
   perform pg_temp.igual((select rol from membresias where persona_id = diego and organizacion_id = pg_temp.xg()), 'comisionista'::text,
-    'Finanzas da de alta un comisionista');
+    'admin_org da de alta un comisionista');
   perform pg_temp.igual((select correo from personas where id = diego), 'xchel+diego@arqosuv.com'::text,
     'El correo se guarda limpio y en minúsculas');
   perform pg_temp.igual((select rfc || '/' || emite_factura from comisionistas where persona_id = diego),
-    'GUXD800101AB1/true'::text, 'RFC en mayúsculas y "emite factura"');
+    'GUXD800101AB3/true'::text, 'RFC en mayúsculas y "emite factura"');
+  perform pg_temp.igual((select csf_ruta is null from comisionistas where persona_id = diego), true,
+    'Sin CSF, el alta directa queda con "CSF pendiente"');
+  perform pg_temp.debe_fallar(
+    $q$select alta_comisionista('Otro', 'otro2@tasa.test', null, 'GUXD800101AB1', 'otro2', null, false)$q$,
+    'dígito verificador', 'La base no acepta un RFC con el dígito verificador mal');
+  perform pg_temp.debe_fallar(
+    $q$select alta_comisionista('Otro', 'otro2@tasa.test', null, null, 'otro2', null, false)$q$,
+    'RFC es obligatorio', 'El RFC es obligatorio');
+  perform pg_temp.debe_fallar(
+    $q$select alta_comisionista('Otro', 'otro2@tasa.test', null, 'GUXD800101AB1', 'otro2', null, false, false, null, null, true)$q$,
+    'hace falta la CSF', 'RFC revisado a mano sin CSF no pasa');
   perform pg_temp.debe_fallar(
     $q$select alta_comisionista('Otro', 'xchel+diego@arqosuv.com', null, null, 'otro', null, false)$q$,
     'ya está dado de alta', 'No se repite un correo');
   perform pg_temp.debe_fallar(
     $q$select alta_comisionista('Otro', 'otro@tasa.test', null, null, 'diego-prueba', null, false)$q$,
     'slug', 'No se repite la liga');
+  perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.igual((select count(*) from resumen_comisionistas()), 4::bigint,
     'El staff ve a los 4 comisionistas en la lista');
   perform pg_temp.debe_fallar(format('select forzar_elite(%L, 20)', diego),
@@ -597,8 +617,8 @@ begin
   perform pg_temp.igual((select count(*) from resumen_comisionistas()), 0::bigint,
     'Un comisionista no ve la lista de comisionistas');
   perform pg_temp.debe_fallar(
-    $q$select alta_comisionista('X', 'x@tasa.test', null, null, 'x', null, false)$q$,
-    'Solo finanzas', 'Un comisionista no da de alta a nadie');
+    $q$select alta_comisionista('X', 'x@tasa.test', null, 'GUXD800101AB3', 'x', null, false)$q$,
+    'Solo admin_org', 'Un comisionista no da de alta a nadie');
   perform pg_temp.sistema();
 end;
 $$;
@@ -964,7 +984,7 @@ declare
   ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
 begin
   perform pg_temp.como('xchel+demo-admin@arqosuv.com');
-  perform pg_temp.igual(alta_comisionista('Otra Ana', 'XCHEL+ANA@arqosuv.com', null, null, 'ana', null, false), ana,
+  perform pg_temp.igual(alta_comisionista('Otra Ana', 'XCHEL+ANA@arqosuv.com', null, 'PUAA900101AB4', 'ana', null, false), ana,
     'Dar de alta un correo que ya existe reutiliza a la persona');
   perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.igual((select count(*) from mis_organizaciones()), 2::bigint, 'Ana ahora elige entre dos organizaciones');
@@ -1293,7 +1313,7 @@ begin
   -- Alta con bienvenida: 3 meses desde el mes del alta, en Socio Plus.
   perform pg_temp.como('xchel@arqosuv.com');
   perform elegir_organizacion(pg_temp.xg());
-  nora := alta_comisionista('Nora Bienvenida', 'nora@tasa.test', null, null, 'nora-bienvenida', null, false, true, 3);
+  nora := alta_comisionista('Nora Bienvenida', 'nora@tasa.test', null, pg_temp.rfc('NOBI900101AB'), 'nora-bienvenida', null, false, true, 3);
   perform pg_temp.igual((select trato_inicial || ' ' || trato_desde || '→' || trato_hasta from comisionistas where persona_id = nora),
     'bienvenida ' || mes_de(hoy_mx()) || '→' || ((mes_de(hoy_mx()) + interval '3 months')::date - 1),
     'El alta con bienvenida guarda inicio y fin (último día del tercer mes)');
@@ -1302,7 +1322,7 @@ begin
     'Desde el primer día cobra 15% (provisional, sin esperar cierre)');
 
   -- Alta sin bienvenida: arranque.
-  nico := alta_comisionista('Nico Nuevo', 'nico@tasa.test', null, null, 'nico-nuevo', null, false);
+  nico := alta_comisionista('Nico Nuevo', 'nico@tasa.test', null, pg_temp.rfc('NINU900101AB'), 'nico-nuevo', null, false);
   perform pg_temp.igual((select trato_inicial from comisionistas where persona_id = nico), 'arranque',
     'Sin bienvenida, el alta nace con arranque');
   perform pg_temp.igual(porcentaje_vigente(pg_temp.xg(), nico, hoy_mx()), 10.00::numeric,
@@ -1374,6 +1394,154 @@ begin
   perform pg_temp.igual(mi_trato()->>'trato', 'bienvenida', 'El comisionista ve su propio trato');
   perform pg_temp.debe_fallar(format('select poner_trato_inicial(%L, %L, 3, null)', ana, 'bienvenida'), 'Solo finanzas',
     'Un comisionista no se pone la bienvenida solo');
+end;
+$$;
+
+-- @@ Alta por solicitud
+do $$
+declare
+  xg      uuid := pg_temp.xg();
+  ana     uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  gaby    uuid := (select id from personas where correo = 'gaby@tasa.test');
+  xchel   uuid := (select id from personas where correo = 'xchel@arqosuv.com');
+  v_aviso integer;
+  sol     uuid;
+  sol2    uuid;
+  sol3    uuid;
+  cap     uuid;
+  nueva   uuid;
+  antes   bigint;
+  i       integer;
+begin
+  perform pg_temp.sistema();
+  -- RFC: los tres de las cuentas receptoras de producción pasan.
+  perform pg_temp.igual(rfc_valido('CHC2206204P2') and rfc_valido('PUSA8705253C3') and rfc_valido('GUSM840104GU9'), true,
+    'RFC reales (empresa y persona) pasan el dígito verificador');
+  perform pg_temp.igual(rfc_valido('GUSM840104GU8'), false, 'Con el último carácter mal, no pasa');
+
+  update ajustes set aviso_privacidad = 'Aviso de prueba.', contacto_soporte = 'soporte@xgplataform.com' where organizacion_id = xg;
+  select aviso_version into v_aviso from ajustes where organizacion_id = xg;
+  perform pg_temp.igual(v_aviso > 0, true, 'Publicar el aviso le da versión');
+
+  -- Sin sesión ----------------------------------------------------------
+  perform pg_temp.como(null);
+  perform pg_temp.igual((datos_alta_publica('xg')->>'aviso_version')::integer, v_aviso, 'La pantalla pública sabe qué aviso mostrar');
+  perform pg_temp.igual(aviso_privacidad_publico()->>'slug', 'xg'::text, '/privacidad sin organización muestra el aviso de XG');
+  perform pg_temp.debe_fallar(
+    format($q$select pedir_alta('xg', 'Rita', 'rita@tasa.test', '4421112233', 'GUXD800101AB1', null, %s, 'ip1')$q$, v_aviso),
+    'Revisa tu RFC. Si está bien escrito, escríbenos a soporte@xgplataform.com', 'Un RFC con el dígito mal se rechaza con mensaje claro');
+  perform pg_temp.debe_fallar(
+    format($q$select pedir_alta('xg', 'Rita', 'rita@tasa.test', '4421112233', 'GUX800101', null, %s, 'ip1')$q$, v_aviso),
+    'formato', 'Un RFC con el formato mal se rechaza');
+  perform pg_temp.debe_fallar(
+    $q$select pedir_alta('xg', 'Rita', 'rita@tasa.test', '4421112233', 'GUXD800101AB3', null, 999, 'ip1')$q$,
+    'aviso de privacidad cambió', 'Sin aceptar el aviso vigente no hay solicitud');
+
+  sol := pedir_alta('xg', 'Rita Solicitud', 'Rita@tasa.test', '(442) 111-22-33', 'guxd 800101 ab3', 'ana-prueba', v_aviso, 'ip1');
+  perform pg_temp.debe_fallar('select count(*) from solicitudes_alta', 'permission denied', 'anon no lee solicitudes');
+  perform pg_temp.debe_fallar(format('select aprobar_alta(%L, %L, false, false, null, false)', sol, 'x'),
+    'permission denied', 'anon no aprueba');
+  insert into storage.objects (bucket_id, name) values ('altas', xg || '/' || sol || '/csf.pdf');
+  perform pg_temp.debe_fallar(
+    format($q$insert into storage.objects (bucket_id, name) values ('altas', %L)$q$, xg || '/' || gen_random_uuid() || '/csf.pdf'),
+    'row-level security', 'anon no sube una CSF a una solicitud que no existe');
+  perform confirmar_alta(sol);
+  perform pg_temp.debe_fallar(
+    format($q$insert into storage.objects (bucket_id, name) values ('altas', %L)$q$, xg || '/' || sol || '/csf.pdf'),
+    'row-level security', 'Ni a una que ya no está subiendo');
+
+  sol2 := pedir_alta('xg', 'Ana Repetida', 'otra.ana@tasa.test', '4421112234', 'PUAA900101AB4', null, v_aviso, 'ip2');
+  insert into storage.objects (bucket_id, name) values ('altas', xg || '/' || sol2 || '/csf.pdf');
+  perform confirmar_alta(sol2);
+
+  for i in 1..5 loop
+    perform pedir_alta('xg', 'Bot ' || i, 'bot' || i || '@tasa.test', '4421112299', 'GUXD800101AB3', null, v_aviso, 'ip3');
+  end loop;
+  perform pg_temp.debe_fallar(
+    format($q$select pedir_alta('xg', 'Bot 6', 'bot6@tasa.test', '4421112299', 'GUXD800101AB3', null, %s, 'ip3')$q$, v_aviso),
+    'demasiadas solicitudes', 'Más de 5 solicitudes desde la misma IP en un día no pasan');
+
+  perform pg_temp.sistema();
+  perform pg_temp.igual(
+    (select estado || ' ' || correo || ' ' || telefono || ' ' || rfc || ' ' || (referidor_id = ana) || ' ' || (aviso_version = v_aviso)
+       from solicitudes_alta where id = sol),
+    'pendiente rita@tasa.test 4421112233 GUXD800101AB3 true true'::text,
+    'La solicitud queda pendiente, con datos limpios, su referidor y el aviso que aceptó');
+  perform pg_temp.igual((select csf_ruta from solicitudes_alta where id = sol), xg || '/' || sol || '/csf.pdf',
+    'Queda con su CSF');
+  perform pg_temp.igual((select posible_duplicado and coincidencias[1] like 'RFC de Ana Prueba%' from solicitudes_alta where id = sol2), true,
+    'El RFC de un comisionista activo la marca "posible duplicado"');
+
+  -- Finanzas captura, no decide ----------------------------------------------
+  perform pg_temp.como('gaby@tasa.test');
+  cap := capturar_alta('Toño Captura', 'tono@tasa.test', '4421112235', 'GUXD800101AB1', null);
+  insert into storage.objects (bucket_id, name) values ('altas', xg || '/' || cap || '/csf.pdf');
+  perform confirmar_alta(cap);
+  perform pg_temp.igual(
+    (select estado || ' ' || rfc_por_revisar || ' ' || (capturada_por = gaby) || ' ' || (aviso_version is null)
+       from solicitudes_alta where id = cap),
+    'pendiente true true true'::text, 'Finanzas captura: pendiente, "capturada por", "RFC por revisar" y sin aviso');
+  perform pg_temp.igual((select count(*) from solicitudes_alta where estado = 'pendiente'), 3::bigint,
+    'Finanzas ve la bandeja');
+  perform pg_temp.igual((select count(*) from storage.objects where bucket_id = 'altas') > 0, true, 'Finanzas ve las CSF');
+  perform pg_temp.debe_fallar(format('select aprobar_alta(%L, %L, false, false, null, true)', cap, 'tono'),
+    'Solo admin_org', 'Finanzas no aprueba');
+  perform pg_temp.debe_fallar(format('select rechazar_alta(%L, null)', cap), 'Solo admin_org', 'Finanzas no rechaza');
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from solicitudes_alta), 0::bigint, 'Un comisionista no ve solicitudes');
+  perform pg_temp.igual((select count(*) from storage.objects where bucket_id = 'altas'), 0::bigint, 'Ni las CSF');
+  insert into storage.objects (bucket_id, name) values ('altas', xg || '/' || ana || '/csf-ana.pdf');
+  perform subir_mi_csf(xg || '/' || ana || '/csf-ana.pdf');
+  perform pg_temp.debe_fallar(format('select subir_mi_csf(%L)', xg || '/' || gaby || '/otra.pdf'),
+    'No llegó', 'Solo registra una CSF suya que sí subió');
+
+  -- admin_org decide ------------------------------------------------------------
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(xg);
+  perform pg_temp.debe_fallar(format('select aprobar_alta(%L, %L, false, false, null, false)', cap, 'tono-captura'),
+    'RFC revisado a mano', 'Con el dígito mal no se aprueba sin "RFC revisado a mano"');
+  perform aprobar_alta(cap, 'tono-captura', false, false, null, true);
+  perform pg_temp.igual(
+    (select c.rfc_revisado_a_mano and c.csf_ruta is not null from comisionistas c join personas p on p.id = c.persona_id
+      where p.correo = 'tono@tasa.test' and c.organizacion_id = xg),
+    true, 'admin_org lo aprueba con "RFC revisado a mano" y su CSF');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'solicitudes_alta' and accion = 'UPDATE' and persona_id = xchel
+        and (despues->>'rfc_revisado_a_mano')::boolean and despues->>'rfc' = 'GUXD800101AB1'),
+    1::bigint, 'Queda en bitácora quién, cuándo y qué RFC');
+
+  nueva := aprobar_alta(sol, 'rita-solicitud', true, false, null, false);
+  perform pg_temp.igual(
+    (select m.rol || ' ' || (c.referido_por = ana) || ' ' || c.trato_inicial || ' ' || c.emite_factura
+       from comisionistas c join membresias m on m.persona_id = c.persona_id and m.organizacion_id = c.organizacion_id
+      where c.persona_id = nueva and c.organizacion_id = xg),
+    'comisionista true arranque true'::text, 'Aprobar crea persona, membresía y comisionista con su referidor y su trato');
+  perform pg_temp.igual((select estado || ' ' || (persona_id = nueva) || ' ' || (decidida_por = xchel) from solicitudes_alta where id = sol),
+    'aprobada true true'::text, 'La solicitud queda aprobada, con quién decidió');
+
+  select count(*) into antes from personas;
+  perform rechazar_alta(sol2, 'Ya está dado de alta con otro correo.');
+  perform pg_temp.igual((select count(*) from personas), antes, 'Rechazar no crea a nadie');
+  perform pg_temp.igual((select estado || ' ' || motivo from solicitudes_alta where id = sol2),
+    'rechazada Ya está dado de alta con otro correo.'::text, 'Queda rechazada con su motivo');
+  perform pg_temp.debe_fallar(format('select aprobar_alta(%L, %L, false, false, null, false)', sol2, 'ana-repetida'),
+    'ya no está pendiente', 'Una rechazada ya no se aprueba');
+
+  -- Limpieza del cron -------------------------------------------------------------
+  perform pg_temp.sistema();
+  insert into solicitudes_alta (organizacion_id, nombre, correo, telefono, rfc, estado, csf_ruta, decidida_en)
+  values (xg, 'Rechazada Reciente', 'reciente@tasa.test', '4421112236', 'GUXD800101AB3', 'rechazada',
+          xg || '/x/csf.pdf', now() - interval '89 days')
+  returning id into sol3;
+  update solicitudes_alta set decidida_en = now() - interval '90 days 1 minute' where id = sol2;
+  perform pg_temp.igual((select count(*) from csf_por_borrar() where id = sol2), 1::bigint, 'La CSF rechazada hace 90 días se borra');
+  perform pg_temp.igual((select count(*) from csf_por_borrar() where id = sol3), 0::bigint, 'La de 89 días no');
+  perform marcar_csf_borrada(sol2);
+  perform pg_temp.igual((select csf_ruta is null and csf_borrada_en is not null from solicitudes_alta where id = sol2), true,
+    'La solicitud se queda, sin el archivo');
+  update solicitudes_alta set creada_en = now() - interval '2 days' where ip_resumen = 'ip3';
+  perform pg_temp.igual(borrar_altas_abandonadas(), 5, 'Las que nunca subieron su CSF se borran al día');
 end;
 $$;
 

@@ -177,8 +177,9 @@ logo ya están en el esquema).
      admin_marca vea las solicitudes de su marca desde el inicio (hoy solo las ve al cotizarse).
 4. **Control de dispositivos**. NO construir antes de terminar el panel. Ver README.
 5. Correos de cambio de estatus; conectores `sheets` y `webhook`.
-5b. **Alta de comisionistas por solicitud** (`/alta/<org>`, RFC obligatorio con dígito
-   verificador, CSF en PDF, bandeja de aprobación). Antes del reset; ver
+5b. **Alta de comisionistas por solicitud** — construida (0024): `/alta/<org>`, RFC obligatorio con
+   dígito verificador, CSF en PDF, bandeja `/admin/altas` (finanzas captura, solo admin_org
+   decide), correos por Resend con respaldo de WhatsApp, `/privacidad`. Ver
    `docs/paso-a-produccion.md` §4b. Sin CURP.
 6. `npm run db:reset-produccion` cuando se lance. (El dígito de control de la CLABE ya está en
    la base: 0021; con la base reseteada la regla queda validada para todas las cuentas.)

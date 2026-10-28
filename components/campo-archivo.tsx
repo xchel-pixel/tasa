@@ -21,16 +21,19 @@ export function CampoArchivo({
   etiqueta,
   ayuda,
   xml = false,
+  soloPdf = false,
   opcional = false,
   onCambio,
 }: {
-  bucket: "comprobantes" | "facturas";
+  bucket: "comprobantes" | "facturas" | "altas";
   /** `{organización}/{persona}` de quien sube. */
   carpeta: string;
   nombre: string;
   etiqueta: string;
   ayuda?: string;
   xml?: boolean;
+  /** Solo PDF (la CSF). */
+  soloPdf?: boolean;
   opcional?: boolean;
   onCambio?: (ruta: string | null) => void;
 }) {
@@ -45,7 +48,7 @@ export function CampoArchivo({
     setSubida({ paso: "subiendo" });
     onCambio?.(null);
     try {
-      const ruta = await subirArchivo(bucket, carpeta, elegido, { xml });
+      const ruta = await subirArchivo(bucket, carpeta, elegido, { xml, soloPdf });
       setSubida({ paso: "listo", ruta, nombre: elegido.name });
       onCambio?.(ruta);
     } catch (falla) {
@@ -65,7 +68,7 @@ export function CampoArchivo({
         id={id}
         ref={entrada}
         type="file"
-        accept={xml ? "image/*,application/pdf,.xml,text/xml,application/xml" : "image/*,application/pdf"}
+        accept={soloPdf ? "application/pdf,.pdf" : xml ? "image/*,application/pdf,.xml,text/xml,application/xml" : "image/*,application/pdf"}
         disabled={!montado}
         onChange={alElegir}
         className="mt-3 block w-full text-[0.9375rem] text-secundario file:mr-4 file:rounded-lg file:border file:border-borde-campo file:bg-fondo file:px-4 file:py-2 file:text-[0.9375rem] file:font-semibold file:text-primario"

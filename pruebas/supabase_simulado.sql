@@ -50,3 +50,6 @@ revoke all on schema vault from public;
 -- Como en Supabase: con sesión se puede intentar leer y subir; el RLS decide.
 grant usage on schema storage to authenticated;
 grant select, insert on storage.objects to authenticated;
+-- anon sube la CSF de su solicitud de alta (la política decide cuál).
+grant usage on schema storage to anon;
+grant insert on storage.objects to anon;

@@ -307,10 +307,26 @@ y fecha. Para XG:
   soporte@xgplataform.com.
 - Debe nombrar el **RFC y la CSF** como datos recabados, con su finalidad: pago de comisiones y
   verificación de identidad.
-- **Texto completo:** llega en la hoja de la carga de producción.
+- **Texto completo:** `docs/textos-produccion/aviso-privacidad.txt`. Se publica en
+  `/privacidad` (sin sesión; la liga está en `/entrar`, `/alta/<org>`, `/terminos` y al pie de
+  los correos). `[ENLACE]` lo llena Tasa con la dirección del aviso y `[FECHA]` con el día en
+  que se guardó esa versión en Ajustes: guardado el día del paso a producción, sale esa fecha.
+- **Términos versión 1:** `docs/textos-produccion/terminos-v1.txt`.
 
-Estado: **todo listo para construir**; se construye cuando Xchel dé la orden del paso a
-producción.
+Estado: **construido** (migración 0024, Etapa A). En la Etapa B, después del reset, los dos
+textos se pegan en Ajustes de XG (el aviso queda versión 1 y los términos versión 1).
+
+Cómo quedó, en lo que no decía el plan:
+- `?ref=` es la liga personal (slug) del comisionista que refiere; si no existe o está
+  inactivo, la solicitud llega sin referidor. El antifraude de referidos llega con su fase.
+- `/privacidad` sin nada muestra el aviso de la primera organización que lo publicó (XG); las
+  demás usan `/privacidad?org=<slug>`.
+- Quien acepta los términos acepta también el aviso vigente (se guarda su versión): así lo
+  acepta quien llegó por una solicitud capturada.
+- Cambiar el RFC de un comisionista "revisado a mano" pierde esa marca: el nuevo tiene que
+  cuadrar.
+- Solicitudes que nunca terminaron de subir su CSF se borran solas al día (cron).
+- Límite de envíos: 5 por IP (resumida) y 100 por organización en 24 horas.
 
 ---
 

@@ -16,8 +16,13 @@ export async function guardarAjustes(
   const dia = Number(formData.get("dia_limite_pago_comision"));
   const terminos = String(formData.get("terminos") ?? "").trim();
   const aviso = String(formData.get("aviso_privacidad") ?? "").trim();
+  const bienvenida = String(formData.get("correo_bienvenida") ?? "").trim();
+  const rechazo = String(formData.get("correo_rechazo") ?? "").trim();
   if (terminos.length > 20000 || aviso.length > 20000) {
     return { mensaje: null, error: "Los textos van hasta 20,000 caracteres." };
+  }
+  if (!bienvenida || !rechazo || bienvenida.length > 5000 || rechazo.length > 2000) {
+    return { mensaje: null, error: "Los correos de bienvenida y rechazo no pueden quedar vacíos (hasta 5,000 y 2,000 caracteres)." };
   }
   if (contacto.length > 120) {
     return { mensaje: null, error: "Máximo 120 caracteres." };
@@ -35,6 +40,8 @@ export async function guardarAjustes(
         dia_limite_pago_comision: dia,
         terminos: terminos || null,
         aviso_privacidad: aviso || null,
+        correo_bienvenida: bienvenida,
+        correo_rechazo: rechazo,
         actualizado_en: new Date().toISOString(),
       },
       { count: "exact" }

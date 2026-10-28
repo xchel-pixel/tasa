@@ -7,7 +7,7 @@ import FormularioAlta from "./formulario-alta";
 export const metadata = { title: "Alta de comisionista — Tasa" };
 
 export default async function NuevoComisionista() {
-  const persona = await exigirRol("admin_org", "finanzas");
+  const persona = await exigirRol("admin_org");
   const tratos = await tratosDeLaOrg(persona.organizacion.id);
   const supabase = await crearClienteServidor();
   const filas =
@@ -25,6 +25,7 @@ export default async function NuevoComisionista() {
         Con el alta ya puede entrar: escribe su correo en la pantalla de acceso y le llega el código.
       </p>
       <FormularioAlta
+        carpetaCsf={`${persona.organizacion.id}/directa`}
         tratos={tratos}
         puedeCambiarMeses={persona.rol === "admin_org"}
         existentes={filas

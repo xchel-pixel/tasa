@@ -56,6 +56,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         <Renglon href="/admin/pagos" titulo="Pagos por confirmar" cuenta={p.pagos} />
         <Renglon href="/admin/solicitudes" titulo="Solicitudes por cotizar" cuenta={p.solicitudes} />
         <Renglon href="/admin/alertas" titulo="Alertas" cuenta={p.alertas} />
+        {staff ? <Renglon href="/admin/altas" titulo="Solicitudes de alta" cuenta={p.altas} /> : null}
         {staff ? (
           <>
             <li>

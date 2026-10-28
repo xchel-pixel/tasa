@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { AvisoCsf } from "@/components/aviso-csf";
 import { BloqueNivel } from "@/components/bloque-nivel";
 import { Etiqueta } from "@/components/etiqueta";
 import { ESTATUS_CERRADOS, estatusVisible } from "@/lib/estatus";
 import { pesos } from "@/lib/formato";
 import type { Persona } from "@/lib/sesion";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { miNivel, misTrabajos, type TrabajoEnLista } from "@/lib/trabajos";
 
 /**
@@ -12,7 +14,12 @@ import { miNivel, misTrabajos, type TrabajoEnLista } from "@/lib/trabajos";
  * final.
  */
 export async function InicioComisionista({ persona }: { persona: Persona }) {
-  const [trabajos, nivel] = await Promise.all([misTrabajos(), miNivel(persona.id, persona.organizacion.id)]);
+  const supabase = await crearClienteServidor();
+  const [trabajos, nivel, { data: yo }] = await Promise.all([
+    misTrabajos(),
+    miNivel(persona.id, persona.organizacion.id),
+    supabase.from("comisionistas").select("csf_ruta").eq("persona_id", persona.id).maybeSingle().returns<{ csf_ruta: string | null } | null>(),
+  ]);
 
   const enCurso = trabajos.filter((t) => !ESTATUS_CERRADOS.includes(t.estatus_publico));
   const cerrados = trabajos.filter((t) => ESTATUS_CERRADOS.includes(t.estatus_publico));
@@ -22,6 +29,8 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
       <h1 className="text-[1.5rem] font-bold tracking-tight">
         Hola, {persona.nombre.split(" ")[0]}
       </h1>
+
+      {yo && !yo.csf_ruta ? <AvisoCsf carpeta={`${persona.organizacion.id}/${persona.id}`} /> : null}
 
       <div className="mt-6">
         <BloqueNivel nivel={nivel} />
