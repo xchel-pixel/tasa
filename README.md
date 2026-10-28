@@ -185,7 +185,10 @@ En este orden. Lo marcado como **por decidir** se pregunta antes de construir.
 5. **Notion** (cron cada 15 min + botón "actualizar"), correos de cambio de estatus y PDF de
    la cotización.
 
-6. **Despliegue** en `tasa.xgplataform.com` y paso a producción con `npm run db:reset-produccion`.
+6. **Alta de comisionistas por solicitud** (antes del paso a producción): `/alta/<org>` pública,
+   RFC obligatorio y CSF, bandeja de aprobación para admin_org. Ver `docs/paso-a-produccion.md` §4b.
+   Después, **despliegue** en `tasa.xgplataform.com` y paso a producción con
+   `npm run db:reset-produccion`.
 
 7. **Referidos** (después del paso a producción). Vínculo de 12 meses desde el primer trabajo
    pagado del referido, editable por vínculo con motivo; el referidor cobra solo si tuvo un

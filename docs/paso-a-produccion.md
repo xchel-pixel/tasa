@@ -121,8 +121,9 @@ cuando está completo y lleva a su pantalla:
 6. Orígenes del dinero.
 7. Equipo: finanzas, admin de marca y equipo.
 8. **Comisionistas** con **"Importar varios"**: pegas una tabla (copiada de Excel o Sheets) con
-   nombre, correo, teléfono, RFC, emite factura y referido por. La pantalla muestra una vista previa
-   con errores por renglón (correo repetido, RFC mal escrito) antes de dar de alta.
+   nombre, correo, teléfono, **RFC (obligatorio, ver 4b)**, emite factura, Élite y tasa de
+   bienvenida. La pantalla muestra una vista previa con errores por renglón antes de dar de alta.
+   Su CSF queda pendiente y cada quien la sube desde su inicio.
 9. Conector: Notion.
 
 **Dos comandos para lo que no puede hacerse desde una pantalla:**
@@ -130,6 +131,93 @@ cuando está completo y lleva a su pantalla:
   admin_org de XG. Hace falta porque después del reset nadie puede entrar.
 - `npm run db:secreto-cron`: genera el secreto del cron, lo guarda en Vault y en Vercel y vuelve a
   publicar.
+
+## 4b. Alta de comisionistas por solicitud (se construye ANTES del reset)
+
+Desde producción, **toda alta nace de una solicitud que aprueba administración**, con **RFC
+obligatorio** y **Constancia de Situación Fiscal (CSF)**. No se pide CURP.
+
+### Lo que se construye
+
+1. **Solicitud de alta pública** (sin sesión): `/alta/<org>` y, desde la liga de un referidor,
+   `/alta/<org>?ref=<slug>`.
+   - Campos: nombre completo, correo, teléfono, **RFC** (12 o 13 caracteres, formato y **dígito
+     verificador** del SAT), **CSF en PDF** (obligatoria, máx. 5 MB) y aceptación del **aviso de
+     privacidad** (se guarda versión y fecha).
+   - Anti-bots y límite de envíos como en la solicitud pública por liga. `anon` solo inserta por
+     una función `security definer`; no lee ni escribe tablas.
+   - La CSF va a un bucket privado nuevo, `altas`.
+2. **Bandeja "Solicitudes de alta"** (admin_org decide; finanzas solo lee): datos, CSF por URL
+   firmada, **aprobar** o **rechazar con motivo**.
+   - Aprobar crea persona + membresía comisionista + perfil (con el referidor si vino por liga,
+     sujeto al antifraude de `docs/referidos-y-herramientas.md`) y manda el **correo de
+     bienvenida** con el acceso.
+   - Rechazar no crea nada y manda un **correo genérico** con el motivo, si se escribió.
+3. **RFC único por organización** entre comisionistas activos y solicitudes pendientes. Si
+   coincide, la solicitud no se bloquea: se marca **"posible duplicado"** para que admin_org
+   decida.
+4. **Alta directa** por admin_org: se mantiene, pero exige RFC y CSF, o la marca **"CSF
+   pendiente"**.
+5. **Comisionistas ya existentes** (pruebas e importación): RFC obligatorio; la CSF puede quedar
+   pendiente, con aviso en su inicio para subirla él mismo.
+6. El **aviso de privacidad** debe nombrar el RFC y la CSF como datos recabados y su finalidad:
+   pago de comisiones y verificación de identidad (va en los datos del punto 5).
+
+### Esquema propuesto
+
+```
+solicitudes_alta
+  organizacion_id, id, nombre, correo, telefono, rfc
+  csf_ruta text            -- bucket altas: {organización}/{solicitud}/csf.pdf
+  referidor_id null        -- del ?ref=, si el slug existe y está activo
+  aviso_version, aviso_aceptado_en
+  estado 'subiendo' | 'pendiente' | 'aprobada' | 'rechazada'
+  posible_duplicado boolean, coincidencias text[]
+  decidida_por, decidida_en, motivo, persona_id (la creada al aprobar)
+  creada_en, ip_resumen (hash, para el límite de envíos)
+
+comisionistas
+  rfc            → not null (con el check de formato y dígito verificador)
+  + csf_ruta text null      -- nula = "CSF pendiente"
+  + csf_subida_en timestamptz
+```
+
+- `rfc_valido(text)` en la base (como `clabe_valida`): formato y dígito verificador.
+- `pedir_alta(...)` (anon, `security definer`): valida, limita envíos, crea la solicitud en
+  `subiendo` y regresa su id. La política del bucket `altas` deja a `anon` **solo insertar**
+  `{org}/{id}/csf.pdf` de una solicitud que está en `subiendo` y tiene menos de 30 minutos;
+  `confirmar_alta(id)` la pasa a `pendiente` cuando el archivo existe. Así no hace falta la
+  llave de servicio fuera de `/api/cron`.
+- `aprobar_alta(id)` / `rechazar_alta(id, motivo)` (admin_org).
+
+### Pruebas
+
+- Solicitud válida: queda pendiente con su CSF.
+- RFC inválido (formato o dígito verificador): se rechaza con mensaje claro.
+- RFC duplicado (activo o pendiente): queda como "posible duplicado".
+- Aprobar crea acceso: persona, membresía, perfil; con referidor si vino por liga.
+- Rechazar no crea nada.
+- `anon` no lee CSF ni solicitudes, ni sube un archivo a una solicitud que no está en `subiendo`.
+- Finanzas ve la bandeja pero no aprueba.
+
+### Por decidir antes de construir
+
+- **Anti-bots.** Turnstile (Cloudflare) sigue "por decidir": es un servicio externo con llave.
+  *Recomendación:* empezar sin dependencia nueva (campo trampa, tiempo mínimo de llenado y límite
+  de envíos por IP resumida y por organización) y agregar Turnstile solo si llega basura.
+- **Correos de bienvenida y rechazo.** Hoy Tasa solo manda el código de acceso (por el SMTP de
+  Supabase). Mandar correos propios pide **una llave de Resend para Tasa** (`RESEND_API_KEY`,
+  solo del servidor) y llamar a su API con `fetch`, sin librería nueva. *Alternativa sin llave:*
+  sin correo de bienvenida; al aprobar, la pantalla da un mensaje para copiar y mandar por
+  WhatsApp, y el comisionista entra con su correo.
+- **Finanzas pierde el alta directa.** Hoy finanzas también da de alta (y importa). Con esta
+  regla solo admin_org aprueba y da de alta directa; finanzas queda en lectura. Confirmar.
+- **Dígito verificador del RFC.** El algoritmo del SAT es público y lo cumplen los RFC emitidos
+  por el SAT; si alguien trae uno antiguo que no cuadra, admin_org lo puede dar de alta directa
+  con una casilla "RFC revisado a mano". Confirmar si se quiere esa salida.
+- **CSF de solicitudes rechazadas.** Es un dato personal que ya no sirve. *Recomendación:* que
+  se borre el archivo a los 90 días del rechazo (la solicitud queda, sin el archivo). No toca
+  dinero, así que no choca con la regla de no borrar.
 
 ---
 
@@ -178,16 +266,20 @@ Desc, Peritaje para el Poder Judicial, Topografía, Deslinde Catastral, Otros.
 - contacto de soporte;
 - día límite de pago de comisiones (hoy 10);
 - prefijo de folio (MGP);
-- **texto de términos** (debe incluir "cuenta personal e intransferible") y **aviso de privacidad**;
+- **texto de términos** (debe incluir "cuenta personal e intransferible"; borrador en
+  `docs/terminos-borrador.md`) y **aviso de privacidad** (debe nombrar RFC y CSF como datos
+  recabados, con su finalidad: pago de comisiones y verificación de identidad);
 - orígenes del dinero: hoy Scotiabank XG, Banorte personal, Efectivo y Otra.
 
 **Comisionistas iniciales** (una tabla, puede ser de Excel):
 
-| Nombre | Correo | Teléfono | RFC | Emite factura (sí/no) | Referido por | ¿Élite? (%) |
+| Nombre | Correo | Teléfono | RFC (obligatorio) | Emite factura (sí/no) | ¿Élite? (%) | ¿Tasa de bienvenida? (sí/no o meses) |
 |---|---|---|---|---|---|---|
 
-- Todos empiezan en el nivel más bajo, porque no hay historial en Tasa.
-- Si quieres que alguien arranque más arriba, va como Élite con su porcentaje y se le quita después.
+- Quienes ya trabajaban con XG: **tasa de bienvenida** (15% por 3 meses). Los demás arrancan en
+  Aliado 10% sus primeros 2 meses.
+- Élite solo para acuerdos particulares; puede llevar fecha de vencimiento.
+- "Referido por" se registra cuando exista la fase de Referidos.
 
 **Equipo:**
 
@@ -262,3 +354,5 @@ Si los términos se aceptan al entrar (punto pendiente del plan), el mensaje lo 
   invitar, porque ahí va "cuenta personal e intransferible".
 - Correos de cambio de estatus: pueden ir después.
 - Control de dispositivos y solicitud pública por liga: después.
+- **Alta por solicitud con RFC y CSF (4b): antes del reset.** Sus "por decidir" (anti-bots,
+  correos con Resend, finanzas sin alta) se resuelven antes de construirla.
