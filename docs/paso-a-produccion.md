@@ -212,7 +212,8 @@ comisionistas
   + csf_subida_en timestamptz
 
 ajustes
-  + correo_bienvenida text  -- el texto base, editable en Ajustes
+  + correo_bienvenida text  -- editable en Ajustes (texto de origen abajo)
+  + correo_rechazo text
 ```
 
 - `rfc_valido(text)` en la base (como `clabe_valida`): formato y dígito verificador.
@@ -240,12 +241,62 @@ ajustes
   en bitácora.
 - La CSF de una solicitud rechazada hace 90 días se borra; la de 89 días no; la solicitud queda.
 
-### Lo que falta de Xchel para construirla
+### Correos: remitente y textos (listos)
 
-- **Llave de Resend para Tasa** (`RESEND_API_KEY`) en Vercel, Production, como Sensitive. No se
-  pega en el chat.
-- **Texto base del correo de bienvenida** (el borrador de la hoja).
-- Dirección de envío (propuesta: `Tasa <hola@xgplataform.com>`).
+- **Llave:** `RESEND_API_KEY` ya está en Vercel (proyecto tasa, Production, Secret).
+- **Remitente:** `Tasa <no-reply@xgplataform.com>`.
+- **Reply-To:** el contacto de soporte de la organización (Ajustes). Si está vacío, sin Reply-To.
+  Si el contacto es un teléfono y no un correo, tampoco lleva Reply-To.
+- Los dos textos son **editables en Ajustes** (`ajustes.correo_bienvenida` y
+  `ajustes.correo_rechazo`); estos son los de origen. Las variables entre corchetes las llena
+  Tasa al enviar.
+
+**Bienvenida**
+
+```
+Asunto: Bienvenido a Tasa
+
+Hola, [NOMBRE]:
+
+Tu solicitud para Tasa fue aprobada. Desde hoy puedes encargarnos cotizaciones y trámites de valuación, ver el estatus de cada trabajo y llevar tus comisiones en un solo lugar.
+
+Cómo entrar:
+1. Abre tasa.xgplataform.com.
+2. Escribe tu correo y te llegará un código de 6 dígitos (revisa también no deseados).
+3. La primera vez acepta los términos.
+
+Tip: agrégalo a la pantalla de inicio de tu celular para tenerlo como app.
+
+Tu nivel inicial: [NIVEL Y %] hasta el [FECHA].
+
+Si tienes dudas, escríbenos a [CONTACTO DE SOPORTE].
+
+Bienvenido.
+```
+
+**Rechazo**
+
+```
+Hola, [NOMBRE]: revisamos tu solicitud para Tasa y por ahora no pudimos aprobarla. [MOTIVO OPCIONAL] Si crees que es un error, escríbenos a [CONTACTO DE SOPORTE].
+```
+
+Cómo se llenan las variables:
+
+| Variable | Valor |
+|---|---|
+| `[NOMBRE]` | nombre de pila de la solicitud |
+| `[NIVEL Y %]` | el del trato inicial: "Socio Plus 15%" (bienvenida) o "Aliado 10%" (arranque) |
+| `[FECHA]` | fin del trato, `dd/mm/aaaa` (p. ej. 31/01/2027) |
+| `[CONTACTO DE SOPORTE]` | Ajustes → contacto de soporte |
+| `[MOTIVO OPCIONAL]` | el motivo del rechazo; si no se escribió, desaparece con su espacio |
+
+- Si la organización no usa arranque (0 meses) y no hubo bienvenida, el renglón "Tu nivel
+  inicial…" sale sin "hasta el [FECHA]": "Tu nivel inicial: Enlace 5%."
+- Si no hay contacto de soporte, el renglón "Si tienes dudas…" no sale.
+- El mismo texto (ya llenado) es el de "Copiar mensaje para WhatsApp".
+
+Estado: **todo listo para construir**; se construye cuando Xchel dé la orden del paso a
+producción.
 
 ---
 
@@ -382,5 +433,5 @@ Si los términos se aceptan al entrar (punto pendiente del plan), el mensaje lo 
   invitar, porque ahí va "cuenta personal e intransferible".
 - Correos de cambio de estatus: pueden ir después.
 - Control de dispositivos y solicitud pública por liga: después.
-- **Alta por solicitud con RFC y CSF (4b): antes del reset.** Decisiones tomadas; falta la llave
-  de Resend y el texto base del correo de bienvenida.
+- **Alta por solicitud con RFC y CSF (4b): antes del reset.** Decisiones, llave y textos listos;
+  se construye con la orden del paso a producción.
