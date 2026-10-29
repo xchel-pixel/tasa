@@ -52,6 +52,20 @@ npm test
 Corre las migraciones, la semilla y `supabase/verificaciones.sql` en PGlite (un Postgres que
 vive dentro de Node). No toca Supabase ni necesita internet después de instalar.
 
+### Prueba de humo contra producción
+
+```bash
+npm run humo
+```
+
+Entra a tasa.xgplataform.com como admin_org y como finanzas y abre las pantallas principales
+(inicio, Trámites, Mis trámites, Solicitudes por cotizar, Pagos). Solo lectura: no llena
+formularios ni escribe nada. Necesita `SUPABASE_SECRET_KEY` en `.env.local` (sin ella, se salta).
+
+**Usa Microsoft Edge** (`channel: "msedge"` en `playwright.config.ts`), el que ya trae Windows.
+En esta PC la descarga del Chromium de Playwright se traba a medias, así que no hace falta
+correr `npx playwright install`. En una computadora sin Edge, quita esa línea e instala Chromium.
+
 ## Base de datos (CLI de Supabase)
 
 Tasa usa **un solo proyecto** de Supabase (plan gratuito). Hoy es de pruebas, con semilla;

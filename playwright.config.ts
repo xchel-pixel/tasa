@@ -18,5 +18,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.HUMO_URL ?? "https://tasa.xgplataform.com",
     viewport: { width: 390, height: 844 },
+    // Microsoft Edge, que ya trae Windows: en esta PC la descarga de Chromium de Playwright se traba.
+    channel: "msedge",
   },
 });
