@@ -2548,6 +2548,68 @@ begin
 end;
 $$;
 
+-- @@ Guardar convenio en una pantalla
+-- Lo que hace "Guardar" en Catálogos → Convenios: datos y precios juntos.
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  s1    uuid;  s2  uuid;  s3 uuid;
+  marca uuid;
+  conv  uuid;
+begin
+  perform pg_temp.sistema();
+  select id into s1 from servicios where organizacion_id = xg and activo order by nombre limit 1;
+  select id into s2 from servicios where organizacion_id = xg and activo order by nombre offset 1 limit 1;
+  select id into s3 from servicios where organizacion_id = xg and activo order by nombre offset 2 limit 1;
+  select id into marca from marcas where organizacion_id = xg limit 1;
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  conv := guardar_convenio(null,
+    jsonb_build_object('nombre', 'Notaría 4', 'contacto', 'Lic. Ruiz', 'vigente_desde', '2026-11-01', 'vigente_hasta', '2027-10-31',
+                       'notas', 'Convenio anual', 'comision_regla', 'ninguna'),
+    jsonb_build_array(
+      jsonb_build_object('servicio_id', s1, 'honorario_tipo', 'sin_costo', 'nota', 'Sin costo si contrata el avalúo'),
+      jsonb_build_object('servicio_id', s2, 'marca_id', marca, 'honorario_tipo', 'fijo', 'monto', '3500'),
+      jsonb_build_object('servicio_id', s3, 'honorario_tipo', 'estimado', 'monto', '9000', 'monto_minimo', '6000')));
+  perform pg_temp.igual(
+    (select string_agg(cp.honorario_tipo || ':' || cp.monto || ':' || coalesce(cp.monto_minimo::text, '-') || ':' || cp.sin_costo, ' ' order by cp.honorario_tipo)
+       from convenio_precios cp where cp.convenio_id = conv),
+    'estimado:9000.00:6000.00:false fijo:3500.00:-:false sin_costo:0.00:-:true'::text,
+    'Se guardan datos y precios juntos: fijo, sin costo y estimado con rango');
+  perform pg_temp.igual((select nota from convenio_precios where convenio_id = conv and servicio_id = s1), 'Sin costo si contrata el avalúo'::text,
+    'Con su nota');
+
+  -- Editar: se quita un servicio y se cambia otro.
+  perform guardar_convenio(conv,
+    jsonb_build_object('nombre', 'Notaría 4', 'comision_regla', 'fija', 'comision_pct', '12.5', 'activo', true),
+    jsonb_build_array(jsonb_build_object('servicio_id', s2, 'honorario_tipo', 'fijo', 'monto', '3800')));
+  perform pg_temp.igual((select count(*) || ' ' || max(monto) from convenio_precios where convenio_id = conv), '1 3800.00'::text,
+    'Al editar, lo que ya no viene se quita y lo demás se reemplaza');
+  perform pg_temp.igual((select comision_regla || ' ' || comision_pct from convenios where id = conv), 'fija 12.50'::text, 'Y la comisión cambia');
+
+  -- Si algo no cuadra, no se guarda nada y el mensaje dice qué.
+  perform pg_temp.debe_fallar(format($q$select guardar_convenio(%L, '{"nombre":"Notaría 4","comision_regla":"normal"}',
+    jsonb_build_array(jsonb_build_object('servicio_id', %L, 'honorario_tipo', 'fijo', 'monto', '')))$q$, conv, s1),
+    'escribe el precio', 'Precio vacío: mensaje claro con el servicio');
+  perform pg_temp.igual((select comision_regla from convenios where id = conv), 'fija'::text, 'Y no se guardó nada a medias');
+  perform pg_temp.debe_fallar($q$select guardar_convenio(null, '{"nombre":"X","comision_regla":"normal"}', '[]')$q$,
+    'nombre del cliente', 'Nombre obligatorio');
+  perform pg_temp.debe_fallar($q$select guardar_convenio(null, '{"nombre":"Otro","comision_regla":"fija"}', '[]')$q$,
+    'fijo de comisión', 'El % fijo es obligatorio');
+  perform pg_temp.debe_fallar($q$select guardar_convenio(null, '{"nombre":"Otro","vigente_desde":"2027-01-01","vigente_hasta":"2026-01-01"}', '[]')$q$,
+    'vigencia', 'Vigencia al revés');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar($q$select guardar_convenio(null, '{"nombre":"De finanzas"}', '[]')$q$,
+    'Solo administración', 'Finanzas no edita convenios');
+
+  -- El código anterior solo escribía sin_costo: se sigue entendiendo.
+  perform pg_temp.como('xchel@arqosuv.com');
+  insert into convenio_precios (convenio_id, servicio_id, sin_costo, monto) values (conv, s3, true, 0);
+  perform pg_temp.igual((select honorario_tipo from convenio_precios where convenio_id = conv and servicio_id = s3), 'sin_costo'::text,
+    'Un precio guardado como sin_costo queda de tipo sin costo');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

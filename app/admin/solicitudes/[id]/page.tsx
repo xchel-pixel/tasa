@@ -151,7 +151,7 @@ type FilaConvenio = {
   comision_pct: string | number | null;
   vigente_desde: string | null;
   vigente_hasta: string | null;
-  convenio_precios: { servicio_id: string; marca_id: string | null; sin_costo: boolean; monto: string | number }[];
+  convenio_precios: { servicio_id: string; marca_id: string | null; honorario_tipo: "fijo" | "sin_costo" | "estimado"; monto: string | number; monto_minimo: string | number | null; nota: string | null }[];
 };
 
 /**
@@ -168,7 +168,7 @@ async function paraCotizar(
   const [conv, trabajos] = await Promise.all([
     supabase
       .from("convenios")
-      .select("id, nombre, comision_regla, comision_pct, vigente_desde, vigente_hasta, convenio_precios(servicio_id, marca_id, sin_costo, monto)")
+      .select("id, nombre, comision_regla, comision_pct, vigente_desde, vigente_hasta, convenio_precios(servicio_id, marca_id, honorario_tipo, monto, monto_minimo, nota)")
       .eq("activo", true)
       .order("nombre")
       .returns<FilaConvenio[]>(),
@@ -195,7 +195,13 @@ async function paraCotizar(
             : "Comisión normal.",
       precios: c.convenio_precios
         .filter((p) => p.servicio_id === s.servicio_id)
-        .map((p) => ({ marca_id: p.marca_id, sin_costo: p.sin_costo, monto: Number(p.monto) })),
+        .map((p) => ({
+          marca_id: p.marca_id,
+          tipo: p.honorario_tipo,
+          monto: Number(p.monto),
+          minimo: p.monto_minimo === null ? null : Number(p.monto_minimo),
+          nota: p.nota,
+        })),
     }));
   const mismoCliente = (n: string) => n.trim().toLowerCase() === s.cliente_nombre.trim().toLowerCase();
   const ligables = (oExplota(trabajos, "los trabajos para ligar") ?? [])

@@ -16,7 +16,7 @@ export type ConvenioParaCotizar = {
   id: string;
   nombre: string;
   comision: string;
-  precios: { marca_id: string | null; sin_costo: boolean; monto: number }[];
+  precios: { marca_id: string | null; tipo: "fijo" | "sin_costo" | "estimado"; monto: number; minimo: number | null; nota: string | null }[];
 };
 export type Ligable = { id: string; texto: string };
 type TipoHonorario = "fijo" | "sin_costo" | "estimado";
@@ -72,14 +72,17 @@ export default function FormularioPrecio({
   // Si se aparta de lo que dice el convenio, se pide el motivo (va a la bitácora).
   const ajustado =
     delConvenio !== null &&
-    (delConvenio.sin_costo ? tipoHonorario !== "sin_costo" : tipoHonorario === "sin_costo" || h !== delConvenio.monto);
+    (tipoHonorario !== delConvenio.tipo ||
+      (tipoHonorario !== "sin_costo" && h !== delConvenio.monto) ||
+      (tipoHonorario === "estimado" && (minimo.trim() ? numero(minimo) : null) !== delConvenio.minimo));
 
   /** El convenio llena el tipo y el precio; luego se puede ajustar con motivo. */
   function aplicarConvenio(id: string, marcaActual: string) {
     const p = precioDeConvenio(convenios.find((c) => c.id === id), marcaActual);
     if (!p) return;
-    setTipoHonorario(p.sin_costo ? "sin_costo" : "fijo");
-    setHonorarios(p.sin_costo ? "" : String(p.monto));
+    setTipoHonorario(p.tipo);
+    setHonorarios(p.tipo === "sin_costo" ? "" : String(p.monto));
+    setMinimo(p.tipo === "estimado" && p.minimo !== null ? String(p.minimo) : "");
   }
   const iva = factura ? Math.round(h * 16) / 100 : 0;
   const total = h + iva + numero(terceros);
@@ -129,6 +132,7 @@ export default function FormularioPrecio({
             <p className="mt-1 text-[0.9375rem] text-secundario">
               {elegido.comision}
               {delConvenio ? "" : " · Este convenio no tiene precio para este servicio."}
+              {delConvenio?.nota ? ` · ${delConvenio.nota}` : ""}
             </p>
           ) : null}
         </div>
@@ -189,7 +193,13 @@ export default function FormularioPrecio({
         <div>
           <label htmlFor="motivo" className="block font-semibold">Motivo del ajuste al convenio</label>
           <p className="mt-1 text-[0.9375rem] text-secundario">
-            El convenio dice {delConvenio.sin_costo ? "sin costo" : pesos(delConvenio.monto)}. Queda en la bitácora.
+            El convenio dice{" "}
+            {delConvenio.tipo === "sin_costo"
+              ? "sin costo"
+              : delConvenio.tipo === "estimado"
+                ? `estimado ${delConvenio.minimo !== null ? `${pesos(delConvenio.minimo)} – ` : ""}${pesos(delConvenio.monto)}`
+                : pesos(delConvenio.monto)}
+            . Queda en la bitácora.
           </p>
           <input id="motivo" name="motivo" required maxLength={500} className={ENTRADA} />
         </div>

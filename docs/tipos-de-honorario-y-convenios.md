@@ -19,18 +19,21 @@ Se eligen al cotizar y al poner precio a un trámite directo ("cotizar y aceptar
 
 ## Convenios (Catálogos → Convenios)
 
-- **Qué guarda cada convenio:** cliente o empresa, contacto, vigencia, notas y precios por servicio. Cada precio puede ser por marca y puede ser "sin costo".
-- **"¿Genera comisión?"** tiene tres opciones:
-  - **Sí:** con el % del nivel del comisionista, como cualquier trabajo.
-  - **No:** no genera comisión ni cuenta para el nivel.
-  - **% fijo:** el comisionista gana ese % en lugar del de su nivel. Las tasas de bienvenida y Élite no aplican a ese trabajo. Sí cuenta para el nivel, y el cierre no lo recalcula.
-- **Al cotizar:** elegir el convenio llena el tipo y el precio. Si se ajusta, se pide motivo, que va a la bitácora como "Ajuste al convenio: …". El servidor revisa el ajuste contra la base.
+- **Una sola pantalla (0042):** datos (cliente o empresa, contacto, vigencia y notas), "Precios del convenio" y comisión. Arriba hay un ejemplo de cómo llenarlo.
+- **Precios del convenio:** una fila por servicio del catálogo, con incluir sí/no, marca (o cualquiera), tipo (Fijo, Sin costo o Estimado con rango) y nota (p. ej. "sin costo si contrata el avalúo").
+- **Guardar:** todo se guarda junto con , en una sola transacción. Si algo no cuadra, se muestra un mensaje en español con el servicio que falló y no se guarda nada a medias. La acción nunca muestra la página de error.
+- **"¿Genera comisión?"** tiene tres opciones, cada una con su ayuda en pantalla:
+  - **Sí, normal:** con el % del nivel, y cuenta para el nivel.
+  - **No:** ni comisión ni nivel.
+  - **% fijo:** sustituye el % del nivel, sin bienvenida ni Élite; cuenta para el nivel y el cierre no lo recalcula.
+- **Al cotizar:** elegir el convenio llena el tipo, el precio o rango y muestra la nota. Si se ajusta, pide motivo, que va a la bitácora como "Ajuste al convenio: …". El servidor revisa el ajuste contra la base.
 - **La regla se copia al emitir:** la regla de comisión pasa a la cotización y al trabajo en ese momento. Cambiar el convenio después no toca lo ya cotizado.
 - **Quién lo ve:**
   - El comisionista no lee los convenios: solo ve el precio de su trabajo.
   - Finanzas y admin_marca los leen para cotizar.
   - Solo admin_org los edita.
-- **No se borran:** los convenios se desactivan. Los precios sí se pueden borrar.
+- **No se borran:** los convenios se desactivan. Quitar un servicio de la tabla y guardar quita su precio.
+- **Incidente del 29-oct-2026:** la página de Catálogos llamaba desde el servidor una función de un archivo de cliente (), y truena en cuanto hay un convenio que pintar. Ahora  lo busca en todo el código.
 
 ## Reportes
 

@@ -63,18 +63,23 @@ async function apartaDelConvenio(
   solicitud: string,
   marca: string,
   tipo: TipoHonorario,
-  honorarios: number
+  honorarios: number,
+  minimo: number | null
 ): Promise<boolean> {
   const { data: sol } = await supabase.from("solicitudes").select("servicio_id").eq("id", solicitud).single();
   const { data: precios } = await supabase
     .from("convenio_precios")
-    .select("marca_id, sin_costo, monto")
+    .select("marca_id, honorario_tipo, monto, monto_minimo")
     .eq("convenio_id", convenio)
     .eq("servicio_id", sol?.servicio_id ?? "")
-    .returns<{ marca_id: string | null; sin_costo: boolean; monto: string | number }[]>();
+    .returns<{ marca_id: string | null; honorario_tipo: TipoHonorario; monto: string | number; monto_minimo: string | number | null }[]>();
   const p = (precios ?? []).find((x) => x.marca_id === marca) ?? (precios ?? []).find((x) => x.marca_id === null);
   if (!p) return false;
-  return p.sin_costo ? tipo !== "sin_costo" : tipo === "sin_costo" || honorarios !== Number(p.monto);
+  return (
+    tipo !== p.honorario_tipo ||
+    (tipo !== "sin_costo" && honorarios !== Number(p.monto)) ||
+    (tipo === "estimado" && minimo !== (p.monto_minimo === null ? null : Number(p.monto_minimo)))
+  );
 }
 
 /**
@@ -118,7 +123,7 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
   }
 
   const supabase = await crearClienteServidor();
-  if (convenio && !motivo && (await apartaDelConvenio(supabase, convenio, solicitud, marca, tipoHonorario, honorarios))) {
+  if (convenio && !motivo && (await apartaDelConvenio(supabase, convenio, solicitud, marca, tipoHonorario, honorarios, minimo))) {
     return falla("Escribe el motivo del ajuste al convenio.");
   }
   // Lo que comparten la cotización y el trámite directo. La regla de comisión la pone la base desde el convenio.

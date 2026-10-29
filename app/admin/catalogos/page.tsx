@@ -3,13 +3,13 @@ import { PantallaAdmin } from "@/components/pantalla-admin";
 import { clabeValida } from "@/lib/clabe";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
-import { FormularioConvenio, PreciosConvenio, type Convenio } from "./convenios";
+import { FormularioConvenio, type Convenio } from "./convenios";
 import { textoComision } from "./textos";
 import { FormularioCuenta, FormularioMarca, FormularioServicio, type Cuenta, type Marca, type Servicio } from "./formularios";
 
 type FilaConvenio = Omit<Convenio, "precios" | "comision_pct"> & {
   comision_pct: string | number | null;
-  convenio_precios: { id: string; servicio_id: string; marca_id: string | null; sin_costo: boolean; monto: string | number }[];
+  convenio_precios: { servicio_id: string; marca_id: string | null; honorario_tipo: "fijo" | "sin_costo" | "estimado"; monto: string | number; monto_minimo: string | number | null; nota: string | null }[];
 };
 
 export const metadata = { title: "Catálogos — Tasa" };
@@ -43,7 +43,7 @@ export default async function Catalogos() {
       .returns<Servicio[]>(),
     supabase
       .from("convenios")
-      .select("id, nombre, contacto, vigente_desde, vigente_hasta, notas, comision_regla, comision_pct, activo, convenio_precios(id, servicio_id, marca_id, sin_costo, monto)")
+      .select("id, nombre, contacto, vigente_desde, vigente_hasta, notas, comision_regla, comision_pct, activo, convenio_precios(servicio_id, marca_id, honorario_tipo, monto, monto_minimo, nota)")
       .order("nombre")
       .returns<FilaConvenio[]>(),
   ]);
@@ -57,8 +57,10 @@ export default async function Catalogos() {
   const listaConvenios: Convenio[] = (oExplota(convenios, "los convenios") ?? []).map(({ convenio_precios, ...c }) => ({
     ...c,
     comision_pct: c.comision_pct === null ? null : Number(c.comision_pct),
-    precios: convenio_precios.map((p) => ({ ...p, monto: Number(p.monto) })),
+    precios: convenio_precios.map((p) => ({ ...p, monto: Number(p.monto), monto_minimo: p.monto_minimo === null ? null : Number(p.monto_minimo) })),
   }));
+  const serviciosConvenio = listaServicios.filter((s) => s.activo).map((s) => ({ id: s.id, nombre: s.nombre }));
+  const marcasConvenio = listaMarcas.filter((m) => m.activa).map((m) => ({ id: m.id, nombre: m.clave }));
   const vigencia = (c: Convenio) =>
     c.vigente_desde || c.vigente_hasta ? ` · ${c.vigente_desde ?? "…"} a ${c.vigente_hasta ?? "…"}` : "";
 
@@ -104,15 +106,10 @@ export default async function Catalogos() {
       <Seccion titulo="Convenios" detalle="Precios pactados con un cliente o empresa y si generan comisión. El comisionista solo ve el precio de su trabajo.">
         {listaConvenios.map((c) => (
           <Elemento key={c.id} titulo={c.nombre} subtitulo={`${textoComision(c)}${vigencia(c)}`} inactivo={!c.activo}>
-            <FormularioConvenio convenio={c} />
-            <PreciosConvenio
-              convenio={c}
-              servicios={listaServicios.filter((s) => s.activo).map((s) => ({ id: s.id, nombre: s.nombre }))}
-              marcas={listaMarcas.filter((m) => m.activa).map((m) => ({ id: m.id, nombre: m.clave }))}
-            />
+            <FormularioConvenio convenio={c} servicios={serviciosConvenio} marcas={marcasConvenio} />
           </Elemento>
         ))}
-        <Nuevo texto="Agregar convenio"><FormularioConvenio /></Nuevo>
+        <Nuevo texto="Agregar convenio"><FormularioConvenio servicios={serviciosConvenio} marcas={marcasConvenio} /></Nuevo>
       </Seccion>
     </PantallaAdmin>
   );
