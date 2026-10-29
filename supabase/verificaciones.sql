@@ -2242,6 +2242,102 @@ begin
 end;
 $$;
 
+-- @@ Seguimiento igual por los cuatro orígenes
+-- Comisionista desde su cuenta, liga de comisionista, liga de equipo y
+-- liga de admin_org: misma cotización, misma aceptación, mismo folio de
+-- Notion. Al final cada dueño lee exactamente lo mismo: folio, estatus,
+-- fechas e historial.
+do $$
+declare
+  xg      uuid := pg_temp.xg();
+  notion  uuid := pg_temp.notion_xg();
+  ana     uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  xchel   uuid := (select id from personas where correo = 'xchel@arqosuv.com');
+  eva     uuid;
+  cod_ana text;  cod_eva text;  cod_xchel text;
+  serv    uuid;
+  cuenta  uuid;
+  v_aviso integer;
+  una     uuid;
+  s       uuid[] := '{}';
+  dueno   text[] := array['xchel+ana@arqosuv.com', 'xchel+ana@arqosuv.com', 'eva@tasa.test', 'xchel@arqosuv.com'];
+  origen  text[] := array['comisionista directo', 'liga de comisionista', 'liga de equipo', 'liga de admin_org'];
+  ref     text;
+  visto   text;
+  i       integer;
+begin
+  perform pg_temp.sistema();
+  insert into personas (nombre, correo, organizacion_activa) values ('Eva Equipo', 'eva@tasa.test', xg) returning id into eva;
+  insert into membresias (persona_id, organizacion_id, rol) values (eva, xg, 'equipo');
+  insert into auth.users (email) values ('eva@tasa.test');
+  select codigo_referido into cod_ana from comisionistas where persona_id = ana and organizacion_id = xg;
+  select codigo_referido into cod_eva from membresias where persona_id = eva and organizacion_id = xg;
+  select codigo_referido into cod_xchel from membresias where persona_id = xchel and organizacion_id = xg;
+  select id into serv from servicios where organizacion_id = xg and activo order by nombre limit 1;
+  select id into cuenta from cuentas_receptoras where organizacion_id = xg limit 1;
+  select aviso_version into v_aviso from ajustes where organizacion_id = xg;
+
+  -- Los cuatro caminos de entrada.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  insert into solicitudes (organizacion_id, comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre)
+  values (xg, ana, 'cotizacion', 'portal', serv, 'Calle Seguimiento 1', 'Cliente Seg 1') returning id into una;
+  s := s || una;
+  perform pg_temp.como(null);
+  select solicitud into una from pedir_por_liga('xg', cod_ana, 'Cliente Seg 2', '4425550002', null, serv, true,
+    'Calle Seguimiento 2', 'casa', null, null, v_aviso, 'ip-seg-2', 0);
+  s := s || una;
+  select solicitud into una from pedir_por_liga('xg', cod_eva, 'Cliente Seg 3', '4425550003', null, serv, true,
+    'Calle Seguimiento 3', 'casa', null, null, v_aviso, 'ip-seg-3', 0);
+  s := s || una;
+  select solicitud into una from pedir_por_liga('xg', cod_xchel, 'Cliente Seg 4', '4425550004', null, serv, false,
+    'Calle Seguimiento 4', 'casa', null, null, v_aviso, 'ip-seg-4', 0);
+  s := s || una;
+
+  -- Misma cotización, aceptada por quien puede (el comisionista o el staff), mismo paso por Notion.
+  perform pg_temp.sistema();
+  for i in 1..4 loop
+    insert into cotizaciones (solicitud_id, monto_honorarios, cuenta_receptora_id, vigente_hasta)
+    values (s[i], 3000, cuenta, hoy_mx() + 15);
+  end loop;
+  for i in 1..4 loop
+    perform pg_temp.como(case when i <= 2 then 'xchel+ana@arqosuv.com' else 'xchel@arqosuv.com' end);
+    perform aceptar_cotizacion((select id from cotizaciones where solicitud_id = s[i] and estado = 'emitida'));
+  end loop;
+  perform pg_temp.sistema();
+  for i in 1..4 loop
+    perform registrar_registro_externo(notion, s[i], 'seguimiento-' || i);
+    perform registrar_lectura(notion, 'seguimiento-' || i, 'MGP-2026-860' || i || ' Cliente Seg ' || i, 'En proceso', null);
+  end loop;
+
+  -- Cada dueño, con su sesión, ve lo mismo que el comisionista directo.
+  for i in 1..4 loop
+    perform pg_temp.como(dueno[i]);
+    select coalesce(replace(folio, 'MGP-2026-860' || i, 'FOLIO'), '(sin folio)') || ' ' || estatus_publico || ' ' || estado
+           || ' ' || (aceptada_en is not null) || ' ' || (creado_en is not null)
+           || ' ' || (select string_agg(h.estatus_publico, '>' order by h.desde) from historial_estatus h where h.solicitud_id = s[i])
+           || ' ' || (select count(*) from cotizaciones c where c.solicitud_id = s[i] and c.estado = 'aceptada')
+      into visto from solicitudes where id = s[i];
+    if i = 1 then
+      ref := visto;
+      perform pg_temp.igual(ref like 'FOLIO en_elaboracion tramite true true %', true, 'Comisionista directo: ve folio y estatus (' || ref || ')');
+    else
+      perform pg_temp.igual(visto, ref, 'Por ' || origen[i] || ': el dueño ve el mismo seguimiento');
+    end if;
+  end loop;
+
+  -- Solo lo suyo, y solo lectura.
+  perform pg_temp.como('eva@tasa.test');
+  perform pg_temp.igual((select count(*) from solicitudes), 1::bigint, 'El equipo ve solo lo atribuido a su liga');
+  perform pg_temp.igual((select count(*) from comisiones), 0::bigint, 'Y ninguna comisión');
+  update solicitudes set cliente_nombre = 'Otro' where id = s[3];
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select cliente_nombre from solicitudes where id = s[3]), 'Cliente Seg 3'::text, 'Y no la puede modificar');
+  update solicitudes set liga_sin_dueno = true where id = s[3];
+  perform pg_temp.como('eva@tasa.test');
+  perform pg_temp.igual((select count(*) from solicitudes), 0::bigint, 'Si llegó estando inactivo, es de la organización y no la ve');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

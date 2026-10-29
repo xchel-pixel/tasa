@@ -29,3 +29,18 @@ miembro del equipo). El cliente no tiene cuenta: el seguimiento lo da el dueño 
 - **Tarjeta "Para tus clientes"** (comisionista, equipo, admin_org, finanzas y admin_marca; fuera
   del comisionista, solo seguimiento y sin comisión): copiar liga, WhatsApp con
   mensaje y QR descargable (librería `qrcode`, generado en el teléfono).
+
+## Seguimiento (0039)
+
+Lo que llega por la liga termina en el mismo seguimiento que lo pedido desde la
+cuenta del comisionista: estatus público, folio de Notion, fechas e historial.
+El dueño de la liga (comisionista, equipo, finanzas, admin_marca o admin_org) lee
+la solicitud por RLS (`liga_de = yo`, salvo que haya llegado estando inactivo) y
+la ve en:
+
+- el comisionista: "Mis trabajos", junto con lo demás, con "Por tu liga de cliente";
+- equipo y staff: "Mis trámites" (`/mis-tramites`), solo seguimiento, sin comisión.
+
+Es solo lectura: aceptar la cotización y reportar pagos siguen siendo del
+comisionista del trabajo y del staff. La prueba "Seguimiento igual por los cuatro
+orígenes" (verificaciones.sql) recorre los cuatro caminos de punta a punta.

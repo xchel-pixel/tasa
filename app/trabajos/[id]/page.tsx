@@ -27,6 +27,8 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
   if (!t) notFound();
 
   const estatus = estatusVisible(t.estatus_publico, t.folio);
+  // El equipo ve lo de su liga solo para seguimiento: aceptar y pagar son del comisionista y del staff.
+  const actua = persona.rol !== "equipo";
 
   // El PDF vive en un bucket privado: se abre con una liga que vence en 10 minutos.
   let ligaPdf: string | null = null;
@@ -74,7 +76,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
       <main className="flex flex-1 flex-col px-6 py-6">
         <div className="mx-auto w-full max-w-md">
           <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
-            ← {persona.rol === "comisionista" ? "Mis trabajos" : "Panel"}
+            ← {persona.rol === "comisionista" ? "Mis trabajos" : persona.rol === "equipo" ? "Inicio" : "Panel"}
           </Link>
 
           <div className="mt-2 flex items-start justify-between gap-3">
@@ -132,7 +134,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                   Descargar PDF para el cliente
                 </a>
               ) : null}
-              <AceptarCotizacion cotizacionId={t.cotizacion.id} />
+              {actua ? <AceptarCotizacion cotizacionId={t.cotizacion.id} /> : null}
               {operador ? (
                 <AccionConMotivo
                   que="anular_cotizacion"
@@ -166,7 +168,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
             </Seccion>
           ) : null}
 
-          {t.estado === "tramite" && !t.pagado_en && t.cuenta ? (
+          {t.estado === "tramite" && !t.pagado_en && t.cuenta && actua ? (
             <Seccion titulo="Dónde depositar">
               <div className="mt-3"><DatosBancarios cuenta={t.cuenta} /></div>
               <Link

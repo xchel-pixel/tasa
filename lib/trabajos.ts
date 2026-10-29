@@ -8,57 +8,6 @@ import { mesActual, mesSiguiente } from "@/lib/formato";
  * pintar una lista vacía.
  */
 
-export type TrabajoEnLista = {
-  id: string;
-  folio: string | null;
-  estatus_publico: EstatusPublico;
-  cliente_nombre: string;
-  inmueble_direccion: string;
-  monto_total: number;
-  creado_en: string;
-  servicio: string;
-  /** Suma de pagos confirmados. */
-  confirmado: number;
-  /** Suma de pagos reportados que esperan confirmación. */
-  por_confirmar: number;
-};
-
-type FilaTrabajo = Omit<TrabajoEnLista, "servicio" | "confirmado" | "por_confirmar" | "monto_total"> & {
-  monto_total: string | number;
-  servicios: { nombre: string } | null;
-  pagos: { monto: string | number; estado: EstadoPago }[];
-};
-
-const sumar = (pagos: FilaTrabajo["pagos"], estado: EstadoPago) =>
-  pagos.filter((p) => p.estado === estado).reduce((total, p) => total + Number(p.monto), 0);
-
-export async function misTrabajos(): Promise<TrabajoEnLista[]> {
-  const supabase = await crearClienteServidor();
-  const filas = oExplota(
-    await supabase
-      .from("solicitudes")
-      .select(
-        "id, folio, estatus_publico, cliente_nombre, inmueble_direccion, monto_total, creado_en, servicios(nombre), pagos(monto, estado)"
-      )
-      .order("creado_en", { ascending: false })
-      .returns<FilaTrabajo[]>(),
-    "tus trabajos"
-  );
-
-  return (filas ?? []).map((f) => ({
-    id: f.id,
-    folio: f.folio,
-    estatus_publico: f.estatus_publico,
-    cliente_nombre: f.cliente_nombre,
-    inmueble_direccion: f.inmueble_direccion,
-    monto_total: Number(f.monto_total),
-    creado_en: f.creado_en,
-    servicio: f.servicios?.nombre ?? "",
-    confirmado: sumar(f.pagos, "confirmado"),
-    por_confirmar: sumar(f.pagos, "reportado"),
-  }));
-}
-
 export type Pago = {
   id: string;
   via: ViaPago;

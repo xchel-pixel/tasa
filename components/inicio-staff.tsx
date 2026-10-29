@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { comisionesPorPagar, type PorPagar } from "@/lib/comisiones";
 import { mesLargo, pesos } from "@/lib/formato";
-import { SolicitudesDeClientes } from "@/components/solicitudes-de-clientes";
+import { SeccionesDeInicio } from "@/components/secciones-de-inicio";
 import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { bonoDeEquipo, codigoDeEquipo, ligaDeClientes, ligaDeEquipo } from "@/lib/invitar";
@@ -107,7 +107,10 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         ) : null}
       </ul>
 
+      <SeccionesDeInicio persona={persona} opera />
+
       <nav aria-label="Más" className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
+        <Enlace href="/admin/tramites">Trámites</Enlace>
         <Enlace href="/admin/comisionistas">Comisionistas</Enlace>
         {staff ? <Enlace href="/admin/referidos">Referidos</Enlace> : null}
         {staff ? <Enlace href="/admin/reportes">Reportes</Enlace> : null}
@@ -118,7 +121,6 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         {persona.superPlataforma ? <Enlace href="/plataforma">Plataforma</Enlace> : null}
       </nav>
 
-      <SolicitudesDeClientes />
       {ligaClientes ? <TarjetaClientes liga={ligaClientes} /> : null}
       {liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null}
     </>

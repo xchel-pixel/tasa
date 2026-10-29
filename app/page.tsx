@@ -3,7 +3,7 @@ import { Encabezado } from "@/components/encabezado";
 import { InicioComisionista } from "@/components/inicio-comisionista";
 import { InicioStaff } from "@/components/inicio-staff";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { SolicitudesDeClientes } from "@/components/solicitudes-de-clientes";
+import { SeccionesDeInicio } from "@/components/secciones-de-inicio";
 import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { bonoDeEquipo, codigoDeEquipo, ligaDeClientes, ligaDeEquipo } from "@/lib/invitar";
 import { obtenerContacto } from "@/lib/contacto";
@@ -46,11 +46,8 @@ export default async function Inicio() {
           ) : persona.rol === "equipo" ? (
             <>
               <h1 className="text-[1.5rem] font-bold tracking-tight">Hola, {persona.nombre.split(" ")[0]}</h1>
-              <p className="mt-2 leading-7 text-secundario">
-                Ya eres parte del equipo de {persona.organizacion.nombre}. Tus herramientas todavía no están
-                listas; aquí aparecerán.
-              </p>
-              <SolicitudesDeClientes />
+              <p className="mt-1 text-[0.9375rem] text-secundario">Equipo de {persona.organizacion.nombre}</p>
+              <SeccionesDeInicio persona={persona} opera={false} />
               <LigasEquipo persona={persona} />
             </>
           ) : (
