@@ -13,7 +13,16 @@ export const metadata = { title: "Reportes — Tasa" };
  *     (sin arrastres: el cargo original ya cuenta en su mes);
  *   · PAGO (solo admin_org): pagos de comisión hechos ese mes por
  *     origen del dinero, y los que se pagaron sin factura.
+ * Más los trabajos aceptados en el mes por tipo de honorario (fijo, sin
+ * costo, estimado ya fijado y estimado pendiente de fijar).
  */
+
+type FilaHonorario = {
+  honorario_tipo: "fijo" | "sin_costo" | "estimado";
+  honorario_final_en: string | null;
+  monto_honorarios: string | number | null;
+  estado: string;
+};
 export default async function Reportes({ searchParams }: PageProps<"/admin/reportes">) {
   const persona = await exigirRol("admin_org", "finanzas");
   const { mes: pedido } = await searchParams;
@@ -21,7 +30,7 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
   const superAdmin = persona.rol === "admin_org";
 
   const supabase = await crearClienteServidor();
-  const [comisiones, pagos] = await Promise.all([
+  const [comisiones, pagos, trabajos, pendientes] = await Promise.all([
     supabase
       .from("comisiones")
       .select("monto, tipo, cuentas_receptoras(alias), servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))")
@@ -37,7 +46,34 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
           .lt("fecha", mesSiguiente(mes))
           .returns<{ monto: string | number; documento: string; origenes_pago: { nombre: string } | null; comisionistas: { personas: { nombre: string } | null } | null }[]>()
       : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("solicitudes")
+      .select("honorario_tipo, honorario_final_en, monto_honorarios, estado")
+      .eq("estado", "tramite")
+      .gte("aceptada_en", mes)
+      .lt("aceptada_en", mesSiguiente(mes))
+      .returns<FilaHonorario[]>(),
+    // Pendientes de fijar, de cualquier mes: es trabajo por hacer, no historia.
+    supabase
+      .from("solicitudes")
+      .select("honorario_tipo, honorario_final_en, monto_honorarios, estado")
+      .eq("estado", "tramite")
+      .eq("honorario_tipo", "estimado")
+      .is("honorario_final_en", null)
+      .returns<FilaHonorario[]>(),
   ]);
+  const delMes = oExplota(trabajos, "los trabajos del mes") ?? [];
+  const porFijar = oExplota(pendientes, "los estimados pendientes") ?? [];
+  const grupo = (que: (x: FilaHonorario) => boolean) => {
+    const g = delMes.filter(que);
+    return { cuantos: g.length, honorarios: g.reduce((s, x) => s + Number(x.monto_honorarios ?? 0), 0) };
+  };
+  const tipos = [
+    { texto: "Fijo", ...grupo((x) => x.honorario_tipo === "fijo") },
+    { texto: "Sin costo", ...grupo((x) => x.honorario_tipo === "sin_costo") },
+    { texto: "Estimado con honorario final", ...grupo((x) => x.honorario_tipo === "estimado" && x.honorario_final_en !== null) },
+    { texto: "Estimado pendiente de fijar", ...grupo((x) => x.honorario_tipo === "estimado" && x.honorario_final_en === null) },
+  ];
   const filas = oExplota(comisiones, "las comisiones") ?? [];
   const listaPagos = oExplota(pagos as { data: unknown[] | null; error: null }, "los pagos") as
     | { monto: string | number; documento: string; origenes_pago: { nombre: string } | null; comisionistas: { personas: { nombre: string } | null } | null }[]
@@ -73,6 +109,29 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
       <Tabla titulo="Por empresa" filas={sumar(filas, (f) => f.cuentas_receptoras?.alias ?? "Sin empresa", monto)} />
       <Tabla titulo="Por servicio" filas={sumar(filas, (f) => f.servicios?.nombre ?? "Sin servicio", monto)} />
       <Tabla titulo="Por comisionista" filas={sumar(filas, (f) => f.comisionistas?.personas?.nombre ?? "", monto)} />
+
+      <h2 className="mt-8 text-[1.125rem] font-bold">Trabajos por tipo de honorario</h2>
+      <p className="text-[0.9375rem] text-secundario">Aceptados en el mes. En un estimado pendiente, el monto es el estimado.</p>
+      <section className="mt-3 rounded-xl border border-linea px-4 py-3">
+        <dl className="flex flex-col gap-1 text-[0.9375rem]">
+          {tipos.map((x) => (
+            <div key={x.texto} className="flex justify-between gap-3">
+              <dt className="text-secundario">
+                {x.texto} · {x.cuantos}
+              </dt>
+              <dd className="font-semibold">{x.texto === "Sin costo" ? "—" : pesos(x.honorarios)}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+      {porFijar.length > 0 ? (
+        <Link href="/admin/tramites?estimado=1" className="mt-3 block rounded-xl border border-proceso bg-proceso-fondo px-4 py-3 text-[0.9375rem] text-proceso">
+          <span className="font-semibold">
+            {porFijar.length === 1 ? "1 estimado" : `${porFijar.length} estimados`} sin honorario final
+          </span>{" "}
+          (de cualquier mes), por {pesos(porFijar.reduce((s, x) => s + Number(x.monto_honorarios ?? 0), 0))} estimados.
+        </Link>
+      ) : null}
 
       {superAdmin ? (
         <>

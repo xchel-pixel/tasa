@@ -88,4 +88,21 @@ describe("PDF de cotización por marca", () => {
       if (process.env.PDF_MUESTRA) writeFileSync(join(process.env.PDF_MUESTRA, `muestra-${clave}.pdf`), bytes);
     });
   }
+
+  test("Sin costo y estimado con rango: se generan sin pasar de la hoja", async () => {
+    const fuentes = await fuentesDe("manrope");
+    const sinCosto = await generarPdfCotizacion({ ...base(marcas.MGP, true), honorario_tipo: "sin_costo", honorarios: 0, iva: 0, total: 0 }, fuentes);
+    const estimado = await generarPdfCotizacion(
+      { ...base(marcas.MGP, true), honorario_tipo: "estimado", honorario_minimo: 6000, honorarios: 9500 },
+      fuentes
+    );
+    for (const bytes of [sinCosto, estimado]) {
+      expect(Buffer.from(bytes.slice(0, 5)).toString()).toBe("%PDF-");
+      expect((await tamanoHoja(bytes)).paginas).toBeLessThanOrEqual(2);
+    }
+    if (process.env.PDF_MUESTRA) {
+      writeFileSync(join(process.env.PDF_MUESTRA, "muestra-sin-costo.pdf"), sinCosto);
+      writeFileSync(join(process.env.PDF_MUESTRA, "muestra-estimado.pdf"), estimado);
+    }
+  });
 });

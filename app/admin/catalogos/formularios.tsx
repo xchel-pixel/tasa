@@ -62,7 +62,7 @@ function Activa({ nombre, valor, texto }: { nombre: string; valor: boolean; text
 }
 
 /** Borrar solo si nunca se usó; si no, la base lo impide y pide desactivar. */
-function Borrar({ tabla, id }: { tabla: string; id: string }) {
+export function Borrar({ tabla, id }: { tabla: string; id: string }) {
   const [estado, enviar] = useActionState(eliminar, INICIAL);
   return (
     <form action={enviar} className="flex flex-col gap-1">

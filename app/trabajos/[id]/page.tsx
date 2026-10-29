@@ -7,11 +7,12 @@ import { ESTADO_PAGO, VIA_PAGO, estatusVisible } from "@/lib/estatus";
 import { fechaCorta, pesos } from "@/lib/formato";
 import { exigirPersona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { obtenerTrabajo } from "@/lib/trabajos";
+import { obtenerTrabajo, type Trabajo } from "@/lib/trabajos";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import AceptarCotizacion from "./aceptar-cotizacion";
 import CambiarEstatus from "./cambiar-estatus";
+import FijarHonorarioFinal from "./fijar-honorario-final";
 
 export const metadata = { title: "Trabajo — Tasa" };
 
@@ -92,6 +93,10 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
           </div>
           {estatusAMano ? <CambiarEstatus solicitudId={t.id} actual={t.estatus_publico} /> : null}
 
+          {t.estado === "tramite" && t.honorario.tipo !== "fijo" ? (
+            <AvisoHonorario t={t} puedeFijar={persona.rol === "admin_org" || persona.rol === "finanzas"} />
+          ) : null}
+
           {t.estado === "cancelada" && t.motivo_cancelacion ? (
             <p className="mt-4 rounded-lg bg-error-fondo px-4 py-3 text-[0.9375rem] leading-6 text-error">
               Cancelado: {t.motivo_cancelacion}
@@ -118,6 +123,8 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                 Vigente hasta el {fechaCorta(t.cotizacion.vigente_hasta)}.
               </p>
               <Desglose
+                tipo={t.cotizacion.honorario_tipo}
+                minimo={t.cotizacion.honorario_minimo}
                 honorarios={t.cotizacion.monto_honorarios}
                 iva={t.cotizacion.requiere_factura ? t.cotizacion.monto_iva : null}
                 terceros={t.cotizacion.monto_terceros}
@@ -149,6 +156,8 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
           {t.estado !== "solicitada" && t.estado !== "cotizada" && t.monto_honorarios !== null ? (
             <Seccion titulo="Montos">
               <Desglose
+                tipo={t.honorario.tipo === "estimado" && t.honorario.final_en ? "fijo" : t.honorario.tipo}
+                minimo={t.honorario.minimo}
                 honorarios={t.monto_honorarios}
                 iva={t.requiere_factura ? t.monto_iva : null}
                 terceros={t.monto_terceros}
@@ -288,12 +297,58 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
   );
 }
 
+/** "Estimado $X · por definir", "Honorario final $Y" o "Sin costo · ligado a …". Finanzas y admin_org fijan el final aquí. */
+function AvisoHonorario({ t, puedeFijar }: { t: Trabajo; puedeFijar: boolean }) {
+  const h = t.honorario;
+  const monto = t.monto_honorarios ?? 0;
+  if (h.tipo === "sin_costo") {
+    return (
+      <p className="mt-4 rounded-xl bg-tinte px-4 py-3 text-[0.9375rem] leading-6">
+        <span className="font-semibold">Sin costo.</span> No genera comisión ni cuenta para nivel.
+        {h.ligada ? (
+          <>
+            {" "}Ligado a{" "}
+            <Link href={`/trabajos/${h.ligada.id}`} className="font-semibold text-acento underline underline-offset-4">
+              {h.ligada.folio ?? h.ligada.cliente_nombre}
+            </Link>
+            , que es el que genera la comisión.
+          </>
+        ) : null}
+      </p>
+    );
+  }
+  if (h.final_en) {
+    return (
+      <p className="mt-4 rounded-xl bg-tinte px-4 py-3 text-[0.9375rem] leading-6">
+        Honorario final <span className="font-semibold">{pesos(monto)}</span>
+        {h.estimado ? <> (estimado {pesos(h.estimado)})</> : null}, fijado el {fechaCorta(h.final_en)}.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-4 rounded-xl bg-proceso-fondo px-4 py-3 text-[0.9375rem] leading-6 text-proceso">
+      <p>
+        <span className="font-semibold">{textoEstimado(monto, h.minimo)} · por definir.</span> La comisión se
+        calcula sobre el honorario final.
+      </p>
+      {puedeFijar && !t.pagado_en ? <FijarHonorarioFinal solicitudId={t.id} estimado={monto} /> : null}
+    </div>
+  );
+}
+
+const textoEstimado = (max: number, min: number | null) =>
+  min !== null && min < max ? `Estimado ${pesos(min)} – ${pesos(max)}` : `Estimado ${pesos(max)}`;
+
 function Desglose({
+  tipo = "fijo",
+  minimo = null,
   honorarios,
   iva,
   terceros,
   total,
 }: {
+  tipo?: "fijo" | "sin_costo" | "estimado";
+  minimo?: number | null;
   honorarios: number;
   iva: number | null;
   terceros: number;
@@ -301,7 +356,10 @@ function Desglose({
 }) {
   return (
     <dl className="flex flex-col gap-1 rounded-xl bg-tinte px-4 py-3 text-[0.9375rem]">
-      <Renglon etiqueta="Honorarios" valor={pesos(honorarios)} />
+      <Renglon
+        etiqueta={tipo === "estimado" ? "Honorarios (estimado)" : "Honorarios"}
+        valor={tipo === "sin_costo" ? "Sin costo" : tipo === "estimado" ? `${textoEstimado(honorarios, minimo)} · por definir` : pesos(honorarios)}
+      />
       {iva !== null ? <Renglon etiqueta="IVA" valor={pesos(iva)} /> : null}
       {terceros > 0 ? <Renglon etiqueta="Derechos y terceros" valor={pesos(terceros)} /> : null}
       <div className="mt-1 border-t border-linea pt-2">

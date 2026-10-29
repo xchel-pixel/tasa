@@ -40,6 +40,10 @@ export type DatosPdf = {
   inmueble: { ubicacion: string; clave_catastral: string | null; descripcion: string | null };
   servicio: { nombre: string; alcance: string | null; tiempo_entrega: string | null; documentos: string | null; aviso: string | null };
   honorarios: number;
+  /** fijo: como siempre · sin_costo: "Sin costo" · estimado: "Estimado" con la nota de honorario final. */
+  honorario_tipo?: "fijo" | "sin_costo" | "estimado";
+  /** Solo estimado con rango: el mínimo (`honorarios` es el máximo). */
+  honorario_minimo?: number | null;
   terceros: number;
   requiere_factura: boolean;
   iva: number;
@@ -96,6 +100,19 @@ export function enLetras(x: number): string {
 // --------------------------------------------------------------- composición
 type Tramo = { texto: string; fuente: PDFFont };
 type Fila = { celdas: Tramo[][]; fondo?: RGB; colorTexto?: RGB; derecha?: boolean[]; lineaAbajo?: boolean; fondoDesde?: number };
+
+/** "Precio unitario": el monto o "Sin costo" (un estimado lleva su monto máximo). */
+function precioDeHonorarios(d: DatosPdf): string {
+  return d.honorario_tipo === "sin_costo" ? "Sin costo" : mx(d.honorarios);
+}
+
+/** Lo que se agrega al concepto: "(estimado)" o "(estimado de $X a $Y)". En la columna ancha, para que quepa. */
+function notaDelConcepto(d: DatosPdf): string {
+  if (d.honorario_tipo !== "estimado") return "";
+  return d.honorario_minimo != null && d.honorario_minimo < d.honorarios
+    ? ` (estimado de ${mx(d.honorario_minimo)} a ${mx(d.honorarios)})`
+    : " (estimado)";
+}
 
 export async function generarPdfCotizacion(d: DatosPdf, fuentes: FuentesPdf, logo: LogoPdf = null): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
@@ -259,7 +276,17 @@ export async function generarPdfCotizacion(d: DatosPdf, fuentes: FuentesPdf, log
   const derecha = [false, false, true, true, true];
   const filas: Fila[] = [
     { celdas: [b("Concepto"), b("Unidad"), b("Cant."), b("Precio unitario"), b("Importe")], fondo: PRIN, colorTexto: BLANCO, derecha },
-    { celdas: [r(d.servicio.nombre), r("Servicio"), r("1"), r(mx(d.honorarios)), r(mx(d.honorarios))], derecha, lineaAbajo: true },
+    {
+      celdas: [
+        r(d.servicio.nombre + notaDelConcepto(d)),
+        r("Servicio"),
+        r("1"),
+        r(precioDeHonorarios(d)),
+        r(d.honorario_tipo === "sin_costo" ? "Sin costo" : mx(d.honorarios)),
+      ],
+      derecha,
+      lineaAbajo: true,
+    },
   ];
   if (d.terceros > 0) {
     filas.push({ celdas: [r("Derechos y gastos de terceros (sin IVA)"), r("Concepto"), r("1"), r(mx(d.terceros)), r(mx(d.terceros))], derecha, lineaAbajo: true });
@@ -274,6 +301,9 @@ export async function generarPdfCotizacion(d: DatosPdf, fuentes: FuentesPdf, log
   pagina.drawText(letras, { x: W - mg - I.widthOfTextAtSize(letras, 7.8), y: y - 7.8, size: 7.8, font: I, color: NEGRO });
   y -= 11;
   if (!d.requiere_factura) parrafo(b("Precios sin IVA; en caso de requerir factura se agrega IVA."), { tam: 7.8 });
+  if (d.honorario_tipo === "estimado") {
+    parrafo(b("Honorario estimado. Honorario final por definir: se confirma antes de la entrega y el total se ajusta a él."), { tam: 7.8 });
+  }
 
   y -= 4;
   parrafo([

@@ -3,19 +3,25 @@ import { PantallaAdmin } from "@/components/pantalla-admin";
 import { clabeValida } from "@/lib/clabe";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
+import { FormularioConvenio, PreciosConvenio, textoComision, type Convenio } from "./convenios";
 import { FormularioCuenta, FormularioMarca, FormularioServicio, type Cuenta, type Marca, type Servicio } from "./formularios";
+
+type FilaConvenio = Omit<Convenio, "precios" | "comision_pct"> & {
+  comision_pct: string | number | null;
+  convenio_precios: { id: string; servicio_id: string; marca_id: string | null; sin_costo: boolean; monto: string | number }[];
+};
 
 export const metadata = { title: "Catálogos — Tasa" };
 
 /**
- * Marcas, cuentas receptoras y servicios de la organización. Con esto
- * una organización nueva ya puede cotizar. Lo que ya tiene trabajos no
+ * Marcas, cuentas receptoras, servicios y convenios de la organización.
+ * Con esto una organización nueva ya puede cotizar. Lo que ya tiene trabajos no
  * se borra: se desactiva y deja de aparecer en lo nuevo.
  */
 export default async function Catalogos() {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
-  const [marcas, cuentas, servicios] = await Promise.all([
+  const [marcas, cuentas, servicios, convenios] = await Promise.all([
     supabase
       .from("marcas")
       .select(
@@ -34,6 +40,11 @@ export default async function Catalogos() {
       .order("orden")
       .order("nombre")
       .returns<Servicio[]>(),
+    supabase
+      .from("convenios")
+      .select("id, nombre, contacto, vigente_desde, vigente_hasta, notas, comision_regla, comision_pct, activo, convenio_precios(id, servicio_id, marca_id, sin_costo, monto)")
+      .order("nombre")
+      .returns<FilaConvenio[]>(),
   ]);
   const conLogo = oExplota(marcas, "las marcas") ?? [];
   // Vista previa del logo: URL firmada por una hora (el bucket es privado).
@@ -42,6 +53,13 @@ export default async function Catalogos() {
   const listaMarcas = conLogo.map((m) => ({ ...m, logo_url: firmadas.find((x) => x.path === m.logo_ruta)?.signedUrl ?? null }));
   const listaCuentas = oExplota(cuentas, "las cuentas") ?? [];
   const listaServicios = oExplota(servicios, "los servicios") ?? [];
+  const listaConvenios: Convenio[] = (oExplota(convenios, "los convenios") ?? []).map(({ convenio_precios, ...c }) => ({
+    ...c,
+    comision_pct: c.comision_pct === null ? null : Number(c.comision_pct),
+    precios: convenio_precios.map((p) => ({ ...p, monto: Number(p.monto) })),
+  }));
+  const vigencia = (c: Convenio) =>
+    c.vigente_desde || c.vigente_hasta ? ` · ${c.vigente_desde ?? "…"} a ${c.vigente_hasta ?? "…"}` : "";
 
   return (
     <PantallaAdmin titulo="Catálogos">
@@ -80,6 +98,20 @@ export default async function Catalogos() {
           </Elemento>
         ))}
         <Nuevo texto="Agregar servicio"><FormularioServicio /></Nuevo>
+      </Seccion>
+
+      <Seccion titulo="Convenios" detalle="Precios pactados con un cliente o empresa y si generan comisión. El comisionista solo ve el precio de su trabajo.">
+        {listaConvenios.map((c) => (
+          <Elemento key={c.id} titulo={c.nombre} subtitulo={`${textoComision(c)}${vigencia(c)}`} inactivo={!c.activo}>
+            <FormularioConvenio convenio={c} />
+            <PreciosConvenio
+              convenio={c}
+              servicios={listaServicios.filter((s) => s.activo).map((s) => ({ id: s.id, nombre: s.nombre }))}
+              marcas={listaMarcas.filter((m) => m.activa).map((m) => ({ id: m.id, nombre: m.clave }))}
+            />
+          </Elemento>
+        ))}
+        <Nuevo texto="Agregar convenio"><FormularioConvenio /></Nuevo>
       </Seccion>
     </PantallaAdmin>
   );

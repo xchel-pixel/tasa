@@ -42,6 +42,8 @@ export type Trabajo = {
   monto_iva: number;
   monto_terceros: number;
   monto_total: number;
+  /** Tipo de honorario; en un estimado, `monto_honorarios` es el estimado hasta que se fija el final. */
+  honorario: Honorario;
   cuenta: { titular: string; banco: string | null; clabe: string } | null;
   pagado_en: string | null;
   /** Mes al que cayó la comisión al quedar pagado (para saber si ya cerró). */
@@ -60,7 +62,22 @@ export type Trabajo = {
     vigente_hasta: string;
     pdf_ruta: string | null;
     cuenta: { titular: string; banco: string | null; clabe: string } | null;
+    honorario_tipo: TipoHonorario;
+    honorario_minimo: number | null;
   } | null;
+};
+
+export type TipoHonorario = "fijo" | "sin_costo" | "estimado";
+
+export type Honorario = {
+  tipo: TipoHonorario;
+  minimo: number | null;
+  /** El estimado con que se aceptó (estimado). */
+  estimado: number | null;
+  /** Cuándo se fijó el final; nulo mientras está "por definir". */
+  final_en: string | null;
+  /** El trabajo que sí cobra (sin costo), si quien mira lo puede ver. */
+  ligada: { id: string; folio: string | null; cliente_nombre: string } | null;
 };
 
 type Cuenta = { titular: string; banco: string | null; clabe: string } | null;
@@ -74,6 +91,11 @@ type FilaFicha = {
   servicios: { nombre: string } | null;
   marcas: { nombre: string } | null;
   cuentas_receptoras: Cuenta;
+  honorario_tipo: TipoHonorario;
+  honorario_minimo: string | number | null;
+  honorario_estimado: string | number | null;
+  honorario_final_en: string | null;
+  ligada: { id: string; folio: string | null; cliente_nombre: string } | null;
   pagos: (Omit<Pago, "monto"> & { monto: string | number })[];
   historial_estatus: { estatus_publico: EstatusPublico; desde: string }[];
   cotizaciones: {
@@ -87,6 +109,8 @@ type FilaFicha = {
     vigente_hasta: string;
     pdf_ruta: string | null;
     cuentas_receptoras: Cuenta;
+    honorario_tipo: TipoHonorario;
+    honorario_minimo: string | number | null;
   }[];
 };
 
@@ -100,11 +124,14 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
          inmueble_clave_catastral, inmueble_descripcion, cliente_nombre, cliente_telefono,
          cliente_correo, requiere_factura, monto_honorarios, monto_iva, monto_terceros,
          monto_total, pagado_en, mes_cierre, motivo_cancelacion, creado_en,
+         honorario_tipo, honorario_minimo, honorario_estimado, honorario_final_en,
+         ligada:solicitudes!ligada_a(id, folio, cliente_nombre),
          servicios(nombre), marcas(nombre), cuentas_receptoras(titular, banco, clabe),
          pagos(id, via, monto, fecha_pago, referencia, nota, recibido_por, estado, motivo_rechazo, motivo_retiro, reportado_por),
          historial_estatus(estatus_publico, desde),
          cotizaciones!cotizaciones_organizacion_id_solicitud_id_fkey(id, estado, monto_honorarios, monto_iva, monto_terceros, monto_total,
-                      requiere_factura, vigente_hasta, pdf_ruta, cuentas_receptoras(titular, banco, clabe))`
+                      requiere_factura, vigente_hasta, pdf_ruta, honorario_tipo, honorario_minimo,
+                      cuentas_receptoras(titular, banco, clabe))`
       )
       .eq("id", id)
       .maybeSingle()
@@ -124,6 +151,13 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
     monto_iva: Number(f.monto_iva),
     monto_terceros: Number(f.monto_terceros),
     monto_total: Number(f.monto_total),
+    honorario: {
+      tipo: f.honorario_tipo,
+      minimo: f.honorario_minimo === null ? null : Number(f.honorario_minimo),
+      estimado: f.honorario_estimado === null ? null : Number(f.honorario_estimado),
+      final_en: f.honorario_final_en,
+      ligada: f.ligada,
+    },
     pagos: f.pagos
       .map((p) => ({ ...p, monto: Number(p.monto) }))
       .sort((a, b) => b.fecha_pago.localeCompare(a.fecha_pago)),
@@ -139,6 +173,8 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
           vigente_hasta: viva.vigente_hasta,
           pdf_ruta: viva.pdf_ruta,
           cuenta: viva.cuentas_receptoras,
+          honorario_tipo: viva.honorario_tipo,
+          honorario_minimo: viva.honorario_minimo === null ? null : Number(viva.honorario_minimo),
         }
       : null,
   };

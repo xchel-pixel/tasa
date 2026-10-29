@@ -64,3 +64,22 @@ export async function cambiarEstatus(_previo: EstadoEstatus, formData: FormData)
   revalidatePath(`/trabajos/${solicitud}`);
   return { error: null, mensaje: "Estatus actualizado. El comisionista ya lo ve." };
 }
+
+/** El honorario final de un estimado. La base valida rol, tipo, monto y motivo, y liquida si ya está cubierto. */
+export async function fijarHonorarioFinal(
+  _previo: { error: string | null },
+  formData: FormData
+): Promise<{ error: string | null }> {
+  await exigirPersona();
+  const solicitud = String(formData.get("solicitud") ?? "");
+  const monto = Number(String(formData.get("final") ?? "").replace(/[$,\s]/g, ""));
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("fijar_honorario_final", {
+    p_solicitud: solicitud,
+    p_monto: Number.isFinite(monto) ? Math.round(monto * 100) / 100 : null,
+    p_motivo: String(formData.get("motivo") ?? ""),
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/trabajos/${solicitud}`);
+  return { error: null };
+}

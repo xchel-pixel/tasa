@@ -143,10 +143,70 @@ export async function guardarServicio(_previo: EstadoCatalogo, f: FormData): Pro
 export async function eliminar(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
   await exigirRol("admin_org");
   const tabla = campo(f, "tabla");
-  if (!["marcas", "cuentas_receptoras", "servicios"].includes(tabla)) return falla("No válido.");
+  if (!["marcas", "cuentas_receptoras", "servicios", "convenio_precios"].includes(tabla)) return falla("No válido.");
   const supabase = await crearClienteServidor();
   const { error, count } = await supabase.from(tabla).delete({ count: "exact" }).eq("id", campo(f, "id"));
   if (error) return traducir(error, "un registro");
   if (count !== 1) return falla("No se pudo borrar.");
   return listo("Borrado.");
+}
+
+const REGLAS = ["normal", "ninguna", "fija"] as const;
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Convenio: cliente o empresa, vigencia y regla de comisión. No se borra (las cotizaciones que lo
+ * usaron lo citan): se desactiva. La regla se copia a cada cotización al emitirse, así que
+ * cambiarla después no toca lo ya cotizado.
+ */
+export async function guardarConvenio(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  await exigirRol("admin_org");
+  const id = campo(f, "id");
+  const nombre = campo(f, "nombre");
+  const regla = campo(f, "comision_regla") as (typeof REGLAS)[number];
+  const pct = Number(campo(f, "comision_pct"));
+  const desde = campo(f, "vigente_desde");
+  const hasta = campo(f, "vigente_hasta");
+  if (nombre.length < 2) return falla("Falta el nombre del cliente o empresa.");
+  if (!REGLAS.includes(regla)) return falla("Elige si genera comisión.");
+  if (regla === "fija" && !(pct > 0 && pct <= 100)) return falla("El % fijo va de 0.01 a 100.");
+  if ([desde, hasta].some((d) => d && !FECHA.test(d))) return falla("Revisa las fechas de vigencia.");
+  if (desde && hasta && hasta < desde) return falla("La vigencia termina antes de empezar.");
+
+  const datos = {
+    nombre,
+    contacto: campo(f, "contacto") || null,
+    notas: campo(f, "notas") || null,
+    vigente_desde: desde || null,
+    vigente_hasta: hasta || null,
+    comision_regla: regla,
+    comision_pct: regla === "fija" ? Math.round(pct * 100) / 100 : null,
+    activo: id ? f.get("activo") === "on" : true,
+  };
+  const supabase = await crearClienteServidor();
+  const { error } = id ? await supabase.from("convenios").update(datos).eq("id", id) : await supabase.from("convenios").insert(datos);
+  if (error) return traducir(error, "un convenio");
+  return listo(id ? "Convenio guardado." : "Convenio agregado. Ahora ponle sus precios.");
+}
+
+/** Precio de un servicio (y marca, opcional) dentro de un convenio; "sin costo" es $0. */
+export async function guardarPrecioConvenio(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  await exigirRol("admin_org");
+  const sinCosto = f.get("sin_costo") === "on";
+  const monto = sinCosto ? 0 : Number(campo(f, "monto").replace(/[$,\s]/g, ""));
+  if (!campo(f, "servicio_id")) return falla("Elige el servicio.");
+  if (!sinCosto && !(monto > 0)) return falla("Escribe el precio, o marca \"Sin costo\".");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("convenio_precios").upsert(
+    {
+      convenio_id: campo(f, "convenio_id"),
+      servicio_id: campo(f, "servicio_id"),
+      marca_id: campo(f, "marca_id") || null,
+      sin_costo: sinCosto,
+      monto: Math.round(monto * 100) / 100,
+    },
+    { onConflict: "convenio_id,servicio_id,marca_id" }
+  );
+  if (error) return traducir(error, "un precio");
+  return listo("Precio guardado.");
 }

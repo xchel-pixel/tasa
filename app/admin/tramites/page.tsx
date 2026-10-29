@@ -19,6 +19,8 @@ type Filtros = {
   folio: boolean;
   cobro: boolean;
   quiere: boolean;
+  /** Estimados sin honorario final. */
+  estimado: boolean;
   q: string;
   todos: boolean;
   pagina: number;
@@ -39,6 +41,7 @@ function leerFiltros(p: Record<string, string | string[] | undefined>): Filtros 
     folio: texto(p.folio) === "1" || ver === "sin_folio",
     cobro: texto(p.cobro) === "1" || ver === "por_cobrar",
     quiere: texto(p.quiere) === "1",
+    estimado: texto(p.estimado) === "1" || ver === "estimados",
     q: texto(p.q).slice(0, 80),
     todos: texto(p.todos) === "1",
     pagina: Math.max(1, Number(texto(p.pagina)) || 1),
@@ -62,7 +65,7 @@ function aplicar(tramites: Tramite[], f: Filtros): Tramite[] {
   const hace = new Date(Date.now() - DIAS_ENTREGADOS * 86_400_000).toISOString().slice(0, 10);
   const q = sinAcentos(f.q);
   // Folio pendiente y por cobrar buscan en todo (un entregado puede deber); si no, por omisión solo lo en curso.
-  const todoEstatus = f.estatus === "todos" || (!f.estatus && (f.folio || f.cobro));
+  const todoEstatus = f.estatus === "todos" || (!f.estatus && (f.folio || f.cobro || f.estimado));
   return tramites.filter((t) => {
     const grupo = grupoDe(t);
     if (!f.estatus && !todoEstatus && !enCurso(t)) return false;
@@ -77,6 +80,7 @@ function aplicar(tramites: Tramite[], f: Filtros): Tramite[] {
     if (f.folio && !pendienteDeFolio(t)) return false;
     if (f.cobro && saldoDe(t) <= 0) return false;
     if (f.quiere && !(t.quiere_tramite && t.estado === "solicitada")) return false;
+    if (f.estimado && !t.estimado_pendiente) return false;
     if (q && ![t.folio, t.cliente_nombre, t.dueno, t.inmueble_clave_catastral].some((v) => v && sinAcentos(v).includes(q))) return false;
     return true;
   });
@@ -119,7 +123,7 @@ export default async function Tramites({ searchParams }: PageProps<"/admin/trami
     { texto: "En elaboración", cuenta: todos.filter((t) => grupoDe(t) === "en_elaboracion").length, href: ligaCon(VACIO, { estatus: "en_elaboracion" }) },
     { texto: "Por cobrar", cuenta: todos.filter((t) => saldoDe(t) > 0).length, href: ligaCon(VACIO, { cobro: true }) },
   ];
-  const hayFiltros = Boolean(f.estatus || f.marca || f.servicio || f.origen || f.dueno || f.folio || f.cobro || f.quiere || f.q || f.todos);
+  const hayFiltros = Boolean(f.estatus || f.marca || f.servicio || f.origen || f.dueno || f.folio || f.cobro || f.quiere || f.estimado || f.q || f.todos);
 
   return (
     <PantallaAdmin titulo="Trámites">
@@ -157,6 +161,7 @@ export default async function Tramites({ searchParams }: PageProps<"/admin/trami
               opciones={[...opciones(todos, (t) => [t.dueno_id, t.dueno]), ["organizacion", "La organización"]]} />
             <Casilla nombre="folio" texto="Pendiente de folio" marcada={f.folio} />
             <Casilla nombre="cobro" texto="Con saldo por cobrar" marcada={f.cobro} />
+            <Casilla nombre="estimado" texto="Estimado sin honorario final" marcada={f.estimado} />
             <Casilla nombre="todos" texto={`Ver todos (incluye entregados de hace más de ${DIAS_ENTREGADOS} días)`} marcada={f.todos} />
             {f.quiere ? <input type="hidden" name="quiere" value="1" /> : null}
             <div className="grid grid-cols-2 gap-2">
@@ -172,7 +177,8 @@ export default async function Tramites({ searchParams }: PageProps<"/admin/trami
       <p className="mt-4 text-[0.9375rem] text-secundario">
         {filtrados.length === 1 ? "1 trámite" : `${filtrados.length} trámites`}
         {f.quiere ? " · quieren el trámite" : ""}
-        {!f.estatus && !f.folio && !f.cobro ? " en curso" : ""}
+        {f.estimado ? " · estimados sin honorario final" : ""}
+        {!f.estatus && !f.folio && !f.cobro && !f.estimado ? " en curso" : ""}
       </p>
       <ListaTramites tramites={enPagina} usuario={persona.id} seccion="tramites" conDueno cuentas={cuentas}
         vacio={hayFiltros ? "Nada con estos filtros." : "No hay trámites en curso."} />
@@ -188,7 +194,7 @@ export default async function Tramites({ searchParams }: PageProps<"/admin/trami
   );
 }
 
-const VACIO: Filtros = { estatus: "", marca: "", servicio: "", origen: "", dueno: "", folio: false, cobro: false, quiere: false, q: "", todos: false, pagina: 1 };
+const VACIO: Filtros = { estatus: "", marca: "", servicio: "", origen: "", dueno: "", folio: false, cobro: false, quiere: false, estimado: false, q: "", todos: false, pagina: 1 };
 
 function Selector({ nombre, etiqueta, valor, vacio, opciones }: {
   nombre: string; etiqueta: string; valor: string; vacio: string; opciones: [string, string][];

@@ -28,6 +28,11 @@ export type Tramite = {
   marca_id: string | null;
   marca: string | null;
   quiere_tramite: boolean;
+  honorario_tipo: "fijo" | "sin_costo" | "estimado";
+  /** Estimado sin honorario final todavía ("por definir"). */
+  estimado_pendiente: boolean;
+  monto_honorarios: number | null;
+  honorario_minimo: number | null;
   /** Comisionista desde su cuenta, liga de comisionista o liga de equipo/admin (sin comisión). */
   origen: Origen;
   /** Quien la trajo: el comisionista o el dueño de la liga; nulo si quedó de la organización. */
@@ -52,6 +57,10 @@ type Fila = {
   marca_id: string | null;
   origen: string;
   quiere_tramite: boolean;
+  honorario_tipo: Tramite["honorario_tipo"];
+  honorario_final_en: string | null;
+  monto_honorarios: string | number | null;
+  honorario_minimo: string | number | null;
   comisionista_id: string | null;
   liga_de: string | null;
   liga_sin_dueno: boolean;
@@ -65,6 +74,7 @@ type Fila = {
 const BASE =
   "id, folio, estado, estatus_publico, cliente_nombre, inmueble_clave_catastral, monto_total, creado_en, fecha_entrega, pagado_en, " +
   "servicio_id, marca_id, origen, quiere_tramite, comisionista_id, liga_de, liga_sin_dueno, " +
+  "honorario_tipo, honorario_final_en, monto_honorarios, honorario_minimo, " +
   "servicios(nombre), marcas(nombre), pagos(monto, estado)";
 // Los nombres de quién la trajo solo los pide quien opera: el comisionista no lee personas ajenas.
 const CON_NOMBRES =
@@ -92,6 +102,10 @@ function aTramite(f: Fila): Tramite {
     marca_id: f.marca_id,
     marca: f.marcas?.nombre ?? null,
     quiere_tramite: f.quiere_tramite,
+    honorario_tipo: f.honorario_tipo,
+    estimado_pendiente: f.honorario_tipo === "estimado" && f.estado === "tramite" && !f.honorario_final_en,
+    monto_honorarios: f.monto_honorarios === null ? null : Number(f.monto_honorarios),
+    honorario_minimo: f.honorario_minimo === null ? null : Number(f.honorario_minimo),
     origen: !deLiga ? "comisionista" : f.comisionista_id ? "liga" : "equipo",
     dueno_id,
     dueno: deLiga ? (f.liga_sin_dueno ? null : f.liga?.nombre ?? null) : f.comisionistas?.personas?.nombre ?? null,

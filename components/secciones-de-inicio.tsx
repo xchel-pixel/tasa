@@ -23,10 +23,17 @@ export async function SeccionesDeInicio({ persona, opera }: { persona: Persona; 
   const quieren = porCotizar.filter((t) => t.quiere_tramite).length;
   const sinFolio = base.filter(pendienteDeFolio).sort(ordenar);
   const porCobrar = base.filter((t) => saldoDe(t) > 0).sort(ordenar);
+  // El honorario final lo fijan admin_org y finanzas: solo a ellos se les avisa.
+  const fija = persona.rol === "admin_org" || persona.rol === "finanzas";
+  const estimados = fija ? base.filter((t) => t.estimado_pendiente).sort(ordenar) : [];
   const ruta = opera ? "/admin/tramites" : "/mis-tramites";
 
   return (
     <div className="mt-6">
+      {estimados.length > 0 ? (
+        <Seccion id="inicio:estimados" usuario={persona.id} titulo="Estimados sin honorario final" tramites={estimados} abierta conDueno
+          verTodos="/admin/tramites?estimado=1" vacio="" />
+      ) : null}
       <Seccion id="inicio:mis-tramites" usuario={persona.id} titulo="Mis trámites" tramites={misEnCurso} abierta
         verTodos="/mis-tramites" vacio="Nada en curso por tu liga de cliente." />
       <Seccion id="inicio:por-cotizar" usuario={persona.id}

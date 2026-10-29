@@ -144,4 +144,14 @@ describe("Cancelar y páginas borradas", () => {
     expect(await notion.marcarCancelado("borrada", "Cancelado")).toBe(false);
     expect(llamadas.some((l) => l.metodo === "PATCH")).toBe(false);
   });
+
+  test("al fijar el honorario final de un estimado, se reescribe Cotización", async () => {
+    const { notion, llamadas } = notionFalso({
+      "GET /pages/p2": { status: 200, cuerpo: { id: "p2", archived: false } },
+      "PATCH /pages/p2": { status: 200, cuerpo: { id: "p2" } },
+    });
+    expect(await notion.actualizarMonto("p2", 4000)).toBe(true);
+    expect(llamadas.find((l) => l.metodo === "PATCH")!.cuerpo).toEqual({ properties: { [config.mapeo_campos.cotizacion]: { number: 4000 } } });
+    expect(await notion.actualizarMonto("borrada", 4000)).toBe(false);
+  });
 });

@@ -93,7 +93,17 @@ export function TarjetaTramite({ tramite: t, conDueno = false }: { tramite: Tram
         </div>
       </div>
 
-      {t.monto_total > 0 ? (
+      {t.estimado_pendiente ? (
+        <p className="mt-2 text-[0.9375rem] font-semibold text-proceso">
+          {t.honorario_minimo !== null && t.honorario_minimo < (t.monto_honorarios ?? 0)
+            ? `Estimado ${pesos(t.honorario_minimo)} – ${pesos(t.monto_honorarios ?? 0)}`
+            : `Estimado ${pesos(t.monto_honorarios ?? 0)}`}{" "}
+          · por definir
+        </p>
+      ) : t.honorario_tipo === "sin_costo" && t.estado === "tramite" ? (
+        <p className="mt-2 text-[0.9375rem] text-secundario">Sin costo</p>
+      ) : null}
+      {t.monto_total > 0 && !t.estimado_pendiente ? (
         <p className="mt-2 text-[0.9375rem] text-secundario">
           Total {pesos(t.monto_total)}
           {saldo > 0 ? <> · Falta {pesos(saldo)}</> : null}

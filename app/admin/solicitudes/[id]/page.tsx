@@ -3,7 +3,7 @@ import { PantallaAdmin } from "@/components/pantalla-admin";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { quienLaTrajo, type Procedencia } from "@/lib/liga-clientes";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
-import FormularioPrecio from "./formulario-precio";
+import FormularioPrecio, { type ConvenioParaCotizar, type Ligable } from "./formulario-precio";
 
 export const metadata = { title: "Cotizar — Tasa" };
 
@@ -22,6 +22,7 @@ type Solicitud = {
   cliente_telefono: string | null;
   cliente_correo: string | null;
   servicios: { nombre: string } | null;
+  servicio_id: string;
   organizacion_id: string;
   quiere_tramite: boolean;
 } & Procedencia;
@@ -38,7 +39,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
       .select(
         `id, tipo, estado, marca_id, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral,
          inmueble_descripcion, cliente_nombre, cliente_telefono, cliente_correo,
-         organizacion_id, origen, liga_sin_dueno, quiere_tramite,
+         organizacion_id, origen, liga_sin_dueno, quiere_tramite, servicio_id,
          servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre)),
          liga:personas!solicitudes_liga_de_fkey(nombre)`
       )
@@ -66,6 +67,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
   ];
 
   const cotizable = s.estado === "solicitada" || s.estado === "vencida";
+  const [convenios, ligables] = cotizable ? await paraCotizar(supabase, s) : [[], []];
   const adjuntos = s.origen === "liga_cliente" ? await adjuntosDelCliente(supabase, s.organizacion_id, s.id) : [];
 
   return (
@@ -109,6 +111,8 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
           marcaInicial={s.marca_id}
           marcas={oExplota(marcas, "las marcas") ?? []}
           cuentas={oExplota(cuentas, "las cuentas") ?? []}
+          convenios={convenios}
+          ligables={ligables}
         />
       ) : (
         <p className="mt-6 rounded-xl bg-tinte px-4 py-3">Esta solicitud ya no espera precio.</p>
@@ -138,4 +142,64 @@ async function adjuntosDelCliente(
   return (data ?? []).flatMap((d) =>
     d.signedUrl && d.path ? [{ nombre: d.path.split("/").pop()!.replace(/^d+-/, ""), url: d.signedUrl }] : []
   );
+}
+
+type FilaConvenio = {
+  id: string;
+  nombre: string;
+  comision_regla: "normal" | "ninguna" | "fija";
+  comision_pct: string | number | null;
+  vigente_desde: string | null;
+  vigente_hasta: string | null;
+  convenio_precios: { servicio_id: string; marca_id: string | null; sin_costo: boolean; monto: string | number }[];
+};
+
+/**
+ * Lo que necesita el formulario además de marcas y cuentas: los convenios vigentes hoy con sus
+ * precios para este servicio, y los trabajos recientes a los que se puede ligar un "sin costo"
+ * (primero los del mismo cliente).
+ */
+async function paraCotizar(
+  supabase: Awaited<ReturnType<typeof crearClienteServidor>>,
+  s: Solicitud
+): Promise<[ConvenioParaCotizar[], Ligable[]]> {
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+  const hace90 = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  const [conv, trabajos] = await Promise.all([
+    supabase
+      .from("convenios")
+      .select("id, nombre, comision_regla, comision_pct, vigente_desde, vigente_hasta, convenio_precios(servicio_id, marca_id, sin_costo, monto)")
+      .eq("activo", true)
+      .order("nombre")
+      .returns<FilaConvenio[]>(),
+    supabase
+      .from("solicitudes")
+      .select("id, folio, cliente_nombre, servicios(nombre)")
+      .in("estado", ["cotizada", "tramite"])
+      .neq("id", s.id)
+      .gte("creado_en", hace90)
+      .order("creado_en", { ascending: false })
+      .limit(60)
+      .returns<{ id: string; folio: string | null; cliente_nombre: string; servicios: { nombre: string } | null }[]>(),
+  ]);
+  const convenios = (oExplota(conv, "los convenios") ?? [])
+    .filter((c) => (!c.vigente_desde || c.vigente_desde <= hoy) && (!c.vigente_hasta || c.vigente_hasta >= hoy))
+    .map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      comision:
+        c.comision_regla === "ninguna"
+          ? "No genera comisión."
+          : c.comision_regla === "fija"
+            ? `Comisión fija del ${Number(c.comision_pct)}%.`
+            : "Comisión normal.",
+      precios: c.convenio_precios
+        .filter((p) => p.servicio_id === s.servicio_id)
+        .map((p) => ({ marca_id: p.marca_id, sin_costo: p.sin_costo, monto: Number(p.monto) })),
+    }));
+  const mismoCliente = (n: string) => n.trim().toLowerCase() === s.cliente_nombre.trim().toLowerCase();
+  const ligables = (oExplota(trabajos, "los trabajos para ligar") ?? [])
+    .sort((a, b) => Number(mismoCliente(b.cliente_nombre)) - Number(mismoCliente(a.cliente_nombre)))
+    .map((x) => ({ id: x.id, texto: [x.folio ?? "Sin folio", x.cliente_nombre, x.servicios?.nombre].filter(Boolean).join(" · ") }));
+  return [convenios, ligables];
 }

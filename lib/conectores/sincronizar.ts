@@ -92,6 +92,17 @@ export async function sincronizarConector(
       await registrar(supabase, "registrar_revision_externa", { p_conector: config.id, p_solicitud: p.solicitud_id, p_existe: existe });
     }
 
+    // 5. Estimados con honorario final ya fijado: se reescribe "Cotización" afuera.
+    const { data: porMonto, error: errorMonto } = await supabase.rpc("por_actualizar_monto_afuera", { p_conector: config.id });
+    if (errorMonto) throw new Error(errorMonto.message);
+    for (const m of (porMonto ?? []) as { solicitud_id: string; externo_id: string; monto: string | number }[]) {
+      if (await conector.actualizarMonto(m.externo_id, Number(m.monto))) {
+        await registrar(supabase, "registrar_monto_afuera", { p_conector: config.id, p_solicitud: m.solicitud_id });
+      } else {
+        await registrar(supabase, "registrar_revision_externa", { p_conector: config.id, p_solicitud: m.solicitud_id, p_existe: false });
+      }
+    }
+
     await registrar(supabase, "registrar_sync_ok", { p_conector: config.id });
   } catch (falla) {
     const f = falla instanceof FallaConector ? falla : new FallaConector("otro", falla instanceof Error ? falla.message : String(falla));

@@ -10,6 +10,8 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 type CotizacionEmitida = {
   id: string;
   numero: string;
+  honorario_tipo: "fijo" | "sin_costo" | "estimado";
+  honorario_minimo: string | number | null;
   monto_honorarios: string | number;
   monto_iva: string | number;
   monto_terceros: string | number;
@@ -47,6 +49,34 @@ const numero = (v: FormDataEntryValue | null) => {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TIPOS_HONORARIO = ["fijo", "sin_costo", "estimado"] as const;
+type TipoHonorario = (typeof TIPOS_HONORARIO)[number];
+
+/**
+ * ¿Se aparta del convenio? El servidor lo revisa contra la base (no confía en el formulario):
+ * si el tipo o el monto no son los del convenio para este servicio y marca, exige motivo.
+ */
+async function apartaDelConvenio(
+  supabase: Awaited<ReturnType<typeof crearClienteServidor>>,
+  convenio: string,
+  solicitud: string,
+  marca: string,
+  tipo: TipoHonorario,
+  honorarios: number
+): Promise<boolean> {
+  const { data: sol } = await supabase.from("solicitudes").select("servicio_id").eq("id", solicitud).single();
+  const { data: precios } = await supabase
+    .from("convenio_precios")
+    .select("marca_id, sin_costo, monto")
+    .eq("convenio_id", convenio)
+    .eq("servicio_id", sol?.servicio_id ?? "")
+    .returns<{ marca_id: string | null; sin_costo: boolean; monto: string | number }[]>();
+  const p = (precios ?? []).find((x) => x.marca_id === marca) ?? (precios ?? []).find((x) => x.marca_id === null);
+  if (!p) return false;
+  return p.sin_costo ? tipo !== "sin_costo" : tipo === "sin_costo" || honorarios !== Number(p.monto);
+}
+
 /**
  * Dos caminos según el tipo:
  *   · cotización: se emite (la base reemplaza la anterior y deja la
@@ -62,7 +92,12 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
   const marca = String(formData.get("marca") ?? "");
   const cuenta = String(formData.get("cuenta") ?? "");
   const factura = formData.get("factura") === "on";
-  const honorarios = numero(formData.get("honorarios"));
+  const tipoHonorario = String(formData.get("honorario_tipo") ?? "fijo") as TipoHonorario;
+  const honorarios = tipoHonorario === "sin_costo" ? 0 : numero(formData.get("honorarios"));
+  const minimo = tipoHonorario === "estimado" && String(formData.get("minimo") ?? "").trim() ? numero(formData.get("minimo")) : null;
+  const ligadaA = tipoHonorario === "sin_costo" && UUID.test(String(formData.get("ligada_a") ?? "")) ? String(formData.get("ligada_a")) : null;
+  const convenio = UUID.test(String(formData.get("convenio") ?? "")) ? String(formData.get("convenio")) : null;
+  const motivo = String(formData.get("motivo") ?? "").trim().slice(0, 500) || null;
   const terceros = formData.get("terceros") ? numero(formData.get("terceros")) : 0;
   const vigencia = String(formData.get("vigencia") ?? "");
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
@@ -70,13 +105,30 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
   const falla = (error: string): EstadoPrecio => ({ error, mensaje: null });
   if (!marca) return falla("Elige la marca ejecutora.");
   if (!cuenta) return falla("Elige la cuenta receptora.");
-  if (!(honorarios > 0)) return falla("Los honorarios deben ser mayores a cero.");
+  if (!TIPOS_HONORARIO.includes(tipoHonorario)) return falla("Elige el tipo de honorario.");
+  if (tipoHonorario !== "sin_costo" && !(honorarios > 0)) {
+    return falla(tipoHonorario === "estimado" ? "Escribe el honorario estimado (mayor a cero)." : "Los honorarios deben ser mayores a cero.");
+  }
+  if (minimo !== null && !(minimo >= 0 && minimo <= honorarios)) {
+    return falla("El mínimo del rango va de cero al honorario estimado.");
+  }
   if (!(terceros >= 0)) return falla("Los derechos y terceros no pueden ser negativos.");
   if (tipo === "cotizacion" && (!/^\d{4}-\d{2}-\d{2}$/.test(vigencia) || vigencia < hoy)) {
     return falla("La vigencia no puede ser anterior a hoy.");
   }
 
   const supabase = await crearClienteServidor();
+  if (convenio && !motivo && (await apartaDelConvenio(supabase, convenio, solicitud, marca, tipoHonorario, honorarios))) {
+    return falla("Escribe el motivo del ajuste al convenio.");
+  }
+  // Lo que comparten la cotización y el trámite directo. La regla de comisión la pone la base desde el convenio.
+  const honorario = {
+    honorario_tipo: tipoHonorario,
+    honorario_minimo: minimo,
+    ligada_a: ligadaA,
+    convenio_id: convenio,
+    ajuste_motivo: convenio ? motivo : null,
+  };
 
   if (tipo === "tramite_directo") {
     const { error, count } = await supabase
@@ -88,6 +140,7 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
           requiere_factura: factura,
           monto_honorarios: honorarios,
           monto_terceros: terceros,
+          ...honorario,
           estado: "tramite",
           estatus_publico: "aceptada",
           aceptada_en: new Date().toISOString(),
@@ -114,9 +167,10 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
       cuenta_receptora_id: cuenta,
       vigente_hasta: vigencia,
       emitida_por: persona.id,
+      ...honorario,
     })
     .select(
-      `id, numero, monto_honorarios, monto_iva, monto_terceros, monto_total, requiere_factura, vigente_hasta,
+      `id, numero, honorario_tipo, honorario_minimo, monto_honorarios, monto_iva, monto_terceros, monto_total, requiere_factura, vigente_hasta,
        cuentas_receptoras(titular, banco, clabe),
        solicitudes!cotizaciones_organizacion_id_solicitud_id_fkey(cliente_nombre, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral, inmueble_descripcion,
          comisionistas(personas!comisionistas_persona_id_fkey(nombre)),
@@ -149,6 +203,8 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
         },
         servicio: s.servicios ?? { nombre: "", alcance: null, tiempo_entrega: null, documentos: null, aviso: null },
         honorarios: Number(cot.monto_honorarios),
+        honorario_tipo: cot.honorario_tipo,
+        honorario_minimo: cot.honorario_minimo === null ? null : Number(cot.honorario_minimo),
         terceros: Number(cot.monto_terceros),
         requiere_factura: cot.requiere_factura,
         iva: cot.requiere_factura ? Number(cot.monto_iva) : 0,

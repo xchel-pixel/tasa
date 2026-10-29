@@ -10,7 +10,7 @@ export const metadata = { title: "Alertas — Tasa" };
 
 type Fila = {
   id: string;
-  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "conector";
+  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "conector";
   codigo: string | null;
   mensaje: string;
   creada_en: string;

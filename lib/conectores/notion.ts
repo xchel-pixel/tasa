@@ -164,6 +164,15 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
       return true;
     },
 
+    async actualizarMonto(externoId, monto) {
+      const nombre = mapeo.cotizacion?.trim();
+      // Sin la propiedad en el mapeo no hay nada que actualizar afuera.
+      if (!nombre) return true;
+      if (!(await existe(externoId))) return false;
+      await notion(`/pages/${externoId}`, "PATCH", { properties: { [nombre]: { number: monto } } });
+      return true;
+    },
+
     async leerCambios(desde) {
       const filtros: unknown[] = [{ timestamp: "last_edited_time", last_edited_time: { on_or_after: desde.toISOString() } }];
       if (mapeo.medio && config.configuracion.medio) {

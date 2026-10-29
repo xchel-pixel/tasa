@@ -63,4 +63,6 @@ export interface Conector {
   marcarCancelado(externoId: string, etapa: string): Promise<boolean>;
   /** ¿Sigue existiendo el registro (ni borrado ni archivado)? */
   existe(externoId: string): Promise<boolean>;
+  /** Reescribe el honorario ("Cotización") al fijarse el final de un estimado. Falso si el registro ya no existe. */
+  actualizarMonto(externoId: string, monto: number): Promise<boolean>;
 }

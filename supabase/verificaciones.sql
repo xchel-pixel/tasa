@@ -2389,6 +2389,165 @@ begin
 end;
 $$;
 
+-- @@ Tipos de honorario y convenios
+-- Cada tipo de honorario de punta a punta (cotizar, aceptar, pagar) con
+-- su comisión y su efecto en el nivel; convenio sin comisión y con % fijo.
+create function pg_temp.cotizar_y_aceptar(p_sol uuid, p_cuenta uuid, p_tipo text, p_monto numeric,
+                                          p_min numeric default null, p_ligada uuid default null,
+                                          p_convenio uuid default null, p_motivo text default null)
+returns void language plpgsql as $$
+begin
+  perform pg_temp.sistema();
+  insert into cotizaciones (solicitud_id, monto_honorarios, cuenta_receptora_id, vigente_hasta, honorario_tipo,
+                            honorario_minimo, ligada_a, convenio_id, ajuste_motivo)
+  values (p_sol, p_monto, p_cuenta, hoy_mx() + 15, p_tipo, p_min, p_ligada, p_convenio, p_motivo);
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform aceptar_cotizacion((select id from cotizaciones where solicitud_id = p_sol and estado = 'emitida'));
+  perform pg_temp.sistema();
+end;
+$$;
+
+create function pg_temp.pagar(p_sol uuid) returns void language plpgsql as $$
+begin
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  select p_sol, 'comprobante', monto_total, hoy_mx(), pg_temp.xg() || '/x/' || p_sol || '.pdf', comisionista_id
+    from solicitudes where id = p_sol;
+  update pagos set estado = 'confirmado' where solicitud_id = p_sol and estado = 'reportado';
+end;
+$$;
+
+do $$
+declare
+  xg      uuid := pg_temp.xg();
+  ana     uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  serv    uuid;
+  cuenta  uuid;
+  s       uuid[] := '{}';
+  una     uuid;
+  conv_no uuid;
+  conv_10 uuid;
+  i       integer;
+  prom    numeric;
+  prom2   numeric;
+  pct     numeric;
+begin
+  perform pg_temp.sistema();
+  select id into serv from servicios where organizacion_id = xg and activo order by nombre limit 1;
+  select id into cuenta from cuentas_receptoras where organizacion_id = xg limit 1;
+  for i in 1..6 loop
+    insert into solicitudes (organizacion_id, comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre)
+    values (xg, ana, 'cotizacion', 'portal', serv, 'Calle Honorario ' || i, 'Cliente Honorario ' || i) returning id into una;
+    s := s || una;
+  end loop;
+  pct := porcentaje_vigente(xg, ana, mes_abierto_desde(xg, hoy_mx()));
+
+  -- Convenios: los crea admin_org; finanzas los lee; el comisionista no los ve.
+  perform pg_temp.como('xchel@arqosuv.com');
+  insert into convenios (nombre, contacto, comision_regla) values ('Convenio Sin Comisión', 'Lic. Prueba', 'ninguna') returning id into conv_no;
+  insert into convenios (nombre, comision_regla, comision_pct) values ('Convenio 10%', 'fija', 10) returning id into conv_10;
+  insert into convenio_precios (convenio_id, servicio_id, monto) values (conv_no, serv, 2500);
+  insert into convenio_precios (convenio_id, servicio_id, sin_costo, monto) values (conv_10, serv, true, 0);
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select count(*) from convenios where id in (conv_no, conv_10)), 2::bigint, 'Finanzas lee los convenios para cotizar');
+  perform pg_temp.debe_fallar($q$insert into convenios (nombre) values ('De finanzas')$q$, 'row-level security', 'Solo admin_org los crea');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from convenios), 0::bigint, 'El comisionista no ve los convenios');
+  perform pg_temp.igual((select count(*) from convenio_precios), 0::bigint, 'Ni su tabulador');
+  perform pg_temp.sistema();
+
+  -- 1. Fijo: como siempre, comisión con el % del nivel, y suma para el nivel.
+  select promedio into prom from calcular_nivel(xg, ana, (mes_abierto_desde(xg, hoy_mx()) + interval '1 month')::date);
+  perform pg_temp.cotizar_y_aceptar(s[1], cuenta, 'fijo', 4000);
+  perform pg_temp.pagar(s[1]);
+  perform pg_temp.igual((select porcentaje || ' ' || base from comisiones where solicitud_id = s[1]), pct || ' 4000.00',
+    'Fijo: comisión con el % del nivel sobre el honorario');
+  select promedio into prom2 from calcular_nivel(xg, ana, (mes_abierto_desde(xg, hoy_mx()) + interval '1 month')::date);
+  perform pg_temp.igual(prom2 > prom, true, 'Fijo: cuenta para el nivel');
+
+  -- 2. Sin costo, ligado al fijo: $0, nunca comisión.
+  perform pg_temp.debe_fallar(format($q$insert into cotizaciones (solicitud_id, monto_honorarios, cuenta_receptora_id, vigente_hasta, honorario_tipo)
+    values (%L, 100, %L, hoy_mx() + 1, 'sin_costo')$q$, s[2], cuenta), 'cotizaciones_honorario_coherente', 'Sin costo es $0');
+  perform pg_temp.debe_fallar(format($q$insert into cotizaciones (solicitud_id, monto_honorarios, cuenta_receptora_id, vigente_hasta, ligada_a)
+    values (%L, 100, %L, hoy_mx() + 1, %L)$q$, s[2], cuenta, s[1]), 'cotizaciones_honorario_coherente', 'Solo sin costo se liga');
+  perform pg_temp.cotizar_y_aceptar(s[2], cuenta, 'sin_costo', 0, null, s[1]);
+  perform pg_temp.igual((select honorario_tipo || ' ' || monto_honorarios || ' ' || (ligada_a = s[1]) || ' ' || estado from solicitudes where id = s[2]),
+    'sin_costo 0.00 true tramite'::text, 'Sin costo: se acepta y queda ligado al trabajo que cobra');
+  perform liquidar_si_completo(s[2]);
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s[2]), 0::bigint, 'Sin costo: nunca genera comisión');
+
+  -- 3. Estimado con rango: el máximo manda hasta fijar el final.
+  perform pg_temp.cotizar_y_aceptar(s[3], cuenta, 'estimado', 5000, 2000);
+  perform pg_temp.igual((select monto_honorarios || ' ' || honorario_minimo || ' ' || honorario_estimado || ' ' || (honorario_final_en is null) from solicitudes where id = s[3]),
+    '5000.00 2000.00 5000.00 true'::text, 'Estimado: se acepta con el máximo del rango y sin final');
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  values (s[3], 'comprobante', 5000, hoy_mx(), xg || '/x/estimado.pdf', ana);
+  perform pg_temp.debe_fallar(format($q$update pagos set estado = 'confirmado' where solicitud_id = %L$q$, s[3]),
+    'honorario final', 'Sin honorario final no se confirma el pago que lo liquidaría');
+  update solicitudes set estatus_publico = 'entregado' where id = s[3];
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s[3] and tipo = 'estimado_sin_final' and resuelta_en is null),
+    1::bigint, 'Entregado desde Notion sin final: alerta');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select fijar_honorario_final(%L, 4000, 'Visita extra')$q$, s[3]), 'Solo administración o finanzas',
+    'El comisionista no fija el honorario final');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format($q$select fijar_honorario_final(%L, 4000, '')$q$, s[3]), 'motivo', 'El final lleva motivo');
+  perform fijar_honorario_final(s[3], 4000, 'Superficie menor a la estimada');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select monto_honorarios || ' ' || honorario_estimado || ' ' || (honorario_final_en is not null) from solicitudes where id = s[3]),
+    '4000.00 5000.00 true'::text, 'Finanzas fija el final; el estimado se conserva');
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'solicitudes' and registro_id = s[3]::text
+                            and motivo = 'Honorario final: Superficie menor a la estimada'
+                            and antes->>'monto_honorarios' = '5000.00' and despues->>'monto_honorarios' = '4000.00'),
+    1::bigint, 'Bitácora con antes, después y motivo');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s[3] and tipo = 'estimado_sin_final' and resuelta_en is null),
+    0::bigint, 'Al fijarlo, la alerta se resuelve');
+  -- Se reportó el estimado y el final quedó abajo: se rechaza con motivo y se reporta el monto correcto.
+  update pagos set estado = 'rechazado', motivo_rechazo = 'El honorario final es menor' where solicitud_id = s[3] and estado = 'reportado';
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  values (s[3], 'comprobante', 4000, hoy_mx(), xg || '/x/estimado-final.pdf', ana);
+  update pagos set estado = 'confirmado' where solicitud_id = s[3] and estado = 'reportado';
+  perform pg_temp.igual((select porcentaje || ' ' || base from comisiones where solicitud_id = s[3]), pct || ' 4000.00',
+    'Estimado: la comisión va sobre el honorario final pagado');
+
+  -- 4. Convenio sin comisión: ni comisión ni nivel; con motivo de ajuste en bitácora.
+  perform pg_temp.cotizar_y_aceptar(s[4], cuenta, 'fijo', 2300, null, null, conv_no, 'Descuento por volumen');
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'cotizaciones' and accion = 'INSERT' and motivo = 'Ajuste al convenio: Descuento por volumen'),
+    1::bigint, 'Ajuste al precio del convenio: motivo en bitácora');
+  perform pg_temp.igual((select comision_regla from solicitudes where id = s[4]), 'ninguna'::text, 'El trabajo hereda la regla del convenio');
+  select promedio into prom from calcular_nivel(xg, ana, (mes_abierto_desde(xg, hoy_mx()) + interval '1 month')::date);
+  perform pg_temp.pagar(s[4]);
+  perform pg_temp.igual((select (pagado_en is not null) || ' ' || (select count(*) from comisiones where solicitud_id = s[4]) from solicitudes where id = s[4]),
+    'true 0'::text, 'Convenio sin comisión: se paga sin comisión');
+  select promedio into prom2 from calcular_nivel(xg, ana, (mes_abierto_desde(xg, hoy_mx()) + interval '1 month')::date);
+  perform pg_temp.igual(prom2, prom, 'Convenio sin comisión: no cuenta para el nivel');
+
+  -- 5. Convenio con 10% fijo: sustituye el % del nivel y el cierre no lo recalcula.
+  perform pg_temp.cotizar_y_aceptar(s[5], cuenta, 'fijo', 3000, null, null, conv_10);
+  update convenios set comision_pct = 25 where id = conv_10;
+  perform pg_temp.pagar(s[5]);
+  perform pg_temp.igual((select porcentaje || ' ' || monto || ' ' || provisional from comisiones where solicitud_id = s[5]),
+    '10.00 300.00 false'::text, 'Convenio 10%: comisión al % del convenio vigente al cotizar');
+  perform recalcular_comisiones_del_mes(xg, mes_abierto_desde(xg, hoy_mx()));
+  perform pg_temp.igual((select porcentaje from comisiones where solicitud_id = s[5]), 10.00::numeric, 'El cierre no le pone el % del nivel');
+
+  -- 6. Convenio "sin costo" por servicio y trabajo directo estimado.
+  update solicitudes set marca_id = (select id from marcas where organizacion_id = xg limit 1), cuenta_receptora_id = cuenta,
+         monto_honorarios = 7000, honorario_tipo = 'estimado', estado = 'tramite', estatus_publico = 'aceptada', aceptada_en = now()
+   where id = s[6];
+  perform pg_temp.igual((select honorario_estimado from solicitudes where id = s[6]), 7000.00::numeric,
+    'Cotizar y aceptar (trámite directo) estimado: guarda su estimado');
+  update solicitudes set externo_id = 'pagina-estimado' where id = s[6];
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform fijar_honorario_final(s[6], 6500, 'Ajuste final');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from por_actualizar_monto_afuera(pg_temp.notion_xg()) where solicitud_id = s[6] and monto = 6500),
+    1::bigint, 'Notion: "Cotización" se actualiza al fijar el final');
+  perform registrar_monto_afuera(pg_temp.notion_xg(), s[6]);
+  perform pg_temp.igual((select count(*) from por_actualizar_monto_afuera(pg_temp.notion_xg()) where solicitud_id = s[6]), 0::bigint,
+    'Y una vez escrito, ya no se vuelve a mandar');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
