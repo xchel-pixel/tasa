@@ -2338,6 +2338,57 @@ begin
 end;
 $$;
 
+-- @@ Fecha de entrega
+do $$
+declare
+  notion uuid := pg_temp.notion_xg();
+  base   solicitudes%rowtype;
+  t      uuid;
+  u      uuid;
+begin
+  perform pg_temp.sistema();
+  select * into base from solicitudes where organizacion_id = pg_temp.xg() and comisionista_id is not null and marca_id is not null limit 1;
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id,
+                           cuenta_receptora_id, monto_honorarios, estado, estatus_publico, folio, externo_id, aceptada_en, creado_por)
+  values (base.comisionista_id, 'tramite_directo', 'admin', base.servicio_id, 'Calle Entrega 1', 'Cliente Entrega', base.marca_id,
+          base.cuenta_receptora_id, 1000, 'tramite', 'en_elaboracion', 'MGP-2026-7101', 'prueba-entrega', now(), base.creado_por)
+  returning id into t;
+  perform pg_temp.igual((select fecha_entrega from solicitudes where id = t), null::date, 'En elaboración: sin fecha de entrega');
+
+  -- Desde Notion.
+  perform registrar_lectura(notion, 'prueba-entrega', 'MGP-2026-7101 Cliente Entrega', 'Entregado', null);
+  perform pg_temp.igual((select fecha_entrega from solicitudes where id = t), hoy_mx(), 'Pasa a Entregado desde Notion: fecha de hoy');
+  update solicitudes set fecha_entrega = hoy_mx() - 40 where id = t;
+  perform registrar_lectura(notion, 'prueba-entrega', 'MGP-2026-7101 Cliente Entrega', 'Cerrado', null);
+  perform pg_temp.igual((select fecha_entrega from solicitudes where id = t), hoy_mx() - 40, 'Otra lectura en Entregado no la mueve');
+  perform registrar_lectura(notion, 'prueba-entrega', 'MGP-2026-7101 Cliente Entrega', 'En revisión', null);
+  perform pg_temp.igual((select fecha_entrega from solicitudes where id = t), null::date, 'Si se revierte, se limpia');
+
+  -- Desde Tasa, y al pagarse se conserva.
+  update solicitudes set estatus_publico = 'entregado' where id = t;
+  perform pg_temp.igual((select fecha_entrega from solicitudes where id = t), hoy_mx(), 'Pasa a Entregado desde Tasa: fecha de hoy');
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  values (t, 'comprobante', 1000, hoy_mx(), pg_temp.xg() || '/x/entrega.pdf', base.comisionista_id);
+  update pagos set estado = 'confirmado' where solicitud_id = t;
+  perform liquidar_si_completo(t);
+  perform pg_temp.igual((select estatus_publico || ' ' || fecha_entrega from solicitudes where id = t), 'pagado ' || hoy_mx(),
+    'Entregado → Pagado conserva la fecha de entrega');
+
+  -- Pagado sin haberse entregado: no inventa fecha.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id,
+                           cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en, creado_por)
+  values (base.comisionista_id, 'tramite_directo', 'admin', base.servicio_id, 'Calle Entrega 2', 'Cliente Pago Antes', base.marca_id,
+          base.cuenta_receptora_id, 1000, 'tramite', 'en_elaboracion', now(), base.creado_por)
+  returning id into u;
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  values (u, 'comprobante', 1000, hoy_mx(), pg_temp.xg() || '/x/entrega2.pdf', base.comisionista_id);
+  update pagos set estado = 'confirmado' where solicitud_id = u;
+  perform liquidar_si_completo(u);
+  perform pg_temp.igual((select estatus_publico || ' ' || coalesce(fecha_entrega::text, 'sin fecha') from solicitudes where id = u),
+    'pagado sin fecha'::text, 'Pagado antes de entregar: sin fecha de entrega');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

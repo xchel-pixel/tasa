@@ -19,7 +19,10 @@ export type Tramite = {
   inmueble_clave_catastral: string | null;
   monto_total: number;
   creado_en: string;
-  actualizado_en: string;
+  /** Día en que pasó a "Entregado" (de Tasa o de Notion); nulo si no se ha entregado. */
+  fecha_entrega: string | null;
+  /** Día en que quedó pagado. */
+  pagado_en: string | null;
   servicio_id: string;
   servicio: string;
   marca_id: string | null;
@@ -43,7 +46,8 @@ type Fila = {
   inmueble_clave_catastral: string | null;
   monto_total: string | number;
   creado_en: string;
-  actualizado_en: string;
+  fecha_entrega: string | null;
+  pagado_en: string | null;
   servicio_id: string;
   marca_id: string | null;
   origen: string;
@@ -59,7 +63,7 @@ type Fila = {
 };
 
 const BASE =
-  "id, folio, estado, estatus_publico, cliente_nombre, inmueble_clave_catastral, monto_total, creado_en, actualizado_en, " +
+  "id, folio, estado, estatus_publico, cliente_nombre, inmueble_clave_catastral, monto_total, creado_en, fecha_entrega, pagado_en, " +
   "servicio_id, marca_id, origen, quiere_tramite, comisionista_id, liga_de, liga_sin_dueno, " +
   "servicios(nombre), marcas(nombre), pagos(monto, estado)";
 // Los nombres de quién la trajo solo los pide quien opera: el comisionista no lee personas ajenas.
@@ -81,7 +85,8 @@ function aTramite(f: Fila): Tramite {
     inmueble_clave_catastral: f.inmueble_clave_catastral,
     monto_total: Number(f.monto_total),
     creado_en: f.creado_en,
-    actualizado_en: f.actualizado_en,
+    fecha_entrega: f.fecha_entrega,
+    pagado_en: f.pagado_en,
     servicio_id: f.servicio_id,
     servicio: f.servicios?.nombre ?? "",
     marca_id: f.marca_id,

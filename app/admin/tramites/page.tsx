@@ -59,7 +59,7 @@ function ligaCon(f: Filtros, cambios: Partial<Filtros>): string {
 }
 
 function aplicar(tramites: Tramite[], f: Filtros): Tramite[] {
-  const hace = Date.now() - DIAS_ENTREGADOS * 86_400_000;
+  const hace = new Date(Date.now() - DIAS_ENTREGADOS * 86_400_000).toISOString().slice(0, 10);
   const q = sinAcentos(f.q);
   // Folio pendiente y por cobrar buscan en todo (un entregado puede deber); si no, por omisión solo lo en curso.
   const todoEstatus = f.estatus === "todos" || (!f.estatus && (f.folio || f.cobro));
@@ -67,7 +67,9 @@ function aplicar(tramites: Tramite[], f: Filtros): Tramite[] {
     const grupo = grupoDe(t);
     if (!f.estatus && !todoEstatus && !enCurso(t)) return false;
     if (f.estatus && f.estatus !== "todos" && grupo !== f.estatus) return false;
-    if (grupo === "entregados" && !f.todos && Date.parse(t.actualizado_en) < hace) return false;
+    // Pagado sin haberse entregado no tiene fecha de entrega: cuenta desde el pago.
+    const entregado = t.fecha_entrega ?? t.pagado_en;
+    if (grupo === "entregados" && !f.todos && entregado && entregado < hace) return false;
     if (f.marca && t.marca_id !== f.marca) return false;
     if (f.servicio && t.servicio_id !== f.servicio) return false;
     if (f.origen && t.origen !== f.origen) return false;
