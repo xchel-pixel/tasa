@@ -136,6 +136,13 @@ la app las muestra, la base las hace cumplir.
   `npm run db:reset-produccion`, una sola vez. Tras un cambio de estructura, `npm run db:resembrar`
   (solo pruebas) deja la base en cero con la semilla.
 - Verificar contra la base real, no contra los archivos SQL.
+- **Después de cada migración aplicada a producción, correr `node scripts/revisar-consultas.mjs`**
+  y no dar la tarea por terminada si reporta errores. Manda cada consulta de las pantallas a la
+  base real con `limit=0` (no lee datos) y atrapa lo que tumba una pantalla aunque la base esté
+  vacía: relaciones ambiguas (PGRST201), columnas que ya no existen.
+- **Embeber `personas` siempre con su llave** desde una tabla que tenga más de una hacia
+  personas: `personas!comisionistas_persona_id_fkey(nombre)`, nunca `personas(nombre)`. Lo revisa
+  `pruebas/consultas.test.ts`.
 - `npm test` corre migraciones, semilla y verificaciones en PGlite. Toda regla nueva de la base
   lleva su verificación en `supabase/verificaciones.sql` (sección `-- @@ Nombre`).
 - Fechas de corte en `America/Mexico_City`: usar `hoy_mx()` y `mes_de()`, nunca `current_date`.
