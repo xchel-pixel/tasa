@@ -2,8 +2,10 @@ import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { comisionesPorPagar, type PorPagar } from "@/lib/comisiones";
 import { mesLargo, pesos } from "@/lib/formato";
+import { SolicitudesDeClientes } from "@/components/solicitudes-de-clientes";
+import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { bonoDeEquipo, ligaDeEquipo } from "@/lib/invitar";
+import { bonoDeEquipo, codigoDeEquipo, ligaDeClientes, ligaDeEquipo } from "@/lib/invitar";
 import { pendientesDelPanel } from "@/lib/panel";
 import { esStaff, NOMBRE_DEL_ROL, type Persona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -17,7 +19,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 export async function InicioStaff({ persona }: { persona: Persona }) {
   const staff = esStaff(persona);
   const supabase = await crearClienteServidor();
-  const [p, porPagar, conector, liga, bono] = await Promise.all([
+  const [p, porPagar, conector, liga, bono, codigo] = await Promise.all([
     pendientesDelPanel(),
     staff ? comisionesPorPagar() : Promise.resolve([] as PorPagar[]),
     supabase
@@ -28,7 +30,9 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
       .returns<{ tipo: string; estado: string; ultimo_error: string | null } | null>(),
     ligaDeEquipo(persona),
     bonoDeEquipo(persona),
+    persona.rol === "admin_org" ? codigoDeEquipo(persona) : Promise.resolve(null),
   ]);
+  const ligaClientes = codigo ? await ligaDeClientes(persona, codigo) : null;
 
   const cierre = {
     sin_preparar: { texto: "Por preparar", tono: "proceso" as const },
@@ -58,7 +62,8 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
 
       <ul className="mt-6 flex flex-col gap-3">
         <Renglon href="/admin/pagos" titulo="Pagos por confirmar" cuenta={p.pagos} />
-        <Renglon href="/admin/solicitudes" titulo="Solicitudes por cotizar" cuenta={p.solicitudes} />
+        <Renglon href="/admin/solicitudes" titulo="Solicitudes por cotizar" cuenta={p.solicitudes}
+          detalle={p.deLiga > 0 ? `${p.deLiga === 1 ? "1 llegó" : `${p.deLiga} llegaron`} por liga de cliente` : undefined} />
         <Renglon href="/admin/alertas" titulo="Alertas" cuenta={p.alertas} />
         {staff ? <Renglon href="/admin/altas" titulo="Solicitudes de alta" cuenta={p.altas} /> : null}
         {staff ? (
@@ -113,6 +118,8 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         {persona.superPlataforma ? <Enlace href="/plataforma">Plataforma</Enlace> : null}
       </nav>
 
+      {persona.rol === "admin_org" ? <SolicitudesDeClientes /> : null}
+      {ligaClientes ? <TarjetaClientes liga={ligaClientes} /> : null}
       {liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null}
     </>
   );
@@ -126,11 +133,14 @@ function Enlace({ href, children }: { href: string; children: React.ReactNode })
   );
 }
 
-function Renglon({ href, titulo, cuenta }: { href: string; titulo: string; cuenta: number }) {
+function Renglon({ href, titulo, cuenta, detalle }: { href: string; titulo: string; cuenta: number; detalle?: string }) {
   return (
     <li>
       <Link href={href} className="flex items-center justify-between gap-3 rounded-xl border border-linea bg-alterno px-4 py-4">
-        <span className="font-semibold">{titulo}</span>
+        <span>
+          <span className="block font-semibold">{titulo}</span>
+          {detalle ? <span className="block text-[0.9375rem] text-secundario">{detalle}</span> : null}
+        </span>
         {cuenta > 0 ? (
           <span className="min-w-9 rounded-full bg-primario px-3 py-1 text-center text-[0.9375rem] font-bold text-sobre-primario">
             {cuenta}

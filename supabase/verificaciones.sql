@@ -316,7 +316,7 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, invitado_por, pedir_alta'::text,
+  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, invitado_por, pedir_alta, pedir_por_liga'::text,
     'anon solo ejecuta lo de la pantalla de acceso, la solicitud de alta y el aviso de privacidad');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -2087,6 +2087,152 @@ begin
   perform pg_temp.sistema();
   update membresias set bono_referido = false, bono_referido_pct = null, bono_referido_hasta = null where id = m;
   update ajustes set bono_referido_equipo = false where organizacion_id = xg;
+end;
+$$;
+
+-- @@ Liga de clientes
+do $$
+declare
+  xg      uuid := pg_temp.xg();
+  ana     uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  gaby    uuid := (select id from personas where correo = 'gaby@tasa.test');
+  xchel   uuid := (select id from personas where correo = 'xchel@arqosuv.com');
+  cod_ana text;  cod_gaby text;  cod_xchel text;
+  serv    uuid;
+  v_aviso integer;
+  datos   jsonb;
+  r       record;
+  s_ana   uuid;  s_gaby uuid;  s_xchel uuid;  s_inac uuid;  tok uuid;
+  i       integer;
+begin
+  perform pg_temp.sistema();
+  select codigo_referido into cod_ana from comisionistas where persona_id = ana and organizacion_id = xg;
+  select codigo_referido into cod_gaby from membresias where persona_id = gaby and organizacion_id = xg;
+  select codigo_referido into cod_xchel from membresias where persona_id = xchel and organizacion_id = xg;
+  select id into serv from servicios where organizacion_id = xg and activo order by nombre limit 1;
+  select aviso_version into v_aviso from ajustes where organizacion_id = xg;
+  if coalesce(v_aviso, 0) = 0 then
+    update ajustes set aviso_privacidad = 'Aviso de prueba' where organizacion_id = xg;
+    select aviso_version into v_aviso from ajustes where organizacion_id = xg;
+  end if;
+
+  -- La página pública: solo el nombre para mostrar, nunca correo ni teléfono.
+  perform pg_temp.como(null);
+  datos := datos_liga_cliente('xg', lower(cod_ana));
+  perform pg_temp.igual(datos->>'con', 'Ana Prueba'::text, 'Liga válida: "Solicitud con <nombre para mostrar>"');
+  perform pg_temp.igual(datos::text like '%@%' or datos::text like '%4420000001%', false, 'Sin correo ni teléfono del dueño en la página');
+  perform pg_temp.igual(jsonb_array_length(datos->'servicios') > 0, true, 'Trae los servicios de Catálogos');
+  perform pg_temp.igual(datos_liga_cliente('xg', 'ZZZZZZ'), null::jsonb, 'Código inválido: liga no válida');
+  perform pg_temp.igual(datos_liga_cliente('no-existe', cod_ana), null::jsonb, 'Organización inválida: liga no válida');
+  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', 'ZZZZZZ', 'Cliente', '4421234567', null, %L, false,
+    'Calle 1', 'casa', null, null, %s, 'ipx', 0)$q$, serv, v_aviso), 'no es válida', 'Pedir con un código inválido no entra');
+
+  -- Liga de comisionista: suya, con comisión normal.
+  select solicitud into s_ana from pedir_por_liga('xg', cod_ana, 'Cliente Ana', '+52 442 123 4567', 'cliente@correo.test', serv, false,
+    'Calle Liga 1, Querétaro', 'casa', '14 01 001', 'Urge', v_aviso, 'ip-liga-1', 0);
+  perform pg_temp.sistema();
+  perform pg_temp.igual(
+    (select (comisionista_id = ana) || ' ' || (liga_de = ana) || ' ' || origen || ' ' || estado || ' ' || tipo || ' ' || cliente_telefono
+            || ' ' || (inmueble_descripcion = E'Tipo: Casa\nUrge') || ' ' || liga_sin_dueno
+       from solicitudes where id = s_ana),
+    'true true liga_cliente solicitada cotizacion 4421234567 true false'::text,
+    'Liga de comisionista: entra a por cotizar, atribuida a él, con teléfono normalizado');
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'solicitudes' and registro_id = s_ana::text and motivo = 'Liga de cliente'),
+    1::bigint, 'Con bitácora "Liga de cliente"');
+
+  -- Liga del equipo y de admin_org: solo seguimiento, sin comisionista.
+  perform pg_temp.como(null);
+  select solicitud into s_gaby from pedir_por_liga('xg', cod_gaby, 'Cliente Gaby', '4421234568', null, serv, true,
+    'Calle Liga 2', 'terreno', null, null, v_aviso, 'ip-liga-2', 0);
+  select solicitud into s_xchel from pedir_por_liga('xg', cod_xchel, 'Cliente Xchel', '4421234569', null, serv, false,
+    'Calle Liga 3', 'departamento', null, null, v_aviso, 'ip-liga-3', 0);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select (comisionista_id is null) || ' ' || (liga_de = gaby) || ' ' || tipo from solicitudes where id = s_gaby),
+    'true true tramite_directo'::text, 'Liga del equipo: sin comisionista (solo seguimiento); "Quiero el trámite" = trámite directo');
+  perform pg_temp.igual((select (comisionista_id is null) and liga_de = xchel from solicitudes where id = s_xchel), true,
+    'Liga de admin_org: sin comisionista');
+
+  -- Al pagarse: comisión solo si hay comisionista.
+  update solicitudes set monto_honorarios = 1000, estado = 'tramite', estatus_publico = 'aceptada', aceptada_en = now()
+   where id in (s_ana, s_gaby);
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  values (s_ana, 'comprobante', 1000, hoy_mx(), xg || '/x/liga1.pdf', ana),
+         (s_gaby, 'comprobante', 1000, hoy_mx(), xg || '/x/liga2.pdf', xchel);
+  update pagos set estado = 'confirmado' where solicitud_id in (s_ana, s_gaby);
+  perform liquidar_si_completo(s_ana);
+  perform liquidar_si_completo(s_gaby);
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s_ana), 1::bigint, 'Comisionista: genera comisión normal');
+  perform pg_temp.igual((select (pagado_en is not null) || ' ' || (select count(*) from comisiones where solicitud_id = s_gaby)
+                           from solicitudes where id = s_gaby), 'true 0'::text, 'Equipo: se paga el trabajo, sin comisión');
+
+  -- Nadie fuera de liga queda sin comisionista.
+  perform pg_temp.debe_fallar(format($q$update solicitudes set comisionista_id = null where id = %L$q$,
+    (select id from solicitudes where origen = 'portal' limit 1)), 'solicitudes_con_dueno', 'Una solicitud del portal sigue exigiendo comisionista');
+
+  -- Liga de alguien inactivo: llega igual, a la organización, con alerta.
+  update membresias set activa = false where persona_id = ana and organizacion_id = xg;
+  select to_jsonb(nombre) into datos from organizaciones where id = xg;
+  perform pg_temp.como(null);
+  perform pg_temp.igual(datos_liga_cliente('xg', cod_ana)->>'con', datos->>0,
+    'Liga de inactivo: la página dice la organización');
+  select solicitud into s_inac from pedir_por_liga('xg', cod_ana, 'Cliente Inactivo', '4421234570', null, serv, false,
+    'Calle Liga 4', 'otro', null, null, v_aviso, 'ip-liga-4', 0);
+  perform pg_temp.sistema();
+  update membresias set activa = true where persona_id = ana and organizacion_id = xg;
+  perform pg_temp.igual((select (comisionista_id is null) || ' ' || liga_sin_dueno from solicitudes where id = s_inac), 'true true'::text,
+    'Liga de inactivo: atribuida a la organización, sin comisión');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s_inac and tipo = 'liga_inactiva' and resuelta_en is null),
+    1::bigint, 'Con alerta a admin_org');
+
+  -- Validaciones.
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Cliente', '442123', null, %L, false,
+    'Calle 1', 'casa', null, null, %s, 'ipv', 0)$q$, cod_ana, serv, v_aviso), '10 dígitos', 'Teléfono obligatorio a 10 dígitos');
+  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Cliente', '4421112222', 'no-es-correo', %L, false,
+    'Calle 1', 'casa', null, null, %s, 'ipv', 0)$q$, cod_ana, serv, v_aviso), 'correo', 'Correo opcional, pero válido');
+  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Cliente', '4421112222', null, %L, false,
+    'Calle 1', 'casa', null, null, %s, 'ipv', 0)$q$, cod_ana, serv, v_aviso + 1), 'aviso de privacidad', 'Exige aceptar el aviso vigente');
+  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Cliente', '4421112222', null, %L, false,
+    'Calle 1', 'castillo', null, null, %s, 'ipv', 0)$q$, cod_ana, serv, v_aviso), 'tipo de inmueble', 'Tipo de inmueble de la lista');
+
+  -- Antispam: 3 por teléfono y 5 por conexión al día.
+  for i in 1..3 loop
+    perform pedir_por_liga('xg', cod_ana, 'Spam Tel', '4429990000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-tel-' || i, 0);
+  end loop;
+  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Spam Tel', '4429990000', null, %L, false,
+    'Calle', 'casa', null, null, %s, 'ip-tel-9', 0)$q$, cod_ana, serv, v_aviso), 'Ya recibimos', 'Límite por teléfono');
+  for i in 1..5 loop
+    perform pedir_por_liga('xg', cod_ana, 'Spam IP', '44288800' || lpad(i::text, 2, '0'), null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-spam', 0);
+  end loop;
+  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Spam IP', '4428880099', null, %L, false,
+    'Calle', 'casa', null, null, %s, 'ip-spam', 0)$q$, cod_ana, serv, v_aviso), 'demasiadas', 'Límite por conexión');
+
+  -- Adjuntos: solo con el token, recién creada y hasta 3.
+  select solicitud, token into s_inac, tok from pedir_por_liga('xg', cod_gaby, 'Cliente Archivos', '4421234571', null, serv, false,
+    'Calle Liga 5', 'casa', null, null, v_aviso, 'ip-liga-5', 2);
+  perform pg_temp.igual(cliente_admite_adjunto(xg || '/' || s_inac || '/' || tok || '/escritura.pdf'), true, 'Con su token se puede subir');
+  perform pg_temp.igual(cliente_admite_adjunto(xg || '/' || s_inac || '/' || gen_random_uuid() || '/escritura.pdf'), false, 'Con otro token no');
+  perform pg_temp.igual(cliente_admite_adjunto(xg || '/' || s_ana || '/' || tok || '/escritura.pdf'), false, 'A otra solicitud no');
+  perform pg_temp.sistema();
+  insert into storage.objects (bucket_id, name) select 'clientes', xg || '/' || s_inac || '/' || tok || '/a' || g || '.pdf' from generate_series(1, 3) g;
+  perform pg_temp.igual(cliente_admite_adjunto(xg || '/' || s_inac || '/' || tok || '/cuarto.pdf'), false, 'Hasta 3 archivos');
+  delete from storage.objects where name like xg || '/' || s_inac || '/%';
+  update solicitudes set adjuntos_hasta = now() - interval '1 minute' where id = s_inac;
+  perform pg_temp.igual(cliente_admite_adjunto(xg || '/' || s_inac || '/' || tok || '/tarde.pdf'), false, 'Pasados 30 minutos ya no');
+
+  -- Avisos: el dueño ve lo de su liga; los datos del correo solo para el servidor.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select count(*) from mis_solicitudes_de_liga() where id = s_gaby), 1::bigint,
+    'El miembro del equipo ve "Tu cliente <nombre> pidió <servicio>"');
+  perform pg_temp.igual((select count(*) from mis_solicitudes_de_liga() where id = s_ana), 0::bigint, 'Y no la de otros');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from mis_solicitudes_de_liga() where id = s_ana), 1::bigint, 'El comisionista ve la suya');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar(format('select * from datos_aviso_liga(%L)', s_ana), 'permission denied', 'anon no lee a quién avisar');
+  perform pg_temp.debe_fallar('select count(*) from solicitudes', 'permission denied', 'anon no lee solicitudes');
+  perform pg_temp.sistema();
+  select * into r from datos_aviso_liga(s_gaby);
+  perform pg_temp.igual(r.dueno_correo || ' ' || r.cliente_nombre, 'gaby@tasa.test Cliente Gaby'::text, 'El servidor sabe a quién avisar');
 end;
 $$;
 

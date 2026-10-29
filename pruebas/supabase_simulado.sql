@@ -24,7 +24,7 @@ grant usage on schema public to authenticated, anon, service_role;
 -- truenan igual que tronaría la aplicación.
 
 create schema storage;
-create table storage.buckets (id text primary key, name text, public boolean);
+create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
 create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text,
                               created_at timestamptz default now());
 alter table storage.objects enable row level security;

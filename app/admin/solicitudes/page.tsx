@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { fechaCorta } from "@/lib/formato";
+import { quienLaTrajo, type Procedencia } from "@/lib/liga-clientes";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 
@@ -14,8 +15,7 @@ type Fila = {
   cliente_nombre: string;
   creado_en: string;
   servicios: { nombre: string } | null;
-  comisionistas: { personas: { nombre: string } | null } | null;
-};
+} & Procedencia;
 
 /** Lo que espera precio: solicitudes nuevas y cotizaciones vencidas que se pueden reemitir. */
 export default async function SolicitudesPorCotizar() {
@@ -25,7 +25,7 @@ export default async function SolicitudesPorCotizar() {
     oExplota(
       await supabase
         .from("solicitudes")
-        .select("id, tipo, estado, cliente_nombre, creado_en, servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))")
+        .select("id, tipo, estado, cliente_nombre, creado_en, origen, liga_sin_dueno, servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre)), liga:personas!solicitudes_liga_de_fkey(nombre)")
         .in("estado", ["solicitada", "vencida"])
         .order("creado_en")
         .returns<Fila[]>(),
@@ -63,8 +63,9 @@ function Lista({ filas }: { filas: Fila[] }) {
               <div className="min-w-0">
                 <p className="font-semibold">{f.cliente_nombre}</p>
                 <p className="text-[0.9375rem] text-secundario">
-                  {f.servicios?.nombre} · {f.comisionistas?.personas?.nombre}
+                  {f.servicios?.nombre} · {quienLaTrajo(f)}
                 </p>
+                {f.origen === "liga_cliente" ? <p className="text-[0.9375rem] font-semibold text-acento">Liga de cliente</p> : null}
                 <p className="text-[0.9375rem] text-secundario">{fechaCorta(f.creado_en)}</p>
               </div>
               <Etiqueta tono={f.tipo === "tramite_directo" ? "proceso" : "neutro"}>

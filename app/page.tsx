@@ -3,7 +3,9 @@ import { Encabezado } from "@/components/encabezado";
 import { InicioComisionista } from "@/components/inicio-comisionista";
 import { InicioStaff } from "@/components/inicio-staff";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { bonoDeEquipo, ligaDeEquipo } from "@/lib/invitar";
+import { SolicitudesDeClientes } from "@/components/solicitudes-de-clientes";
+import { TarjetaClientes } from "@/components/tarjeta-clientes";
+import { bonoDeEquipo, codigoDeEquipo, ligaDeClientes, ligaDeEquipo } from "@/lib/invitar";
 import { obtenerContacto } from "@/lib/contacto";
 import { obtenerSesion } from "@/lib/sesion";
 
@@ -48,7 +50,8 @@ export default async function Inicio() {
                 Ya eres parte del equipo de {persona.organizacion.nombre}. Tus herramientas todavía no están
                 listas; aquí aparecerán.
               </p>
-              <LigaEquipo persona={persona} />
+              <SolicitudesDeClientes />
+              <LigasEquipo persona={persona} />
             </>
           ) : (
             <InicioStaff persona={persona} />
@@ -59,8 +62,13 @@ export default async function Inicio() {
   );
 }
 
-/** La tarjeta "Invita a un comisionista" del equipo (con su bono, si admin_org se lo dio). */
-async function LigaEquipo({ persona }: { persona: Parameters<typeof ligaDeEquipo>[0] }) {
-  const [liga, bono] = await Promise.all([ligaDeEquipo(persona), bonoDeEquipo(persona)]);
-  return liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null;
+/** "Para tus clientes" e "Invita a un comisionista" del equipo (con su bono, si admin_org se lo dio). */
+async function LigasEquipo({ persona }: { persona: Parameters<typeof ligaDeEquipo>[0] }) {
+  const [liga, bono, codigo] = await Promise.all([ligaDeEquipo(persona), bonoDeEquipo(persona), codigoDeEquipo(persona)]);
+  return (
+    <>
+      {codigo ? <TarjetaClientes liga={await ligaDeClientes(persona, codigo)} /> : null}
+      {liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null}
+    </>
+  );
 }

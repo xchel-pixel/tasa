@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
+import { quienLaTrajo, type Procedencia } from "@/lib/liga-clientes";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import FormularioPrecio from "./formulario-precio";
 
@@ -21,8 +22,8 @@ type Solicitud = {
   cliente_telefono: string | null;
   cliente_correo: string | null;
   servicios: { nombre: string } | null;
-  comisionistas: { personas: { nombre: string } | null } | null;
-};
+  organizacion_id: string;
+} & Procedencia;
 
 export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/[id]">) {
   await exigirRol(...ROLES_OPERACION);
@@ -36,7 +37,9 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
       .select(
         `id, tipo, estado, marca_id, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral,
          inmueble_descripcion, cliente_nombre, cliente_telefono, cliente_correo,
-         servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))`
+         organizacion_id, origen, liga_sin_dueno,
+         servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre)),
+         liga:personas!solicitudes_liga_de_fkey(nombre)`
       )
       .eq("id", id)
       .maybeSingle()
@@ -51,7 +54,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
   if (!s) notFound();
 
   const datos: [string, string | null | undefined][] = [
-    ["Comisionista", s.comisionistas?.personas?.nombre],
+    [s.comisionistas ? "Comisionista" : "Liga de cliente de", quienLaTrajo(s)],
     ["Servicio", s.servicios?.nombre],
     ["Dirección", [s.inmueble_direccion, s.inmueble_municipio].filter(Boolean).join(", ")],
     ["Clave catastral", s.inmueble_clave_catastral],
@@ -62,6 +65,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
   ];
 
   const cotizable = s.estado === "solicitada" || s.estado === "vencida";
+  const adjuntos = s.origen === "liga_cliente" ? await adjuntosDelCliente(supabase, s.organizacion_id, s.id) : [];
 
   return (
     <PantallaAdmin
@@ -77,6 +81,21 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
         ))}
       </dl>
 
+      {adjuntos.length > 0 ? (
+        <section className="mt-4">
+          <h2 className="font-bold">Documentos del cliente</h2>
+          <ul className="mt-2 flex flex-col gap-2">
+            {adjuntos.map((a) => (
+              <li key={a.url}>
+                <a href={a.url} target="_blank" rel="noopener" className="font-semibold text-acento underline underline-offset-4">
+                  {a.nombre}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {cotizable ? (
         <FormularioPrecio
           solicitudId={s.id}
@@ -89,5 +108,28 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
         <p className="mt-6 rounded-xl bg-tinte px-4 py-3">Esta solicitud ya no espera precio.</p>
       )}
     </PantallaAdmin>
+  );
+}
+
+/**
+ * Lo que subió el cliente por la liga (bucket privado `clientes`), con URL firmada por 10 minutos.
+ * La ruta es <organización>/<solicitud>/<token>/<archivo>.
+ */
+async function adjuntosDelCliente(
+  supabase: Awaited<ReturnType<typeof crearClienteServidor>>,
+  org: string,
+  id: string
+): Promise<{ nombre: string; url: string }[]> {
+  const storage = supabase.storage.from("clientes");
+  const { data: carpetas } = await storage.list(`${org}/${id}`);
+  const rutas: string[] = [];
+  for (const c of carpetas ?? []) {
+    const { data: archivos } = await storage.list(`${org}/${id}/${c.name}`);
+    for (const a of archivos ?? []) rutas.push(`${org}/${id}/${c.name}/${a.name}`);
+  }
+  if (rutas.length === 0) return [];
+  const { data } = await storage.createSignedUrls(rutas, 600);
+  return (data ?? []).flatMap((d) =>
+    d.signedUrl && d.path ? [{ nombre: d.path.split("/").pop()!.replace(/^d+-/, ""), url: d.signedUrl }] : []
   );
 }

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AvisoCsf } from "@/components/aviso-csf";
 import { BloqueNivel } from "@/components/bloque-nivel";
+import { SolicitudesDeClientes } from "@/components/solicitudes-de-clientes";
+import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { urlDelSitio } from "@/lib/altas";
 import { Etiqueta } from "@/components/etiqueta";
@@ -59,9 +61,12 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
         <Link href="/perfil" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mis datos</Link>
       </p>
 
+      <SolicitudesDeClientes />
+
       <Lista titulo="En curso" trabajos={enCurso} vacio="No tienes trabajos en curso." />
       {cerrados.length > 0 ? <Lista titulo="Terminados" trabajos={cerrados} /> : null}
 
+      {yo ? <TarjetaClientes liga={`${sitio}/s/${persona.organizacion.slug}/${yo.codigo_referido}`} /> : null}
       {yo ? <TarjetaInvitar liga={`${sitio}/alta/${persona.organizacion.slug}?ref=${yo.codigo_referido}`} /> : null}
     </>
   );

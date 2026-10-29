@@ -10,12 +10,12 @@ import { NextResponse, type NextRequest } from "next/server";
 const RUTA_ACCESO = "/entrar";
 
 /**
- * Lo que se ve sin sesión: la pantalla de acceso, la solicitud de alta,
+ * Lo que se ve sin sesión: la pantalla de acceso, la solicitud de alta, la liga de clientes (/s/),
  * el aviso de privacidad y `/api/cron`, que se protege con su propio
  * secreto (CRON_SECRET), no con sesión. `anon` no puede leer ninguna
  * tabla: abrir una ruta no abre los datos.
  */
-const RUTAS_ABIERTAS = [RUTA_ACCESO, "/alta/", "/privacidad", "/api/cron"];
+const RUTAS_ABIERTAS = [RUTA_ACCESO, "/alta/", "/s/", "/privacidad", "/api/cron"];
 
 export async function proxy(request: NextRequest) {
   let respuesta = NextResponse.next({ request });

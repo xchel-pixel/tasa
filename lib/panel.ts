@@ -10,6 +10,8 @@ import { mesActual } from "@/lib/formato";
 export type Pendientes = {
   pagos: number;
   solicitudes: number;
+  /** De esas, las que llegaron por la liga de un cliente. */
+  deLiga: number;
   alertas: number;
   /** Solicitudes de alta por aprobar (admin_marca no las ve: cero). */
   altas: number;
@@ -25,19 +27,21 @@ export function mesAnterior(mes: string): string {
 export async function pendientesDelPanel(): Promise<Pendientes> {
   const supabase = await crearClienteServidor();
   const anterior = mesAnterior(mesActual());
-  const [pagos, solicitudes, alertas, altas, cierre] = await Promise.all([
+  const [pagos, solicitudes, deLiga, alertas, altas, cierre] = await Promise.all([
     supabase.from("pagos").select("id", { count: "exact", head: true }).eq("estado", "reportado"),
     supabase.from("solicitudes").select("id", { count: "exact", head: true }).eq("estado", "solicitada"),
+    supabase.from("solicitudes").select("id", { count: "exact", head: true }).eq("estado", "solicitada").eq("origen", "liga_cliente"),
     supabase.from("alertas").select("id", { count: "exact", head: true }).is("resuelta_en", null),
     supabase.from("solicitudes_alta").select("id", { count: "exact", head: true }).eq("estado", "pendiente"),
     supabase.from("cierres").select("estado").eq("mes", anterior).maybeSingle().returns<{ estado: "preparado" | "aprobado" } | null>(),
   ]);
-  for (const [r, que] of [[pagos, "los pagos"], [solicitudes, "las solicitudes"], [alertas, "las alertas"], [altas, "las solicitudes de alta"]] as const) {
+  for (const [r, que] of [[pagos, "los pagos"], [solicitudes, "las solicitudes"], [deLiga, "las solicitudes de clientes"], [alertas, "las alertas"], [altas, "las solicitudes de alta"]] as const) {
     if (r.error) oExplota(r, que);
   }
   return {
     pagos: pagos.count ?? 0,
     solicitudes: solicitudes.count ?? 0,
+    deLiga: deLiga.count ?? 0,
     alertas: alertas.count ?? 0,
     altas: altas.count ?? 0,
     cierre: { mes: anterior, estado: oExplota(cierre, "el cierre")?.estado ?? "sin_preparar" },

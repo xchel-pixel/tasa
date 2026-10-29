@@ -10,7 +10,7 @@ export const metadata = { title: "Alertas — Tasa" };
 
 type Fila = {
   id: string;
-  tipo: "cancelado_externo" | "conector";
+  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "conector";
   codigo: string | null;
   mensaje: string;
   creada_en: string;
@@ -60,8 +60,9 @@ export default async function Alertas() {
               <p className="font-semibold">{a.mensaje}</p>
               <p className="text-[0.9375rem] text-secundario">{fechaCorta(a.creada_en)}</p>
               {a.solicitudes ? (
-                <Link href={`/trabajos/${a.solicitudes.id}`} className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
-                  Ver trabajo
+                <Link href={a.tipo === "liga_inactiva" ? `/admin/solicitudes/${a.solicitudes.id}` : `/trabajos/${a.solicitudes.id}`}
+                  className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+                  {a.tipo === "liga_inactiva" ? "Ver solicitud" : "Ver trabajo"}
                 </Link>
               ) : null}
               {a.solicitudes?.pagado_en ? (

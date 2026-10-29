@@ -6,8 +6,13 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 /** Quienes invitan sin ser comisionistas: solo seguimiento (admin_org nunca lleva bono). */
 export const ROLES_QUE_INVITAN = ["admin_org", "equipo", "finanzas", "admin_marca"] as const;
 
-/** La liga de alta con el código de esta persona del equipo; nula si no tiene código. */
-export async function ligaDeEquipo(persona: Persona): Promise<string | null> {
+/** La liga /s/<org>/<código> con la que un cliente pide a nombre de esta persona. */
+export async function ligaDeClientes(persona: Persona, codigo: string): Promise<string> {
+  return `${await urlDelSitio()}/s/${persona.organizacion.slug}/${codigo}`;
+}
+
+/** El código de referido de esta persona del equipo; nulo si no tiene. */
+export async function codigoDeEquipo(persona: Persona): Promise<string | null> {
   if (!(ROLES_QUE_INVITAN as readonly string[]).includes(persona.rol)) return null;
   const supabase = await crearClienteServidor();
   const { data } = await supabase
@@ -17,8 +22,13 @@ export async function ligaDeEquipo(persona: Persona): Promise<string | null> {
     .eq("organizacion_id", persona.organizacion.id)
     .maybeSingle()
     .returns<{ codigo_referido: string | null } | null>();
-  if (!data?.codigo_referido) return null;
-  return `${await urlDelSitio()}/alta/${persona.organizacion.slug}?ref=${data.codigo_referido}`;
+  return data?.codigo_referido ?? null;
+}
+
+/** La liga de alta con el código de esta persona del equipo; nula si no tiene código. */
+export async function ligaDeEquipo(persona: Persona): Promise<string | null> {
+  const codigo = await codigoDeEquipo(persona);
+  return codigo ? `${await urlDelSitio()}/alta/${persona.organizacion.slug}?ref=${codigo}` : null;
 }
 
 /**
