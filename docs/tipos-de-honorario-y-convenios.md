@@ -21,7 +21,7 @@ Se eligen al cotizar y al poner precio a un trámite directo ("cotizar y aceptar
 
 - **Una sola pantalla (0042):** datos (cliente o empresa, contacto, vigencia y notas), "Precios del convenio" y comisión. Arriba hay un ejemplo de cómo llenarlo.
 - **Precios del convenio:** una fila por servicio del catálogo, con incluir sí/no, marca (o cualquiera), tipo (Fijo, Sin costo o Estimado con rango) y nota (p. ej. "sin costo si contrata el avalúo").
-- **Guardar:** todo se guarda junto con , en una sola transacción. Si algo no cuadra, se muestra un mensaje en español con el servicio que falló y no se guarda nada a medias. La acción nunca muestra la página de error.
+- **Guardar:** todo se guarda junto con `guardar_convenio`, en una sola transacción. Si algo no cuadra, se muestra un mensaje en español con el servicio que falló y no se guarda nada a medias. La acción nunca muestra la página de error.
 - **"¿Genera comisión?"** tiene tres opciones, cada una con su ayuda en pantalla:
   - **Sí, normal:** con el % del nivel, y cuenta para el nivel.
   - **No:** ni comisión ni nivel.
@@ -33,7 +33,7 @@ Se eligen al cotizar y al poner precio a un trámite directo ("cotizar y aceptar
   - Finanzas y admin_marca los leen para cotizar.
   - Solo admin_org los edita.
 - **No se borran:** los convenios se desactivan. Quitar un servicio de la tabla y guardar quita su precio.
-- **Incidente del 29-oct-2026:** la página de Catálogos llamaba desde el servidor una función de un archivo de cliente (), y truena en cuanto hay un convenio que pintar. Ahora  lo busca en todo el código.
+- **Incidente del 29-oct-2026:** la página de Catálogos llamaba desde el servidor una función de un archivo de cliente (`textoComision`), y truena en cuanto hay un convenio que pintar. Ahora `pruebas/cliente-servidor.test.ts` lo busca en todo el código.
 
 ## Reportes
 
