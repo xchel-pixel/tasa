@@ -81,11 +81,11 @@ select * from (
          'comisionistas ' || (select count(*) from comisionistas) || ' · trabajos ' || (select count(*) from solicitudes)
          || ' · solicitudes de alta ' || (select count(*) from solicitudes_alta) || ' · pagos ' || (select count(*) from pagos)
   union all
-  select 15, 'Conector manual activo',
-         (select tipo from conectores c, xg where c.organizacion_id = xg.id and c.activo) = 'manual',
+  select 15, 'Un solo conector activo',
+         (select count(*) from conectores c, xg where c.organizacion_id = xg.id and c.activo) = 1,
          (select string_agg(tipo || case when activo then ' (activo)' else '' end, ', ') from conectores)
   union all
-  select 16, 'Migraciones aplicadas hasta la 0031',
-         (select max(version) from supabase_migrations.schema_migrations) = '0031',
+  select 16, 'Migraciones aplicadas hasta la 0032',
+         (select max(version) from supabase_migrations.schema_migrations) = '0032',
          (select count(*) || ' migraciones, última ' || max(version) from supabase_migrations.schema_migrations)
 ) r order by n;

@@ -1671,6 +1671,7 @@ declare
   gaby     uuid := (select id from personas where correo = 'gaby@tasa.test');
   xchel    uuid := (select id from personas where correo = 'xchel@arqosuv.com');
   cod_gaby text;
+  cod_xchel text;
   v_aviso  integer;
   sol      uuid;
   propia   uuid;
@@ -1679,10 +1680,11 @@ declare
 begin
   perform pg_temp.sistema();
   select codigo_referido into cod_gaby from membresias where persona_id = gaby and organizacion_id = xg;
+  select codigo_referido into cod_xchel from membresias where persona_id = xchel and organizacion_id = xg;
   select aviso_version into v_aviso from ajustes where organizacion_id = xg;
   perform pg_temp.igual(cod_gaby ~ '^[A-HJ-KM-NP-Z2-9]{6}$', true, 'Finanzas (equipo) tiene su código de referido');
-  perform pg_temp.igual((select codigo_referido is null from membresias where persona_id = xchel and organizacion_id = xg), true,
-    'admin_org no tiene código (solo equipo, finanzas y admin de marca)');
+  perform pg_temp.igual((select codigo_referido ~ '^[A-HJ-KM-NP-Z2-9]{6}$' from membresias where persona_id = xchel and organizacion_id = xg), true,
+    'admin_org también tiene código (solo seguimiento)');
   perform pg_temp.igual((select count(*) from membresias m join comisionistas c on c.codigo_referido = m.codigo_referido), 0::bigint,
     'Ningún código se repite entre equipo y comisionistas');
 
@@ -1725,13 +1727,27 @@ begin
 
   -- admin_org que refirió: puede decidir, pero queda marcado.
   perform pg_temp.como(null);
-  otra := pedir_alta('xg', 'Invitada Admin', 'invadmin@tasa.test', '4421112262', 'GUXD800101AB3', null, null, v_aviso, 'ip6', false);
+  otra := pedir_alta('xg', 'Invitada Admin', 'invadmin@tasa.test', '4421112262', 'GUXD800101AB3', null,
+                     cod_xchel, v_aviso, 'ip6', false);
   perform pg_temp.sistema();
-  update solicitudes_alta set referidor_miembro_id = xchel where id = otra;
+  perform pg_temp.igual((select (referidor_miembro_id = xchel) and referidor_id is null from solicitudes_alta where id = otra), true,
+    'Lo que invita admin_org se guarda como referido de equipo, nunca como de comisionista');
   perform pg_temp.como('xchel@arqosuv.com');
   perform rechazar_alta(otra, null);
   perform pg_temp.igual((select decidida_por_referidor from solicitudes_alta where id = otra), true,
     'admin_org que refirió puede decidir, pero queda marcado');
+
+  -- Para admin_org el bono nunca aplica, aunque se enciendan los interruptores.
+  perform pg_temp.sistema();
+  update ajustes set bono_referido_equipo = true where organizacion_id = xg;
+  update membresias set bono_referido = true where persona_id = xchel and organizacion_id = xg;
+  perform pg_temp.igual(miembro_cobra_bono(xg, xchel), false, 'admin_org nunca cobra bono de referido, con todo encendido');
+  update membresias set bono_referido = false where persona_id = xchel and organizacion_id = xg;
+  update ajustes set bono_referido_equipo = false where organizacion_id = xg;
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true)',
+                                     (select id from membresias where persona_id = xchel and organizacion_id = xg)),
+    'no lleva bono', 'No se le puede encender el bono a admin_org');
   perform pg_temp.igual(
     (select count(*) from bitacora where tabla = 'solicitudes_alta' and accion = 'UPDATE' and registro_id = otra::text
         and (despues->>'decidida_por_referidor')::boolean),

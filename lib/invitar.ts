@@ -2,8 +2,8 @@ import { urlDelSitio } from "@/lib/altas";
 import type { Persona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-/** Roles del equipo que invitan (solo seguimiento, sin bono). */
-export const ROLES_QUE_INVITAN = ["equipo", "finanzas", "admin_marca"] as const;
+/** Quienes invitan sin ser comisionistas: solo seguimiento (admin_org nunca lleva bono). */
+export const ROLES_QUE_INVITAN = ["admin_org", "equipo", "finanzas", "admin_marca"] as const;
 
 /** La liga de alta con el código de esta persona del equipo; nula si no tiene código. */
 export async function ligaDeEquipo(persona: Persona): Promise<string | null> {
