@@ -37,13 +37,13 @@ export async function POST(request: NextRequest) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const cuerpo = (await request.json().catch(() => ({}))) as { conector?: string; probar?: boolean };
+  const cuerpo = (await request.json().catch(() => ({}))) as { conector?: string; probar?: boolean; barrido_csf?: boolean };
 
   // Lo que no depende de conectores: vencer cotizaciones y limpiar solicitudes de alta.
   if (!cuerpo.conector) {
     const { error } = await supabase.rpc("vencer_cotizaciones");
     if (error) console.error(`[tasa] No se pudieron vencer cotizaciones: ${error.message}`);
-    await limpiarAltas(supabase);
+    await limpiarAltas(supabase, Boolean(cuerpo.barrido_csf));
   }
 
   // Probar un conector se puede antes de activarlo; sincronizar, solo los activos.
@@ -69,25 +69,30 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * La CSF de una solicitud rechazada se borra a los 90 días (la solicitud
- * se queda, sin el archivo), y las solicitudes que nunca terminaron de
- * subir su CSF se borran al día. Primero el archivo, después la marca:
- * si Storage falla, se reintenta en la siguiente corrida.
+ * Limpieza de CSF (ver 0030): rechazadas a los 90 días, reemplazadas a los
+ * 30, solicitudes abandonadas al día con su archivo y archivos sin dueño
+ * de más de un día. Primero se borra el archivo y después se cierra en la
+ * base (con su entrada en la bitácora): si Storage falla, no se cierra y
+ * se reintenta en la siguiente corrida.
  */
-async function limpiarAltas(supabase: SupabaseClient) {
-  const { data, error } = await supabase.rpc("csf_por_borrar");
+async function limpiarAltas(supabase: SupabaseClient, barrido = false) {
+  // El barrido único (`{ "barrido_csf": true }`) borra sin dueño de más de una hora, no de un día.
+  const { data, error } = await supabase.rpc("csf_por_limpiar", barrido ? { p_espera: "1 hour" } : {});
   if (error) {
-    console.error(`[tasa] No se pudieron leer las CSF por borrar: ${error.message}`);
+    console.error(`[tasa] No se pudo leer la limpieza de CSF: ${error.message}`);
     return;
   }
-  for (const f of (data ?? []) as { id: string; ruta: string }[]) {
+  const cuenta: Record<string, number> = {};
+  for (const f of (data ?? []) as { tipo: string; ref: string | null; ruta: string }[]) {
+    // Borrar un archivo que ya no existe no es error (la abandonada pudo no haber subido nada).
     const { error: errorStorage } = await supabase.storage.from("altas").remove([f.ruta]);
     if (errorStorage) {
       console.error(`[tasa] No se pudo borrar la CSF ${f.ruta}: ${errorStorage.message}`);
       continue;
     }
-    await supabase.rpc("marcar_csf_borrada", { p_id: f.id });
+    const { error: errorCierre } = await supabase.rpc("cerrar_limpieza_csf", { p_tipo: f.tipo, p_ref: f.ref, p_ruta: f.ruta });
+    if (errorCierre) console.error(`[tasa] No se pudo cerrar la limpieza de ${f.ruta}: ${errorCierre.message}`);
+    else cuenta[f.tipo] = (cuenta[f.tipo] ?? 0) + 1;
   }
-  const { data: abandonadas } = await supabase.rpc("borrar_altas_abandonadas");
-  if (abandonadas) console.log(`[tasa] ${abandonadas} solicitudes de alta sin CSF borradas`);
+  if (Object.keys(cuenta).length) console.log(`[tasa] Limpieza de CSF: ${JSON.stringify(cuenta)}`);
 }

@@ -85,7 +85,7 @@ select * from (
          (select tipo from conectores c, xg where c.organizacion_id = xg.id and c.activo) = 'manual',
          (select string_agg(tipo || case when activo then ' (activo)' else '' end, ', ') from conectores)
   union all
-  select 16, 'Migraciones aplicadas hasta la 0029',
-         (select max(version) from supabase_migrations.schema_migrations) = '0029',
+  select 16, 'Migraciones aplicadas hasta la 0031',
+         (select max(version) from supabase_migrations.schema_migrations) = '0031',
          (select count(*) || ' migraciones, última ' || max(version) from supabase_migrations.schema_migrations)
 ) r order by n;

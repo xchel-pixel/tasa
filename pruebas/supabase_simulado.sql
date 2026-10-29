@@ -25,7 +25,8 @@ grant usage on schema public to authenticated, anon, service_role;
 
 create schema storage;
 create table storage.buckets (id text primary key, name text, public boolean);
-create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text,
+                              created_at timestamptz default now());
 alter table storage.objects enable row level security;
 create function storage.foldername(name text) returns text[] language sql as $$
   select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
@@ -35,6 +36,8 @@ $$;
 -- importa que nadie con sesión pueda leerlo y que las funciones sí.
 create schema vault;
 create table vault.secrets (id uuid primary key default gen_random_uuid(), name text, description text, secret text);
+-- Como en Supabase: el nombre de un secreto es único (secrets_name_idx).
+create unique index secrets_name_idx on vault.secrets (name) where name is not null;
 create view vault.decrypted_secrets as select id, name, description, secret as decrypted_secret from vault.secrets;
 create function vault.create_secret(new_secret text, new_name text default null, new_description text default '')
 returns uuid language sql as $$

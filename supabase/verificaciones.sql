@@ -1579,13 +1579,16 @@ begin
           xg || '/x/csf.pdf', now() - interval '89 days')
   returning id into sol3;
   update solicitudes_alta set decidida_en = now() - interval '90 days 1 minute' where id = sol2;
-  perform pg_temp.igual((select count(*) from csf_por_borrar() where id = sol2), 1::bigint, 'La CSF rechazada hace 90 días se borra');
-  perform pg_temp.igual((select count(*) from csf_por_borrar() where id = sol3), 0::bigint, 'La de 89 días no');
-  perform marcar_csf_borrada(sol2);
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where tipo = 'rechazada' and ref = sol2), 1::bigint, 'La CSF rechazada hace 90 días se borra');
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where tipo = 'rechazada' and ref = sol3), 0::bigint, 'La de 89 días no');
+  perform cerrar_limpieza_csf('rechazada', sol2, (select csf_ruta from solicitudes_alta where id = sol2));
   perform pg_temp.igual((select csf_ruta is null and csf_borrada_en is not null from solicitudes_alta where id = sol2), true,
     'La solicitud se queda, sin el archivo');
   update solicitudes_alta set creada_en = now() - interval '2 days' where ip_resumen = 'ip3';
-  perform pg_temp.igual(borrar_altas_abandonadas(), 5, 'Las que nunca subieron su CSF se borran al día');
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where tipo = 'abandonada'), 5::bigint,
+    'Las que nunca subieron su CSF entran a la limpieza al día');
+  perform cerrar_limpieza_csf(l.tipo, l.ref, l.ruta) from csf_por_limpiar() l where l.tipo = 'abandonada';
+  perform pg_temp.igual((select count(*) from solicitudes_alta where ip_resumen = 'ip3'), 0::bigint, 'Y se borran');
 end;
 $$;
 
@@ -1743,6 +1746,95 @@ begin
   perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.igual((select count(*) from reporte_referidos()), 0::bigint, 'Un comisionista no ve el reporte');
   perform pg_temp.sistema();
+end;
+$$;
+
+-- @@ Limpieza de CSF: reemplazadas, abandonadas y huérfanas
+do $$
+declare
+  xg      uuid := pg_temp.xg();
+  ana     uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  vigente text;
+  vieja   uuid;
+  aband   uuid;
+  v_aviso integer;
+begin
+  perform pg_temp.sistema();
+  select csf_ruta into vigente from comisionistas where persona_id = ana and organizacion_id = xg;
+  select id into vieja from csf_reemplazadas where persona_id = ana and ruta = xg || '/' || ana || '/csf-ana.pdf';
+  perform pg_temp.igual(vieja is not null, true, 'Al reemplazar su CSF, la anterior queda registrada');
+
+  update csf_reemplazadas set reemplazada_en = now() - interval '29 days' where id = vieja;
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where tipo = 'reemplazada' and ref = vieja), 0::bigint,
+    'Reemplazada hace 29 días: se conserva');
+  update csf_reemplazadas set reemplazada_en = now() - interval '30 days 1 minute' where id = vieja;
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where tipo = 'reemplazada' and ref = vieja), 1::bigint,
+    'Reemplazada hace 30 días: se borra');
+  perform cerrar_limpieza_csf('reemplazada', vieja, xg || '/' || ana || '/csf-ana.pdf');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'csf_reemplazadas' and registro_id = vieja::text
+        and motivo = 'Limpieza: CSF reemplazada hace 30 días'),
+    1::bigint, 'El borrado de la reemplazada queda en bitácora con su motivo');
+
+  -- La vigente nunca, aunque su archivo sea viejo.
+  update storage.objects set created_at = now() - interval '400 days' where bucket_id = 'altas';
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where ruta = vigente), 0::bigint,
+    'La CSF vigente del comisionista nunca entra a la limpieza');
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() l join comisionistas c on c.csf_ruta = l.ruta), 0::bigint,
+    'Ninguna CSF vigente de ningún comisionista');
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() l join solicitudes_alta s on s.csf_ruta = l.ruta and s.estado = 'pendiente'), 0::bigint,
+    'Ninguna CSF de una solicitud pendiente');
+
+  -- Abandonada con su archivo.
+  select aviso_version into v_aviso from ajustes where organizacion_id = xg;
+  perform pg_temp.como(null);
+  aband := pedir_alta('xg', 'Abandonada', 'abandonada@tasa.test', '4421112270', 'GUXD800101AB3', null, null, v_aviso, 'ip7', true);
+  insert into storage.objects (bucket_id, name) values ('altas', xg || '/' || aband || '/csf.pdf');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where ref = aband), 0::bigint, 'Una subida de hoy no se toca');
+  update solicitudes_alta set creada_en = now() - interval '2 days' where id = aband;
+  perform pg_temp.igual((select ruta from csf_por_limpiar() where tipo = 'abandonada' and ref = aband), xg || '/' || aband || '/csf.pdf',
+    'La abandonada entra con su archivo');
+  perform cerrar_limpieza_csf('abandonada', aband, xg || '/' || aband || '/csf.pdf');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'solicitudes_alta' and accion = 'DELETE' and registro_id = aband::text
+        and motivo like 'Limpieza: solicitud abandonada%'),
+    1::bigint, 'La abandonada se borra con su entrada en bitácora');
+
+  -- Huérfanas: un archivo viejo sin dueño sí; uno de hoy no.
+  insert into storage.objects (bucket_id, name, created_at) values ('altas', xg || '/directa/sin-dueno.pdf', now() - interval '2 days');
+  insert into storage.objects (bucket_id, name) values ('altas', xg || '/directa/subiendo-ahora.pdf');
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where tipo = 'huerfana' and ruta = xg || '/directa/sin-dueno.pdf'), 1::bigint,
+    'Un archivo sin solicitud ni comisionista entra a la limpieza');
+  perform pg_temp.igual((select count(*) from csf_por_limpiar() where ruta = xg || '/directa/subiendo-ahora.pdf'), 0::bigint,
+    'Uno de hoy no (puede ser una subida en curso)');
+  perform cerrar_limpieza_csf('huerfana', null, xg || '/directa/sin-dueno.pdf');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'storage.altas' and registro_id = xg || '/directa/sin-dueno.pdf' and organizacion_id = xg),
+    1::bigint, 'El borrado de la huérfana queda en bitácora');
+end;
+$$;
+
+-- @@ Credencial de conector: crear o actualizar
+do $$
+declare
+  notion uuid := (select id from conectores where organizacion_id = pg_temp.xg() and tipo = 'notion');
+begin
+  -- Lo que dejó el reset: un secreto con el nombre del conector, sin amarrar.
+  perform pg_temp.sistema();
+  update conectores set credencial_id = null where id = notion;
+  delete from vault.secrets where name = 'conector_' || notion;
+  perform vault.create_secret('secreto_viejo_de_pruebas', 'conector_' || notion, 'quedó del reset');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(pg_temp.xg());
+  perform guardar_credencial_conector(notion, 'ntn_primero');
+  perform guardar_credencial_conector(notion, 'ntn_segundo');
+  perform pg_temp.sistema();
+  perform pg_temp.igual(credencial_conector(notion), 'ntn_segundo'::text,
+    'Guardar dos veces el secreto del mismo conector no da error y queda el último');
+  perform pg_temp.igual((select count(*) from vault.secrets where name = 'conector_' || notion), 1::bigint,
+    'Sigue habiendo un solo secreto con su nombre (reusó el que quedó del reset)');
 end;
 $$;
 
