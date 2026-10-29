@@ -136,10 +136,18 @@ la app las muestra, la base las hace cumplir.
   `npm run db:reset-produccion`, una sola vez. Tras un cambio de estructura, `npm run db:resembrar`
   (solo pruebas) deja la base en cero con la semilla.
 - Verificar contra la base real, no contra los archivos SQL.
-- **Después de cada migración aplicada a producción, correr `node scripts/revisar-consultas.mjs`**
-  y no dar la tarea por terminada si reporta errores. Manda cada consulta de las pantallas a la
-  base real con `limit=0` (no lee datos) y atrapa lo que tumba una pantalla aunque la base esté
-  vacía: relaciones ambiguas (PGRST201), columnas que ya no existen.
+- **Inmediatamente después de aplicar cualquier migración a producción: revisar-consultas y humo,
+  antes de hacer cualquier otra cosa. Si falla alguno, se corrige o se revierte en ese momento y se
+  le avisa a Xchel.** `node scripts/revisar-consultas.mjs` manda cada consulta de las pantallas a
+  la base real con `limit=0` (no lee datos) y atrapa lo que tumba una pantalla aunque la base esté
+  vacía: relaciones ambiguas (PGRST201), columnas que ya no existen. `npm run humo` abre todas las
+  pantallas como admin_org y como finanzas. (Incidente de 0041: la migración se aplicó, se siguió
+  trabajando y la ficha del trabajo quedó caída cerca de media hora.)
+- **Si una migración agrega una relación nueva entre tablas que ya tenían una** (p. ej. una
+  segunda llave de cotizaciones a solicitudes), primero se sube el código que ya nombra la
+  relación existente (`cotizaciones!cotizaciones_organizacion_id_solicitud_id_fkey(...)`) y, ya
+  publicado, se aplica la migración. Al revés, las consultas sin nombre se vuelven ambiguas en el
+  momento en que la migración entra y las pantallas fallan hasta que llega el código.
 - **Antes de cada push a main, correr `npm run humo` y no subir si falla.** Entra a producción
   como admin_org y como finanzas y abre todas las pantallas (solo lectura); las que no le tocan a
   finanzas deben regresarla al inicio. La lista sale de las rutas reales: una ruta nueva sin su
