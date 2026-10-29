@@ -2147,8 +2147,14 @@ begin
   select solicitud into s_xchel from pedir_por_liga('xg', cod_xchel, 'Cliente Xchel', '4421234569', null, serv, false,
     'Calle Liga 3', 'departamento', null, null, v_aviso, 'ip-liga-3', 0);
   perform pg_temp.sistema();
-  perform pg_temp.igual((select (comisionista_id is null) || ' ' || (liga_de = gaby) || ' ' || tipo from solicitudes where id = s_gaby),
-    'true true tramite_directo'::text, 'Liga del equipo: sin comisionista (solo seguimiento); "Quiero el trámite" = trámite directo');
+  perform pg_temp.igual((select (comisionista_id is null) || ' ' || (liga_de = gaby) || ' ' || tipo || ' ' || estado || ' ' || quiere_tramite
+                           from solicitudes where id = s_gaby),
+    'true true cotizacion solicitada true'::text,
+    'Liga del equipo: sin comisionista (solo seguimiento); "Quiero el trámite" entra como cotización marcada');
+  perform pg_temp.igual((select count(*) from reclamar_por_crear(pg_temp.notion_xg(), 100) where solicitud_id in (s_gaby, s_ana, s_xchel)),
+    0::bigint, 'Nada de la liga crea páginas en Notion antes de aceptarse la cotización');
+  perform pg_temp.debe_fallar(format($q$update solicitudes set quiere_tramite = true where id = (select id from solicitudes where origen = 'portal' limit 1)$q$),
+    'solicitudes_quiere_tramite_de_liga', 'La marca solo existe en solicitudes de liga');
   perform pg_temp.igual((select (comisionista_id is null) and liga_de = xchel from solicitudes where id = s_xchel), true,
     'Liga de admin_org: sin comisionista');
 

@@ -6,7 +6,8 @@ miembro del equipo). El cliente no tiene cuenta: el seguimiento lo da el dueño 
 - **Página:** "Solicitud con <nombre para mostrar>". Nunca correo ni teléfono del dueño
   (`datos_liga_cliente` solo devuelve nombre para mostrar, organización, servicios y versión del aviso).
 - **Formulario:** nombre, teléfono (10 dígitos, obligatorio), correo (opcional), servicio (Catálogos),
-  "Solo cotización" (`cotizacion`) o "Quiero el trámite" (`tramite_directo`), ubicación, tipo de
+  "Solo cotización" o "Quiero el trámite" (las dos entran como `cotizacion`; la segunda con la marca
+  `quiere_tramite`, visible y primero en "Solicitudes por cotizar", 0038), ubicación, tipo de
   inmueble, clave catastral y comentarios (opcionales), hasta 3 archivos PDF/imagen de 10 MB, y el
   aviso de privacidad obligatorio.
 - **Antispam:** campo trampa, mínimo 4 segundos llenando, y en la base: 5 por conexión (IP en hash),
@@ -23,5 +24,8 @@ miembro del equipo). El cliente no tiene cuenta: el seguimiento lo da el dueño 
   correo; a admin y finanzas, el contador "Solicitudes por cotizar" dice cuántas llegaron por liga.
   Al cliente: pantalla "Recibimos tu solicitud" y correo si dejó correo. Los correos los manda el
   servidor con la llave de servicio (`datos_aviso_liga`, solo `service_role`).
-- **Tarjeta "Para tus clientes"** (comisionista, equipo, admin_org): copiar liga, WhatsApp con
+- **Notion:** nada de la liga crea páginas por sí solo. La solicitud se vuelve trabajo, y solo
+  entonces va a Notion, cuando el cliente acepta la cotización.
+- **Tarjeta "Para tus clientes"** (comisionista, equipo, admin_org, finanzas y admin_marca; fuera
+  del comisionista, solo seguimiento y sin comisión): copiar liga, WhatsApp con
   mensaje y QR descargable (librería `qrcode`, generado en el teléfono).

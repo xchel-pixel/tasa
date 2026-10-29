@@ -30,7 +30,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
       .returns<{ tipo: string; estado: string; ultimo_error: string | null } | null>(),
     ligaDeEquipo(persona),
     bonoDeEquipo(persona),
-    persona.rol === "admin_org" ? codigoDeEquipo(persona) : Promise.resolve(null),
+    codigoDeEquipo(persona),
   ]);
   const ligaClientes = codigo ? await ligaDeClientes(persona, codigo) : null;
 
@@ -118,7 +118,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         {persona.superPlataforma ? <Enlace href="/plataforma">Plataforma</Enlace> : null}
       </nav>
 
-      {persona.rol === "admin_org" ? <SolicitudesDeClientes /> : null}
+      <SolicitudesDeClientes />
       {ligaClientes ? <TarjetaClientes liga={ligaClientes} /> : null}
       {liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null}
     </>

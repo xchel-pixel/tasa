@@ -23,6 +23,7 @@ type Solicitud = {
   cliente_correo: string | null;
   servicios: { nombre: string } | null;
   organizacion_id: string;
+  quiere_tramite: boolean;
 } & Procedencia;
 
 export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/[id]">) {
@@ -37,7 +38,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
       .select(
         `id, tipo, estado, marca_id, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral,
          inmueble_descripcion, cliente_nombre, cliente_telefono, cliente_correo,
-         organizacion_id, origen, liga_sin_dueno,
+         organizacion_id, origen, liga_sin_dueno, quiere_tramite,
          servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre)),
          liga:personas!solicitudes_liga_de_fkey(nombre)`
       )
@@ -72,6 +73,11 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
       titulo={s.tipo === "tramite_directo" ? "Poner precio al trámite" : "Emitir cotización"}
       volver={{ href: "/admin/solicitudes", texto: "Solicitudes" }}
     >
+      {s.quiere_tramite ? (
+        <p className="mt-4 rounded-xl bg-exito-fondo px-4 py-3 font-semibold text-exito">
+          El cliente quiere el trámite. Se vuelve trabajo (y va a Notion) cuando acepte la cotización.
+        </p>
+      ) : null}
       <dl className="mt-4 flex flex-col gap-2 rounded-xl bg-alterno px-4 py-3 text-[0.9375rem]">
         {datos.filter(([, v]) => v).map(([k, v]) => (
           <div key={k}>
