@@ -125,6 +125,8 @@ export async function guardarServicio(_previo: EstadoCatalogo, f: FormData): Pro
     tiempo_entrega: campo(f, "tiempo_entrega") || null,
     documentos: campo(f, "documentos") || null,
     aviso: campo(f, "aviso") || null,
+    // El "Tipo de Trámite" que se escribe en Notion. Vacío: no se manda.
+    nombre_notion: campo(f, "nombre_notion") || null,
   };
   const supabase = await crearClienteServidor();
   const { error } = id

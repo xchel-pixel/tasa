@@ -40,6 +40,7 @@ export type Servicio = {
   tiempo_entrega: string | null;
   documentos: string | null;
   aviso: string | null;
+  nombre_notion: string | null;
 };
 
 function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
@@ -267,6 +268,12 @@ export function FormularioServicio({ servicio }: { servicio?: Servicio }) {
         {servicio ? <input type="hidden" name="id" value={servicio.id} /> : null}
         <Campo etiqueta="Nombre">
           <input name="nombre" required maxLength={80} defaultValue={servicio?.nombre} className={ENTRADA} />
+        </Campo>
+        <Campo etiqueta="Nombre en Notion">
+          <input name="nombre_notion" maxLength={120} defaultValue={servicio?.nombre_notion ?? ""} className={ENTRADA} />
+          <span className="mt-1 block text-[0.875rem] leading-5 text-secundario">
+            Igual a una opción de &quot;Tipo de Trámite&quot; en Notion. Vacío: el trámite llega a Notion sin tipo (Tasa no crea opciones).
+          </span>
         </Campo>
         <fieldset className="flex flex-col gap-3 rounded-lg border border-linea p-3">
           <legend className="px-1 text-[0.9375rem] font-bold">Lo que imprime la cotización</legend>

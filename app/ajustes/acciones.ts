@@ -42,6 +42,7 @@ export async function guardarAjustes(
         aviso_privacidad: aviso || null,
         correo_bienvenida: bienvenida,
         correo_rechazo: rechazo,
+        bono_referido_equipo: formData.get("bono_referido_equipo") === "on",
         actualizado_en: new Date().toISOString(),
       },
       { count: "exact" }

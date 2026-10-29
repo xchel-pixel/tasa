@@ -1214,8 +1214,12 @@ begin
   perform pg_temp.igual((select count(*) from reclamar_por_crear(notion)), 0::bigint,
     'Lo reclamado no se vuelve a reclamar mientras se crea (sin duplicados)');
   perform liberar_por_crear(notion, s);
+  perform pg_temp.igual((select coalesce(servicio, '(sin tipo)') from reclamar_por_crear(notion)), '(sin tipo)'::text,
+    'Sin nombre en Notion, el servicio no manda Tipo de Trámite (no crea opciones nuevas)');
+  perform liberar_por_crear(notion, s);
+  update servicios set nombre_notion = 'Avalúo Comercial' where id = serv;
   perform pg_temp.igual((select monto_honorarios || '/' || monto_terceros || '/' || servicio from reclamar_por_crear(notion)),
-    '9000.00/1200.00/Avalúo Comercial'::text, 'Si falló, se libera y trae los datos para crear la página');
+    '9000.00/1200.00/Avalúo Comercial'::text, 'Si falló, se libera y trae los datos, con el nombre en Notion del servicio');
   perform registrar_registro_externo(notion, s, 'pagina-notion-1');
   perform liberar_por_crear(notion, s);
   perform pg_temp.igual((select count(*) from reclamar_por_crear(notion)), 0::bigint,
@@ -1653,6 +1657,91 @@ begin
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.debe_fallar(format('select asignar_referidor(%L, %L, %L)', beto, carla, 'x'), 'Solo admin_org',
     'Finanzas no corrige "Referido por"');
+  perform pg_temp.sistema();
+end;
+$$;
+
+-- @@ Referidos del equipo (solo seguimiento)
+do $$
+declare
+  xg       uuid := pg_temp.xg();
+  gaby     uuid := (select id from personas where correo = 'gaby@tasa.test');
+  xchel    uuid := (select id from personas where correo = 'xchel@arqosuv.com');
+  cod_gaby text;
+  v_aviso  integer;
+  sol      uuid;
+  propia   uuid;
+  otra     uuid;
+  nueva    uuid;
+begin
+  perform pg_temp.sistema();
+  select codigo_referido into cod_gaby from membresias where persona_id = gaby and organizacion_id = xg;
+  select aviso_version into v_aviso from ajustes where organizacion_id = xg;
+  perform pg_temp.igual(cod_gaby ~ '^[A-HJ-KM-NP-Z2-9]{6}$', true, 'Finanzas (equipo) tiene su código de referido');
+  perform pg_temp.igual((select codigo_referido is null from membresias where persona_id = xchel and organizacion_id = xg), true,
+    'admin_org no tiene código (solo equipo, finanzas y admin de marca)');
+  perform pg_temp.igual((select count(*) from membresias m join comisionistas c on c.codigo_referido = m.codigo_referido), 0::bigint,
+    'Ningún código se repite entre equipo y comisionistas');
+
+  perform pg_temp.como(null);
+  perform pg_temp.igual(invitado_por('xg', cod_gaby), 'Gaby'::text, 'La liga del equipo dice quién invitó');
+  sol    := pedir_alta('xg', 'Invitada Equipo', 'invequipo@tasa.test', '4421112260', 'GUXD800101AB3', null, cod_gaby, v_aviso, 'ip6', false);
+  propia := pedir_alta('xg', 'Gaby Otra', 'gaby@tasa.test', '4421112261', 'GUXD800101AB3', null, cod_gaby, v_aviso, 'ip6', false);
+
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select (referidor_id is null) || ' ' || (referidor_miembro_id = gaby) from solicitudes_alta where id = sol),
+    'true true'::text, 'El referido de equipo se guarda aparte (nunca como referidor de comisionista)');
+  perform pg_temp.igual((select referidor_miembro_id is null from solicitudes_alta where id = propia), true,
+    'Nadie del equipo se refiere a sí mismo');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select aprobar_alta(%L, %L, false, false, null, false)', sol, 'invitada-equipo'),
+    'Solo admin_org', 'Quien refirió (finanzas) no aprueba su solicitud');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(xg);
+  nueva := aprobar_alta(sol, 'invitada-equipo', false, false, null, false);
+  perform pg_temp.igual(
+    (select (referido_por is null) || ' ' || (referido_por_miembro = gaby) || ' ' || (referido_por_miembro_desde = hoy_mx())
+       from comisionistas where persona_id = nueva and organizacion_id = xg),
+    'true true true'::text, 'Al aprobar: referido_por queda vacío (sin bono) y el del equipo con su fecha');
+  perform pg_temp.igual((select decidida_por_referidor from solicitudes_alta where id = sol), false,
+    'admin_org que no refirió: no queda marcado');
+  perform pg_temp.igual(miembro_cobra_bono(xg, gaby), false, 'Con los interruptores apagados no hay bono para el equipo');
+
+  -- Solo con los dos interruptores (organización y persona) cobraría.
+  perform pg_temp.sistema();
+  update ajustes set bono_referido_equipo = true where organizacion_id = xg;
+  perform pg_temp.igual(miembro_cobra_bono(xg, gaby), false, 'Encendido solo en la organización: todavía no');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform poner_bono_referido_miembro((select id from membresias where persona_id = gaby and organizacion_id = xg), true);
+  perform pg_temp.igual(miembro_cobra_bono(xg, gaby), true, 'Con los dos encendidos, sí');
+  perform poner_bono_referido_miembro((select id from membresias where persona_id = gaby and organizacion_id = xg), false);
+  perform pg_temp.sistema();
+  update ajustes set bono_referido_equipo = false where organizacion_id = xg;
+
+  -- admin_org que refirió: puede decidir, pero queda marcado.
+  perform pg_temp.como(null);
+  otra := pedir_alta('xg', 'Invitada Admin', 'invadmin@tasa.test', '4421112262', 'GUXD800101AB3', null, null, v_aviso, 'ip6', false);
+  perform pg_temp.sistema();
+  update solicitudes_alta set referidor_miembro_id = xchel where id = otra;
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform rechazar_alta(otra, null);
+  perform pg_temp.igual((select decidida_por_referidor from solicitudes_alta where id = otra), true,
+    'admin_org que refirió puede decidir, pero queda marcado');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'solicitudes_alta' and accion = 'UPDATE' and registro_id = otra::text
+        and (despues->>'decidida_por_referidor')::boolean),
+    1::bigint, 'La marca queda en bitácora');
+
+  -- Reporte.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select referidos || '/' || con_trabajo_pagado || ' ' || tipo from reporte_referidos() where persona_id = gaby),
+    '1/0 equipo'::text, 'El reporte cuenta los referidos del equipo y cuántos ya tienen trabajo pagado');
+  perform pg_temp.igual((select count(*) > 0 from reporte_referidos() where tipo = 'comisionista'), true,
+    'El reporte incluye a los comisionistas que refieren');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from reporte_referidos()), 0::bigint, 'Un comisionista no ve el reporte');
   perform pg_temp.sistema();
 end;
 $$;

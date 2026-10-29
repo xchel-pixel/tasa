@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
-import { altaMiembro, cambiarActiva, type EstadoEquipo } from "./acciones";
+import { altaMiembro, cambiarActiva, cambiarBonoReferido, type EstadoEquipo } from "./acciones";
 
 const INICIAL: EstadoEquipo = { error: null, mensaje: null };
 const ENTRADA =
@@ -59,6 +59,20 @@ export function AltaMiembro({ marcas }: { marcas: { id: string; clave: string; n
       ) : null}
       <Aviso estado={estado} />
       <BotonEnviar>Agregar</BotonEnviar>
+    </form>
+  );
+}
+
+/** Interruptor por persona; solo aparece si la organización tiene encendido el bono para el equipo. */
+export function CambiarBonoReferido({ membresiaId, activo }: { membresiaId: string; activo: boolean }) {
+  const [estado, enviar] = useActionState(cambiarBonoReferido, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-2">
+      <input type="hidden" name="membresia" value={membresiaId} />
+      <input type="hidden" name="activo" value={String(!activo)} />
+      <p className="text-[0.9375rem] text-secundario">Bono de referido: {activo ? "sí" : "no"}</p>
+      <BotonEnviar variante="secundario">{activo ? "Quitar bono de referido" : "Dar bono de referido"}</BotonEnviar>
+      <Aviso estado={estado} />
     </form>
   );
 }

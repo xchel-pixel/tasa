@@ -33,3 +33,17 @@ export async function cambiarActiva(_previo: EstadoEquipo, formData: FormData): 
   revalidatePath("/admin/equipo");
   return { error: null, mensaje: activa ? "Activado." : "Desactivado: ya no entra a esta organización." };
 }
+
+/** Bono de referido por persona del equipo. Solo cuenta si la organización también lo tiene encendido. */
+export async function cambiarBonoReferido(_previo: EstadoEquipo, formData: FormData): Promise<EstadoEquipo> {
+  await exigirRol("admin_org");
+  const activo = formData.get("activo") === "true";
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("poner_bono_referido_miembro", {
+    p_membresia: String(formData.get("membresia") ?? ""),
+    p_activo: activo,
+  });
+  if (error) return { error: error.message || "No se pudo. Inténtalo otra vez.", mensaje: null };
+  revalidatePath("/admin/equipo");
+  return { error: null, mensaje: activo ? "Bono de referido encendido para esta persona." : "Sin bono de referido." };
+}

@@ -4,6 +4,7 @@ import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { bienvenidaDe } from "@/lib/altas";
 import { fechaCorta } from "@/lib/formato";
+import { decisionDeAlta } from "@/lib/decidir-alta";
 import { rfcValido } from "@/lib/limpiar";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
@@ -37,6 +38,10 @@ type Solicitud = {
   capturo: { nombre: string } | null;
   decidio: { nombre: string } | null;
   referidor: { personas: { nombre: string } | null } | null;
+  referidor_id: string | null;
+  referidor_miembro_id: string | null;
+  decidida_por_referidor: boolean;
+  invito: { nombre: string } | null;
 };
 
 function Dato({ titulo, children }: { titulo: string; children: React.ReactNode }) {
@@ -59,7 +64,8 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
         "id, nombre, correo, telefono, rfc, curp, csf_ruta, csf_borrada_en, estado, posible_duplicado, rfc_por_revisar, coincidencias, " +
           "aviso_aceptado_en, motivo, rfc_revisado_a_mano, persona_id, decidida_en, correo_enviado_en, correo_error, creada_en, " +
           "capturo:personas!solicitudes_alta_capturada_por_fkey(nombre), decidio:personas!solicitudes_alta_decidida_por_fkey(nombre), " +
-          "referidor:comisionistas(personas(nombre))"
+          "referidor:comisionistas(personas(nombre)), referidor_id, referidor_miembro_id, decidida_por_referidor, " +
+          "invito:personas!solicitudes_alta_referidor_miembro_id_fkey(nombre)"
       )
       .eq("id", id)
       .maybeSingle()
@@ -69,6 +75,7 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
   if (!s || s.estado === "subiendo") notFound();
 
   const esAdmin = persona.rol === "admin_org";
+  const decision = decisionDeAlta(persona.rol, persona.id === s.referidor_id || persona.id === s.referidor_miembro_id);
   const rfcNoCuadra = s.rfc ? !rfcValido(s.rfc) : false;
   const [csf, tratos, bienvenida] = await Promise.all([
     s.csf_ruta ? supabase.storage.from("altas").createSignedUrl(s.csf_ruta, 600) : Promise.resolve(null),
@@ -105,6 +112,7 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
         {s.curp ? <Dato titulo="CURP">{s.curp}</Dato> : null}
         <Dato titulo="Llegó">{fechaCorta(s.creada_en)}{s.capturo ? `, capturada por ${s.capturo.nombre}` : ", por la liga"}</Dato>
         {s.referidor?.personas ? <Dato titulo="Lo refirió">{s.referidor.personas.nombre}</Dato> : null}
+        {s.invito ? <Dato titulo="Lo invitó">{s.invito.nombre} (equipo)</Dato> : null}
         <Dato titulo="Aviso de privacidad">
           {s.aviso_aceptado_en ? `Aceptado el ${fechaCorta(s.aviso_aceptado_en)}` : "Lo acepta en su primer acceso"}
         </Dato>
@@ -114,6 +122,7 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
           </Dato>
         ) : null}
         {s.motivo ? <Dato titulo="Motivo">{s.motivo}</Dato> : null}
+        {s.decidida_por_referidor ? <Dato titulo="Ojo">La decidió quien la invitó</Dato> : null}
       </dl>
 
       <div className="mt-4">
@@ -133,9 +142,12 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
         )}
       </div>
 
-      {s.estado === "pendiente" && esAdmin && tratos ? (
+      {s.estado === "pendiente" && decision.botones && tratos ? (
         <section className="mt-8">
           <h2 className="text-[1.125rem] font-bold">Aprobar</h2>
+          {decision.aviso ? (
+            <p className="mt-2 rounded-lg border border-proceso bg-proceso-fondo px-4 py-3 text-[0.9375rem] leading-6">{decision.aviso}</p>
+          ) : null}
           <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
             Crea su acceso y le manda el correo de bienvenida con su nivel inicial.
           </p>

@@ -32,6 +32,14 @@ CURP) se ignora sin error. Al aprobar pasa a `referido_por` con `referido_desde`
 asigna o corrige en la ficha, con motivo en bitácora. Un trigger impide auto-referirse y ciclos.
 La regla 9 ("no se cambia de referidor después") queda en manos de admin_org con motivo.
 
+**Equipo que refiere (0028):** equipo, finanzas y admin_marca también tienen código y tarjeta "Invita a
+un comisionista". Es **solo seguimiento**: se guarda en `referidor_miembro_id` (solicitud) y
+`referido_por_miembro` (comisionista), nunca en `referido_por`, así el bono no lo toma. Interruptores
+"Bono de referido para equipo" por organización (`ajustes.bono_referido_equipo`) y por persona
+(`membresias.bono_referido`), apagados; `miembro_cobra_bono()` exige los dos. Si se encienden, el bono
+cuenta dentro del tope de 30%. Solo admin_org decide una solicitud; si él la invitó, queda
+`decidida_por_referidor` en bitácora. Reporte en `/admin/referidos`.
+
 Sustituye la vigencia fija de 6 meses.
 
 ### Reglas

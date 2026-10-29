@@ -30,7 +30,8 @@ export type TramitePorCrear = {
   cliente_nombre: string;
   cliente_telefono: string | null;
   cliente_correo: string | null;
-  servicio: string;
+  /** El nombre en Notion del servicio; nulo si no tiene (no se manda tipo). */
+  servicio: string | null;
   inmueble_direccion: string;
   inmueble_municipio: string | null;
   inmueble_clave_catastral: string | null;

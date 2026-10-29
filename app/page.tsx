@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { InicioComisionista } from "@/components/inicio-comisionista";
 import { InicioStaff } from "@/components/inicio-staff";
+import { TarjetaInvitar } from "@/components/tarjeta-invitar";
+import { ligaDeEquipo } from "@/lib/invitar";
 import { obtenerContacto } from "@/lib/contacto";
 import { obtenerSesion } from "@/lib/sesion";
 
@@ -46,6 +48,7 @@ export default async function Inicio() {
                 Ya eres parte del equipo de {persona.organizacion.nombre}. Tus herramientas todavía no están
                 listas; aquí aparecerán.
               </p>
+              <LigaEquipo persona={persona} />
             </>
           ) : (
             <InicioStaff persona={persona} />
@@ -54,4 +57,10 @@ export default async function Inicio() {
       </main>
     </>
   );
+}
+
+/** La tarjeta "Invita a un comisionista" del equipo (solo seguimiento, sin bono). */
+async function LigaEquipo({ persona }: { persona: Parameters<typeof ligaDeEquipo>[0] }) {
+  const liga = await ligaDeEquipo(persona);
+  return liga ? <TarjetaInvitar liga={liga} equipo /> : null;
 }

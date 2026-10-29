@@ -30,7 +30,7 @@ export default async function Catalogos() {
       .returns<Cuenta[]>(),
     supabase
       .from("servicios")
-      .select("id, nombre, activo, alcance, tiempo_entrega, documentos, aviso")
+      .select("id, nombre, activo, alcance, tiempo_entrega, documentos, aviso, nombre_notion")
       .order("orden")
       .order("nombre")
       .returns<Servicio[]>(),

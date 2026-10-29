@@ -41,6 +41,8 @@ type Ficha = {
   fecha_alta: string;
   personas: { nombre: string; correo: string; telefono: string | null; activo: boolean } | null;
   referido_por: string | null;
+  referido_por_miembro_desde: string | null;
+  invito: { nombre: string } | null;
 };
 
 export default async function FichaComisionista({ params, searchParams }: PageProps<"/admin/comisionistas/[id]">) {
@@ -54,7 +56,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
     supabase
       .from("comisionistas")
       .select(
-        "persona_id, slug, rfc, curp, codigo_referido, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por"
+        "persona_id, slug, rfc, curp, codigo_referido, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por, referido_por_miembro_desde, invito:personas!comisionistas_referido_por_miembro_fkey(nombre)"
       )
       .eq("persona_id", id)
       .maybeSingle()
@@ -147,6 +149,9 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           <Dato etiqueta="Alta" valor={fechaCorta(f.fecha_alta)} />
           {referido ? (
             <Dato etiqueta="Referido por" valor={`${referido}${f.referido_desde ? ` (desde el ${fechaCorta(f.referido_desde)})` : ""}`} />
+          ) : null}
+          {f.invito ? (
+            <Dato etiqueta="Lo invitó" valor={`${f.invito.nombre} (equipo)${f.referido_por_miembro_desde ? ` · desde el ${fechaCorta(f.referido_por_miembro_desde)}` : ""}`} />
           ) : null}
           <Dato etiqueta="Constancia (CSF)" valor={f.csf_ruta ? `subida${f.csf_subida_en ? ` el ${fechaCorta(f.csf_subida_en)}` : ""}` : "pendiente"} />
           <Dato

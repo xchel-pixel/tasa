@@ -34,7 +34,8 @@ export function propiedadesDeTramite(t: TramitePorCrear, mapeo: Record<string, s
 
   poner("titulo", { title: texto(`Pendiente de folio – ${t.cliente_nombre}`) });
   if (config.etapa_inicial) poner("etapa", { select: { name: config.etapa_inicial } });
-  poner("tipo_tramite", { select: { name: t.servicio } });
+  // Solo una opción que ya existe en Notion: sin nombre en Notion, no se manda.
+  if (t.servicio) poner("tipo_tramite", { select: { name: t.servicio } });
   if (config.clasificacion) poner("clasificacion", { select: { name: config.clasificacion } });
   if (config.medio) poner("medio", { select: { name: config.medio } });
   poner("fecha_aceptacion", { date: { start: t.aceptada_en.slice(0, 10) } });

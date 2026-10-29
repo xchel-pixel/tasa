@@ -17,6 +17,7 @@ export default function FormularioAjustes({
   correoBienvenida,
   correoRechazo,
   slug,
+  bonoEquipo,
 }: {
   contacto: string;
   diaLimite: number;
@@ -25,6 +26,7 @@ export default function FormularioAjustes({
   correoBienvenida: string;
   correoRechazo: string;
   slug: string;
+  bonoEquipo: boolean;
 }) {
   const [estado, enviar] = useActionState(guardarAjustes, INICIAL);
 
@@ -90,6 +92,17 @@ export default function FormularioAjustes({
         <textarea id="correo_rechazo" name="correo_rechazo" rows={4} maxLength={2000} defaultValue={correoRechazo}
           className={ENTRADA} />
       </div>
+
+      <label className="flex items-start gap-3 leading-6">
+        <input type="checkbox" name="bono_referido_equipo" defaultChecked={bonoEquipo} className="mt-1 size-5 shrink-0 accent-primario" />
+        <span>
+          <span className="block font-semibold">Bono de referido para equipo</span>
+          <span className="block text-[0.9375rem] text-secundario">
+            Apagado: lo que invita el equipo es solo seguimiento. Encendido, además hay que darlo a cada persona en Equipo; el
+            bono cuenta dentro del tope de 30%.
+          </span>
+        </span>
+      </label>
 
       <Aviso estado={estado} />
       <BotonEnviar pendiente="Guardando…">Guardar</BotonEnviar>
