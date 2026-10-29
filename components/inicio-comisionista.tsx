@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AvisoCsf } from "@/components/aviso-csf";
 import { BloqueNivel } from "@/components/bloque-nivel";
+import { TarjetaInvitar } from "@/components/tarjeta-invitar";
+import { urlDelSitio } from "@/lib/altas";
 import { Etiqueta } from "@/components/etiqueta";
 import { ESTATUS_CERRADOS, estatusVisible } from "@/lib/estatus";
 import { pesos } from "@/lib/formato";
@@ -18,8 +20,10 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
   const [trabajos, nivel, { data: yo }] = await Promise.all([
     misTrabajos(),
     miNivel(persona.id, persona.organizacion.id),
-    supabase.from("comisionistas").select("csf_ruta").eq("persona_id", persona.id).maybeSingle().returns<{ csf_ruta: string | null } | null>(),
+    supabase.from("comisionistas").select("csf_ruta, codigo_referido").eq("persona_id", persona.id).maybeSingle()
+      .returns<{ csf_ruta: string | null; codigo_referido: string } | null>(),
   ]);
+  const sitio = await urlDelSitio();
 
   const enCurso = trabajos.filter((t) => !ESTATUS_CERRADOS.includes(t.estatus_publico));
   const cerrados = trabajos.filter((t) => ESTATUS_CERRADOS.includes(t.estatus_publico));
@@ -57,6 +61,8 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
 
       <Lista titulo="En curso" trabajos={enCurso} vacio="No tienes trabajos en curso." />
       {cerrados.length > 0 ? <Lista titulo="Terminados" trabajos={cerrados} /> : null}
+
+      {yo ? <TarjetaInvitar liga={`${sitio}/alta/${persona.organizacion.slug}?ref=${yo.codigo_referido}`} /> : null}
     </>
   );
 }

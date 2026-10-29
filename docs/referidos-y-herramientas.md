@@ -24,6 +24,14 @@ compuesta `(organizacion_id, id)`, RLS, `revoke all … from anon` y disparador 
 
 ## 2. Referidos (fase 7)
 
+**Ya construida la captura (0026), sin el bono:** cada comisionista tiene un código de 6
+caracteres (`comisionistas.codigo_referido`) y su liga `/alta/<org>?ref=<código>` (tarjeta
+"Invita a otro comisionista" en su inicio y en "Mis datos"). La solicitud dice "Te invitó" y
+guarda al referidor; código inválido, de otra organización o de la misma persona (correo, RFC o
+CURP) se ignora sin error. Al aprobar pasa a `referido_por` con `referido_desde`. admin_org lo
+asigna o corrige en la ficha, con motivo en bitácora. Un trigger impide auto-referirse y ciclos.
+La regla 9 ("no se cambia de referidor después") queda en manos de admin_org con motivo.
+
 Sustituye la vigencia fija de 6 meses.
 
 ### Reglas

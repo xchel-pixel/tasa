@@ -44,6 +44,18 @@ export async function editarDatos(_previo: EstadoFicha, formData: FormData): Pro
   }, "Datos guardados.");
 }
 
+/** "Referido por" a mano (llegó sin liga o se equivocaron). La base revisa ciclos y deja el motivo en bitácora. */
+export async function corregirReferidor(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
+  await exigirRol("admin_org");
+  const id = String(formData.get("persona_id") ?? "");
+  const referidor = String(formData.get("referido_por") ?? "") || null;
+  return llamar(id, "asignar_referidor", {
+    p_persona: id,
+    p_referidor: referidor,
+    p_motivo: String(formData.get("motivo") ?? ""),
+  }, referidor ? "Guardado: queda referido desde hoy." : "Quitado: ya no tiene referidor.");
+}
+
 export async function cambiarActivo(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
   await exigirRol("admin_org", "finanzas");
   const id = String(formData.get("persona_id") ?? "");

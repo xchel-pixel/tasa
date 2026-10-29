@@ -322,7 +322,7 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, pedir_alta'::text,
+  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, invitado_por, pedir_alta'::text,
     'anon solo ejecuta lo de la pantalla de acceso, la solicitud de alta y el aviso de privacidad');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -1413,6 +1413,7 @@ declare
   sin_csf uuid;
   solo_curp uuid;
   n_personas bigint;
+  cod_ana text := (select codigo_referido from comisionistas where persona_id = (select id from personas where correo = 'xchel+ana@arqosuv.com') and organizacion_id = 'a0000000-0000-4000-8000-000000000001');
   i       integer;
 begin
   perform pg_temp.sistema();
@@ -1439,7 +1440,7 @@ begin
     $q$select pedir_alta('xg', 'Rita', 'rita@tasa.test', '4421112233', 'GUXD800101AB3', null, null, 999, 'ip1', true)$q$,
     'aviso de privacidad cambió', 'Sin aceptar el aviso vigente no hay solicitud');
 
-  sol := pedir_alta('xg', 'Rita Solicitud', 'Rita@tasa.test', '(442) 111-22-33', 'guxd 800101 ab3', null, 'ana-prueba', v_aviso, 'ip1', true);
+  sol := pedir_alta('xg', 'Rita Solicitud', 'Rita@tasa.test', '(442) 111-22-33', 'guxd 800101 ab3', null, cod_ana, v_aviso, 'ip1', true);
   perform pg_temp.debe_fallar('select count(*) from solicitudes_alta', 'permission denied', 'anon no lee solicitudes');
   perform pg_temp.debe_fallar(format('select aprobar_alta(%L, %L, false, false, null, false)', sol, 'x'),
     'permission denied', 'anon no aprueba');
@@ -1581,6 +1582,77 @@ begin
     'La solicitud se queda, sin el archivo');
   update solicitudes_alta set creada_en = now() - interval '2 days' where ip_resumen = 'ip3';
   perform pg_temp.igual(borrar_altas_abandonadas(), 5, 'Las que nunca subieron su CSF se borran al día');
+end;
+$$;
+
+-- @@ Referidos: atribución
+do $$
+declare
+  xg       uuid := pg_temp.xg();
+  ana      uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  beto     uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
+  carla    uuid := (select id from personas where correo = 'xchel+carla@arqosuv.com');
+  cod_ana  text;
+  cod_demo text;
+  v_aviso  integer;
+  valida   uuid;
+  invalida uuid;
+  otra_org uuid;
+  propia   uuid;
+  nueva    uuid;
+begin
+  perform pg_temp.sistema();
+  select codigo_referido into cod_ana from comisionistas where persona_id = ana and organizacion_id = xg;
+  select c.codigo_referido into cod_demo from comisionistas c join organizaciones o on o.id = c.organizacion_id where o.slug = 'demo' limit 1;
+  select aviso_version into v_aviso from ajustes where organizacion_id = xg;
+  perform pg_temp.igual((select count(*) = count(distinct codigo_referido) and bool_and(codigo_referido ~ '^[A-HJ-KM-NP-Z2-9]{6}$') from comisionistas),
+    true, 'Cada comisionista tiene un código de 6 caracteres, único y sin letras que se confunden');
+
+  perform pg_temp.como(null);
+  perform pg_temp.igual(invitado_por('xg', cod_ana), 'Ana Prueba'::text, 'Con un código válido, la solicitud dice quién invitó');
+  perform pg_temp.igual(invitado_por('xg', 'ZZZZZZ'), null::text, 'Un código inválido no muestra a nadie');
+  perform pg_temp.igual(invitado_por('xg', cod_demo), null::text, 'Un código de otra organización no muestra a nadie');
+  valida   := pedir_alta('xg', 'Referida Valida', 'refvalida@tasa.test', '4421112250', 'GUXD800101AB3', null, lower(cod_ana), v_aviso, 'ip5', false);
+  invalida := pedir_alta('xg', 'Ref Invalido', 'refinvalido@tasa.test', '4421112251', 'GUXD800101AB3', null, 'ZZZZZZ', v_aviso, 'ip5', false);
+  otra_org := pedir_alta('xg', 'Ref Otra Org', 'refotra@tasa.test', '4421112252', 'GUXD800101AB3', null, cod_demo, v_aviso, 'ip5', false);
+  propia   := pedir_alta('xg', 'Ana Otra Vez', 'XCHEL+ANA@arqosuv.com', '4421112253', null, 'PRCU900101HQTRRR01', cod_ana, v_aviso, 'ip5', false);
+
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select referidor_id from solicitudes_alta where id = valida), ana, 'Ref válido: guarda quién lo refirió');
+  perform pg_temp.igual((select referidor_id is null and estado = 'pendiente' from solicitudes_alta where id = invalida), true,
+    'Ref inválido: se ignora sin error');
+  perform pg_temp.igual((select referidor_id is null and estado = 'pendiente' from solicitudes_alta where id = otra_org), true,
+    'Ref de otra organización: se ignora sin error');
+  perform pg_temp.igual((select referidor_id is null from solicitudes_alta where id = propia), true,
+    'Auto-referido (mismo correo que el referidor): se ignora');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(xg);
+  nueva := aprobar_alta(valida, 'referida-valida', false, false, null, false);
+  perform pg_temp.igual((select (referido_por = ana) || ' ' || (referido_desde = hoy_mx()) from comisionistas where persona_id = nueva and organizacion_id = xg),
+    'true true'::text, 'Al aprobar, el referidor pasa al comisionista con su fecha de inicio');
+
+  -- Corrección a mano.
+  perform asignar_referidor(beto, carla, 'Llegó por WhatsApp, lo invitó Carla');
+  perform pg_temp.igual((select referido_por from comisionistas where persona_id = beto and organizacion_id = xg), carla,
+    'admin_org asigna "Referido por" a mano');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'comisionistas' and accion = 'UPDATE' and motivo = 'Llegó por WhatsApp, lo invitó Carla'
+        and (despues->>'referido_por')::uuid = carla),
+    1::bigint, 'La corrección queda en bitácora con su motivo');
+  perform pg_temp.debe_fallar(format('select asignar_referidor(%L, %L, %L)', carla, beto, 'al revés'), 'ciclo',
+    'No hay ciclos: si Carla refirió a Beto, Beto no refiere a Carla');
+  perform pg_temp.debe_fallar(format('select asignar_referidor(%L, %L, %L)', beto, beto, 'yo mismo'), 'sí mismo',
+    'Nadie se refiere a sí mismo');
+  perform pg_temp.debe_fallar(format('select asignar_referidor(%L, %L, %L)', beto, ana, ''), 'motivo', 'Sin motivo no se corrige');
+  perform asignar_referidor(beto, null, 'Se equivocaron');
+  perform pg_temp.igual((select referido_por is null and referido_desde is null from comisionistas where persona_id = beto and organizacion_id = xg),
+    true, 'Quitar el referidor borra también su fecha');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select asignar_referidor(%L, %L, %L)', beto, carla, 'x'), 'Solo admin_org',
+    'Finanzas no corrige "Referido por"');
+  perform pg_temp.sistema();
 end;
 $$;
 

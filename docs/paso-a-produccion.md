@@ -311,10 +311,10 @@ y fecha. Para XG:
   `/privacidad` (sin sesión; la liga está en `/entrar`, `/alta/<org>`, `/terminos` y al pie de
   los correos). `[ENLACE]` lo llena Tasa con la dirección del aviso y `[FECHA]` con el día en
   que se guardó esa versión en Ajustes: guardado el día del paso a producción, sale esa fecha.
-- **Términos versión 1:** `docs/textos-produccion/terminos-v1.txt`.
+- **Términos versión 2:** `docs/textos-produccion/terminos-v2.txt` (punto 2: RFC o CURP; CSF opcional en "Mis datos"). En producción arrancan en la versión 2.
 
 Estado: **construido** (migración 0024, Etapa A). En la Etapa B, después del reset, los dos
-textos se pegan en Ajustes de XG (el aviso queda versión 1 y los términos versión 1).
+textos se pegan en Ajustes de XG (el aviso queda versión 1 y los términos versión 2).
 
 **Ajuste 0025 (antes de la Etapa B):** la CSF es **opcional**. Obligatorio: nombre, correo,
 teléfono y **RFC o CURP** (uno de los dos; la CURP solo se revisa por formato). Sin CSF la

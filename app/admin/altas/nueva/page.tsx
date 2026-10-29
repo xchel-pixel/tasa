@@ -12,8 +12,8 @@ export default async function CapturarSolicitud() {
     oExplota(
       await supabase
         .from("comisionistas")
-        .select("slug, personas(nombre)")
-        .returns<{ slug: string; personas: { nombre: string } | null }[]>(),
+        .select("codigo_referido, personas!comisionistas_persona_id_fkey(nombre)")
+        .returns<{ codigo_referido: string; personas: { nombre: string } | null }[]>(),
       "los comisionistas"
     ) ?? [];
 
@@ -24,7 +24,7 @@ export default async function CapturarSolicitud() {
       </p>
       <FormularioCaptura
         existentes={filas
-          .map((f) => ({ slug: f.slug, nombre: f.personas?.nombre ?? f.slug }))
+          .map((f) => ({ codigo: f.codigo_referido, nombre: f.personas?.nombre ?? f.codigo_referido }))
           .sort((a, b) => a.nombre.localeCompare(b.nombre))}
       />
     </PantallaAdmin>

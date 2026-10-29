@@ -5,7 +5,7 @@ import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
 import { CampoBienvenida } from "@/components/campo-bienvenida";
 import type { TratosOrg } from "@/lib/tratos";
-import { agregarMovimiento, cambiarActivo, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
+import { agregarMovimiento, cambiarActivo, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
 
 const INICIAL: EstadoFicha = { error: null, mensaje: null };
 const ENTRADA =
@@ -37,6 +37,34 @@ export function EditarDatos({
           Emite factura por sus comisiones
         </label>
         <BotonEnviar variante="secundario">Guardar datos</BotonEnviar>
+        <Aviso estado={estado} />
+      </form>
+    </details>
+  );
+}
+
+/** Solo admin_org: asignar o corregir "Referido por", con motivo. */
+export function CorregirReferidor({
+  personaId, actual, opciones,
+}: { personaId: string; actual: string | null; opciones: { id: string; nombre: string }[] }) {
+  const [estado, enviar] = useActionState(corregirReferidor, INICIAL);
+  return (
+    <details className="mt-3 rounded-xl border border-linea px-4 py-3">
+      <summary className="toque cursor-pointer font-semibold text-acento">{actual ? "Corregir referido por" : "Asignar referido por"}</summary>
+      <form action={enviar} className="mt-3 flex flex-col gap-4">
+        <input type="hidden" name="persona_id" value={personaId} />
+        <div>
+          <label htmlFor="referido_por" className="block font-semibold">Referido por</label>
+          <select id="referido_por" name="referido_por" defaultValue={actual ?? ""} className={ENTRADA}>
+            <option value="">Nadie</option>
+            {opciones.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="motivo_referido" className="block font-semibold">Motivo</label>
+          <input id="motivo_referido" name="motivo" required maxLength={300} placeholder="Ej. llegó por WhatsApp, lo invitó…" className={ENTRADA} />
+        </div>
+        <BotonEnviar variante="secundario">Guardar</BotonEnviar>
         <Aviso estado={estado} />
       </form>
     </details>

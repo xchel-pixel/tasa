@@ -25,6 +25,8 @@ export default async function SolicitudDeAlta({
   const { data } = await supabase.rpc("datos_alta_publica", { p_slug: org });
   const datos = data as DatosOrg | null;
   if (!datos) notFound();
+  // Un código que no sirve (o de otra organización) se ignora sin decir nada.
+  const invito = ref ? ((await supabase.rpc("invitado_por", { p_org_slug: org, p_codigo: ref })).data as string | null) : null;
 
   const ligaAviso = `/privacidad?org=${encodeURIComponent(datos.slug)}`;
 
@@ -37,11 +39,17 @@ export default async function SolicitudDeAlta({
           Para comisionistas de {datos.organizacion}. Revisamos tu solicitud y te escribimos a tu correo.
         </p>
 
+        {invito ? (
+          <p className="mt-4 rounded-lg bg-tinte px-4 py-3 text-[0.9375rem]">
+            Te invitó: <strong>{invito}</strong>
+          </p>
+        ) : null}
+
         {datos.aviso_version ? (
           <FormularioSolicitud
             org={datos.slug}
             orgId={datos.id}
-            referidor={ref ?? ""}
+            referidor={invito ? (ref ?? "") : ""}
             avisoVersion={datos.aviso_version}
             ligaAviso={ligaAviso}
           />

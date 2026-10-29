@@ -10,7 +10,7 @@ const ENTRADA =
   "mt-2 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
 /** Los mismos pasos que la solicitud pública: capturar y, si hay CSF, subirla y confirmar. */
-export default function FormularioCaptura({ existentes }: { existentes: { slug: string; nombre: string }[] }) {
+export default function FormularioCaptura({ existentes }: { existentes: { codigo: string; nombre: string }[] }) {
   const router = useRouter();
   const montado = useMontado();
   const [enviando, setEnviando] = useState<string | null>(null);
@@ -92,7 +92,7 @@ export default function FormularioCaptura({ existentes }: { existentes: { slug: 
         </label>
         <select id="ref" name="ref" defaultValue="" className={ENTRADA}>
           <option value="">Nadie</option>
-          {existentes.map((e) => <option key={e.slug} value={e.slug}>{e.nombre}</option>)}
+          {existentes.map((e) => <option key={e.codigo} value={e.codigo}>{e.nombre}</option>)}
         </select>
       </div>
       <p className="text-[0.9375rem] leading-6 text-secundario">

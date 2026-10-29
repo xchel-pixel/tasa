@@ -11,7 +11,7 @@ import type { FilaComisionista } from "../page";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
-import { AgregarMovimiento, CambiarActivo, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
+import { AgregarMovimiento, CambiarActivo, CorregirReferidor, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
 
@@ -26,6 +26,11 @@ type Ficha = {
   persona_id: string;
   slug: string;
   rfc: string | null;
+  curp: string | null;
+  codigo_referido: string;
+  referido_desde: string | null;
+  csf_ruta: string | null;
+  csf_subida_en: string | null;
   emite_factura: boolean;
   porcentaje_forzado: string | number | null;
   elite_vence: string | null;
@@ -49,7 +54,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
     supabase
       .from("comisionistas")
       .select(
-        "persona_id, slug, rfc, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por"
+        "persona_id, slug, rfc, curp, codigo_referido, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por"
       )
       .eq("persona_id", id)
       .maybeSingle()
@@ -100,6 +105,13 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   const referido = f.referido_por
     ? ((await supabase.from("personas").select("nombre").eq("id", f.referido_por).maybeSingle()).data?.nombre ?? null)
     : null;
+  const [csf, otros] = await Promise.all([
+    staff && f.csf_ruta ? supabase.storage.from("altas").createSignedUrl(f.csf_ruta, 600) : Promise.resolve(null),
+    yo.rol === "admin_org"
+      ? supabase.from("comisionistas").select("persona_id, personas!comisionistas_persona_id_fkey(nombre)").neq("persona_id", id)
+          .returns<{ persona_id: string; personas: { nombre: string } | null }[]>()
+      : Promise.resolve(null),
+  ]);
   const tratos = await tratosDeLaOrg(yo.organizacion.id);
   const nivelDelTrato = f.trato_nivel_id
     ? (await supabase.from("niveles").select("nombre, porcentaje").eq("id", f.trato_nivel_id).maybeSingle()).data
@@ -129,14 +141,33 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
       <Seccion titulo="Datos">
         <dl className="flex flex-col gap-1 text-[0.9375rem]">
           <Dato etiqueta="Correo" valor={f.personas.correo} />
-          <Dato etiqueta="Liga" valor={f.slug} />
+          {f.rfc ? null : <Dato etiqueta="RFC" valor="— (llegó con CURP)" />}
+          {f.curp ? <Dato etiqueta="CURP" valor={f.curp} /> : null}
+          <Dato etiqueta="Código de referido" valor={f.codigo_referido} />
           <Dato etiqueta="Alta" valor={fechaCorta(f.fecha_alta)} />
-          {referido ? <Dato etiqueta="Referido por" valor={referido} /> : null}
+          {referido ? (
+            <Dato etiqueta="Referido por" valor={`${referido}${f.referido_desde ? ` (desde el ${fechaCorta(f.referido_desde)})` : ""}`} />
+          ) : null}
+          <Dato etiqueta="Constancia (CSF)" valor={f.csf_ruta ? `subida${f.csf_subida_en ? ` el ${fechaCorta(f.csf_subida_en)}` : ""}` : "pendiente"} />
           <Dato
             etiqueta="Términos"
             valor={terminos ? `aceptados el ${fechaCorta(terminos.aceptado_en)} (versión ${terminos.version})` : "sin aceptar"}
           />
         </dl>
+        {csf && "data" in csf && csf.data ? (
+          <a href={csf.data.signedUrl} target="_blank" rel="noopener" className="toque mt-2 inline-block text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+            Ver la constancia
+          </a>
+        ) : null}
+        {otros?.data ? (
+          <CorregirReferidor
+            personaId={id}
+            actual={f.referido_por}
+            opciones={otros.data
+              .map((o) => ({ id: o.persona_id, nombre: o.personas?.nombre ?? "" }))
+              .sort((a, b) => a.nombre.localeCompare(b.nombre))}
+          />
+        ) : null}
         {staff ? (
           <EditarDatos
             personaId={id}
