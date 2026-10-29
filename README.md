@@ -59,7 +59,7 @@ npm run humo
 ```
 
 Entra a tasa.xgplataform.com como admin_org y como finanzas y abre las pantallas principales
-(inicio, Trámites, Mis trámites, Solicitudes por cotizar, Pagos). Solo lectura: no llena
+(todas las rutas de `app/`; una ruta nueva sin expectativa hace fallar la prueba). Solo lectura: no llena
 formularios ni escribe nada. Necesita `SUPABASE_SECRET_KEY` en `.env.local` (sin ella, se salta).
 
 **Usa Microsoft Edge** (`channel: "msedge"` en `playwright.config.ts`), el que ya trae Windows.
