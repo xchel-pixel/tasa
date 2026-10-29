@@ -132,7 +132,8 @@ async function resetProduccion() {
   rl.close();
   if (escrito !== nombre) salir("No coincide. No se hizo nada.");
 
-  supabase(["db", "reset", "--linked", "--no-seed"], { env: conPassword });
+  // La confirmación ya fue escribir el nombre del proyecto: la CLI no vuelve a preguntar.
+  supabase(["db", "reset", "--linked", "--no-seed", "--yes"], { env: conPassword });
   supabase(["migration", "list", "--linked"], { env: conPassword });
 
   const texto = readFileSync(archivoEntorno, "utf8").replace(

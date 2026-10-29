@@ -1611,6 +1611,7 @@ begin
   perform pg_temp.como(null);
   perform pg_temp.igual(invitado_por('xg', cod_ana), 'Ana Prueba'::text, 'Con un código válido, la solicitud dice quién invitó');
   perform pg_temp.igual(invitado_por('xg', 'ZZZZZZ'), null::text, 'Un código inválido no muestra a nadie');
+  perform pg_temp.igual(invitado_por('xg', 'ana-prueba'), 'Ana Prueba'::text, 'La liga vieja (?ref=<slug>) sigue funcionando');
   perform pg_temp.igual(invitado_por('xg', cod_demo), null::text, 'Un código de otra organización no muestra a nadie');
   valida   := pedir_alta('xg', 'Referida Valida', 'refvalida@tasa.test', '4421112250', 'GUXD800101AB3', null, lower(cod_ana), v_aviso, 'ip5', false);
   invalida := pedir_alta('xg', 'Ref Invalido', 'refinvalido@tasa.test', '4421112251', 'GUXD800101AB3', null, 'ZZZZZZ', v_aviso, 'ip5', false);
