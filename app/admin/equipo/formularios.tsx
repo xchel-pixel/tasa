@@ -101,8 +101,7 @@ export function CambiarBonoReferido({ membresiaId, activo, pct, hasta }: {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor={`pct-${membresiaId}`} className="block text-[0.9375rem] font-semibold">% de bono</label>
-            <input id={`pct-${membresiaId}`} name="pct" inputMode="decimal" maxLength={4} defaultValue={pct ?? ""}
-              placeholder="Escala"
+            <input id={`pct-${membresiaId}`} name="pct" inputMode="decimal" maxLength={4} defaultValue={pct ?? ""} required
               className="mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento" />
           </div>
           <div>
@@ -111,7 +110,7 @@ export function CambiarBonoReferido({ membresiaId, activo, pct, hasta }: {
               className="mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento" />
           </div>
           <p className="col-span-2 text-[0.875rem] leading-5 text-secundario">
-            De 0 a 5%. Vacío: la escala de comisionistas (2% a 5% según sus referidos activos). Sin fecha: sin vencimiento.
+            Obligatorio, de 0 a 5% (hasta dos decimales). Sin fecha: sin vencimiento.
           </p>
         </div>
       ) : null}
@@ -127,7 +126,7 @@ export function BonoReferidoLectura({ activo, pct, hasta }: { activo: boolean; p
     <p className="mt-3 text-[0.9375rem] text-secundario">
       Bono de referido:{" "}
       {activo
-        ? `${pct === null ? "escala normal (2% a 5%)" : `${pct}% fijo`}${hasta ? `, vigente hasta ${hasta}` : ""}`
+        ? `${pct}%${hasta ? `, vigente hasta ${hasta}` : ""}`
         : "no"}
     </p>
   );

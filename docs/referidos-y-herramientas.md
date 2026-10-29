@@ -40,13 +40,14 @@ un comisionista". Es **solo seguimiento**: se guarda en `referidor_miembro_id` (
 cuenta dentro del tope de 30%. **admin_org nunca lleva bono**, aunque se enciendan.
 
 **% y vigencia por persona del equipo (0035, solo configuración):** en Equipo, con el interruptor
-de la persona encendido, admin_org captura "% de bono" (0 a 5%, dos decimales,
-`membresias.bono_referido_pct`) y "vigente hasta" opcional (`bono_referido_hasta`; pasada la
-fecha ya no cobra). **Vacío = la escala normal** de comisionistas (regla 2: 2% a 5% según
-referidos activos). **El % fijo sustituye la escala** (no se suma a ella) y **sigue sujeto al tope
-de 30% por trabajo** (regla 7: si no cabe, se recorta el bono). Cada cambio queda en bitácora
+de la persona encendido, admin_org captura "% de bono", **obligatorio** (0 a 5%, dos decimales,
+`membresias.bono_referido_pct`; sin % no se guarda, 0036) y "vigente hasta" opcional
+(`bono_referido_hasta`; pasada la fecha ya no cobra). **Para el equipo no hay escala:** el % fijo
+sustituye la escala de comisionistas (regla 2) y **sigue sujeto al tope de 30% por trabajo**
+(regla 7: si no cabe, se recorta el bono). Cada cambio queda en bitácora
 con antes/después y quién lo hizo (motivo "Bono de referido del equipo"). Finanzas lo ve en
-Equipo en solo lectura; el miembro ve el suyo en su tarjeta "Invita a un comisionista" (`mi_bono_referido()`).
+Equipo en solo lectura; el miembro ve el suyo en su tarjeta "Invita a un comisionista" (`mi_bono_referido()`)
+como "Bono de referido: X% (se activa próximamente)": mientras no exista el cálculo, la tarjeta no promete nada más.
 El cálculo del bono va en la fase de Referidos. Solo admin_org decide una solicitud; si él la invitó, queda
 `decidida_por_referidor` en bitácora. Reporte en `/admin/referidos`.
 

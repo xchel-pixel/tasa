@@ -21,15 +21,18 @@ export async function ligaDeEquipo(persona: Persona): Promise<string | null> {
   return `${await urlDelSitio()}/alta/${persona.organizacion.slug}?ref=${data.codigo_referido}`;
 }
 
-/** El bono (texto) que esta persona del equipo ganaría por invitar; nulo si hoy no cobra. */
-export function textoDelBono(pct: number | null, hasta: string | null): string {
-  const cuanto = pct === null ? "de 2% a 5% (según tus referidos activos)" : `${Number(pct).toLocaleString("es-MX", { maximumFractionDigits: 2 })}%`;
-  return `Ganas ${cuanto} por 12 meses de lo que se le pague a quien invites.${hasta ? ` Vigente hasta el ${fechaCorta(hasta)}.` : ""}`;
+/**
+ * El bono (texto) de esta persona del equipo. Mientras no exista el cálculo del bono, no promete nada:
+ * solo su % y que se activa próximamente.
+ */
+export function textoDelBono(pct: number, hasta: string | null): string {
+  const cuanto = `${Number(pct).toLocaleString("es-MX", { maximumFractionDigits: 2 })}%`;
+  return `Bono de referido: ${cuanto} (se activa próximamente)${hasta ? `, vigente hasta el ${fechaCorta(hasta)}` : ""}.`;
 }
 
 export async function bonoDeEquipo(persona: Persona): Promise<string | null> {
   if (!(ROLES_QUE_INVITAN as readonly string[]).includes(persona.rol)) return null;
   const supabase = await crearClienteServidor();
   const { data } = await supabase.rpc("mi_bono_referido").maybeSingle<{ cobra: boolean; pct: number | null; hasta: string | null }>();
-  return data?.cobra ? textoDelBono(data.pct, data.hasta) : null;
+  return data?.cobra && data.pct !== null ? textoDelBono(data.pct, data.hasta) : null;
 }

@@ -1721,7 +1721,7 @@ begin
   update ajustes set bono_referido_equipo = true where organizacion_id = xg;
   perform pg_temp.igual(miembro_cobra_bono(xg, gaby), false, 'Encendido solo en la organización: todavía no');
   perform pg_temp.como('xchel@arqosuv.com');
-  perform poner_bono_referido_miembro((select id from membresias where persona_id = gaby and organizacion_id = xg), true);
+  perform poner_bono_referido_miembro((select id from membresias where persona_id = gaby and organizacion_id = xg), true, 3);
   perform pg_temp.igual(miembro_cobra_bono(xg, gaby), true, 'Con los dos encendidos, sí');
   perform poner_bono_referido_miembro((select id from membresias where persona_id = gaby and organizacion_id = xg), false);
   perform pg_temp.sistema();
@@ -1742,12 +1742,12 @@ begin
   -- Para admin_org el bono nunca aplica, aunque se enciendan los interruptores.
   perform pg_temp.sistema();
   update ajustes set bono_referido_equipo = true where organizacion_id = xg;
-  update membresias set bono_referido = true where persona_id = xchel and organizacion_id = xg;
+  update membresias set bono_referido = true, bono_referido_pct = 3 where persona_id = xchel and organizacion_id = xg;
   perform pg_temp.igual(miembro_cobra_bono(xg, xchel), false, 'admin_org nunca cobra bono de referido, con todo encendido');
-  update membresias set bono_referido = false where persona_id = xchel and organizacion_id = xg;
+  update membresias set bono_referido = false, bono_referido_pct = null where persona_id = xchel and organizacion_id = xg;
   update ajustes set bono_referido_equipo = false where organizacion_id = xg;
   perform pg_temp.como('xchel@arqosuv.com');
-  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true)',
+  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true, 3)',
                                      (select id from membresias where persona_id = xchel and organizacion_id = xg)),
     'no lleva bono', 'No se le puede encender el bono a admin_org');
   perform pg_temp.igual(
@@ -2050,9 +2050,15 @@ begin
   perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true, 2, %L)', m, hoy_mx() - 1), 'ya pasó',
     'Una fecha nueva en el pasado no');
 
-  perform poner_bono_referido_miembro(m, true, null, null);
-  perform pg_temp.igual((select bono_referido_pct is null and bono_referido_hasta is null from membresias where id = m), true,
-    '% vacío = escala normal; sin fecha = sin vencimiento');
+  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true, null, null)', m), 'para activarlo',
+    'Para el equipo el % es obligatorio: sin % no se guarda (no hay escala)');
+  perform pg_temp.sistema();
+  perform pg_temp.debe_fallar(format('update membresias set bono_referido_pct = null where id = %L', m), 'membresias_bono_con_porcentaje',
+    'Ni por fuera de la función');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(xg);
+  perform poner_bono_referido_miembro(m, true, 3.25, null);
+  perform pg_temp.igual((select bono_referido_hasta is null from membresias where id = m), true, 'Sin fecha = sin vencimiento');
   perform pg_temp.igual(
     (select count(*) from bitacora where tabla = 'membresias' and registro_id = m::text and motivo = 'Bono de referido del equipo'),
     previos + 2, 'Cada cambio deja su renglón');
