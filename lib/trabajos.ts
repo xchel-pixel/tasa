@@ -103,7 +103,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
          servicios(nombre), marcas(nombre), cuentas_receptoras(titular, banco, clabe),
          pagos(id, via, monto, fecha_pago, referencia, nota, recibido_por, estado, motivo_rechazo, motivo_retiro, reportado_por),
          historial_estatus(estatus_publico, desde),
-         cotizaciones(id, estado, monto_honorarios, monto_iva, monto_terceros, monto_total,
+         cotizaciones!cotizaciones_organizacion_id_solicitud_id_fkey(id, estado, monto_honorarios, monto_iva, monto_terceros, monto_total,
                       requiere_factura, vigente_hasta, pdf_ruta, cuentas_receptoras(titular, banco, clabe))`
       )
       .eq("id", id)

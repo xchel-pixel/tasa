@@ -118,7 +118,7 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
     .select(
       `id, numero, monto_honorarios, monto_iva, monto_terceros, monto_total, requiere_factura, vigente_hasta,
        cuentas_receptoras(titular, banco, clabe),
-       solicitudes(cliente_nombre, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral, inmueble_descripcion,
+       solicitudes!cotizaciones_organizacion_id_solicitud_id_fkey(cliente_nombre, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral, inmueble_descripcion,
          comisionistas(personas!comisionistas_persona_id_fkey(nombre)),
          servicios(nombre, alcance, tiempo_entrega, documentos, aviso),
          marcas(clave, nombre_legal, direccion, correo, telefonos, firmante, firmante_cargo, formas_pago,
