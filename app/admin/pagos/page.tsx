@@ -49,7 +49,7 @@ export default async function PagosPorConfirmar() {
         .select(
           `id, via, monto, fecha_pago, referencia, recibido_por, nota, comprobante_ruta, reportado_en,
            solicitudes(id, folio, cliente_nombre, monto_total,
-                       comisionistas(personas(nombre)), cuentas_receptoras(alias), pagos(monto, estado))`
+                       comisionistas(personas!comisionistas_persona_id_fkey(nombre)), cuentas_receptoras(alias), pagos(monto, estado))`
         )
         .eq("estado", "reportado")
         .order("reportado_en")

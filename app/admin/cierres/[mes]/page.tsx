@@ -40,7 +40,7 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
     supabase
       .from("comisiones")
       .select(
-        "id, comisionista_id, tipo, base, porcentaje, monto, provisional, estado, nota, comisionistas(personas(nombre)), solicitudes(cliente_nombre, folio, cuentas_receptoras(alias))"
+        "id, comisionista_id, tipo, base, porcentaje, monto, provisional, estado, nota, comisionistas(personas!comisionistas_persona_id_fkey(nombre)), solicitudes(cliente_nombre, folio, cuentas_receptoras(alias))"
       )
       .eq("mes", mes)
       .order("creado_en")

@@ -24,14 +24,14 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
   const [comisiones, pagos] = await Promise.all([
     supabase
       .from("comisiones")
-      .select("monto, tipo, cuentas_receptoras(alias), servicios(nombre), comisionistas(personas(nombre))")
+      .select("monto, tipo, cuentas_receptoras(alias), servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))")
       .eq("mes", mes)
       .neq("tipo", "arrastre")
       .returns<{ monto: string | number; tipo: string; cuentas_receptoras: { alias: string } | null; servicios: { nombre: string } | null; comisionistas: { personas: { nombre: string } | null } | null }[]>(),
     superAdmin
       ? supabase
           .from("pagos_comision")
-          .select("monto, documento, origenes_pago(nombre), comisionistas(personas(nombre))")
+          .select("monto, documento, origenes_pago(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))")
           .eq("estado", "registrado")
           .gte("fecha", mes)
           .lt("fecha", mesSiguiente(mes))

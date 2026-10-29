@@ -14,7 +14,7 @@ export default async function NuevoComisionista() {
     oExplota(
       await supabase
         .from("comisionistas")
-        .select("persona_id, slug, personas(nombre)")
+        .select("persona_id, slug, personas!comisionistas_persona_id_fkey(nombre)")
         .returns<{ persona_id: string; slug: string; personas: { nombre: string } | null }[]>(),
       "los comisionistas"
     ) ?? [];

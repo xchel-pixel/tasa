@@ -25,7 +25,7 @@ export default async function SolicitudesPorCotizar() {
     oExplota(
       await supabase
         .from("solicitudes")
-        .select("id, tipo, estado, cliente_nombre, creado_en, servicios(nombre), comisionistas(personas(nombre))")
+        .select("id, tipo, estado, cliente_nombre, creado_en, servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))")
         .in("estado", ["solicitada", "vencida"])
         .order("creado_en")
         .returns<Fila[]>(),

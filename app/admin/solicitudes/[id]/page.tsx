@@ -36,7 +36,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
       .select(
         `id, tipo, estado, marca_id, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral,
          inmueble_descripcion, cliente_nombre, cliente_telefono, cliente_correo,
-         servicios(nombre), comisionistas(personas(nombre))`
+         servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))`
       )
       .eq("id", id)
       .maybeSingle()

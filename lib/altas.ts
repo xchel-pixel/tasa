@@ -45,7 +45,7 @@ export async function bienvenidaDe(supabase: ClienteServidor, personaId: string)
   const [{ data: c }, { data: a }, contacto] = await Promise.all([
     supabase
       .from("comisionistas")
-      .select("trato_hasta, trato_nivel_id, personas(nombre, correo)")
+      .select("trato_hasta, trato_nivel_id, personas!comisionistas_persona_id_fkey(nombre, correo)")
       .eq("persona_id", personaId)
       .maybeSingle()
       .returns<{ trato_hasta: string | null; trato_nivel_id: string | null; personas: { nombre: string; correo: string } | null } | null>(),

@@ -64,7 +64,7 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
         "id, nombre, correo, telefono, rfc, curp, csf_ruta, csf_borrada_en, estado, posible_duplicado, rfc_por_revisar, coincidencias, " +
           "aviso_aceptado_en, motivo, rfc_revisado_a_mano, persona_id, decidida_en, correo_enviado_en, correo_error, creada_en, " +
           "capturo:personas!solicitudes_alta_capturada_por_fkey(nombre), decidio:personas!solicitudes_alta_decidida_por_fkey(nombre), " +
-          "referidor:comisionistas(personas(nombre)), referidor_id, referidor_miembro_id, decidida_por_referidor, " +
+          "referidor:comisionistas(personas!comisionistas_persona_id_fkey(nombre)), referidor_id, referidor_miembro_id, decidida_por_referidor, " +
           "invito:personas!solicitudes_alta_referidor_miembro_id_fkey(nombre)"
       )
       .eq("id", id)
