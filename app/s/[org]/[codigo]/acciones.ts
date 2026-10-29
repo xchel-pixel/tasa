@@ -65,6 +65,9 @@ async function avisar(solicitud: string, org: string) {
       servicio: string; tramite: boolean; organizacion: string; contacto: string | null;
     }>();
   if (!d) return;
+  // DEMO no manda correos; si no se pudo saber, tampoco (mejor no mandar que mandar de más).
+  const { data: esDemo } = await servicio.rpc("organizacion_es_demo", { p_slug: org });
+  const demo = esDemo !== false;
   const sitio = await urlDelSitio();
   const privacidad = `${sitio}/privacidad?org=${encodeURIComponent(org)}`;
   const que = d.tramite ? "el trámite" : "una cotización";
@@ -77,10 +80,11 @@ async function avisar(solicitud: string, org: string) {
         asunto: `Tu cliente ${d.cliente_nombre} pidió ${d.servicio}`,
         texto:
           `Tu cliente ${d.cliente_nombre} pidió ${que} de ${d.servicio} con tu liga.\n\n` +
-          `Ya está en Tasa, en "Solicitudes de tus clientes" de tu inicio, con su teléfono. ` +
+          `Ya está en Tasa, en tu inicio ("Mis trabajos" o "Mis trámites"), con su teléfono. ` +
           `El seguimiento lo das tú: el cliente no tiene cuenta.\n\n${sitio}`,
         contacto: d.contacto,
         ligaPrivacidad: privacidad,
+        demo,
       })
     );
   }
@@ -94,6 +98,7 @@ async function avisar(solicitud: string, org: string) {
           `${d.dueno_nombre} te va a contactar para darle seguimiento.\n\n${d.organizacion}`,
         contacto: d.contacto,
         ligaPrivacidad: privacidad,
+        demo,
       })
     );
   }

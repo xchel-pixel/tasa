@@ -149,12 +149,19 @@ la app las muestra, la base las hace cumplir.
   publicado, se aplica la migración. Al revés, las consultas sin nombre se vuelven ambiguas en el
   momento en que la migración entra y las pantallas fallan hasta que llega el código.
 - **Antes de cada push a main, correr `npm run humo` y no subir si falla.** Entra a producción
-  como admin_org y como finanzas y abre todas las pantallas (solo lectura); las que no le tocan a
-  finanzas deben regresarla al inicio. La lista sale de las rutas reales: una ruta nueva sin su
-  expectativa en `humo/humo.spec.ts` hace fallar la prueba, así que al crear una pantalla se
-  agrega ahí. Usa Microsoft Edge en esta PC y necesita `SUPABASE_SECRET_KEY` en `.env.local`.
-  Como prueba lo que ya está publicado, después del push (cuando Vercel termine) se corre otra
-  vez para confirmar lo nuevo.
+  y abre todas las pantallas (solo lectura) en XG (admin_org y finanzas) y en DEMO (admin_org,
+  finanzas, equipo y comisionista); lo que no le toca a un rol debe regresarlo al inicio. La lista
+  sale de las rutas reales: una ruta nueva sin su expectativa en `humo/humo.spec.ts` hace fallar la
+  prueba, así que al crear una pantalla se agrega ahí (con su espera para los cuatro roles). Usa
+  Microsoft Edge en esta PC y necesita `SUPABASE_SECRET_KEY` en `.env.local`. Como prueba lo que ya
+  está publicado, después del push (cuando Vercel termine) se corre otra vez para confirmar lo nuevo.
+- **DEMO es la organización de datos sintéticos** para que humo pruebe con datos. Se regenera con
+  `npm run demo` (solo toca DEMO). Toda función nueva que haga algo hacia afuera (correos,
+  conectores, cron) debe excluir las organizaciones con `demo = true` (ver 0043), y todo correo
+  nuevo pasa `demo` a `enviarCorreo`. Al agregar una tabla o una funcionalidad con datos, se agrega
+  también a `supabase/produccion/demo.sql` para que humo la vea con datos.
+- **En PL/pgSQL, ninguna variable se llama igual que una columna** (`demo`, `estado`…): Postgres
+  la marca ambigua y la función truena. Prefijo `v_`.
 - **Embeber `personas` siempre con su llave** desde una tabla que tenga más de una hacia
   personas: `personas!comisionistas_persona_id_fkey(nombre)`, nunca `personas(nombre)`. Lo revisa
   `pruebas/consultas.test.ts`.

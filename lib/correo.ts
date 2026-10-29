@@ -17,6 +17,7 @@ export async function enviarCorreo({
   texto,
   contacto,
   ligaPrivacidad,
+  demo,
 }: {
   para: string;
   asunto: string;
@@ -24,7 +25,13 @@ export async function enviarCorreo({
   /** El contacto de soporte: si es un correo, va de Reply-To. */
   contacto: string | null;
   ligaPrivacidad: string;
+  /**
+   * ¿Es la organización de demostración? Obligatorio a propósito: todo correo nuevo tiene que
+   * decirlo (`organizacion_es_demo`). DEMO tiene datos sintéticos y nunca manda correos.
+   */
+  demo: boolean;
 }): Promise<string | null> {
+  if (demo) return "Organización de demostración: no se mandan correos.";
   const llave = process.env.RESEND_API_KEY;
   if (!llave) return "El servidor no tiene la llave de correos (RESEND_API_KEY).";
 

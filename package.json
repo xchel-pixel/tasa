@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "humo": "playwright test",
+    "demo": "node scripts/demo.mjs",
     "db:push": "node scripts/db.mjs push",
     "db:semilla": "node scripts/db.mjs semilla",
     "db:verificar": "node scripts/db.mjs verificar",

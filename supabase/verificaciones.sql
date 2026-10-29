@@ -1860,7 +1860,7 @@ $$;
 do $$
 declare
   xg    uuid := pg_temp.xg();
-  demo  uuid := (select id from organizaciones where slug = 'demo');
+  v_demo  uuid := (select id from organizaciones where slug = 'demo');
   gaby  uuid := (select id from personas where correo = 'gaby@tasa.test');
   v_anio smallint := extract(year from hoy_mx());
   cod   text;
@@ -1890,14 +1890,14 @@ begin
 
   -- Candado de folios (conector manual): Demo con un prefijo que todavía no tiene folios este año.
   perform pg_temp.sistema();
-  update organizaciones set prefijo_folio = 'NUEVO' where id = demo;
-  delete from folios_contador where organizacion_id = demo and anio = v_anio;
-  perform set_config('tasa.org', demo::text, true);
+  update organizaciones set prefijo_folio = 'NUEVO' where id = v_demo;
+  delete from folios_contador where organizacion_id = v_demo and anio = v_anio;
+  perform set_config('tasa.org', v_demo::text, true);
   insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id,
                            cuenta_receptora_id, monto_honorarios, estado, estatus_publico, creado_por)
   select comisionista_id, tipo, origen, servicio_id, 'Calle Candado 1', 'Cliente Candado', marca_id,
          cuenta_receptora_id, 1000, 'solicitada', 'solicitada', creado_por
-    from solicitudes where organizacion_id = demo limit 1
+    from solicitudes where organizacion_id = v_demo limit 1
   returning id into nuevo;
   perform pg_temp.debe_fallar(format($q$update solicitudes set estado = 'tramite', estatus_publico = 'aceptada', aceptada_en = now() where id = %L$q$, nuevo),
     'captura en Ajustes', 'Con el contador en cero y sin el último folio real, no se acepta un trabajo');
@@ -1907,12 +1907,12 @@ begin
   perform fijar_ultimo_folio(v_anio, 41);
   perform pg_temp.igual(ultimo_folio(v_anio), 41, 'admin_org captura el último folio real');
   perform pg_temp.sistema();
-  perform set_config('tasa.org', demo::text, true);
+  perform set_config('tasa.org', v_demo::text, true);
   update solicitudes set estado = 'tramite', estatus_publico = 'aceptada', aceptada_en = now() where id = nuevo;
   perform pg_temp.igual((select folio from solicitudes where id = nuevo), 'NUEVO-' || v_anio || '-0042',
     'Con el último folio capturado, el siguiente continúa el consecutivo real');
   perform pg_temp.sistema();
-  update organizaciones set prefijo_folio = 'DEMO' where id = demo;
+  update organizaciones set prefijo_folio = 'DEMO' where id = v_demo;
 end;
 $$;
 
@@ -2607,6 +2607,41 @@ begin
   insert into convenio_precios (convenio_id, servicio_id, sin_costo, monto) values (conv, s3, true, 0);
   perform pg_temp.igual((select honorario_tipo from convenio_precios where convenio_id = conv and servicio_id = s3), 'sin_costo'::text,
     'Un precio guardado como sin_costo queda de tipo sin costo');
+end;
+$$;
+
+-- @@ Organización DEMO: nada sale de Tasa
+do $$
+declare
+  v_demo uuid := (select id from organizaciones where slug = 'demo');
+  s      uuid;
+begin
+  perform pg_temp.sistema();
+  update organizaciones set demo = true where id = v_demo;
+  perform pg_temp.igual(organizacion_es_demo('demo'), true, 'La app sabe que DEMO es demo (y no le manda correos)');
+  perform pg_temp.igual(organizacion_es_demo('xg'), false, 'XG no es demo');
+
+  -- Notion: no se activa ni se sincroniza.
+  perform pg_temp.como('xchel+demo-admin@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select activar_conector('notion')$q$, 'demostración', 'DEMO no se conecta a Notion');
+  perform pg_temp.sistema();
+  insert into conectores (organizacion_id, tipo, activo, credencial_id) values (v_demo, 'notion', true, gen_random_uuid())
+  on conflict do nothing;
+  perform pg_temp.igual((select count(*) from conectores_para_sincronizar() where organizacion_id = v_demo), 0::bigint,
+    'Aunque tuviera un conector activo, el cron no lo sincroniza');
+  delete from conectores where organizacion_id = v_demo and tipo = 'notion';
+
+  -- Cron: no le vence cotizaciones.
+  perform set_config('tasa.org', v_demo::text, true);
+  insert into solicitudes (organizacion_id, comisionista_id, tipo, servicio_id, inmueble_direccion, cliente_nombre)
+  select v_demo, c.persona_id, 'cotizacion', (select id from servicios where organizacion_id = v_demo limit 1), 'Calle Vencida', 'Cliente Demo Vencido'
+    from comisionistas c where c.organizacion_id = v_demo limit 1
+  returning id into s;
+  insert into cotizaciones (solicitud_id, monto_honorarios, cuenta_receptora_id, vigente_hasta)
+  values (s, 1000, (select id from cuentas_receptoras where organizacion_id = v_demo limit 1), hoy_mx() + 1);
+  update cotizaciones set vigente_hasta = hoy_mx() - 1 where solicitud_id = s;
+  perform vencer_cotizaciones();
+  perform pg_temp.igual((select estado from solicitudes where id = s), 'cotizada'::text, 'El cron no vence cotizaciones de DEMO');
 end;
 $$;
 

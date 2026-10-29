@@ -88,12 +88,14 @@ export async function mandarCorreoDeAlta(
   supabase: ClienteServidor,
   { solicitudId, para, correo, slug }: { solicitudId: string; para: string; correo: TextoLleno; slug: string }
 ): Promise<string | null> {
+  const { data: demo } = await supabase.rpc("organizacion_es_demo", { p_slug: slug });
   const error = await enviarCorreo({
     para,
     asunto: correo.asunto,
     texto: correo.texto,
     contacto: await obtenerContacto(),
     ligaPrivacidad: await ligaPrivacidad(supabase, slug),
+    demo: demo !== false,
   });
   await supabase.rpc("registrar_correo_alta", { p_id: solicitudId, p_error: error });
   return error;

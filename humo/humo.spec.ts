@@ -4,10 +4,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 /**
- * Humo contra producción, solo lectura: entra como admin_org y como finanzas y abre TODAS las
- * pantallas. Cada una debe abrir sin errores o, si no le toca a ese rol, regresarlo al inicio.
- * No llena formularios ni escribe nada. La sesión se arma sin mandar correo: la clave secreta
- * genera el código de acceso (generateLink no envía nada) y con él se entra como la persona.
+ * Humo contra producción, solo lectura: entra con cada usuario y abre TODAS las pantallas. Cada una
+ * debe abrir sin errores o, si no le toca a ese rol, regresarlo al inicio. No llena formularios ni
+ * escribe nada. La sesión se arma sin mandar correo: la clave secreta genera el código de acceso
+ * (generateLink no envía nada) y con él se entra como la persona.
+ *
+ * Dos organizaciones:
+ *   · XG (la real): admin_org y finanzas.
+ *   · DEMO (datos sintéticos de `npm run demo`): admin_org, finanzas, equipo y comisionista. Tiene
+ *     datos en cada estatus y tipo de honorario, para que una pantalla que solo truena con datos
+ *     (como Catálogos con un convenio) no pase en verde por tener la lista vacía.
  *
  * La lista de pantallas sale de las rutas reales (app/**\/page.tsx): si se agrega una ruta y no
  * está en PANTALLAS, la primera prueba falla. Necesita en .env.local NEXT_PUBLIC_SUPABASE_URL,
@@ -18,16 +24,21 @@ const URL_SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const SECRETA = process.env.SUPABASE_SECRET_KEY ?? "";
 
-const QUIENES = [
-  { rol: "admin_org", correo: process.env.HUMO_ADMIN ?? "xchel@arqosuv.com" },
-  { rol: "finanzas", correo: process.env.HUMO_FINANZAS ?? "xchel+finanzas@arqosuv.com" },
-] as const;
-type Rol = (typeof QUIENES)[number]["rol"];
+type Rol = "admin_org" | "finanzas" | "equipo" | "comisionista";
+
+const QUIENES: { org: "XG" | "DEMO"; rol: Rol; correo: string }[] = [
+  { org: "XG", rol: "admin_org", correo: process.env.HUMO_ADMIN ?? "xchel@arqosuv.com" },
+  { org: "XG", rol: "finanzas", correo: process.env.HUMO_FINANZAS ?? "xchel+finanzas@arqosuv.com" },
+  { org: "DEMO", rol: "admin_org", correo: "xchel+demo-admin@arqosuv.com" },
+  { org: "DEMO", rol: "finanzas", correo: "xchel+demo-finanzas@arqosuv.com" },
+  { org: "DEMO", rol: "equipo", correo: "xchel+demo-equipo@arqosuv.com" },
+  { org: "DEMO", rol: "comisionista", correo: "xchel+demo-ana@arqosuv.com" },
+];
 
 /** abre: carga y se queda ahí · inicio: la regresa a "/". */
 type Espera = "abre" | "inicio";
 
-/** Datos reales para llenar las rutas con [parámetros]. Solo se leen. */
+/** Datos reales para llenar las rutas con [parámetros], vistos por quien entra. Solo se leen. */
 type Datos = {
   org: string;
   codigo: string | null;
@@ -46,66 +57,74 @@ type Pantalla = {
   espera: Record<Rol, Espera>;
   /** Sin sesión (páginas públicas): no se prueba por rol, solo que abra. */
   publica?: boolean;
+  /** Abre solo para super_plataforma (el admin_org de XG); a todos los demás los regresa al inicio. */
+  soloSuperPlataforma?: boolean;
 };
 
-const AMBOS: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre" };
-const SOLO_ADMIN: Record<Rol, Espera> = { admin_org: "abre", finanzas: "inicio" };
-const NINGUNO: Record<Rol, Espera> = { admin_org: "inicio", finanzas: "inicio" };
+const TODOS: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "abre", comisionista: "abre" };
+const OPERACION: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "inicio", comisionista: "inicio" };
+const SOLO_ADMIN: Record<Rol, Espera> = { admin_org: "abre", finanzas: "inicio", equipo: "inicio", comisionista: "inicio" };
+const SOLO_COMISIONISTA: Record<Rol, Espera> = { admin_org: "inicio", finanzas: "inicio", equipo: "inicio", comisionista: "abre" };
+const EQUIPO_Y_STAFF: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "abre", comisionista: "inicio" };
+const COMISIONISTA_Y_STAFF: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "inicio", comisionista: "abre" };
 
 /** Cada ruta real de la aplicación y qué le pasa a cada rol. */
 const PANTALLAS: Record<string, Pantalla> = {
-  "/": { rutas: () => ["/"], espera: AMBOS },
-  "/admin/alertas": { rutas: () => ["/admin/alertas"], espera: AMBOS },
-  "/admin/altas": { rutas: () => ["/admin/altas"], espera: AMBOS },
-  "/admin/altas/[id]": { rutas: (d) => [d.alta && `/admin/altas/${d.alta}`], espera: AMBOS },
-  "/admin/altas/nueva": { rutas: () => ["/admin/altas/nueva"], espera: AMBOS },
+  "/": { rutas: () => ["/"], espera: TODOS },
+  "/admin/alertas": { rutas: () => ["/admin/alertas"], espera: OPERACION },
+  "/admin/altas": { rutas: () => ["/admin/altas", "/admin/altas?ver=todas"], espera: OPERACION },
+  "/admin/altas/[id]": { rutas: (d) => [d.alta && `/admin/altas/${d.alta}`], espera: OPERACION },
+  "/admin/altas/nueva": { rutas: () => ["/admin/altas/nueva"], espera: OPERACION },
   "/admin/catalogos": { rutas: () => ["/admin/catalogos"], espera: SOLO_ADMIN },
-  "/admin/cierres": { rutas: () => ["/admin/cierres"], espera: AMBOS },
-  "/admin/cierres/[mes]": { rutas: (d) => [`/admin/cierres/${d.mesCierre}`], espera: AMBOS },
-  "/admin/comisiones": { rutas: () => ["/admin/comisiones"], espera: AMBOS },
-  "/admin/comisiones/pagar": { rutas: (d) => [d.comisionista && `/admin/comisiones/pagar?c=${d.comisionista}`], espera: AMBOS },
-  "/admin/comisionistas": { rutas: () => ["/admin/comisionistas"], espera: AMBOS },
-  "/admin/comisionistas/[id]": { rutas: (d) => [d.comisionista && `/admin/comisionistas/${d.comisionista}`], espera: AMBOS },
+  "/admin/cierres": { rutas: () => ["/admin/cierres"], espera: OPERACION },
+  "/admin/cierres/[mes]": { rutas: (d) => [`/admin/cierres/${d.mesCierre}`], espera: OPERACION },
+  "/admin/comisiones": { rutas: () => ["/admin/comisiones"], espera: OPERACION },
+  "/admin/comisiones/pagar": { rutas: (d) => [d.comisionista && `/admin/comisiones/pagar?c=${d.comisionista}`], espera: OPERACION },
+  "/admin/comisionistas": { rutas: () => ["/admin/comisionistas"], espera: OPERACION },
+  "/admin/comisionistas/[id]": { rutas: (d) => [d.comisionista && `/admin/comisionistas/${d.comisionista}`], espera: OPERACION },
   "/admin/comisionistas/importar": { rutas: () => ["/admin/comisionistas/importar"], espera: SOLO_ADMIN },
   "/admin/comisionistas/nuevo": { rutas: () => ["/admin/comisionistas/nuevo"], espera: SOLO_ADMIN },
   "/admin/configuracion": { rutas: () => ["/admin/configuracion"], espera: SOLO_ADMIN },
-  "/admin/equipo": { rutas: () => ["/admin/equipo"], espera: AMBOS },
+  "/admin/equipo": { rutas: () => ["/admin/equipo"], espera: OPERACION },
   "/admin/niveles": { rutas: () => ["/admin/niveles"], espera: SOLO_ADMIN },
-  "/admin/pagos": { rutas: () => ["/admin/pagos"], espera: AMBOS },
-  "/admin/referidos": { rutas: () => ["/admin/referidos"], espera: AMBOS },
-  "/admin/reportes": { rutas: () => ["/admin/reportes"], espera: AMBOS },
-  "/admin/solicitudes": { rutas: () => ["/admin/solicitudes"], espera: AMBOS },
-  "/admin/solicitudes/[id]": { rutas: (d) => [d.porCotizar && `/admin/solicitudes/${d.porCotizar}`], espera: AMBOS },
+  "/admin/pagos": { rutas: () => ["/admin/pagos"], espera: OPERACION },
+  "/admin/referidos": { rutas: () => ["/admin/referidos"], espera: OPERACION },
+  "/admin/reportes": { rutas: (d) => ["/admin/reportes", `/admin/reportes?mes=${d.mesCierre}-01`], espera: OPERACION },
+  "/admin/solicitudes": { rutas: () => ["/admin/solicitudes"], espera: OPERACION },
+  "/admin/solicitudes/[id]": { rutas: (d) => [d.porCotizar && `/admin/solicitudes/${d.porCotizar}`], espera: OPERACION },
   "/admin/tramites": {
     rutas: () => [
       "/admin/tramites",
       "/admin/tramites?estatus=todos&origen=liga",
       "/admin/tramites?folio=1",
       "/admin/tramites?cobro=1&todos=1",
-      "/admin/tramites?q=MGP",
+      "/admin/tramites?estimado=1",
+      "/admin/tramites?q=DEMO",
     ],
-    espera: AMBOS,
+    espera: OPERACION,
   },
   "/ajustes": { rutas: () => ["/ajustes"], espera: SOLO_ADMIN },
-  "/alta/[org]": { rutas: (d) => [`/alta/${d.org}`], espera: AMBOS, publica: true },
-  "/entrar": { rutas: () => ["/entrar"], espera: AMBOS, publica: true },
-  "/estado-de-cuenta": { rutas: () => ["/estado-de-cuenta"], espera: NINGUNO },
-  "/mis-tramites": { rutas: () => ["/mis-tramites", "/mis-tramites?ver=por_cobrar"], espera: AMBOS },
-  "/organizacion": { rutas: () => ["/organizacion"], espera: AMBOS },
-  "/perfil": { rutas: () => ["/perfil"], espera: NINGUNO },
-  // Solo super plataforma: admin_org (Xchel) lo es; finanzas no.
-  "/plataforma": { rutas: () => ["/plataforma"], espera: SOLO_ADMIN },
-  "/privacidad": { rutas: (d) => [`/privacidad?org=${d.org}`], espera: AMBOS, publica: true },
-  "/s/[org]/[codigo]": { rutas: (d) => [d.codigo && `/s/${d.org}/${d.codigo}`], espera: AMBOS, publica: true },
-  "/solicitudes/nueva": { rutas: () => ["/solicitudes/nueva"], espera: NINGUNO },
+  "/alta/[org]": { rutas: (d) => [`/alta/${d.org}`], espera: TODOS, publica: true },
+  "/entrar": { rutas: () => ["/entrar"], espera: TODOS, publica: true },
+  "/estado-de-cuenta": { rutas: () => ["/estado-de-cuenta"], espera: SOLO_COMISIONISTA },
+  "/mis-tramites": { rutas: () => ["/mis-tramites", "/mis-tramites?ver=por_cobrar"], espera: EQUIPO_Y_STAFF },
+  "/organizacion": { rutas: () => ["/organizacion"], espera: TODOS },
+  "/perfil": { rutas: () => ["/perfil"], espera: SOLO_COMISIONISTA },
+  // Solo super plataforma: el admin_org de XG (Xchel) lo es; el admin de DEMO, no.
+  "/plataforma": { rutas: () => ["/plataforma"], espera: SOLO_ADMIN, soloSuperPlataforma: true },
+  "/privacidad": { rutas: (d) => [`/privacidad?org=${d.org}`], espera: TODOS, publica: true },
+  "/s/[org]/[codigo]": { rutas: (d) => [d.codigo && `/s/${d.org}/${d.codigo}`], espera: TODOS, publica: true },
+  "/solicitudes/nueva": { rutas: () => ["/solicitudes/nueva"], espera: SOLO_COMISIONISTA },
   // Ya aceptados, se pueden volver a leer.
-  "/terminos": { rutas: () => ["/terminos"], espera: AMBOS },
-  "/trabajos/[id]": { rutas: (d) => [d.trabajo && `/trabajos/${d.trabajo}`, d.porCotizar && `/trabajos/${d.porCotizar}`], espera: AMBOS },
-  "/trabajos/[id]/pagar": { rutas: (d) => [d.trabajoPorPagar && `/trabajos/${d.trabajoPorPagar}/pagar`], espera: AMBOS },
+  "/terminos": { rutas: () => ["/terminos"], espera: TODOS },
+  "/trabajos/[id]": { rutas: (d) => [d.trabajo && `/trabajos/${d.trabajo}`, d.porCotizar && `/trabajos/${d.porCotizar}`], espera: TODOS },
+  "/trabajos/[id]/pagar": { rutas: (d) => [d.trabajoPorPagar && `/trabajos/${d.trabajoPorPagar}/pagar`], espera: COMISIONISTA_Y_STAFF },
 };
 
 // Lo que pinta una pantalla cuando una consulta falla o la página truena.
 const ERROR = /No se pudo leer|No se pudieron|Application error|server-side exception|Algo salió mal|permission denied|This page couldn.t load/i;
+// Un id que no existe, para las rutas de staff que a los demás los regresan al inicio antes de buscar.
+const NINGUNO = "00000000-0000-4000-8000-000000000000";
 
 /** Las rutas reales: cada app/**\/page.tsx, como "/admin/altas/[id]". */
 function rutasReales(): string[] {
@@ -126,35 +145,43 @@ function rutasReales(): string[] {
   return rutas.sort();
 }
 
-async function leerDatos(): Promise<Datos> {
+/** Los datos para llenar las rutas, como los vería quien entra: el comisionista, lo suyo; el equipo, su liga. */
+async function datosPara(correo: string, rol: Rol): Promise<Datos> {
   const db: SupabaseClient = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
-  const { data: yo } = await db.from("personas").select("id, organizacion_activa").eq("correo", QUIENES[0].correo).single();
-  const org = yo!.organizacion_activa as string;
+  const { data: yo, error } = await db.from("personas").select("id, organizacion_activa").eq("correo", correo).single();
+  if (error || !yo) throw new Error(`Datos para la prueba: no existe ${correo} (¿falta npm run demo?)`);
+  const org = yo.organizacion_activa as string;
   // Una consulta que falla truena la prueba: nunca se confunde con "no hay datos".
   const uno = async (consulta: PromiseLike<{ data: { id: string }[] | null; error: { message: string } | null }>) => {
-    const { data, error } = await consulta;
-    if (error) throw new Error(`Datos para la prueba: ${error.message}`);
+    const { data, error: e } = await consulta;
+    if (e) throw new Error(`Datos para la prueba: ${e.message}`);
     return data?.[0]?.id ?? null;
   };
-  const [slug, membresia, porCotizar, trabajo, trabajoPorPagar, comisionista] = await Promise.all([
+  const solicitudes = () => {
+    const q = db.from("solicitudes").select("id").eq("organizacion_id", org);
+    return rol === "comisionista" ? q.eq("comisionista_id", yo.id) : rol === "equipo" ? q.eq("liga_de", yo.id) : q;
+  };
+  const [slug, codigoMembresia, codigoComisionista, porCotizar, trabajo, trabajoPorPagar, comisionista] = await Promise.all([
     db.from("organizaciones").select("slug").eq("id", org).single(),
-    db.from("membresias").select("codigo_referido").eq("persona_id", yo!.id).eq("organizacion_id", org).single(),
-    uno(db.from("solicitudes").select("id").eq("organizacion_id", org).eq("estado", "solicitada").limit(1)),
-    uno(db.from("solicitudes").select("id").eq("organizacion_id", org).eq("estado", "tramite").not("folio", "is", null).limit(1)),
-    uno(db.from("solicitudes").select("id").eq("organizacion_id", org).eq("estado", "tramite").is("pagado_en", null).limit(1)),
+    db.from("membresias").select("codigo_referido").eq("persona_id", yo.id).eq("organizacion_id", org).single(),
+    db.from("comisionistas").select("codigo_referido").eq("persona_id", yo.id).eq("organizacion_id", org).maybeSingle(),
+    uno(solicitudes().eq("estado", "solicitada").limit(1)),
+    uno(rol === "equipo" ? solicitudes().limit(1) : solicitudes().eq("estado", "tramite").not("folio", "is", null).limit(1)),
+    rol === "equipo" ? Promise.resolve(NINGUNO) : uno(solicitudes().eq("estado", "tramite").is("pagado_en", null).limit(1)),
     (async () => (await db.from("comisionistas").select("persona_id").eq("organizacion_id", org).limit(1)).data?.[0]?.persona_id ?? null)(),
   ]);
   const hoy = new Date();
   const anterior = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
+  const staff = rol === "admin_org" || rol === "finanzas";
   return {
     org: slug.data!.slug as string,
-    codigo: (membresia.data?.codigo_referido as string | null) ?? null,
-    porCotizar,
+    codigo: ((codigoComisionista.data?.codigo_referido ?? codigoMembresia.data?.codigo_referido) as string | null) ?? null,
+    porCotizar: staff ? porCotizar : (porCotizar ?? NINGUNO),
     trabajo,
     trabajoPorPagar,
-    comisionista,
-    // solicitudes_alta está cerrada aun para la clave secreta: se toma de la pantalla, con sesión.
-    alta: null,
+    comisionista: comisionista ?? (staff ? null : NINGUNO),
+    // solicitudes_alta está cerrada aun para la clave secreta: el staff la toma de la pantalla.
+    alta: staff ? null : NINGUNO,
     mesCierre: anterior,
   };
 }
@@ -208,11 +235,6 @@ async function revisar(pagina: Page, ruta: string, espera: Espera): Promise<stri
 
 test.skip(!SECRETA || !URL_SUPABASE || !ANON, "Falta SUPABASE_SECRET_KEY (o la URL/anon) en .env.local");
 
-let datos: Datos;
-test.beforeAll(async () => {
-  datos = await leerDatos();
-});
-
 test("humo: cada ruta real tiene su expectativa", () => {
   const reales = rutasReales();
   const faltan = reales.filter((r) => !(r in PANTALLAS));
@@ -221,51 +243,61 @@ test("humo: cada ruta real tiene su expectativa", () => {
   expect(sobran, "Rutas en la prueba que ya no existen").toEqual([]);
 });
 
-test("humo: páginas públicas sin sesión", async ({ browser }) => {
-  const contexto = await browser.newContext();
-  const pagina = await contexto.newPage();
-  const problemas: string[] = [];
-  for (const [patron, p] of Object.entries(PANTALLAS)) {
-    if (!p.publica) continue;
-    for (const ruta of p.rutas(datos)) {
-      if (!ruta) {
-        test.info().annotations.push({ type: "sin datos", description: patron });
-        continue;
+for (const org of ["XG", "DEMO"] as const) {
+  test(`humo: páginas públicas sin sesión (${org})`, async ({ browser }) => {
+    const datos = await datosPara(QUIENES.find((q) => q.org === org && q.rol === "admin_org")!.correo, "admin_org");
+    const contexto = await browser.newContext();
+    const pagina = await contexto.newPage();
+    const problemas: string[] = [];
+    for (const [patron, p] of Object.entries(PANTALLAS)) {
+      if (!p.publica) continue;
+      for (const ruta of p.rutas(datos)) {
+        if (!ruta) {
+          test.info().annotations.push({ type: "sin datos", description: patron });
+          continue;
+        }
+        const problema = await revisar(pagina, ruta, "abre");
+        if (problema) problemas.push(problema);
       }
-      const problema = await revisar(pagina, ruta, "abre");
-      if (problema) problemas.push(problema);
     }
-  }
-  await contexto.close();
-  expect(problemas).toEqual([]);
-});
+    await contexto.close();
+    expect(problemas).toEqual([]);
+  });
+}
 
 for (const q of QUIENES) {
-  test(`humo: ${q.rol}`, async ({ browser, baseURL }) => {
+  test(`humo: ${q.org} ${q.rol}`, async ({ browser, baseURL }) => {
     test.setTimeout(240_000);
+    const datos = await datosPara(q.correo, q.rol);
     const contexto = await browser.newContext();
     await entrar(contexto, q.correo, baseURL!);
     const pagina = await contexto.newPage();
     const problemas: string[] = [];
     let abiertas = 0;
-    await pagina.goto("/admin/altas?ver=todas");
-    const ligas = pagina.locator('main a[href^="/admin/altas/"]:not([href="/admin/altas/nueva"])');
-    const liga = (await ligas.count()) > 0 ? await ligas.first().getAttribute("href") : null;
-    const datosRol: Datos = { ...datos, alta: liga?.split("/").pop() ?? null };
+    if (q.rol === "admin_org" || q.rol === "finanzas") {
+      await pagina.goto("/admin/altas?ver=todas");
+      const ligas = pagina.locator('main a[href^="/admin/altas/"]:not([href="/admin/altas/nueva"])');
+      datos.alta = (await ligas.count()) > 0 ? ((await ligas.first().getAttribute("href"))?.split("/").pop() ?? null) : null;
+    }
     for (const [patron, p] of Object.entries(PANTALLAS)) {
       if (p.publica) continue;
-      for (const ruta of p.rutas(datosRol)) {
+      for (const ruta of p.rutas(datos)) {
         if (!ruta) {
           test.info().annotations.push({ type: "sin datos", description: patron });
           continue;
         }
-        const problema = await revisar(pagina, ruta, p.espera[q.rol]);
+        const espera = p.soloSuperPlataforma && q.org !== "XG" ? "inicio" : p.espera[q.rol];
+        const problema = await revisar(pagina, ruta, espera);
         abiertas++;
         if (problema) problemas.push(problema);
       }
     }
     test.info().annotations.push({ type: "pantallas", description: String(abiertas) });
     await contexto.close();
+    // En DEMO hay datos para todo: una ruta sin datos es un hueco en `npm run demo`.
+    if (q.org === "DEMO") {
+      expect(test.info().annotations.filter((a) => a.type === "sin datos").map((a) => a.description), "Rutas sin datos en DEMO").toEqual([]);
+    }
     expect(problemas).toEqual([]);
   });
 }

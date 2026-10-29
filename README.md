@@ -58,9 +58,35 @@ vive dentro de Node). No toca Supabase ni necesita internet después de instalar
 npm run humo
 ```
 
-Entra a tasa.xgplataform.com como admin_org y como finanzas y abre las pantallas principales
-(todas las rutas de `app/`; una ruta nueva sin expectativa hace fallar la prueba). Solo lectura: no llena
-formularios ni escribe nada. Necesita `SUPABASE_SECRET_KEY` en `.env.local` (sin ella, se salta).
+Entra a tasa.xgplataform.com y abre todas las rutas de `app/` (una ruta nueva sin expectativa hace
+fallar la prueba). Solo lectura: no llena formularios ni escribe nada. Necesita `SUPABASE_SECRET_KEY`
+en `.env.local` (sin ella, se salta). Entra a dos organizaciones:
+
+- **XG**, la real: como admin_org y como finanzas.
+- **DEMO**, con datos sintéticos: como admin_org, finanzas, equipo y comisionista. Hay datos en cada estatus y tipo de honorario, para que una pantalla que solo truena con datos no pase en verde con una lista vacía.
+
+### Organización DEMO
+
+```bash
+npm run demo
+```
+
+**Qué hace cada corrida:**
+- La primera vez crea DEMO.
+- En cada corrida borra y vuelve a crear **solo** sus datos (`supabase/produccion/demo.sql`).
+- Crea las cuentas de su gente con la API de administración, sin mandar correos: `xchel+demo-admin`, `-finanzas`, `-equipo`, `-ana`, `-beto` y `-carla` `@arqosuv.com`.
+
+**Qué no toca:**
+- Nunca toca XG. Lo prueba `pruebas/demo.test.ts`: dos corridas seguidas dejan XG idéntico.
+- El script se detiene si la organización no está marcada como demo.
+
+**Bloqueos (0043):**
+- DEMO no se conecta a Notion ni a otros sistemas.
+- El cron no le vence cotizaciones ni le limpia altas.
+- La aplicación no le manda correos.
+- Solo la ve quien es miembro, y en Plataforma solo super_plataforma.
+
+Para entrar a mano, usa uno de esos correos: el código llega a tu propio buzón por el alias.
 
 **Usa Microsoft Edge** (`channel: "msedge"` en `playwright.config.ts`), el que ya trae Windows.
 En esta PC la descarga del Chromium de Playwright se traba a medias, así que no hace falta
