@@ -35,7 +35,7 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
     const supabase = await crearClienteServidor();
     const { data } = await supabase
       .from("membresias")
-      .select("personas(nombre)")
+      .select("personas(nombre:nombre_visible)")
       .in("rol", ["admin_org", "finanzas", "admin_marca"])
       .eq("activa", true)
       .returns<{ personas: { nombre: string } | null }[]>();

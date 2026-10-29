@@ -47,3 +47,16 @@ export async function cambiarBonoReferido(_previo: EstadoEquipo, formData: FormD
   revalidatePath("/admin/equipo");
   return { error: null, mensaje: activo ? "Bono de referido encendido para esta persona." : "Sin bono de referido." };
 }
+
+/** El nombre con el que lo ven los demás (comisionistas, liga pública, panel). Vacío: su nombre real. */
+export async function ponerNombreParaMostrar(_previo: EstadoEquipo, formData: FormData): Promise<EstadoEquipo> {
+  await exigirRol("admin_org");
+  const nombre = String(formData.get("nombre_para_mostrar") ?? "").trim();
+  if (nombre.length > 60) return { error: "Máximo 60 caracteres.", mensaje: null };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("poner_nombre_para_mostrar", { p_persona: String(formData.get("persona") ?? ""), p_nombre: nombre });
+  if (error) return { error: error.message || "No se pudo. Inténtalo otra vez.", mensaje: null };
+  revalidatePath("/admin/equipo");
+  revalidatePath("/");
+  return { error: null, mensaje: nombre ? `Se mostrará como "${nombre}".` : "Se mostrará con su nombre real." };
+}

@@ -56,7 +56,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
     supabase
       .from("comisionistas")
       .select(
-        "persona_id, slug, rfc, curp, codigo_referido, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por, referido_por_miembro_desde, invito:personas!comisionistas_referido_por_miembro_fkey(nombre)"
+        "persona_id, slug, rfc, curp, codigo_referido, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por, referido_por_miembro_desde, invito:personas!comisionistas_referido_por_miembro_fkey(nombre:nombre_visible)"
       )
       .eq("persona_id", id)
       .maybeSingle()

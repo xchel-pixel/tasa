@@ -53,7 +53,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
       mesesCerrados(),
       supabase
         .from("eventos_trabajo")
-        .select("id, accion, motivo, detalle, creado_en, personas(nombre)")
+        .select("id, accion, motivo, detalle, creado_en, personas(nombre:nombre_visible)")
         .eq("solicitud_id", t.id)
         .order("creado_en")
         .returns<Correccion[]>(),

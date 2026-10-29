@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
-import { altaMiembro, cambiarActiva, cambiarBonoReferido, type EstadoEquipo } from "./acciones";
+import { altaMiembro, cambiarActiva, cambiarBonoReferido, ponerNombreParaMostrar, type EstadoEquipo } from "./acciones";
 
 const INICIAL: EstadoEquipo = { error: null, mensaje: null };
 const ENTRADA =
@@ -59,6 +59,23 @@ export function AltaMiembro({ marcas }: { marcas: { id: string; clave: string; n
       ) : null}
       <Aviso estado={estado} />
       <BotonEnviar>Agregar</BotonEnviar>
+    </form>
+  );
+}
+
+/** "Nombre para mostrar": el que ven comisionistas, la liga pública y el panel. */
+export function NombreParaMostrar({ personaId, actual }: { personaId: string; actual: string | null }) {
+  const [estado, enviar] = useActionState(ponerNombreParaMostrar, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-2">
+      <input type="hidden" name="persona" value={personaId} />
+      <label htmlFor={`npm-${personaId}`} className="text-[0.9375rem] font-semibold">Nombre para mostrar</label>
+      <div className="flex gap-2">
+        <input id={`npm-${personaId}`} name="nombre_para_mostrar" maxLength={60} defaultValue={actual ?? ""} placeholder="Su nombre real"
+          className="min-w-0 flex-1 rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento" />
+        <button type="submit" className="rounded-lg border border-primario px-3 font-semibold text-primario">Guardar</button>
+      </div>
+      <Aviso estado={estado} />
     </form>
   );
 }

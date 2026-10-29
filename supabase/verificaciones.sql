@@ -1854,6 +1854,66 @@ begin
 end;
 $$;
 
+-- @@ Nombre para mostrar y candado de folios
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  demo  uuid := (select id from organizaciones where slug = 'demo');
+  gaby  uuid := (select id from personas where correo = 'gaby@tasa.test');
+  v_anio smallint := extract(year from hoy_mx());
+  cod   text;
+  nuevo uuid;
+begin
+  -- Nombre para mostrar.
+  perform pg_temp.sistema();
+  select codigo_referido into cod from membresias where persona_id = gaby and organizacion_id = xg;
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select poner_nombre_para_mostrar(%L, %L)', gaby, 'Otra'), 'Solo admin_org',
+    'Finanzas no cambia nombres para mostrar');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(xg);
+  perform poner_nombre_para_mostrar(gaby, 'Finanzas XG');
+  perform pg_temp.debe_fallar(format('select poner_nombre_para_mostrar(%L, %L)', (select id from personas where correo = 'xchel+ana@arqosuv.com'), 'X'),
+    'no es del equipo', 'Un comisionista no lleva nombre para mostrar');
+  perform pg_temp.como(null);
+  perform pg_temp.igual(invitado_por('xg', cod), 'Finanzas XG'::text, 'La liga pública dice el nombre para mostrar, no el real');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(mi_sesion()->>'nombre', 'Finanzas XG'::text, 'La sesión saluda con el nombre para mostrar');
+  perform pg_temp.igual((select nombre from reporte_referidos() where persona_id = gaby), 'Finanzas XG'::text,
+    'El reporte de referidos usa el nombre para mostrar');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform poner_nombre_para_mostrar(gaby, '');
+  perform pg_temp.como(null);
+  perform pg_temp.igual(invitado_por('xg', cod), 'Gaby'::text, 'Vacío: vuelve al nombre de siempre');
+
+  -- Candado de folios (conector manual): Demo con un prefijo que todavía no tiene folios este año.
+  perform pg_temp.sistema();
+  update organizaciones set prefijo_folio = 'NUEVO' where id = demo;
+  delete from folios_contador where organizacion_id = demo and anio = v_anio;
+  perform set_config('tasa.org', demo::text, true);
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id,
+                           cuenta_receptora_id, monto_honorarios, estado, estatus_publico, creado_por)
+  select comisionista_id, tipo, origen, servicio_id, 'Calle Candado 1', 'Cliente Candado', marca_id,
+         cuenta_receptora_id, 1000, 'solicitada', 'solicitada', creado_por
+    from solicitudes where organizacion_id = demo limit 1
+  returning id into nuevo;
+  perform pg_temp.debe_fallar(format($q$update solicitudes set estado = 'tramite', estatus_publico = 'aceptada', aceptada_en = now() where id = %L$q$, nuevo),
+    'captura en Ajustes', 'Con el contador en cero y sin el último folio real, no se acepta un trabajo');
+
+  perform pg_temp.como('xchel+demo-admin@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select fijar_ultimo_folio(%s::smallint, -1)', v_anio), 'de 0 a 9999', 'El último folio no puede ser negativo');
+  perform fijar_ultimo_folio(v_anio, 41);
+  perform pg_temp.igual(ultimo_folio(v_anio), 41, 'admin_org captura el último folio real');
+  perform pg_temp.sistema();
+  perform set_config('tasa.org', demo::text, true);
+  update solicitudes set estado = 'tramite', estatus_publico = 'aceptada', aceptada_en = now() where id = nuevo;
+  perform pg_temp.igual((select folio from solicitudes where id = nuevo), 'NUEVO-' || v_anio || '-0042',
+    'Con el último folio capturado, el siguiente continúa el consecutivo real');
+  perform pg_temp.sistema();
+  update organizaciones set prefijo_folio = 'DEMO' where id = demo;
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

@@ -104,3 +104,19 @@ export async function usarConectorManual(_previo: EstadoAjustes): Promise<Estado
   revalidatePath("/ajustes");
   return { mensaje: "Conector manual activo: el estatus se mueve desde la ficha y Tasa pone los folios.", error: null };
 }
+
+/**
+ * El último folio real del año (el de la base de Trámites). Con el conector manual, sin esto no se
+ * acepta ningún trabajo: Tasa no inventa un 0001 que choque con el consecutivo real.
+ */
+export async function fijarUltimoFolio(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
+  await exigirRol("admin_org");
+  const anio = Number(formData.get("anio"));
+  const ultimo = Number(String(formData.get("ultimo") ?? "").replace(/\D/g, ""));
+  if (!Number.isInteger(ultimo) || ultimo < 0 || ultimo > 9999) return { mensaje: null, error: "Escribe el número del último folio (de 0 a 9999)." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("fijar_ultimo_folio", { p_anio: anio, p_ultimo: ultimo });
+  if (error) return { mensaje: null, error: error.message || "No se pudo guardar." };
+  revalidatePath("/ajustes");
+  return { mensaje: "Guardado: el siguiente folio será " + String(ultimo + 1).padStart(4, "0") + ".", error: null };
+}

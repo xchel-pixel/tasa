@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
-import { guardarAjustes, guardarOrigen, guardarPrefijo, usarConectorManual, type EstadoAjustes } from "./acciones";
+import { fijarUltimoFolio, guardarAjustes, guardarOrigen, guardarPrefijo, usarConectorManual, type EstadoAjustes } from "./acciones";
 
 const INICIAL: EstadoAjustes = { mensaje: null, error: null };
 const ENTRADA =
@@ -106,6 +106,26 @@ export default function FormularioAjustes({
 
       <Aviso estado={estado} />
       <BotonEnviar pendiente="Guardando…">Guardar</BotonEnviar>
+    </form>
+  );
+}
+
+/** El último folio real del año: sin él, con el conector manual no se acepta ningún trabajo. */
+export function FormularioUltimoFolio({ anio, prefijo, ultimo }: { anio: number; prefijo: string; ultimo: number | null }) {
+  const [estado, enviar] = useActionState(fijarUltimoFolio, INICIAL);
+  return (
+    <form action={enviar} className="mt-6 flex flex-col gap-3">
+      <input type="hidden" name="anio" value={anio} />
+      <label htmlFor="ultimo_folio" className="block font-semibold">Último folio real de {anio}</label>
+      <p className="-mt-2 text-[0.9375rem] leading-6 text-secundario">
+        {ultimo === null
+          ? "Sin capturar: con el conector manual no se puede aceptar ningún trabajo hasta que escribas el último folio de la base de Trámites (0 si el año arranca)."
+          : `Capturado: ${prefijo}-${anio}-${String(ultimo).padStart(4, "0")}. Con el conector manual, el siguiente será el ${String(ultimo + 1).padStart(4, "0")}. Con Notion, los folios los pone Notion.`}
+      </p>
+      <input id="ultimo_folio" name="ultimo" inputMode="numeric" required maxLength={4} defaultValue={ultimo ?? ""}
+        className={`${ENTRADA.replace("mt-3 ", "")} max-w-40`} />
+      <BotonEnviar variante="secundario">Guardar último folio</BotonEnviar>
+      <Aviso estado={estado} />
     </form>
   );
 }

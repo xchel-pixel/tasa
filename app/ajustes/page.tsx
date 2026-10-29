@@ -4,7 +4,7 @@ import { Etiqueta } from "@/components/etiqueta";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { ActivarNotion, ConfigNotion, VolverAManualBoton, type DatosNotion } from "./conector-notion";
-import FormularioAjustes, { FilaOrigen, FormularioPrefijo } from "./formulario-ajustes";
+import FormularioAjustes, { FilaOrigen, FormularioPrefijo, FormularioUltimoFolio } from "./formulario-ajustes";
 
 export const metadata = { title: "Ajustes — Tasa" };
 
@@ -56,6 +56,8 @@ export default async function Ajustes() {
       .select("id, tipo, activo, estado, configuracion, mapeo_campos, credencial_guardada_en, ultimo_sync, ultimo_error, mapeo_estatus(valor_externo, estatus_publico)")
       .returns<Conector[]>(),
   ]);
+  const anio = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric" }).format(new Date()));
+  const ultimoFolio = await supabase.rpc("ultimo_folio", { p_anio: anio });
   const a = oExplota(ajustes, "los ajustes");
   const conectores = oExplota(conector, "los conectores") ?? [];
   const activo = conectores.find((c) => c.activo) ?? null;
@@ -128,6 +130,11 @@ export default async function Ajustes() {
           <section className="mt-10">
             <h2 className="text-[1.125rem] font-bold">Folios</h2>
             <FormularioPrefijo prefijo={oExplota(organizacion, "la organización")?.prefijo_folio ?? ""} />
+            <FormularioUltimoFolio
+              anio={anio}
+              prefijo={oExplota(organizacion, "la organización")?.prefijo_folio ?? ""}
+              ultimo={typeof ultimoFolio.data === "number" ? ultimoFolio.data : null}
+            />
           </section>
 
           <section className="mt-10">

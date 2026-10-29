@@ -273,6 +273,8 @@ begin
   insert into membresias (persona_id, organizacion_id, rol) values
     (v_adm, demo, 'admin_org'), (v_com, demo, 'comisionista');
   insert into comisionistas (persona_id, slug, fecha_alta, rfc) values (v_com, 'demo', '2026-09-01', 'DEMO900101AB7');
+  -- Conector manual: sin el último folio real capturado no se acepta nada (0033). Demo arranca en 0.
+  insert into folios_contador (organizacion_id, anio, ultimo) values (demo, extract(year from hoy_mx()), 0);
 
   -- Pagado el 15 de octubre: comisión de 8% sobre 20,000 = 1,600.
   insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, inmueble_municipio,
