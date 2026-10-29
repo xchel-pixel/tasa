@@ -98,7 +98,7 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
   const base = config.configuracion.base_de_datos;
   const mapeo = config.mapeo_campos;
 
-  async function notion<T>(ruta: string, metodo: "GET" | "POST", cuerpo?: unknown): Promise<T> {
+  async function notion<T>(ruta: string, metodo: "GET" | "POST" | "PATCH", cuerpo?: unknown): Promise<T> {
     const r = await llamar(`${API}${ruta}`, {
       method: metodo,
       headers: { Authorization: `Bearer ${credencial}`, "Notion-Version": VERSION, "Content-Type": "application/json" },
@@ -109,7 +109,21 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
     return json as T;
   }
 
+  /** Borrada (404) o en la papelera / archivada: para Tasa ya no existe. */
+  async function existe(externoId: string): Promise<boolean> {
+    const r = await llamar(`${API}/pages/${externoId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${credencial}`, "Notion-Version": VERSION },
+    });
+    if (r.status === 404) return false;
+    const json = (await r.json().catch(() => ({}))) as { archived?: boolean; in_trash?: boolean; code?: string; message?: string };
+    if (!r.ok) throw fallaDeNotion(r.status, json);
+    return !json.archived && !json.in_trash;
+  }
+
   return {
+    existe,
+
     async probar() {
       if (!base) throw new FallaConector("inaccesible", "Falta la base de datos en la configuración del conector.");
       const db = await notion<{ properties: Record<string, { type: string }> }>(`/databases/${base}`, "GET");
@@ -140,6 +154,14 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
         properties: propiedadesDeTramite(t, mapeo, config.configuracion),
       });
       return pagina.id;
+    },
+
+    async marcarCancelado(externoId, etapa) {
+      const nombre = mapeo.etapa?.trim();
+      if (!nombre) throw new FallaConector("propiedad_no_encontrada", "Falta la propiedad de etapa en el mapeo del conector.");
+      if (!(await existe(externoId))) return false;
+      await notion(`/pages/${externoId}`, "PATCH", { properties: { [nombre]: { select: { name: etapa } } } });
+      return true;
     },
 
     async leerCambios(desde) {

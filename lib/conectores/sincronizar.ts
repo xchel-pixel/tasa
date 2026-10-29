@@ -73,6 +73,25 @@ export async function sincronizarConector(
       if (que === "actualizado" || que === "alerta") resultado.actualizados++;
     }
 
+    // 3. Lo cancelado en Tasa: se escribe la etapa de cancelado afuera (nunca al revés).
+    const { data: porCancelar, error: errorCancelar } = await supabase.rpc("por_cancelar_afuera", { p_conector: config.id });
+    if (errorCancelar) throw new Error(errorCancelar.message);
+    for (const c of (porCancelar ?? []) as { solicitud_id: string; externo_id: string; etapa: string }[]) {
+      if (await conector.marcarCancelado(c.externo_id, c.etapa)) {
+        await registrar(supabase, "registrar_cancelado_afuera", { p_conector: config.id, p_solicitud: c.solicitud_id });
+      } else {
+        await registrar(supabase, "registrar_revision_externa", { p_conector: config.id, p_solicitud: c.solicitud_id, p_existe: false });
+      }
+    }
+
+    // 4. Páginas borradas o archivadas: cada trabajo vivo se revisa una vez por hora.
+    const { data: porRevisar, error: errorRevisar } = await supabase.rpc("por_revisar_afuera", { p_conector: config.id });
+    if (errorRevisar) throw new Error(errorRevisar.message);
+    for (const p of (porRevisar ?? []) as { solicitud_id: string; externo_id: string }[]) {
+      const existe = await conector.existe(p.externo_id);
+      await registrar(supabase, "registrar_revision_externa", { p_conector: config.id, p_solicitud: p.solicitud_id, p_existe: existe });
+    }
+
     await registrar(supabase, "registrar_sync_ok", { p_conector: config.id });
   } catch (falla) {
     const f = falla instanceof FallaConector ? falla : new FallaConector("otro", falla instanceof Error ? falla.message : String(falla));

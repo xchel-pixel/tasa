@@ -59,4 +59,8 @@ export interface Conector {
   crearRegistro(t: TramitePorCrear): Promise<string>;
   /** Lo que cambió afuera desde `desde` (solo registros que vienen de Tasa). */
   leerCambios(desde: Date): Promise<Lectura[]>;
+  /** Escribe la etapa de cancelado en el registro externo. Falso si el registro ya no existe. */
+  marcarCancelado(externoId: string, etapa: string): Promise<boolean>;
+  /** ¿Sigue existiendo el registro (ni borrado ni archivado)? */
+  existe(externoId: string): Promise<boolean>;
 }

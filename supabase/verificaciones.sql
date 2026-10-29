@@ -286,18 +286,12 @@ begin
   perform pg_temp.igual((select estatus_publico from solicitudes where id = t4), 'en_elaboracion'::text,
     'Una etapa que no está en el mapeo no mueve el estatus');
 
-  perform pg_temp.igual(
-    registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null),
-    'alerta'::text, 'Cancelado en Notion levanta una alerta');
-  perform pg_temp.igual((select estado from solicitudes where id = t4), 'tramite'::text,
-    'Pero NO cancela el trabajo');
   perform registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null);
-  perform pg_temp.igual((select count(*) from alertas where solicitud_id = t4), 1::bigint,
-    'Leer otra vez no duplica la alerta');
-
-  perform cancelar_trabajo(t4, 'Confirmado: el cliente canceló');
-  perform pg_temp.igual((select count(*) from alertas where solicitud_id = t4 and resuelta_en is null), 0::bigint,
-    'Cancelar en Tasa cierra la alerta');
+  perform pg_temp.igual((select estado from solicitudes where id = t4), 'cancelada'::text,
+    'Cancelado en Notion cancela el trabajo en Tasa (0034)');
+  perform registrar_lectura(pg_temp.notion_xg(), 'simulado-0004', 'MGP-2026-0590 Inmobiliaria Norte', 'Cancelado', null);
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = t4 and resuelta_en is null) <= 1, true,
+    'Leer otra vez no duplica nada');
 
   perform registrar_lectura(pg_temp.notion_xg(), (select externo_id from solicitudes where id = t10), (select folio from solicitudes where id = t10), 'En proceso', null);
   perform pg_temp.igual((select estatus_publico from solicitudes where id = t10), 'pagado'::text,
@@ -407,7 +401,15 @@ begin
     format($q$update solicitudes set cuenta_receptora_id = (select id from cuentas_receptoras where banco = 'Banregio') where id = %L$q$, t7),
     'solo admin_org', 'Finanzas no cambia la cuenta de un trabajo con pagos confirmados');
   perform pg_temp.igual((select count(*) from bitacora), 0::bigint, 'Finanzas no ve la bitácora');
+  -- Desde 0034, Cancelado en Notion ya no deja alerta si no hay dinero: se pone una de conector para ver el permiso.
+  perform pg_temp.sistema();
+  insert into alertas (organizacion_id, tipo, conector_id, codigo, mensaje)
+  values (pg_temp.xg(), 'conector', pg_temp.notion_xg(), 'otro', 'Alerta de prueba para el permiso');
+  perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.igual((select count(*) > 0 from alertas), true, 'Finanzas sí ve las alertas');
+  perform pg_temp.sistema();
+  delete from alertas where mensaje = 'Alerta de prueba para el permiso';
+  perform pg_temp.como('gaby@tasa.test');
 
   perform pg_temp.como('xchel@arqosuv.com');
   execute format($q$update solicitudes set cuenta_receptora_id = (select id from cuentas_receptoras where banco = 'Banregio') where id = %L$q$, t7);
@@ -1911,6 +1913,106 @@ begin
     'Con el último folio capturado, el siguiente continúa el consecutivo real');
   perform pg_temp.sistema();
   update organizaciones set prefijo_folio = 'DEMO' where id = demo;
+end;
+$$;
+
+-- @@ Notion: cada Etapa, cancelar y páginas borradas
+do $$
+declare
+  notion  uuid := pg_temp.notion_xg();
+  base    solicitudes%rowtype;
+  t       uuid;
+  e       record;
+  dinero  uuid;
+  tasa    uuid;
+  borrada uuid;
+begin
+  perform pg_temp.sistema();
+  select * into base from solicitudes where organizacion_id = pg_temp.xg() and comisionista_id is not null limit 1;
+
+  -- Cada Etapa real de Notion contra su estatus público.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id,
+                           cuenta_receptora_id, monto_honorarios, estado, estatus_publico, folio, externo_id, aceptada_en, creado_por)
+  values (base.comisionista_id, 'tramite_directo', 'admin', base.servicio_id, 'Calle Etapas 1', 'Cliente Etapas', base.marca_id,
+          base.cuenta_receptora_id, 1000, 'tramite', 'aceptada', 'MGP-2026-7001', 'prueba-etapas', now(), base.creado_por)
+  returning id into t;
+  for e in select * from (values
+      ('Por asignar', 'aceptada'), ('En espera de cliente', 'aceptada'), ('En proceso', 'en_elaboracion'),
+      ('En revisión', 'en_revision'), ('Listo para entregar', 'en_revision'), ('Entregado', 'entregado'),
+      ('Cerrado', 'entregado')) as v(etapa, estatus)
+  loop
+    perform registrar_lectura(notion, 'prueba-etapas', 'MGP-2026-7001 Cliente Etapas', e.etapa, null);
+    perform pg_temp.igual((select estatus_publico from solicitudes where id = t), e.estatus,
+      'Etapa "' || e.etapa || '" → ' || e.estatus);
+  end loop;
+
+  -- Regla 1: "Cancelado" sin dinero cancela, con bitácora.
+  perform registrar_lectura(notion, 'prueba-etapas', 'MGP-2026-7001 Cliente Etapas', 'Cancelado', null);
+  perform pg_temp.igual((select estado || ' ' || estatus_publico || ' ' || motivo_cancelacion from solicitudes where id = t),
+    'cancelada cancelada Cancelado desde Notion'::text, 'Etapa "Cancelado" → Tasa cancela el trabajo para todos');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'solicitudes' and registro_id = t::text and motivo = 'Cancelado desde Notion'
+        and despues->>'estado' = 'cancelada'),
+    1::bigint, 'Con bitácora "Cancelado desde Notion"');
+  perform registrar_lectura(notion, 'prueba-etapas', 'MGP-2026-7001 Cliente Etapas', 'En proceso', null);
+  perform pg_temp.igual((select estado || ' ' || estatus_publico from solicitudes where id = t), 'cancelada cancelada'::text,
+    'Una lectura posterior nunca revive un trabajo cancelado');
+
+  -- Regla 1 con dinero: se cancela, no se borra nada y alerta a admin_org.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id,
+                           cuenta_receptora_id, monto_honorarios, estado, estatus_publico, folio, externo_id, aceptada_en, creado_por)
+  values (base.comisionista_id, 'tramite_directo', 'admin', base.servicio_id, 'Calle Dinero 1', 'Cliente Dinero', base.marca_id,
+          base.cuenta_receptora_id, 1000, 'tramite', 'en_elaboracion', 'MGP-2026-7002', 'prueba-dinero', now(), base.creado_por)
+  returning id into dinero;
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  values (dinero, 'comprobante', 500, hoy_mx(), pg_temp.xg() || '/x/dinero.pdf', base.comisionista_id);
+  perform pg_temp.igual(registrar_lectura(notion, 'prueba-dinero', 'MGP-2026-7002 Cliente Dinero', 'Cancelado', null), 'alerta'::text,
+    'Con pagos: se cancela y queda alerta');
+  perform pg_temp.igual((select estado from solicitudes where id = dinero), 'cancelada'::text, 'El trabajo con pagos también se cancela');
+  perform pg_temp.igual((select count(*) from pagos where solicitud_id = dinero), 1::bigint, 'No se borra ningún pago');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = dinero and tipo = 'cancelado_externo' and resuelta_en is null
+                            and mensaje like '%con pagos o comisión%'), 1::bigint, 'La alerta le dice a admin_org que revise los ajustes');
+
+  -- Regla 2: cancelar en Tasa → escribir "Cancelado" en Notion.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id,
+                           cuenta_receptora_id, monto_honorarios, estado, estatus_publico, folio, externo_id, estatus_externo, aceptada_en, creado_por)
+  values (base.comisionista_id, 'tramite_directo', 'admin', base.servicio_id, 'Calle Tasa 1', 'Cliente Tasa', base.marca_id,
+          base.cuenta_receptora_id, 1000, 'tramite', 'en_elaboracion', 'MGP-2026-7003', 'prueba-tasa', 'En proceso', now(), base.creado_por)
+  returning id into tasa;
+  perform pg_temp.igual((select count(*) from por_cancelar_afuera(notion) where solicitud_id = tasa), 0::bigint,
+    'Un trabajo vivo no se manda a cancelar afuera');
+  perform cancelar_trabajo(tasa, 'El cliente ya no quiere');
+  perform pg_temp.igual((select etapa from por_cancelar_afuera(notion) where solicitud_id = tasa), 'Cancelado'::text,
+    'Cancelado en Tasa → el cron escribe Etapa "Cancelado" en Notion');
+  perform registrar_cancelado_afuera(notion, tasa);
+  perform pg_temp.igual((select count(*) from por_cancelar_afuera(notion) where solicitud_id = tasa), 0::bigint,
+    'Ya escrito, no se vuelve a mandar');
+  perform registrar_lectura(notion, 'prueba-tasa', 'MGP-2026-7003 Cliente Tasa', 'En proceso', null);
+  perform pg_temp.igual((select estado from solicitudes where id = tasa), 'cancelada'::text,
+    'La sincronización nunca lo revive');
+
+  -- Regla 3: página borrada o archivada.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id,
+                           cuenta_receptora_id, monto_honorarios, estado, estatus_publico, folio, externo_id, estatus_externo, aceptada_en, creado_por)
+  values (base.comisionista_id, 'tramite_directo', 'admin', base.servicio_id, 'Calle Borrada 1', 'Cliente Borrada', base.marca_id,
+          base.cuenta_receptora_id, 1000, 'tramite', 'en_revision', 'MGP-2026-7004', 'prueba-borrada', 'En revisión', now(), base.creado_por)
+  returning id into borrada;
+  perform pg_temp.igual((select count(*) from por_revisar_afuera(notion) where solicitud_id = borrada), 1::bigint,
+    'Un trabajo vivo con página entra a la revisión de existencia');
+  perform registrar_revision_externa(notion, borrada, true);
+  perform pg_temp.igual((select count(*) from por_revisar_afuera(notion) where solicitud_id = borrada), 0::bigint,
+    'Revisado, no se vuelve a revisar en una hora');
+  update solicitudes set externo_revisado_en = now() - interval '2 hours' where id = borrada;
+  perform registrar_revision_externa(notion, borrada, false);
+  perform pg_temp.igual((select estado || ' ' || estatus_publico || ' ' || (externo_baja_en is not null) from solicitudes where id = borrada),
+    'tramite en_revision true'::text, 'Página borrada: Tasa no cambia el estatus y deja de sincronizar');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = borrada and tipo = 'externo_borrado' and resuelta_en is null
+                            and mensaje like 'La página de Notion ya no existe%'), 1::bigint, 'Alerta a admin_org: "la página ya no existe"');
+  perform pg_temp.igual(registrar_lectura(notion, 'prueba-borrada', 'MGP-2026-7004 Cliente Borrada', 'Entregado', null), 'sin_cambios'::text,
+    'Una lectura de esa página ya no se aplica');
+  perform pg_temp.igual((select count(*) from por_revisar_afuera(notion) where solicitud_id = borrada)
+                        + (select count(*) from por_cancelar_afuera(notion) where solicitud_id = borrada), 0::bigint,
+    'Y ya no entra a ninguna revisión');
 end;
 $$;
 

@@ -106,3 +106,42 @@ describe("conector Notion", () => {
     expect(llamadas.filter((l) => l.url === "/databases/db1/query")[1].cuerpo.start_cursor).toBe("k2");
   });
 });
+
+describe("Cancelar y páginas borradas", () => {
+  /** Un fetch falso que responde por ruta y método, y anota lo que se mandó. */
+  function notionFalso(respuestas: Record<string, { status: number; cuerpo: unknown }>) {
+    const llamadas: { metodo: string; ruta: string; cuerpo: any }[] = [];
+    const falso = (async (url: string, init?: RequestInit) => {
+      const ruta = url.replace("https://api.notion.com/v1", "");
+      const metodo = init?.method ?? "GET";
+      llamadas.push({ metodo, ruta, cuerpo: init?.body ? JSON.parse(String(init.body)) : null });
+      const r = respuestas[`${metodo} ${ruta}`] ?? { status: 404, cuerpo: { code: "object_not_found" } };
+      return new Response(JSON.stringify(r.cuerpo), { status: r.status });
+    }) as typeof fetch;
+    return { notion: conectorNotion(config, "ntn_x", falso), llamadas };
+  }
+
+  test("cancelar en Tasa escribe la Etapa \"Cancelado\" en la página", async () => {
+    const { notion, llamadas } = notionFalso({
+      "GET /pages/p1": { status: 200, cuerpo: { id: "p1", archived: false, in_trash: false } },
+      "PATCH /pages/p1": { status: 200, cuerpo: { id: "p1" } },
+    });
+    expect(await notion.marcarCancelado("p1", "Cancelado")).toBe(true);
+    const parche = llamadas.find((l) => l.metodo === "PATCH")!;
+    expect(parche.cuerpo).toEqual({ properties: { Etapa: { select: { name: "Cancelado" } } } });
+  });
+
+  test("una página borrada, archivada o en la papelera ya no existe (y no se le escribe)", async () => {
+    const { notion, llamadas } = notionFalso({
+      "GET /pages/archivada": { status: 200, cuerpo: { id: "archivada", archived: true } },
+      "GET /pages/papelera": { status: 200, cuerpo: { id: "papelera", in_trash: true } },
+      "GET /pages/viva": { status: 200, cuerpo: { id: "viva", archived: false } },
+    });
+    expect(await notion.existe("borrada")).toBe(false);
+    expect(await notion.existe("archivada")).toBe(false);
+    expect(await notion.existe("papelera")).toBe(false);
+    expect(await notion.existe("viva")).toBe(true);
+    expect(await notion.marcarCancelado("borrada", "Cancelado")).toBe(false);
+    expect(llamadas.some((l) => l.metodo === "PATCH")).toBe(false);
+  });
+});
