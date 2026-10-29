@@ -130,7 +130,7 @@ values
   ('Mayte Uristegui Urrutia', 'muriostegui.mgp@gmail.com', current_setting('tasa.org')::uuid, false),
   ('Rodolfo Adame Gómez', 'radame.mgp@gmail.com', current_setting('tasa.org')::uuid, false),
   ('Cuauhtli Missael Guerrero Solorio', 'cguerrero.mgp@gmail.com', current_setting('tasa.org')::uuid, false),
-  ('María Guadalupe Cervantes Núñez', 'gcervantes.mgp@gmail.com', current_setting('tasa.org')::uuid, false);
+  ('María Guadalupe Cervantes Núñez', 'lupitatransporte@gmail.com', current_setting('tasa.org')::uuid, false);
 
 insert into membresias (persona_id, organizacion_id, rol)
 select p.id, current_setting('tasa.org')::uuid, v.rol
@@ -142,7 +142,7 @@ select p.id, current_setting('tasa.org')::uuid, v.rol
     ('muriostegui.mgp@gmail.com', 'equipo'),
     ('radame.mgp@gmail.com', 'equipo'),
     ('cguerrero.mgp@gmail.com', 'equipo'),
-    ('gcervantes.mgp@gmail.com', 'equipo')
+    ('lupitatransporte@gmail.com', 'equipo')
   ) as v(correo, rol)
   join personas p on lower(p.correo) = v.correo;
 
