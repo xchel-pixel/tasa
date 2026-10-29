@@ -53,7 +53,7 @@ select * from (
   union all
   select 10, 'Niveles',
          (select string_agg(nombre || ' ' || coalesce(umbral_minimo::text, '—') || ' ' || coalesce(porcentaje::text, 'forzado'), ' · ' order by orden) from niveles)
-         = 'Enlace 0 5.00 · Aliado 10000 10.00 · Socio 30000 12.50 · Socio Plus 60000 15.00 · Élite — forzado',
+         = 'Enlace 0.00 5.00 · Aliado 10000.00 10.00 · Socio 30000.00 12.50 · Socio Plus 60000.00 15.00 · Élite — forzado',
          (select string_agg(nombre || ' ' || coalesce(umbral_minimo::text, '—') || ' ' || coalesce(porcentaje::text, 'forzado'), ' · ' order by orden) from niveles)
   union all
   select 11, 'Ajustes de XG',

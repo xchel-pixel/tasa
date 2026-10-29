@@ -1,6 +1,9 @@
 # Paso a producción — plan
 
-Estado: **aprobado**; los puntos 2 a 4 y los términos se construyen en modo pruebas. El reset todavía no.
+Estado: **en producción desde el 28-oct-2026** (reset con 0001–0027, sin semilla). Configuración de XG
+cargada con `supabase/produccion/configuracion_xg.sql`; revisión de solo lectura en
+`supabase/produccion/revisar.sql` (16 puntos). Respaldo previo en `Desktop/tasa-respaldos` (JSON, sin
+Docker). Pendiente de Xchel: `CRON_SECRET` en Vercel, logos de MGP y AP73, secreto de Notion.
 
 La idea en una línea: se construye y se prueba todo en el proyecto de pruebas, el día del
 cambio se borra la base y se vuelve a armar sin semilla, se cargan los datos reales desde
