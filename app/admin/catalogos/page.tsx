@@ -3,7 +3,8 @@ import { PantallaAdmin } from "@/components/pantalla-admin";
 import { clabeValida } from "@/lib/clabe";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
-import { FormularioConvenio, PreciosConvenio, textoComision, type Convenio } from "./convenios";
+import { FormularioConvenio, PreciosConvenio, type Convenio } from "./convenios";
+import { textoComision } from "./textos";
 import { FormularioCuenta, FormularioMarca, FormularioServicio, type Cuenta, type Marca, type Servicio } from "./formularios";
 
 type FilaConvenio = Omit<Convenio, "precios" | "comision_pct"> & {

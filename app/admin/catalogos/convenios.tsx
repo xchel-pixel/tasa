@@ -26,11 +26,6 @@ export type Convenio = {
 
 type Opcion = { id: string; nombre: string };
 
-/** "Comisión normal", "Sin comisión" o "Comisión fija 10%". */
-export function textoComision(c: Pick<Convenio, "comision_regla" | "comision_pct">) {
-  return c.comision_regla === "ninguna" ? "Sin comisión" : c.comision_regla === "fija" ? `Comisión fija ${c.comision_pct}%` : "Comisión normal";
-}
-
 export function FormularioConvenio({ convenio }: { convenio?: Convenio }) {
   const [estado, enviar] = useActionState(guardarConvenio, INICIAL);
   const [regla, setRegla] = useState(convenio?.comision_regla ?? "normal");
