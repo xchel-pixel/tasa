@@ -140,6 +140,13 @@ la app las muestra, la base las hace cumplir.
   y no dar la tarea por terminada si reporta errores. Manda cada consulta de las pantallas a la
   base real con `limit=0` (no lee datos) y atrapa lo que tumba una pantalla aunque la base esté
   vacía: relaciones ambiguas (PGRST201), columnas que ya no existen.
+- **Antes de cada push a main, correr `npm run humo` y no subir si falla.** Entra a producción
+  como admin_org y como finanzas y abre todas las pantallas (solo lectura); las que no le tocan a
+  finanzas deben regresarla al inicio. La lista sale de las rutas reales: una ruta nueva sin su
+  expectativa en `humo/humo.spec.ts` hace fallar la prueba, así que al crear una pantalla se
+  agrega ahí. Usa Microsoft Edge en esta PC y necesita `SUPABASE_SECRET_KEY` en `.env.local`.
+  Como prueba lo que ya está publicado, después del push (cuando Vercel termine) se corre otra
+  vez para confirmar lo nuevo.
 - **Embeber `personas` siempre con su llave** desde una tabla que tenga más de una hacia
   personas: `personas!comisionistas_persona_id_fkey(nombre)`, nunca `personas(nombre)`. Lo revisa
   `pruebas/consultas.test.ts`.
