@@ -11,9 +11,10 @@ const ENTRADA =
 type Paso = { tipo: "llenando" } | { tipo: "enviando"; que: string } | { tipo: "listo"; correo: string };
 
 /**
- * Tres pasos que la persona ve como uno: crear la solicitud (servidor),
- * subir la CSF (directo a Storage) y confirmarla (servidor). Si la subida
- * falla, la solicitud queda "subiendo" y se borra sola al día siguiente.
+ * Con CSF, tres pasos que la persona ve como uno: crear la solicitud
+ * (servidor), subir la CSF (directo a Storage) y confirmarla (servidor).
+ * Si la subida falla, la solicitud queda "subiendo" y se borra sola al
+ * día siguiente. Sin CSF, solo el primero: queda "CSF pendiente".
  */
 export default function FormularioSolicitud({
   org,
@@ -41,11 +42,13 @@ export default function FormularioSolicitud({
     evento.preventDefault();
     setError(null);
     const formulario = new FormData(evento.currentTarget);
-    const archivo = formulario.get("csf") as File | null;
-    const errorArchivo = errorDeCsf(archivo);
+    const elegido = formulario.get("csf") as File | null;
+    const archivo = elegido && elegido.size > 0 ? elegido : null;
+    const errorArchivo = archivo ? errorDeCsf(archivo) : null;
     if (errorArchivo) return setError(errorArchivo);
     formulario.delete("csf");
     formulario.set("t", String(abierto.current));
+    formulario.set("con_csf", archivo ? "1" : "0");
 
     setPaso({ tipo: "enviando", que: "Enviando tu solicitud…" });
     const pedido = await pedirAlta(formulario);
@@ -53,6 +56,7 @@ export default function FormularioSolicitud({
       setPaso({ tipo: "llenando" });
       return setError(pedido.error ?? "No se pudo enviar la solicitud.");
     }
+    if (!archivo) return setPaso({ tipo: "listo", correo: String(formulario.get("correo") ?? "") });
     try {
       setPaso({ tipo: "enviando", que: "Subiendo tu constancia…" });
       await subirCsf(`${orgId}/${pedido.id}/csf.pdf`, archivo!);
@@ -103,19 +107,25 @@ export default function FormularioSolicitud({
         <input id="telefono" name="telefono" type="tel" inputMode="tel" required maxLength={20} autoComplete="tel" className={ENTRADA} />
       </div>
       <div>
-        <label htmlFor="rfc" className="block font-semibold">RFC</label>
-        <input id="rfc" name="rfc" required maxLength={20} autoCapitalize="characters" autoComplete="off" className={`${ENTRADA} uppercase`} />
-        <p className="mt-1 text-[0.9375rem] text-secundario">Con homoclave, como aparece en tu constancia.</p>
+        <p className="font-semibold">RFC o CURP</p>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">Uno de los dos es obligatorio; si tienes ambos, escribe ambos.</p>
+        <label htmlFor="rfc" className="mt-3 block text-[0.9375rem] font-semibold">RFC, con homoclave</label>
+        <input id="rfc" name="rfc" maxLength={20} autoCapitalize="characters" autoComplete="off" className={`${ENTRADA} uppercase`} />
+        <label htmlFor="curp" className="mt-3 block text-[0.9375rem] font-semibold">CURP</label>
+        <input id="curp" name="curp" maxLength={22} autoCapitalize="characters" autoComplete="off" className={`${ENTRADA} uppercase`} />
       </div>
       <div>
-        <label htmlFor="csf" className="block font-semibold">Constancia de Situación Fiscal</label>
-        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">El PDF que descargas del SAT, de máximo 5 MB.</p>
+        <label htmlFor="csf" className="block font-semibold">
+          Constancia de Situación Fiscal <span className="font-normal text-secundario">(opcional)</span>
+        </label>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          El PDF que descargas del SAT, de máximo 5 MB. Si no la tienes a la mano, puedes subirla después desde Tasa.
+        </p>
         <input
           id="csf"
           name="csf"
           type="file"
           accept="application/pdf,.pdf"
-          required
           className="mt-3 block w-full text-[0.9375rem] text-secundario file:mr-4 file:rounded-lg file:border file:border-borde-campo file:bg-fondo file:px-4 file:py-2 file:text-[0.9375rem] file:font-semibold file:text-primario"
         />
       </div>

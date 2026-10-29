@@ -41,6 +41,23 @@ export function errorDeRfc(
   return null;
 }
 
+/** 18 caracteres: 4 letras, fecha AAMMDD, sexo H/M/X, 5 letras, homoclave y dígito (solo formato). */
+export const CURP = /^[A-Z]{4}[0-9]{6}[HMX][A-Z]{5}[A-Z0-9][0-9]$/;
+
+export const limpiarCurp = limpiarRfc;
+
+export function errorDeCurp(curp: string): string | null {
+  if (!curp) return null;
+  if (!CURP.test(curp)) return "La CURP no tiene el formato correcto: son 18 caracteres, como aparecen en tu CURP.";
+  return null;
+}
+
+/** La solicitud de alta pide uno de los dos. */
+export function errorDeRfcOCurp(rfc: string, curp: string): string | null {
+  if (!rfc && !curp) return "Escribe tu RFC o tu CURP (uno de los dos).";
+  return (rfc ? errorDeRfc(rfc, { revisadoAMano: true }) : null) ?? errorDeCurp(curp);
+}
+
 /** "(442) 123-45 67" → "4421234567"; conserva el + de un número internacional. */
 export const limpiarTelefono = (texto: string) => texto.trim().replace(/(?!^\+)[^\d]/g, "");
 

@@ -11,5 +11,6 @@ export async function registrarMiCsf(ruta: string): Promise<{ error: string | nu
   const { error } = await supabase.rpc("subir_mi_csf", { p_ruta: ruta });
   if (error) return { error: error.message || "No se pudo guardar la constancia." };
   revalidatePath("/");
+  revalidatePath("/perfil");
   return { error: null };
 }

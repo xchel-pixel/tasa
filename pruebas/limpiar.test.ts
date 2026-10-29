@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { errorDeClabe, limpiarClabe } from "@/lib/clabe";
-import { errorDeRfc, errorDeTelefono, limpiarRfc, limpiarTelefono, rfcValido } from "@/lib/limpiar";
+import { errorDeCurp, errorDeRfc, errorDeRfcOCurp, errorDeTelefono, limpiarRfc, limpiarTelefono, rfcValido } from "@/lib/limpiar";
 
 describe("Campos que se pegan con espacios y guiones", () => {
   test("CLABE: se limpia y explica qué falta", () => {
@@ -29,5 +29,12 @@ describe("Campos que se pegan con espacios y guiones", () => {
     for (const rfc of ["CHC2206204P2", "PUSA8705253C3", "GUSM840104GU9"]) expect(rfcValido(rfc)).toBe(true);
     expect(rfcValido("CHC2206204P3")).toBe(false);
     expect(rfcValido("PUSA8705253C4")).toBe(false);
+  });
+
+  test("solicitud de alta: RFC o CURP, uno de los dos", () => {
+    expect(errorDeRfcOCurp("", "")).toMatch(/RFC o tu CURP/);
+    expect(errorDeRfcOCurp("", "PRCU900101HQTRRR01")).toBeNull();
+    expect(errorDeRfcOCurp("GUSM840104GU9", "")).toBeNull();
+    expect(errorDeCurp("PRCU900101")).toMatch(/18 caracteres/);
   });
 });

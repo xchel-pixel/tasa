@@ -51,6 +51,10 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
         </Link>
       </div>
 
+      <p className="mt-3 text-center">
+        <Link href="/perfil" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mis datos</Link>
+      </p>
+
       <Lista titulo="En curso" trabajos={enCurso} vacio="No tienes trabajos en curso." />
       {cerrados.length > 0 ? <Lista titulo="Terminados" trabajos={cerrados} /> : null}
     </>

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { errorDeRfc, errorDeTelefono, limpiarRfc, limpiarTelefono } from "@/lib/limpiar";
+import { errorDeRfcOCurp, errorDeTelefono, limpiarCurp, limpiarRfc, limpiarTelefono } from "@/lib/limpiar";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -14,10 +14,11 @@ export async function capturarAlta(formData: FormData): Promise<{ error: string 
   const persona = await exigirRol("admin_org", "finanzas");
   const campo = (n: string) => String(formData.get(n) ?? "").trim();
   const rfc = limpiarRfc(campo("rfc"));
+  const curp = limpiarCurp(campo("curp"));
   const telefono = limpiarTelefono(campo("telefono"));
   if (!campo("nombre")) return { error: "Falta el nombre." };
   if (!telefono) return { error: "Falta el teléfono." };
-  const formato = errorDeTelefono(telefono) ?? errorDeRfc(rfc, { obligatorio: true, revisadoAMano: true });
+  const formato = errorDeTelefono(telefono) ?? errorDeRfcOCurp(rfc, curp);
   if (formato) return { error: formato };
 
   const supabase = await crearClienteServidor();
@@ -25,10 +26,14 @@ export async function capturarAlta(formData: FormData): Promise<{ error: string 
     p_nombre: campo("nombre"),
     p_correo: campo("correo"),
     p_telefono: telefono,
-    p_rfc: rfc,
+    p_rfc: rfc || null,
+    p_curp: curp || null,
     p_ref: campo("ref") || null,
+    p_con_csf: formData.get("con_csf") === "1",
   });
   if (error) return { error: error.message || "No se pudo capturar. Inténtalo otra vez." };
+  revalidatePath("/admin/altas");
+  revalidatePath("/");
   return { error: null, id: data as string, carpeta: persona.organizacion.id };
 }
 

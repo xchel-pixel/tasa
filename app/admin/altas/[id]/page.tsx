@@ -18,7 +18,8 @@ type Solicitud = {
   nombre: string;
   correo: string;
   telefono: string;
-  rfc: string;
+  rfc: string | null;
+  curp: string | null;
   csf_ruta: string | null;
   csf_borrada_en: string | null;
   estado: EstadoAltaSolicitud | "subiendo";
@@ -55,7 +56,7 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
     await supabase
       .from("solicitudes_alta")
       .select(
-        "id, nombre, correo, telefono, rfc, csf_ruta, csf_borrada_en, estado, posible_duplicado, rfc_por_revisar, coincidencias, " +
+        "id, nombre, correo, telefono, rfc, curp, csf_ruta, csf_borrada_en, estado, posible_duplicado, rfc_por_revisar, coincidencias, " +
           "aviso_aceptado_en, motivo, rfc_revisado_a_mano, persona_id, decidida_en, correo_enviado_en, correo_error, creada_en, " +
           "capturo:personas!solicitudes_alta_capturada_por_fkey(nombre), decidio:personas!solicitudes_alta_decidida_por_fkey(nombre), " +
           "referidor:comisionistas(personas(nombre))"
@@ -68,7 +69,7 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
   if (!s || s.estado === "subiendo") notFound();
 
   const esAdmin = persona.rol === "admin_org";
-  const rfcNoCuadra = !rfcValido(s.rfc);
+  const rfcNoCuadra = s.rfc ? !rfcValido(s.rfc) : false;
   const [csf, tratos, bienvenida] = await Promise.all([
     s.csf_ruta ? supabase.storage.from("altas").createSignedUrl(s.csf_ruta, 600) : Promise.resolve(null),
     s.estado === "pendiente" && esAdmin ? tratosDeLaOrg(persona.organizacion.id) : Promise.resolve(null),
@@ -81,6 +82,7 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
         <Etiqueta tono={ESTADOS[s.estado].tono}>{ESTADOS[s.estado].texto}</Etiqueta>
         {s.posible_duplicado ? <Etiqueta tono="error">Posible duplicado</Etiqueta> : null}
         {s.rfc_por_revisar ? <Etiqueta tono="error">RFC por revisar</Etiqueta> : null}
+        {!s.csf_ruta && !s.csf_borrada_en ? <Etiqueta tono="proceso">CSF pendiente</Etiqueta> : null}
       </div>
 
       {s.coincidencias.length ? (
@@ -96,10 +98,11 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
         <Dato titulo="Correo">{s.correo}</Dato>
         <Dato titulo="Teléfono">{s.telefono}</Dato>
         <Dato titulo="RFC">
-          {s.rfc}
+          {s.rfc ?? "—"}
           {rfcNoCuadra ? <span className="block font-normal text-error">El dígito verificador no cuadra</span> : null}
           {s.rfc_revisado_a_mano ? <span className="block font-normal text-secundario">Revisado a mano</span> : null}
         </Dato>
+        {s.curp ? <Dato titulo="CURP">{s.curp}</Dato> : null}
         <Dato titulo="Llegó">{fechaCorta(s.creada_en)}{s.capturo ? `, capturada por ${s.capturo.nombre}` : ", por la liga"}</Dato>
         {s.referidor?.personas ? <Dato titulo="Lo refirió">{s.referidor.personas.nombre}</Dato> : null}
         <Dato titulo="Aviso de privacidad">
@@ -121,8 +124,12 @@ export default async function SolicitudDeAltaDetalle({ params }: { params: Promi
           </a>
         ) : s.csf_borrada_en ? (
           <p className="text-[0.9375rem] text-secundario">La constancia se borró el {fechaCorta(s.csf_borrada_en)} (90 días después del rechazo).</p>
-        ) : (
+        ) : s.csf_ruta ? (
           <p className="text-[0.9375rem] text-error">No se pudo abrir la constancia.</p>
+        ) : (
+          <p className="text-[0.9375rem] leading-6 text-secundario">
+            Llegó sin constancia. Se puede aprobar igual; la sube después desde &quot;Mis datos&quot;.
+          </p>
         )}
       </div>
 

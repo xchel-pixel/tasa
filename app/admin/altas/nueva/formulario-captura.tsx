@@ -9,7 +9,7 @@ import { capturarAlta, confirmarCaptura } from "./acciones";
 const ENTRADA =
   "mt-2 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
-/** Los mismos tres pasos que la solicitud pública: capturar, subir la CSF y confirmar. */
+/** Los mismos pasos que la solicitud pública: capturar y, si hay CSF, subirla y confirmar. */
 export default function FormularioCaptura({ existentes }: { existentes: { slug: string; nombre: string }[] }) {
   const router = useRouter();
   const montado = useMontado();
@@ -20,10 +20,12 @@ export default function FormularioCaptura({ existentes }: { existentes: { slug: 
     evento.preventDefault();
     setError(null);
     const formulario = new FormData(evento.currentTarget);
-    const archivo = formulario.get("csf") as File | null;
-    const errorArchivo = errorDeCsf(archivo);
+    const elegido = formulario.get("csf") as File | null;
+    const archivo = elegido && elegido.size > 0 ? elegido : null;
+    const errorArchivo = archivo ? errorDeCsf(archivo) : null;
     if (errorArchivo) return setError(errorArchivo);
     formulario.delete("csf");
+    formulario.set("con_csf", archivo ? "1" : "0");
 
     setEnviando("Capturando…");
     const r = await capturarAlta(formulario);
@@ -31,6 +33,7 @@ export default function FormularioCaptura({ existentes }: { existentes: { slug: 
       setEnviando(null);
       return setError(r.error ?? "No se pudo capturar.");
     }
+    if (!archivo) return router.push(`/admin/altas/${r.id}`);
     try {
       setEnviando("Subiendo la constancia…");
       await subirCsf(`${r.carpeta}/${r.id}/csf.pdf`, archivo!);
@@ -62,20 +65,24 @@ export default function FormularioCaptura({ existentes }: { existentes: { slug: 
         <input id="telefono" name="telefono" type="tel" inputMode="tel" required maxLength={20} className={ENTRADA} />
       </div>
       <div>
-        <label htmlFor="rfc" className="block font-semibold">RFC</label>
-        <input id="rfc" name="rfc" required maxLength={20} autoCapitalize="characters" className={`${ENTRADA} uppercase`} />
+        <p className="font-semibold">RFC o CURP</p>
         <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
-          Si el último carácter no cuadra (RFC antiguo), se captura igual y queda &quot;RFC por revisar&quot;.
+          Uno de los dos. Si el último carácter del RFC no cuadra (RFC antiguo), se captura igual y queda &quot;RFC por revisar&quot;.
         </p>
+        <label htmlFor="rfc" className="mt-3 block text-[0.9375rem] font-semibold">RFC</label>
+        <input id="rfc" name="rfc" maxLength={20} autoCapitalize="characters" className={`${ENTRADA} uppercase`} />
+        <label htmlFor="curp" className="mt-3 block text-[0.9375rem] font-semibold">CURP</label>
+        <input id="curp" name="curp" maxLength={22} autoCapitalize="characters" className={`${ENTRADA} uppercase`} />
       </div>
       <div>
-        <label htmlFor="csf" className="block font-semibold">Constancia de Situación Fiscal (PDF)</label>
+        <label htmlFor="csf" className="block font-semibold">
+          Constancia de Situación Fiscal (PDF) <span className="font-normal text-secundario">(opcional)</span>
+        </label>
         <input
           id="csf"
           name="csf"
           type="file"
           accept="application/pdf,.pdf"
-          required
           className="mt-3 block w-full text-[0.9375rem] text-secundario file:mr-4 file:rounded-lg file:border file:border-borde-campo file:bg-fondo file:px-4 file:py-2 file:text-[0.9375rem] file:font-semibold file:text-primario"
         />
       </div>

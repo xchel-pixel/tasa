@@ -316,6 +316,12 @@ y fecha. Para XG:
 Estado: **construido** (migración 0024, Etapa A). En la Etapa B, después del reset, los dos
 textos se pegan en Ajustes de XG (el aviso queda versión 1 y los términos versión 1).
 
+**Ajuste 0025 (antes de la Etapa B):** la CSF es **opcional**. Obligatorio: nombre, correo,
+teléfono y **RFC o CURP** (uno de los dos; la CURP solo se revisa por formato). Sin CSF la
+solicitud muestra "CSF pendiente" y admin_org la aprueba igual; "RFC revisado a mano" sí la exige.
+El comisionista sube o reemplaza su CSF en "Mis datos" (`/perfil`), con bitácora. La lista de
+comisionistas tiene el filtro "Sin CSF". El alta directa y la importación siguen pidiendo RFC.
+
 Cómo quedó, en lo que no decía el plan:
 - `?ref=` es la liga personal (slug) del comisionista que refiere; si no existe o está
   inactivo, la solicitud llega sin referidor. El antifraude de referidos llega con su fase.

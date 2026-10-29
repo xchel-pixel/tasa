@@ -17,6 +17,8 @@ type Fila = {
   posible_duplicado: boolean;
   rfc_por_revisar: boolean;
   capturada_por: string | null;
+  csf_ruta: string | null;
+  csf_borrada_en: string | null;
 };
 
 /** Finanzas la ve y captura; solo admin_org aprueba o rechaza. */
@@ -27,7 +29,7 @@ export default async function SolicitudesDeAlta({ searchParams }: { searchParams
   const supabase = await crearClienteServidor();
   let consulta = supabase
     .from("solicitudes_alta")
-    .select("id, nombre, correo, estado, creada_en, posible_duplicado, rfc_por_revisar, capturada_por")
+    .select("id, nombre, correo, estado, creada_en, posible_duplicado, rfc_por_revisar, capturada_por, csf_ruta, csf_borrada_en")
     .neq("estado", "subiendo")
     .order("creada_en", { ascending: false })
     .limit(200);
@@ -66,10 +68,11 @@ export default async function SolicitudesDeAlta({ searchParams }: { searchParams
                 <p className="mt-1 text-[0.9375rem] text-secundario">
                   {f.correo} · {fechaCorta(f.creada_en)}{f.capturada_por ? " · capturada" : ""}
                 </p>
-                {f.posible_duplicado || f.rfc_por_revisar ? (
+                {f.posible_duplicado || f.rfc_por_revisar || (!f.csf_ruta && !f.csf_borrada_en) ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {f.posible_duplicado ? <Etiqueta tono="error">Posible duplicado</Etiqueta> : null}
                     {f.rfc_por_revisar ? <Etiqueta tono="error">RFC por revisar</Etiqueta> : null}
+                    {!f.csf_ruta && !f.csf_borrada_en ? <Etiqueta tono="proceso">CSF pendiente</Etiqueta> : null}
                   </div>
                 ) : null}
               </Link>

@@ -28,12 +28,12 @@ export async function editarDatos(_previo: EstadoFicha, formData: FormData): Pro
   // Un RFC revisado a mano se puede dejar como está; si se cambia, el nuevo tiene que cuadrar.
   const { data: actual } = await (await crearClienteServidor())
     .from("comisionistas")
-    .select("rfc, rfc_revisado_a_mano")
+    .select("rfc, curp, rfc_revisado_a_mano")
     .eq("persona_id", id)
     .maybeSingle()
-    .returns<{ rfc: string | null; rfc_revisado_a_mano: boolean } | null>();
+    .returns<{ rfc: string | null; curp: string | null; rfc_revisado_a_mano: boolean } | null>();
   const revisadoAMano = Boolean(actual?.rfc_revisado_a_mano && actual.rfc === rfc);
-  const error = errorDeRfc(rfc, { obligatorio: true, revisadoAMano }) ?? errorDeTelefono(telefono);
+  const error = errorDeRfc(rfc, { obligatorio: !actual?.curp, revisadoAMano }) ?? errorDeTelefono(telefono);
   if (error) return { error, mensaje: null };
   return llamar(id, "actualizar_comisionista", {
     p_persona: id,

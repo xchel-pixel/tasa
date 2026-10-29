@@ -25,6 +25,7 @@ const FILTROS = [
   { clave: "activos", texto: "Activos" },
   { clave: "inactivos", texto: "Inactivos" },
   { clave: "todos", texto: "Todos" },
+  { clave: "sin_csf", texto: "Sin CSF" },
 ] as const;
 
 /** Buscador y filtro van en la dirección (`?q=…&ver=…`): se pueden compartir y regresar. */
@@ -36,11 +37,18 @@ export default async function Comisionistas({ searchParams }: PageProps<"/admin/
   const filtro = FILTROS.find((f) => f.clave === ver)?.clave ?? "activos";
 
   const supabase = await crearClienteServidor();
-  const todos = (oExplota(await supabase.rpc("resumen_comisionistas"), "los comisionistas") ?? []) as FilaComisionista[];
+  const [resumen, constancias] = await Promise.all([
+    supabase.rpc("resumen_comisionistas"),
+    supabase.from("comisionistas").select("persona_id, csf_ruta").returns<{ persona_id: string; csf_ruta: string | null }[]>(),
+  ]);
+  const todos = (oExplota(resumen, "los comisionistas") ?? []) as FilaComisionista[];
+  const sinCsf = new Set((oExplota(constancias, "las constancias") ?? []).filter((c) => !c.csf_ruta).map((c) => c.persona_id));
 
   const normal = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const filas = todos
-    .filter((c) => (filtro === "todos" ? true : filtro === "activos" ? c.activo : !c.activo))
+    .filter((c) =>
+      filtro === "todos" ? true : filtro === "sin_csf" ? sinCsf.has(c.persona_id) : filtro === "activos" ? c.activo : !c.activo
+    )
     .filter((c) => !texto || normal(`${c.nombre} ${c.correo}`).includes(normal(texto)));
 
   return (
@@ -74,7 +82,7 @@ export default async function Comisionistas({ searchParams }: PageProps<"/admin/
         />
       </form>
 
-      <nav aria-label="Filtro" className="mt-3 flex gap-2">
+      <nav aria-label="Filtro" className="mt-3 flex flex-wrap gap-2">
         {FILTROS.map((f) => (
           <Link
             key={f.clave}
@@ -105,7 +113,10 @@ export default async function Comisionistas({ searchParams }: PageProps<"/admin/
                       {c.nivel} · {Number(c.porcentaje)}%{c.provisional ? " (provisional)" : ""}
                     </p>
                   </div>
-                  {!c.activo ? <Etiqueta tono="error">Inactivo</Etiqueta> : null}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {!c.activo ? <Etiqueta tono="error">Inactivo</Etiqueta> : null}
+                    {sinCsf.has(c.persona_id) ? <Etiqueta tono="proceso">Sin CSF</Etiqueta> : null}
+                  </div>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[0.9375rem]">
                   <Dato etiqueta="Trabajos activos" valor={String(c.trabajos_activos)} />
