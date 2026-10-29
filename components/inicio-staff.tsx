@@ -3,7 +3,7 @@ import { Etiqueta } from "@/components/etiqueta";
 import { comisionesPorPagar, type PorPagar } from "@/lib/comisiones";
 import { mesLargo, pesos } from "@/lib/formato";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { ligaDeEquipo } from "@/lib/invitar";
+import { bonoDeEquipo, ligaDeEquipo } from "@/lib/invitar";
 import { pendientesDelPanel } from "@/lib/panel";
 import { esStaff, NOMBRE_DEL_ROL, type Persona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -17,7 +17,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 export async function InicioStaff({ persona }: { persona: Persona }) {
   const staff = esStaff(persona);
   const supabase = await crearClienteServidor();
-  const [p, porPagar, conector, liga] = await Promise.all([
+  const [p, porPagar, conector, liga, bono] = await Promise.all([
     pendientesDelPanel(),
     staff ? comisionesPorPagar() : Promise.resolve([] as PorPagar[]),
     supabase
@@ -27,6 +27,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
       .maybeSingle()
       .returns<{ tipo: string; estado: string; ultimo_error: string | null } | null>(),
     ligaDeEquipo(persona),
+    bonoDeEquipo(persona),
   ]);
 
   const cierre = {
@@ -107,12 +108,12 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         {staff ? <Enlace href="/admin/reportes">Reportes</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/admin/configuracion">Configuración</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/admin/catalogos">Catálogos</Enlace> : null}
-        {persona.rol === "admin_org" ? <Enlace href="/admin/equipo">Equipo</Enlace> : null}
+        {staff ? <Enlace href="/admin/equipo">Equipo</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/ajustes">Ajustes</Enlace> : null}
         {persona.superPlataforma ? <Enlace href="/plataforma">Plataforma</Enlace> : null}
       </nav>
 
-      {liga ? <TarjetaInvitar liga={liga} equipo /> : null}
+      {liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null}
     </>
   );
 }

@@ -80,17 +80,56 @@ export function NombreParaMostrar({ personaId, actual }: { personaId: string; ac
   );
 }
 
-/** Interruptor por persona; solo aparece si la organización tiene encendido el bono para el equipo. */
-export function CambiarBonoReferido({ membresiaId, activo }: { membresiaId: string; activo: boolean }) {
+/**
+ * Interruptor, % y vigencia por persona; solo aparece si la organización tiene encendido el bono para el
+ * equipo. El % y la fecha se ven al encender el interruptor.
+ */
+export function CambiarBonoReferido({ membresiaId, activo, pct, hasta }: {
+  membresiaId: string; activo: boolean; pct: number | null; hasta: string | null;
+}) {
   const [estado, enviar] = useActionState(cambiarBonoReferido, INICIAL);
+  const [encendido, setEncendido] = useState(activo);
   return (
-    <form action={enviar} className="mt-3 flex flex-col gap-2">
+    <form action={enviar} className="mt-3 flex flex-col gap-3 rounded-lg border border-linea px-3 py-3">
       <input type="hidden" name="membresia" value={membresiaId} />
-      <input type="hidden" name="activo" value={String(!activo)} />
-      <p className="text-[0.9375rem] text-secundario">Bono de referido: {activo ? "sí" : "no"}</p>
-      <BotonEnviar variante="secundario">{activo ? "Quitar bono de referido" : "Dar bono de referido"}</BotonEnviar>
+      <label className="flex items-center gap-3 font-semibold">
+        <input type="checkbox" name="activo" checked={encendido} onChange={(e) => setEncendido(e.target.checked)}
+          className="size-5 shrink-0 accent-primario" />
+        Dar bono de referido
+      </label>
+      {encendido ? (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor={`pct-${membresiaId}`} className="block text-[0.9375rem] font-semibold">% de bono</label>
+            <input id={`pct-${membresiaId}`} name="pct" inputMode="decimal" maxLength={4} defaultValue={pct ?? ""}
+              placeholder="Escala"
+              className="mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento" />
+          </div>
+          <div>
+            <label htmlFor={`hasta-${membresiaId}`} className="block text-[0.9375rem] font-semibold">Vigente hasta</label>
+            <input id={`hasta-${membresiaId}`} name="hasta" type="date" defaultValue={hasta ?? ""}
+              className="mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento" />
+          </div>
+          <p className="col-span-2 text-[0.875rem] leading-5 text-secundario">
+            De 0 a 5%. Vacío: la escala de comisionistas (2% a 5% según sus referidos activos). Sin fecha: sin vencimiento.
+          </p>
+        </div>
+      ) : null}
+      <BotonEnviar variante="secundario">Guardar bono</BotonEnviar>
       <Aviso estado={estado} />
     </form>
+  );
+}
+
+/** Lo mismo, en solo lectura (finanzas). */
+export function BonoReferidoLectura({ activo, pct, hasta }: { activo: boolean; pct: number | null; hasta: string | null }) {
+  return (
+    <p className="mt-3 text-[0.9375rem] text-secundario">
+      Bono de referido:{" "}
+      {activo
+        ? `${pct === null ? "escala normal (2% a 5%)" : `${pct}% fijo`}${hasta ? `, vigente hasta ${hasta}` : ""}`
+        : "no"}
+    </p>
   );
 }
 

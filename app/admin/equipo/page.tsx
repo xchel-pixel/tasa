@@ -2,7 +2,7 @@ import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { exigirRol, NOMBRE_DEL_ROL, type Rol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
-import { AltaMiembro, CambiarActiva, CambiarBonoReferido, NombreParaMostrar } from "./formularios";
+import { AltaMiembro, BonoReferidoLectura, CambiarActiva, CambiarBonoReferido, NombreParaMostrar } from "./formularios";
 
 export const metadata = { title: "Equipo — Tasa" };
 
@@ -11,19 +11,22 @@ type Fila = {
   rol: Rol;
   activa: boolean;
   bono_referido: boolean;
+  bono_referido_pct: number | null;
+  bono_referido_hasta: string | null;
   persona_id: string;
   personas: { nombre: string; correo: string; nombre_para_mostrar: string | null } | null;
   membresia_marcas: { marcas: { clave: string } | null }[];
 };
 
-/** Quién opera la organización (los comisionistas viven en Comisionistas). */
+/** Quién opera la organización (los comisionistas viven en Comisionistas). Finanzas lo ve en solo lectura. */
 export default async function Equipo() {
-  const yo = await exigirRol("admin_org");
+  const yo = await exigirRol("admin_org", "finanzas");
+  const edita = yo.rol === "admin_org";
   const supabase = await crearClienteServidor();
   const [miembros, marcas, ajustes] = await Promise.all([
     supabase
       .from("membresias")
-      .select("id, rol, activa, bono_referido, persona_id, personas(nombre, correo, nombre_para_mostrar), membresia_marcas(marcas(clave))")
+      .select("id, rol, activa, bono_referido, bono_referido_pct, bono_referido_hasta, persona_id, personas(nombre, correo, nombre_para_mostrar), membresia_marcas(marcas(clave))")
       .neq("rol", "comisionista")
       .order("rol")
       .returns<Fila[]>(),
@@ -54,19 +57,27 @@ export default async function Equipo() {
               </div>
               {!m.activa ? <Etiqueta tono="error">Inactivo</Etiqueta> : null}
             </div>
-            <NombreParaMostrar personaId={m.persona_id} actual={m.personas?.nombre_para_mostrar ?? null} />
+            {edita ? <NombreParaMostrar personaId={m.persona_id} actual={m.personas?.nombre_para_mostrar ?? null} /> : null}
             {bonoEquipo && ["equipo", "finanzas", "admin_marca"].includes(m.rol) ? (
-              <CambiarBonoReferido membresiaId={m.id} activo={m.bono_referido} />
+              edita ? (
+                <CambiarBonoReferido membresiaId={m.id} activo={m.bono_referido}
+                  pct={m.bono_referido_pct === null ? null : Number(m.bono_referido_pct)} hasta={m.bono_referido_hasta} />
+              ) : (
+                <BonoReferidoLectura activo={m.bono_referido}
+                  pct={m.bono_referido_pct === null ? null : Number(m.bono_referido_pct)} hasta={m.bono_referido_hasta} />
+              )
             ) : null}
-            {m.persona_id !== yo.id ? <CambiarActiva membresiaId={m.id} activa={m.activa} /> : null}
+            {edita && m.persona_id !== yo.id ? <CambiarActiva membresiaId={m.id} activa={m.activa} /> : null}
           </li>
         ))}
       </ul>
 
-      <section className="mt-10">
-        <h2 className="text-[1.125rem] font-bold">Agregar al equipo</h2>
-        <AltaMiembro marcas={oExplota(marcas, "las marcas") ?? []} />
-      </section>
+      {edita ? (
+        <section className="mt-10">
+          <h2 className="text-[1.125rem] font-bold">Agregar al equipo</h2>
+          <AltaMiembro marcas={oExplota(marcas, "las marcas") ?? []} />
+        </section>
+      ) : null}
     </PantallaAdmin>
   );
 }

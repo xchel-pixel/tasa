@@ -3,7 +3,7 @@ import { Encabezado } from "@/components/encabezado";
 import { InicioComisionista } from "@/components/inicio-comisionista";
 import { InicioStaff } from "@/components/inicio-staff";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { ligaDeEquipo } from "@/lib/invitar";
+import { bonoDeEquipo, ligaDeEquipo } from "@/lib/invitar";
 import { obtenerContacto } from "@/lib/contacto";
 import { obtenerSesion } from "@/lib/sesion";
 
@@ -59,8 +59,8 @@ export default async function Inicio() {
   );
 }
 
-/** La tarjeta "Invita a un comisionista" del equipo (solo seguimiento, sin bono). */
+/** La tarjeta "Invita a un comisionista" del equipo (con su bono, si admin_org se lo dio). */
 async function LigaEquipo({ persona }: { persona: Parameters<typeof ligaDeEquipo>[0] }) {
-  const liga = await ligaDeEquipo(persona);
-  return liga ? <TarjetaInvitar liga={liga} equipo /> : null;
+  const [liga, bono] = await Promise.all([ligaDeEquipo(persona), bonoDeEquipo(persona)]);
+  return liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null;
 }

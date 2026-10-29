@@ -2016,6 +2016,74 @@ begin
 end;
 $$;
 
+-- @@ Bono de equipo: % y vigencia
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  gaby  uuid := (select id from personas where correo = 'gaby@tasa.test');
+  xchel uuid := (select id from personas where correo = 'xchel@arqosuv.com');
+  m     uuid;
+  r     record;
+  previos bigint;
+begin
+  perform pg_temp.sistema();
+  select id into m from membresias where persona_id = gaby and organizacion_id = xg;
+  update ajustes set bono_referido_equipo = true where organizacion_id = xg;
+  select count(*) into previos from bitacora where tabla = 'membresias' and registro_id = m::text and motivo = 'Bono de referido del equipo';
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(xg);
+  perform poner_bono_referido_miembro(m, true, 3.25, hoy_mx() + 30);
+  perform pg_temp.igual((select bono_referido || ' ' || bono_referido_pct || ' ' || (bono_referido_hasta = hoy_mx() + 30) from membresias where id = m),
+    'true 3.25 true'::text, 'admin_org da bono con % fijo (dos decimales) y "vigente hasta"');
+  perform pg_temp.igual(miembro_cobra_bono(xg, gaby), true, 'Vigente: cobra');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'membresias' and registro_id = m::text and persona_id = xchel
+        and motivo = 'Bono de referido del equipo' and antes->>'bono_referido_pct' is null
+        and despues->>'bono_referido_pct' is not null
+        and (despues->>'bono_referido_pct')::numeric = 3.25 and (despues->>'bono_referido')::boolean),
+    1::bigint, 'Bitácora con antes/después y quién lo hizo');
+
+  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true, 5.01, null)', m), 'de 0 a 5', 'Más de 5% no');
+  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true, -1, null)', m), 'de 0 a 5', 'Negativo no');
+  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true, 2.555, null)', m), 'de 0 a 5', 'Más de dos decimales no');
+  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true, 2, %L)', m, hoy_mx() - 1), 'ya pasó',
+    'Una fecha nueva en el pasado no');
+
+  perform poner_bono_referido_miembro(m, true, null, null);
+  perform pg_temp.igual((select bono_referido_pct is null and bono_referido_hasta is null from membresias where id = m), true,
+    '% vacío = escala normal; sin fecha = sin vencimiento');
+  perform pg_temp.igual(
+    (select count(*) from bitacora where tabla = 'membresias' and registro_id = m::text and motivo = 'Bono de referido del equipo'),
+    previos + 2, 'Cada cambio deja su renglón');
+
+  -- Lo que ve el miembro en su tarjeta.
+  perform poner_bono_referido_miembro(m, true, 4, null);
+  perform pg_temp.como('gaby@tasa.test');
+  select * into r from mi_bono_referido();
+  perform pg_temp.igual(r.cobra || ' ' || r.pct, 'true 4.00'::text, 'El miembro ve su propio %');
+  perform pg_temp.debe_fallar(format('select poner_bono_referido_miembro(%L, true, 5, null)', m), 'Solo admin_org',
+    'Finanzas no lo cambia');
+  perform pg_temp.igual((select bono_referido_pct from membresias where id = m), 4.00::numeric(4,2), 'Finanzas sí lo lee');
+
+  -- Vencido: ya no cobra, y se puede editar el % sin tocar la fecha vieja.
+  perform pg_temp.sistema();
+  update membresias set bono_referido_hasta = hoy_mx() - 1 where id = m;
+  perform pg_temp.igual(miembro_cobra_bono(xg, gaby), false, 'Pasada la fecha ya no cobra');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select cobra from mi_bono_referido()), false, 'Y su tarjeta ya no muestra el bono');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform elegir_organizacion(xg);
+  perform poner_bono_referido_miembro(m, true, 2.5, hoy_mx() - 1);
+  perform pg_temp.igual((select bono_referido_pct from membresias where id = m), 2.50::numeric(4,2),
+    'Cambiar el % con la fecha vencida que ya tenía sí se puede');
+
+  perform pg_temp.sistema();
+  update membresias set bono_referido = false, bono_referido_pct = null, bono_referido_hasta = null where id = m;
+  update ajustes set bono_referido_equipo = false where organizacion_id = xg;
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

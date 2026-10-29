@@ -34,18 +34,34 @@ export async function cambiarActiva(_previo: EstadoEquipo, formData: FormData): 
   return { error: null, mensaje: activa ? "Activado." : "Desactivado: ya no entra a esta organización." };
 }
 
-/** Bono de referido por persona del equipo. Solo cuenta si la organización también lo tiene encendido. */
+/**
+ * Bono de referido por persona del equipo: interruptor, % fijo (vacío = la escala de comisionistas) y
+ * "vigente hasta". Solo cuenta si la organización también lo tiene encendido. La bitácora la deja la base.
+ */
 export async function cambiarBonoReferido(_previo: EstadoEquipo, formData: FormData): Promise<EstadoEquipo> {
   await exigirRol("admin_org");
-  const activo = formData.get("activo") === "true";
+  const activo = formData.get("activo") === "on";
+  const textoPct = String(formData.get("pct") ?? "").trim().replace(",", ".");
+  const pct = textoPct === "" ? null : Number(textoPct);
+  if (pct !== null && (!/^\d+(\.\d{1,2})?$/.test(textoPct) || pct > 5)) {
+    return { error: "El % de bono va de 0 a 5, con hasta dos decimales (vacío: la escala normal).", mensaje: null };
+  }
+  const hasta = String(formData.get("hasta") ?? "").trim() || null;
   const supabase = await crearClienteServidor();
   const { error } = await supabase.rpc("poner_bono_referido_miembro", {
     p_membresia: String(formData.get("membresia") ?? ""),
     p_activo: activo,
+    p_pct: pct,
+    p_hasta: hasta,
   });
   if (error) return { error: error.message || "No se pudo. Inténtalo otra vez.", mensaje: null };
   revalidatePath("/admin/equipo");
-  return { error: null, mensaje: activo ? "Bono de referido encendido para esta persona." : "Sin bono de referido." };
+  revalidatePath("/");
+  if (!activo) return { error: null, mensaje: "Sin bono de referido." };
+  return {
+    error: null,
+    mensaje: `Bono de referido: ${pct === null ? "escala normal (2% a 5%)" : `${pct}% fijo`}${hasta ? `, vigente hasta ${hasta}` : ""}.`,
+  };
 }
 
 /** El nombre con el que lo ven los demás (comisionistas, liga pública, panel). Vacío: su nombre real. */
