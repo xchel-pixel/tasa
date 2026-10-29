@@ -30,6 +30,8 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
+  // Que Chrome no ofrezca traducirla: Google Traductor cambiaba "CSF" por "LCR".
+  other: { google: "notranslate" },
 };
 
 export const viewport: Viewport = {
@@ -42,7 +44,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" className={`h-full antialiased ${manrope.variable}`}>
+    <html lang="es" translate="no" className={`h-full antialiased ${manrope.variable}`}>
       <body className="flex min-h-full flex-col">
         <ErroresVisibles />
         <EstadoDelNavegador />
