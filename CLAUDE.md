@@ -160,6 +160,7 @@ la app las muestra, la base las hace cumplir.
   conectores, cron) debe excluir las organizaciones con `demo = true` (ver 0043), y todo correo
   nuevo pasa `demo` a `enviarCorreo`. Al agregar una tabla o una funcionalidad con datos, se agrega
   también a `supabase/produccion/demo.sql` para que humo la vea con datos.
+- **Relación de una tabla consigo misma** (p. ej. `solicitudes.ligada_a`): se embebe por la columna, `ligada:ligada_a(...)`. Con `solicitudes!ligada_a(...)` PostgREST trae la dirección contraria (una lista vacía) sin dar error, así que revisar-consultas no lo atrapa.
 - **En PL/pgSQL, ninguna variable se llama igual que una columna** (`demo`, `estado`…): Postgres
   la marca ambigua y la función truena. Prefijo `v_`.
 - **Embeber `personas` siempre con su llave** desde una tabla que tenga más de una hacia

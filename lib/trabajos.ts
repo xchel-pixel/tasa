@@ -125,7 +125,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
          cliente_correo, requiere_factura, monto_honorarios, monto_iva, monto_terceros,
          monto_total, pagado_en, mes_cierre, motivo_cancelacion, creado_en,
          honorario_tipo, honorario_minimo, honorario_estimado, honorario_final_en,
-         ligada:solicitudes!ligada_a(id, folio, cliente_nombre),
+         ligada:ligada_a(id, folio, cliente_nombre),
          servicios(nombre), marcas(nombre), cuentas_receptoras(titular, banco, clabe),
          pagos(id, via, monto, fecha_pago, referencia, nota, recibido_por, estado, motivo_rechazo, motivo_retiro, reportado_por),
          historial_estatus(estatus_publico, desde),

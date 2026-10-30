@@ -72,7 +72,7 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
       .returns<FilaHonorario[]>(),
     supabase
       .from("solicitudes")
-      .select("aceptada_en, convenios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre)), ligada:solicitudes!ligada_a(estado, monto_honorarios)")
+      .select("aceptada_en, convenios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre)), ligada:ligada_a(estado, monto_honorarios)")
       .eq("estado", "tramite")
       .eq("honorario_tipo", "sin_costo")
       .gte("aceptada_en", mes)
