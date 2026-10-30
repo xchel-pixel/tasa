@@ -80,6 +80,9 @@ describe("Datos DEMO", () => {
                          from solicitudes where ${enDemo} and honorario_tipo = 'estimado'`)).toEqual(["1 1"]);
     expect(await demo(`select string_agg(honorario_tipo, ',' order by honorario_tipo) as v from convenio_precios where ${enDemo}`)).toEqual(["estimado,fijo,sin_costo"]);
     expect(await demo(`select count(*)::text as v from solicitudes where ${enDemo} and origen = 'liga_cliente'`)).toEqual(["2"]);
+    // Sin costo → conversión: uno ligado a trabajo contratado y uno sin ligar con más de 30 días (mes pasado), más el de este mes.
+    expect(await demo(`select (count(*) filter (where ligada_a is not null))::text || ' ' || (count(*) filter (where ligada_a is null and aceptada_en < now() - interval '30 days'))::text as v
+                         from solicitudes where ${enDemo} and honorario_tipo = 'sin_costo'`)).toEqual(["2 1"]);
     expect(await demo(`select (count(*) filter (where referidor_id is not null))::text || ' ' || (count(*) filter (where referidor_miembro_id is not null))::text as v
                          from solicitudes_alta where ${enDemo}`)).toEqual(["1 1"]);
     expect(await demo(`select estado as v from cierres where ${enDemo}`)).toEqual(["aprobado"]);

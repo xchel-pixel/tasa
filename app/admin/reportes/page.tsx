@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { mesActual, mesLargo, mesSiguiente, pesos } from "@/lib/formato";
+import { conversionSinCosto, DIAS_SIN_LIGAR, type Conversion } from "@/lib/conversion-sin-costo";
 import { mesAnterior } from "@/lib/panel";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
@@ -14,8 +15,16 @@ export const metadata = { title: "Reportes — Tasa" };
  *   · PAGO (solo admin_org): pagos de comisión hechos ese mes por
  *     origen del dinero, y los que se pagaron sin factura.
  * Más los trabajos aceptados en el mes por tipo de honorario (fijo, sin
- * costo, estimado ya fijado y estimado pendiente de fijar).
+ * costo, estimado ya fijado y estimado pendiente de fijar) y la conversión
+ * de los sin costo: cuántos terminaron con su trabajo ligado contratado.
  */
+
+type FilaSinCostoBase = {
+  aceptada_en: string;
+  convenios: { nombre: string } | null;
+  comisionistas: { personas: { nombre: string } | null } | null;
+  ligada: { estado: string; monto_honorarios: string | number | null } | null;
+};
 
 type FilaHonorario = {
   honorario_tipo: "fijo" | "sin_costo" | "estimado";
@@ -30,7 +39,7 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
   const superAdmin = persona.rol === "admin_org";
 
   const supabase = await crearClienteServidor();
-  const [comisiones, pagos, trabajos, pendientes] = await Promise.all([
+  const [comisiones, pagos, trabajos, pendientes, sinCosto] = await Promise.all([
     supabase
       .from("comisiones")
       .select("monto, tipo, cuentas_receptoras(alias), servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))")
@@ -61,7 +70,23 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
       .eq("honorario_tipo", "estimado")
       .is("honorario_final_en", null)
       .returns<FilaHonorario[]>(),
+    supabase
+      .from("solicitudes")
+      .select("aceptada_en, convenios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre)), ligada:solicitudes!ligada_a(estado, monto_honorarios)")
+      .eq("estado", "tramite")
+      .eq("honorario_tipo", "sin_costo")
+      .gte("aceptada_en", mes)
+      .lt("aceptada_en", mesSiguiente(mes))
+      .returns<FilaSinCostoBase[]>(),
   ]);
+  const conversion = conversionSinCosto(
+    (oExplota(sinCosto, "los trabajos sin costo") ?? []).map((x) => ({
+      aceptada_en: x.aceptada_en,
+      convenio: x.convenios?.nombre ?? null,
+      comisionista: x.comisionistas?.personas?.nombre ?? null,
+      ligada: x.ligada ? { estado: x.ligada.estado, monto_honorarios: x.ligada.monto_honorarios === null ? null : Number(x.ligada.monto_honorarios) } : null,
+    }))
+  );
   const delMes = oExplota(trabajos, "los trabajos del mes") ?? [];
   const porFijar = oExplota(pendientes, "los estimados pendientes") ?? [];
   const grupo = (que: (x: FilaHonorario) => boolean) => {
@@ -133,6 +158,25 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
         </Link>
       ) : null}
 
+      <h2 className="mt-8 text-[1.125rem] font-bold">Sin costo → conversión</h2>
+      <p className="text-[0.9375rem] leading-6 text-secundario">
+        Trabajos sin costo aceptados en el mes y cuántos terminaron con su trabajo ligado contratado. El sin costo no se cobra en
+        ningún caso.
+      </p>
+      {conversion.total.sinCosto === 0 ? (
+        <p className="mt-3 rounded-xl bg-alterno px-4 py-3 text-[0.9375rem] text-secundario">No hubo trabajos sin costo en el mes.</p>
+      ) : (
+        <>
+          <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <Indicador texto="Sin costo" valor={String(conversion.total.sinCosto)} />
+            <Indicador texto="Con trabajo ligado" valor={String(conversion.total.convertidos)} detalle={pesos(conversion.total.monto)} />
+            <Indicador texto={`+${DIAS_SIN_LIGAR} días sin ligar`} valor={String(conversion.total.sinLigar30)} alerta={conversion.total.sinLigar30 > 0} />
+          </dl>
+          <TablaConversion titulo="Por convenio" filas={conversion.porConvenio} />
+          <TablaConversion titulo="Por comisionista" filas={conversion.porComisionista} />
+        </>
+      )}
+
       {superAdmin ? (
         <>
           <h2 className="mt-8 text-[1.125rem] font-bold">Pagos de comisión hechos en el mes</h2>
@@ -146,6 +190,36 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
         </>
       ) : null}
     </PantallaAdmin>
+  );
+}
+
+function Indicador({ texto, valor, detalle, alerta = false }: { texto: string; valor: string; detalle?: string; alerta?: boolean }) {
+  return (
+    <div className={`rounded-xl px-2 py-3 ${alerta ? "bg-proceso-fondo text-proceso" : "bg-tinte"}`}>
+      <dt className="text-[0.8125rem] leading-4">{texto}</dt>
+      <dd className="mt-1 text-[1.25rem] font-bold">{valor}</dd>
+      {detalle ? <dd className="text-[0.8125rem] font-semibold">{detalle}</dd> : null}
+    </div>
+  );
+}
+
+/** Una fila por convenio o comisionista: sin costo, con ligado contratado (y su monto) y +30 días sin ligar. */
+function TablaConversion({ titulo, filas }: { titulo: string; filas: Conversion[] }) {
+  return (
+    <section className="mt-4 rounded-xl border border-linea px-4 py-3">
+      <h3 className="font-semibold">{titulo}</h3>
+      <ul className="mt-2 flex flex-col gap-2 text-[0.9375rem]">
+        {filas.map((f) => (
+          <li key={f.clave} className="border-t border-linea pt-2 first:border-t-0 first:pt-0">
+            <p className="font-semibold">{f.clave}</p>
+            <p className="text-secundario">
+              {f.sinCosto} sin costo · {f.convertidos} con trabajo ligado{f.convertidos > 0 ? ` (${pesos(f.monto)})` : ""}
+              {f.sinLigar30 > 0 ? <span className="font-semibold text-proceso"> · {f.sinLigar30} con +{DIAS_SIN_LIGAR} días sin ligar</span> : null}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

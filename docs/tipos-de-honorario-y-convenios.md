@@ -39,5 +39,6 @@ Se eligen al cotizar y al poner precio a un trámite directo ("cotizar y aceptar
 
 - **Trabajos aceptados en el mes por tipo:** fijo, sin costo, estimado con honorario final y estimado pendiente de fijar.
 - **Aviso de estimados sin honorario final:** cuenta los de cualquier mes y lleva a Trámites con ese filtro.
+- **Sin costo → conversión (solo lectura):** de los trabajos sin costo aceptados en el mes, cuántos tienen su trabajo ligado contratado (ya es trabajo) y por cuánto, y cuántos llevan más de 30 días sin uno. Va por convenio y por comisionista. **El sin costo nunca se cobra**, se contrate o no lo ligado (decisión del 30-oct-2026): no hay condición de cobro. El cálculo está en `lib/conversion-sin-costo.ts`, con sus pruebas.
 
 Pruebas: "Tipos de honorario y convenios" en `supabase/verificaciones.sql`, más PDF y Notion en `pruebas/`.

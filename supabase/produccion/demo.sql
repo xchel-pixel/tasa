@@ -33,7 +33,7 @@ declare
   v_avaluo uuid; v_hacend uuid; v_ov uuid; v_vh uuid;
   v_conv   uuid;
   v_aviso  integer;
-  s uuid; p uuid; t_lig uuid; t6 uuid;
+  s uuid; p uuid; t_lig uuid; t6 uuid; t_m1 uuid;
   cod_ana  text; cod_eq text;
 begin
   -- 1. La organización (una sola vez) -------------------------
@@ -145,9 +145,9 @@ begin
   insert into solicitudes (comisionista_id, tipo, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre,
                            marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en, creado_por)
   values (v_ana, 'cotizacion', v_avaluo, 'Nave 7, Parque Industrial Demo', 'El Marqués', 'Industrias Demo',
-          v_marca, v_cuenta, 24000, 'tramite', 'entregado', m1 + 1, v_ana) returning id into s;
+          v_marca, v_cuenta, 24000, 'tramite', 'entregado', m1 + 1, v_ana) returning id into t_m1;
   insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
-  values (s, 'comprobante', 24000, m1 + 9, v_demo || '/' || v_ana || '/demo-1.pdf', v_ana) returning id into p;
+  values (t_m1, 'comprobante', 24000, m1 + 9, v_demo || '/' || v_ana || '/demo-1.pdf', v_ana) returning id into p;
   update pagos set estado = 'confirmado', revisado_por = v_fin where id = p;
 
   perform ejecutar_preparacion_cierre(v_demo, m1, v_fin);
@@ -223,6 +223,18 @@ begin
   insert into pagos (solicitud_id, via, monto, fecha_pago, referencia, reportado_por)
   values (s, 'directo', 4500, hoy_mx(), 'SPEI DEMO-10', v_fin) returning id into p;
   update pagos set estado = 'confirmado', revisado_por = v_adm where id = p;
+
+  -- Sin costo → conversión (Reportes, mes pasado). Nunca se cobran: solo se mide si lo ligado se contrató.
+  --   · Ana: valor hacendario ligado a su avalúo pagado (convertido).
+  --   · Carla: valor hacendario sin trabajo ligado, con más de 30 días.
+  insert into solicitudes (comisionista_id, tipo, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, honorario_tipo, ligada_a, convenio_id,
+                           estado, estatus_publico, aceptada_en, creado_por)
+  values (v_ana, 'cotizacion', v_vh, 'Nave 7, Parque Industrial Demo', 'El Marqués', 'Industrias Demo',
+          v_marca, v_cuenta, 0, 'sin_costo', t_m1, v_conv, 'tramite', 'entregado', m1 + 1, v_ana),
+         (v_carla, 'cotizacion', v_vh, 'Lote 12, Fracc. Demo', 'Corregidora', 'Cliente Sin Avalúo Demo',
+          v_marca, v_cuenta, 0, 'sin_costo', null, v_conv, 'tramite', 'entregado',
+          least(m1 + interval '1 day', now() - interval '31 days'), v_carla);
 
   -- Cancelada (Ana).
   insert into solicitudes (comisionista_id, tipo, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre, creado_por)
