@@ -11,7 +11,7 @@ import type { FilaComisionista } from "../page";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
-import { AgregarMovimiento, CambiarActivo, CambiarVinculo, CorregirReferidor, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
+import { AgregarMovimiento, CambiarActivo, CambiarVinculo, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
 
@@ -135,6 +135,11 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
       : []
   );
   const hoyMx = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+  const { data: tarjeta } = staff
+    ? await supabase.from("tarjetas").select("estado, motivo_estado").eq("comisionista_id", id).maybeSingle()
+        .returns<{ estado: string; motivo_estado: string | null } | null>()
+    : { data: null };
+  const ligaTarjeta = `/t/${yo.organizacion.slug}/${f.slug}`;
   const { data: terminos } = await supabase
     .from("aceptaciones_terminos")
     .select("version, aceptado_en")
@@ -201,6 +206,25 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           />
         ) : null}
       </Seccion>
+
+      {staff ? (
+        <Seccion titulo="Tarjeta digital">
+          {tarjeta ? (
+            <>
+              <p className="text-[0.9375rem]">
+                {{ borrador: "Sin publicar", publicada: "Publicada", pausada: "En pausa", despublicada: "Despublicada" }[tarjeta.estado] ?? tarjeta.estado}
+                {tarjeta.motivo_estado ? ` · ${tarjeta.motivo_estado}` : ""}
+              </p>
+              <a href={ligaTarjeta} target="_blank" rel="noopener" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+                Ver la tarjeta
+              </a>
+              {superAdmin ? <ModerarTarjeta personaId={id} estado={tarjeta.estado} /> : null}
+            </>
+          ) : (
+            <p className="text-[0.9375rem] text-secundario">No ha armado su tarjeta.</p>
+          )}
+        </Seccion>
+      ) : null}
 
       {staff && vinculos && vinculos.length > 0 ? (
         <Seccion titulo="Sus referidos">

@@ -47,6 +47,8 @@ type Datos = {
   trabajoPorPagar: string | null;
   comisionista: string | null;
   alta: string | null;
+  /** Slug de una tarjeta publicada de la organización (para /t/…). */
+  tarjeta: string | null;
   /** El mes anterior, AAAA-MM. */
   mesCierre: string;
 };
@@ -92,6 +94,7 @@ const PANTALLAS: Record<string, Pantalla> = {
   "/admin/reportes": { rutas: (d) => ["/admin/reportes", `/admin/reportes?mes=${d.mesCierre}-01`], espera: OPERACION },
   "/admin/solicitudes": { rutas: () => ["/admin/solicitudes"], espera: OPERACION },
   "/admin/solicitudes/[id]": { rutas: (d) => [d.porCotizar && `/admin/solicitudes/${d.porCotizar}`], espera: OPERACION },
+  "/admin/testimonios": { rutas: () => ["/admin/testimonios"], espera: SOLO_ADMIN },
   "/admin/tramites": {
     rutas: () => [
       "/admin/tramites",
@@ -116,6 +119,8 @@ const PANTALLAS: Record<string, Pantalla> = {
   "/s/[org]/[codigo]": { rutas: (d) => [d.codigo && `/s/${d.org}/${d.codigo}`], espera: TODOS, publica: true },
   "/solicitudes/nueva": { rutas: () => ["/solicitudes/nueva"], espera: SOLO_COMISIONISTA },
   // Ya aceptados, se pueden volver a leer.
+  "/t/[org]/[clave]": { rutas: (d) => [d.tarjeta && `/t/${d.org}/${d.tarjeta}`], espera: TODOS, publica: true },
+  "/tarjeta": { rutas: () => ["/tarjeta"], espera: SOLO_COMISIONISTA },
   "/terminos": { rutas: () => ["/terminos"], espera: TODOS },
   "/trabajos/[id]": { rutas: (d) => [d.trabajo && `/trabajos/${d.trabajo}`, d.porCotizar && `/trabajos/${d.porCotizar}`], espera: TODOS },
   "/trabajos/[id]/pagar": { rutas: (d) => [d.trabajoPorPagar && `/trabajos/${d.trabajoPorPagar}/pagar`], espera: COMISIONISTA_Y_STAFF },
@@ -146,11 +151,15 @@ function rutasReales(): string[] {
 }
 
 /** Los datos para llenar las rutas, como los vería quien entra: el comisionista, lo suyo; el equipo, su liga. */
-async function datosPara(correo: string, rol: Rol): Promise<Datos> {
+const SLUG_ORG = { XG: "xg", DEMO: "demo" } as const;
+
+async function datosPara(correo: string, rol: Rol, orgSlug: string): Promise<Datos> {
   const db: SupabaseClient = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
   const { data: yo, error } = await db.from("personas").select("id, organizacion_activa").eq("correo", correo).single();
   if (error || !yo) throw new Error(`Datos para la prueba: no existe ${correo} (¿falta npm run demo?)`);
-  const org = yo.organizacion_activa as string;
+  const { data: laOrg } = await db.from("organizaciones").select("id").eq("slug", orgSlug).single();
+  if (!laOrg) throw new Error(`Datos para la prueba: no existe la organización ${orgSlug}`);
+  const org = laOrg.id as string;
   // Una consulta que falla truena la prueba: nunca se confunde con "no hay datos".
   const uno = async (consulta: PromiseLike<{ data: { id: string }[] | null; error: { message: string } | null }>) => {
     const { data, error: e } = await consulta;
@@ -182,12 +191,30 @@ async function datosPara(correo: string, rol: Rol): Promise<Datos> {
     comisionista: comisionista ?? (staff ? null : NINGUNO),
     // solicitudes_alta está cerrada aun para la clave secreta: el staff la toma de la pantalla.
     alta: staff ? null : NINGUNO,
+    tarjeta: await tarjetaPublicada(db, org),
     mesCierre: anterior,
   };
 }
 
+/**
+ * El slug de una tarjeta publicada, buscada como la vería cualquiera: con la función pública (la tabla
+ * está cerrada aun para la clave secreta).
+ */
+async function tarjetaPublicada(db: SupabaseClient, org: string): Promise<string | null> {
+  const anon = createClient(URL_SUPABASE, ANON, { auth: { persistSession: false } });
+  const [{ data: o }, { data: slugs }] = await Promise.all([
+    db.from("organizaciones").select("slug").eq("id", org).single(),
+    db.from("comisionistas").select("slug").eq("organizacion_id", org).limit(50),
+  ]);
+  for (const c of (slugs ?? []) as { slug: string }[]) {
+    const { data } = await anon.rpc("datos_tarjeta", { p_org: o?.slug, p_clave: c.slug });
+    if ((data as { disponible?: boolean } | null)?.disponible) return c.slug;
+  }
+  return null;
+}
+
 /** La sesión en las cookies que lee @supabase/ssr (en trozos si es larga). */
-async function entrar(contexto: BrowserContext, correo: string, sitio: string) {
+async function entrar(contexto: BrowserContext, correo: string, sitio: string): Promise<SupabaseClient> {
   const admin = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
   const { data: liga, error: e1 } = await admin.auth.admin.generateLink({ type: "magiclink", email: correo });
   if (e1 || !liga.properties?.email_otp) throw new Error(`No se pudo generar el código de ${correo}: ${e1?.message}`);
@@ -211,6 +238,21 @@ async function entrar(contexto: BrowserContext, correo: string, sitio: string) {
       secure: sitio.startsWith("https"),
     }))
   );
+  return createClient(URL_SUPABASE, ANON, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
+  });
+}
+
+/**
+ * La organización activa de la persona (la que la app le muestra). Si no es la que se prueba (p. ej.
+ * Xchel entró a DEMO desde Plataforma), se elige la correcta con `elegir_organizacion`, como el
+ * selector, y al terminar se le regresa la que tenía.
+ */
+async function organizacionActiva(correo: string): Promise<string | null> {
+  const db = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
+  const { data } = await db.from("personas").select("organizacion_activa").eq("correo", correo).single();
+  return (data?.organizacion_activa as string | null) ?? null;
 }
 
 /** Abre una ruta y devuelve el problema, o nulo si se comportó como se esperaba. */
@@ -245,7 +287,7 @@ test("humo: cada ruta real tiene su expectativa", () => {
 
 for (const org of ["XG", "DEMO"] as const) {
   test(`humo: páginas públicas sin sesión (${org})`, async ({ browser }) => {
-    const datos = await datosPara(QUIENES.find((q) => q.org === org && q.rol === "admin_org")!.correo, "admin_org");
+    const datos = await datosPara(QUIENES.find((q) => q.org === org && q.rol === "admin_org")!.correo, "admin_org", SLUG_ORG[org]);
     const contexto = await browser.newContext();
     const pagina = await contexto.newPage();
     const problemas: string[] = [];
@@ -261,6 +303,8 @@ for (const org of ["XG", "DEMO"] as const) {
       }
     }
     await contexto.close();
+    // DEMO tiene tarjetas publicadas: si no aparece ninguna, falta en npm run demo.
+    if (org === "DEMO") expect(datos.tarjeta, "Tarjeta publicada en DEMO").not.toBeNull();
     expect(problemas).toEqual([]);
   });
 }
@@ -268,31 +312,44 @@ for (const org of ["XG", "DEMO"] as const) {
 for (const q of QUIENES) {
   test(`humo: ${q.org} ${q.rol}`, async ({ browser, baseURL }) => {
     test.setTimeout(240_000);
-    const datos = await datosPara(q.correo, q.rol);
+    const datos = await datosPara(q.correo, q.rol, SLUG_ORG[q.org]);
     const contexto = await browser.newContext();
-    await entrar(contexto, q.correo, baseURL!);
-    const pagina = await contexto.newPage();
+    const sesion = await entrar(contexto, q.correo, baseURL!);
+    const db = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
+    const { data: esperada } = await db.from("organizaciones").select("id").eq("slug", SLUG_ORG[q.org]).single();
+    const original = await organizacionActiva(q.correo);
+    const cambiada = original !== esperada?.id;
+    if (cambiada) {
+      const { error } = await sesion.rpc("elegir_organizacion", { p_org: esperada?.id });
+      if (error) throw new Error(`No se pudo elegir ${q.org} para ${q.correo}: ${error.message}`);
+    }
     const problemas: string[] = [];
     let abiertas = 0;
-    if (q.rol === "admin_org" || q.rol === "finanzas") {
-      await pagina.goto("/admin/altas?ver=todas");
-      const ligas = pagina.locator('main a[href^="/admin/altas/"]:not([href="/admin/altas/nueva"])');
-      datos.alta = (await ligas.count()) > 0 ? ((await ligas.first().getAttribute("href"))?.split("/").pop() ?? null) : null;
-    }
-    for (const [patron, p] of Object.entries(PANTALLAS)) {
-      if (p.publica) continue;
-      for (const ruta of p.rutas(datos)) {
-        if (!ruta) {
-          test.info().annotations.push({ type: "sin datos", description: patron });
-          continue;
-        }
-        const espera = p.soloSuperPlataforma && q.org !== "XG" ? "inicio" : p.espera[q.rol];
-        const problema = await revisar(pagina, ruta, espera);
-        abiertas++;
-        if (problema) problemas.push(problema);
+    try {
+      const pagina = await contexto.newPage();
+      if (q.rol === "admin_org" || q.rol === "finanzas") {
+        await pagina.goto("/admin/altas?ver=todas");
+        const ligas = pagina.locator('main a[href^="/admin/altas/"]:not([href="/admin/altas/nueva"])');
+        datos.alta = (await ligas.count()) > 0 ? ((await ligas.first().getAttribute("href"))?.split("/").pop() ?? null) : null;
       }
+      for (const [patron, p] of Object.entries(PANTALLAS)) {
+        if (p.publica) continue;
+        for (const ruta of p.rutas(datos)) {
+          if (!ruta) {
+            test.info().annotations.push({ type: "sin datos", description: patron });
+            continue;
+          }
+          const espera = p.soloSuperPlataforma && q.org !== "XG" ? "inicio" : p.espera[q.rol];
+          const problema = await revisar(pagina, ruta, espera);
+          abiertas++;
+          if (problema) problemas.push(problema);
+        }
+      }
+      test.info().annotations.push({ type: "pantallas", description: String(abiertas) });
+    } finally {
+      // Se le deja la organización activa que tenía.
+      if (cambiada && original) await sesion.rpc("elegir_organizacion", { p_org: original });
     }
-    test.info().annotations.push({ type: "pantallas", description: String(abiertas) });
     await contexto.close();
     // En DEMO hay datos para todo: una ruta sin datos es un hueco en `npm run demo`.
     if (q.org === "DEMO") {

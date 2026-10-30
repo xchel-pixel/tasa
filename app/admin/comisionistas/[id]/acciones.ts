@@ -123,3 +123,15 @@ export async function cambiarVinculo(_previo: EstadoFicha, formData: FormData): 
   revalidatePath(`/admin/comisionistas/${String(formData.get("persona") ?? "")}`);
   return { error: null, mensaje: accion === "quitar" ? "Bono quitado." : "Vigencia cambiada." };
 }
+
+/** Pausar, despublicar o volver a publicar la tarjeta de un comisionista (admin_org, con motivo). */
+export async function moderarTarjeta(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
+  await exigirRol("admin_org");
+  const persona = String(formData.get("persona") ?? "");
+  const accion = String(formData.get("accion") ?? "");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("moderar_tarjeta", { p_comisionista: persona, p_accion: accion, p_motivo: String(formData.get("motivo") ?? "") });
+  if (error) return { error: error.message || "No se pudo.", mensaje: null };
+  revalidatePath(`/admin/comisionistas/${persona}`);
+  return { error: null, mensaje: accion === "publicar" ? "Tarjeta publicada." : accion === "pausar" ? "Tarjeta en pausa." : "Tarjeta despublicada." };
+}

@@ -15,6 +15,8 @@ export type Pendientes = {
   alertas: number;
   /** Solicitudes de alta por aprobar (admin_marca no las ve: cero). */
   altas: number;
+  /** Testimonios de tarjetas por aprobar. */
+  testimonios: number;
   /** El último mes terminado y en qué va su cierre. */
   cierre: { mes: string; estado: "sin_preparar" | "preparado" | "aprobado" };
 };
@@ -27,15 +29,16 @@ export function mesAnterior(mes: string): string {
 export async function pendientesDelPanel(): Promise<Pendientes> {
   const supabase = await crearClienteServidor();
   const anterior = mesAnterior(mesActual());
-  const [pagos, solicitudes, deLiga, alertas, altas, cierre] = await Promise.all([
+  const [pagos, solicitudes, deLiga, alertas, altas, cierre, testimonios] = await Promise.all([
     supabase.from("pagos").select("id", { count: "exact", head: true }).eq("estado", "reportado"),
     supabase.from("solicitudes").select("id", { count: "exact", head: true }).eq("estado", "solicitada"),
     supabase.from("solicitudes").select("id", { count: "exact", head: true }).eq("estado", "solicitada").eq("origen", "liga_cliente"),
     supabase.from("alertas").select("id", { count: "exact", head: true }).is("resuelta_en", null),
     supabase.from("solicitudes_alta").select("id", { count: "exact", head: true }).eq("estado", "pendiente"),
     supabase.from("cierres").select("estado").eq("mes", anterior).maybeSingle().returns<{ estado: "preparado" | "aprobado" } | null>(),
+    supabase.from("testimonios").select("id", { count: "exact", head: true }).eq("estado", "pendiente"),
   ]);
-  for (const [r, que] of [[pagos, "los pagos"], [solicitudes, "las solicitudes"], [deLiga, "las solicitudes de clientes"], [alertas, "las alertas"], [altas, "las solicitudes de alta"]] as const) {
+  for (const [r, que] of [[pagos, "los pagos"], [solicitudes, "las solicitudes"], [deLiga, "las solicitudes de clientes"], [alertas, "las alertas"], [altas, "las solicitudes de alta"], [testimonios, "los testimonios"]] as const) {
     if (r.error) oExplota(r, que);
   }
   return {
@@ -44,6 +47,7 @@ export async function pendientesDelPanel(): Promise<Pendientes> {
     deLiga: deLiga.count ?? 0,
     alertas: alertas.count ?? 0,
     altas: altas.count ?? 0,
+    testimonios: testimonios.count ?? 0,
     cierre: { mes: anterior, estado: oExplota(cierre, "el cierre")?.estado ?? "sin_preparar" },
   };
 }

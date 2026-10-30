@@ -66,6 +66,9 @@ begin
   -- 2. Borrar lo operativo de DEMO (solo DEMO) -----------------
   delete from alertas                    where organizacion_id = v_demo;
   delete from bonos_equipo               where organizacion_id = v_demo;
+  delete from tarjeta_eventos            where organizacion_id = v_demo;
+  delete from testimonios                where organizacion_id = v_demo;
+  delete from tarjetas                   where organizacion_id = v_demo;
   delete from eventos_vinculo            where organizacion_id = v_demo;
   delete from vinculos_referido          where organizacion_id = v_demo;
   delete from aplicaciones_pago_comision where organizacion_id = v_demo;
@@ -214,6 +217,31 @@ begin
 
   perform ejecutar_preparacion_cierre(v_demo, m1, v_fin);
   perform ejecutar_aprobacion_cierre(v_demo, m1, v_adm);
+
+  -- Tarjeta digital en los 4 niveles (el nivel del mes se fija aquí, solo en DEMO):
+  --   Beto Enlace · Carla Aliado (color) · Ana Socio (estadísticas) · Diego Socio Plus (servicios y
+  --   testimonios, uno por aprobar) · Elena Élite (= Socio Plus) · Gus en pausa ("no disponible").
+  for v_x in select * from (values (v_beto, 1), (v_carla, 2), (v_ana, 3), (v_diego, 4)) v(com, orden) loop
+    insert into niveles_mensuales (organizacion_id, comisionista_id, mes, nivel_id, porcentaje, promedio, meses_considerados, motivo)
+    select v_demo, v_x.com, m0, n.id, n.porcentaje, 0, 1, 'promedio'
+      from niveles n where n.organizacion_id = v_demo and n.orden = v_x.orden and not n.es_forzado
+    on conflict (organizacion_id, comisionista_id, mes) do update set nivel_id = excluded.nivel_id, porcentaje = excluded.porcentaje;
+  end loop;
+  insert into tarjetas (organizacion_id, comisionista_id, frase, telefono, correo, mostrar_correo, zona, color, servicios, estado, motivo_estado) values
+    (v_demo, v_beto,  'Te ayudo con tu avalúo, sin vueltas', '4429000002', null, false, 'Querétaro centro', null, '{}', 'publicada', null),
+    (v_demo, v_carla, 'Cotizaciones claras en 24 horas', '4429000003', 'carla@demo.test', true, 'Corregidora y El Pueblito', '#7a3e9d', '{}', 'publicada', null),
+    (v_demo, v_ana,   'Avalúos para compra, venta y herencias', '4429000001', 'ana@demo.test', true, 'Querétaro y El Marqués', '#2f6f4e', '{}', 'publicada', null),
+    (v_demo, v_diego, 'Acompaño tu trámite de principio a fin', '4429000004', null, false, 'Zona metropolitana de Querétaro', '#b45309',
+     array[v_avaluo, v_hacend], 'publicada', null),
+    (v_demo, v_elena, 'Más de 10 años en el mercado inmobiliario', '4429000005', null, false, 'Juriquilla', '#0f766e',
+     array[v_avaluo, v_ov], 'publicada', null),
+    (v_demo, v_gus,   'Tarjeta en pausa', '4429000006', null, false, null, null, '{}', 'pausada', null);
+  insert into testimonios (organizacion_id, comisionista_id, cliente, texto, estado, decidido_por, decidido_en) values
+    (v_demo, v_diego, 'M. R.', 'Me explicó todo y el avalúo llegó antes de lo prometido.', 'aprobado', v_adm, now() - interval '5 days'),
+    (v_demo, v_diego, 'Familia Torres', 'Muy amable y paciente con nuestras dudas.', 'aprobado', v_adm, now() - interval '2 days'),
+    (v_demo, v_diego, 'J. L.', 'Excelente atención por WhatsApp.', 'pendiente', null, null);
+  insert into tarjeta_eventos (organizacion_id, comisionista_id, dia, visitas, whatsapp)
+  select v_demo, v_ana, (hoy_mx() - g)::date, 3 + (g % 5), g % 3 from generate_series(0, 40, 3) g;
 
   -- Solicitada (Beto).
   insert into solicitudes (comisionista_id, tipo, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre, cliente_telefono, creado_por)

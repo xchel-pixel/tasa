@@ -3,6 +3,7 @@ import { AvisoCsf } from "@/components/aviso-csf";
 import { BloqueNivel } from "@/components/bloque-nivel";
 import { ListaTramites } from "@/components/lista-tramites";
 import { MisReferidos } from "@/components/mis-referidos";
+import { CompartirTarjeta } from "@/components/compartir-tarjeta";
 import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { urlDelSitio } from "@/lib/altas";
@@ -18,11 +19,12 @@ import { leerTramites } from "@/lib/tramites";
  */
 export async function InicioComisionista({ persona }: { persona: Persona }) {
   const supabase = await crearClienteServidor();
-  const [trabajos, nivel, { data: yo }] = await Promise.all([
+  const [trabajos, nivel, { data: yo }, { data: tarjeta }] = await Promise.all([
     leerTramites(),
     miNivel(persona.id, persona.organizacion.id),
-    supabase.from("comisionistas").select("csf_ruta, codigo_referido").eq("persona_id", persona.id).maybeSingle()
-      .returns<{ csf_ruta: string | null; codigo_referido: string } | null>(),
+    supabase.from("comisionistas").select("csf_ruta, codigo_referido, slug").eq("persona_id", persona.id).maybeSingle()
+      .returns<{ csf_ruta: string | null; codigo_referido: string; slug: string } | null>(),
+    supabase.from("tarjetas").select("estado").eq("comisionista_id", persona.id).maybeSingle().returns<{ estado: string } | null>(),
   ]);
   const sitio = await urlDelSitio();
 
@@ -53,8 +55,9 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
         </Link>
       </div>
 
-      <p className="mt-3 text-center">
+      <p className="mt-3 flex justify-center gap-6">
         <Link href="/perfil" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mis datos</Link>
+        <Link href="/tarjeta" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mi tarjeta</Link>
       </p>
 
       <section className="mt-8">
@@ -63,6 +66,8 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
       </section>
 
       <MisReferidos usuario={persona.id} />
+
+      {yo ? <CompartirTarjeta liga={`${sitio}/t/${persona.organizacion.slug}/${yo.slug}`} publicada={tarjeta?.estado === "publicada"} /> : null}
 
       {yo ? <TarjetaClientes liga={`${sitio}/s/${persona.organizacion.slug}/${yo.codigo_referido}`} /> : null}
       {yo ? <TarjetaInvitar liga={`${sitio}/alta/${persona.organizacion.slug}?ref=${yo.codigo_referido}`} /> : null}

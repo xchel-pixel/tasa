@@ -5,7 +5,7 @@ import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
 import { CampoBienvenida } from "@/components/campo-bienvenida";
 import type { TratosOrg } from "@/lib/tratos";
-import { agregarMovimiento, cambiarActivo, cambiarVinculo, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
+import { agregarMovimiento, cambiarActivo, cambiarVinculo, moderarTarjeta, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
 
 const INICIAL: EstadoFicha = { error: null, mensaje: null };
 const ENTRADA =
@@ -219,5 +219,25 @@ export function CambiarVinculo({ vinculoId, personaId }: { vinculoId: string; pe
         <Aviso estado={estado} />
       </form>
     </details>
+  );
+}
+
+/** Moderar la tarjeta digital: pausar o despublicar (con motivo) o volver a publicarla. */
+export function ModerarTarjeta({ personaId, estado }: { personaId: string; estado: string }) {
+  const [resultado, enviar] = useActionState(moderarTarjeta, { error: null, mensaje: null } as EstadoFicha);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-2">
+      <input type="hidden" name="persona" value={personaId} />
+      <select name="accion" defaultValue={estado === "publicada" ? "pausar" : "publicar"} aria-label="Acción"
+        className="rounded-lg border border-borde-campo bg-fondo px-3 py-2">
+        {estado === "publicada" ? <option value="pausar">Pausar</option> : null}
+        {estado !== "despublicada" ? <option value="despublicar">Despublicar (solo Administración la reactiva)</option> : null}
+        {estado !== "publicada" ? <option value="publicar">Volver a publicar</option> : null}
+      </select>
+      <input name="motivo" maxLength={300} placeholder="Motivo (obligatorio para pausar o despublicar)"
+        className="rounded-lg border border-borde-campo bg-fondo px-3 py-2" />
+      <BotonEnviar variante="secundario">Guardar</BotonEnviar>
+      <Aviso estado={resultado} />
+    </form>
   );
 }

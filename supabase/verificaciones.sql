@@ -316,7 +316,7 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, invitado_por, pedir_alta, pedir_por_liga'::text,
+  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, invitado_por, pedir_alta, pedir_por_liga, registrar_evento_tarjeta'::text,
     'anon solo ejecuta lo de la pantalla de acceso, la solicitud de alta y el aviso de privacidad');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -2873,6 +2873,115 @@ begin
   -- Le quedan 4 activos (uno anulado por CLABE y otro quitado): 3%, y el siguiente escalón es desde 5.
   perform pg_temp.igual((select activos || ' ' || porcentaje || ' ' || siguiente_desde from mi_resumen_referidos()), '4 3.00 5'::text,
     'Ve su escalón actual y desde cuántos activos sube');
+end;
+$$;
+
+-- @@ Tarjeta digital
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid;
+  serv uuid;
+  d    jsonb;
+  t    uuid;
+  cod  text;
+begin
+  perform pg_temp.sistema();
+  ana := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  select codigo_referido into cod from comisionistas where persona_id = ana and organizacion_id = xg;
+  select id into serv from servicios where organizacion_id = xg and activo order by nombre limit 1;
+  perform pg_temp.igual(palabra_prohibida('Soy Perito Valuador'), 'perito'::text, 'Prohibido: perito');
+  perform pg_temp.igual(palabra_prohibida('Valuadora certificada'), 'valuadora'::text, 'Prohibido: valuadora');
+  perform pg_temp.igual(palabra_prohibida('Trabajo con AP 73 y mgp'), 'ap 73'::text, 'Prohibido: las marcas');
+  perform pg_temp.igual(palabra_prohibida('Asesor inmobiliario en Querétaro'), null::text, 'Un texto normal pasa');
+
+  -- Ana arma y publica su tarjeta.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select guardar_mi_tarjeta('El mejor perito de Querétaro', '4421112233', null, false, 'Querétaro', null, '{}')$q$,
+    'no puede decir', 'La frase no puede decir perito');
+  perform guardar_mi_tarjeta('Te ayudo con tu avalúo', null, 'ana@correo.test', false, 'Querétaro y El Marqués', '#2f6f4e', array[serv]);
+  perform pg_temp.debe_fallar('select publicar_mi_tarjeta(true)', 'teléfono', 'Para publicarla pide el WhatsApp');
+  perform guardar_mi_tarjeta('Te ayudo con tu avalúo', '+52 442 111 2233', 'ana@correo.test', false, 'Querétaro y El Marqués', '#2f6f4e', array[serv]);
+  perform publicar_mi_tarjeta(true);
+
+  -- La página pública: solo lo publicado, por nivel.
+  perform pg_temp.sistema();
+  update comisionistas set porcentaje_forzado = null, elite_vence = null where persona_id = ana;
+  perform pg_temp.como(null);
+  d := datos_tarjeta('xg', 'ana-prueba');
+  perform pg_temp.igual((d->>'disponible')::boolean, true, 'Publicada: se ve sin sesión');
+  perform pg_temp.igual(d->>'telefono' || ' ' || coalesce(d->>'correo', 'sin correo'), '4421112233 sin correo'::text,
+    'Solo lo que decidió publicar (el correo, no)');
+  perform pg_temp.igual(datos_tarjeta('xg', cod)->>'nombre', d->>'nombre',
+    'También abre con su código');
+  perform pg_temp.igual((d->>'nivel')::integer < 4 and jsonb_array_length(d->'servicios') = 0, true, 'Abajo de Socio Plus: sin servicios destacados');
+
+  -- Socio Plus (o Élite): servicios y testimonios aprobados.
+  perform pg_temp.sistema();
+  update comisionistas set porcentaje_forzado = 28 where persona_id = ana;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  insert into testimonios (comisionista_id, cliente, texto) values (ana, 'J. P.', 'Muy rápida y clara, recomendada') returning id into t;
+  perform pg_temp.debe_fallar($q$insert into testimonios (comisionista_id, cliente, texto) values (mi_persona_id(), 'X', 'El mejor valuador')$q$,
+    'row-level security', 'Un testimonio tampoco puede decir valuador');
+  perform pg_temp.como(null);
+  d := datos_tarjeta('xg', 'ana-prueba');
+  perform pg_temp.igual((d->>'nivel')::integer || ' ' || jsonb_array_length(d->'servicios') || ' ' || jsonb_array_length(d->'testimonios'), '4 1 0'::text,
+    'Élite = Socio Plus: servicios destacados; el testimonio pendiente no se ve');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select decidir_testimonio(%L, true, null)', t), 'Solo admin_org', 'Solo admin_org aprueba testimonios');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform decidir_testimonio(t, true, null);
+  perform pg_temp.como(null);
+  perform pg_temp.igual(jsonb_array_length(datos_tarjeta('xg', 'ana-prueba')->'testimonios'), 1, 'Aprobado: se publica');
+  -- Si baja de nivel, lo extra se oculta (no se borra).
+  perform pg_temp.sistema();
+  update comisionistas set porcentaje_forzado = null where persona_id = ana;
+  perform pg_temp.como(null);
+  perform pg_temp.igual(jsonb_array_length(datos_tarjeta('xg', 'ana-prueba')->'testimonios'), 0, 'Al bajar de nivel se oculta');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from testimonios where id = t), 1::bigint, 'Pero no se borra');
+
+  -- Contadores: visitas y WhatsApp, sin contar al propio comisionista.
+  perform pg_temp.como(null);
+  perform registrar_evento_tarjeta('xg', 'ana-prueba', 'visita');
+  perform registrar_evento_tarjeta('xg', 'ana-prueba', 'visita');
+  perform registrar_evento_tarjeta('xg', 'ana-prueba', 'whatsapp');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform registrar_evento_tarjeta('xg', 'ana-prueba', 'visita');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select visitas || ' ' || whatsapp from tarjeta_eventos where comisionista_id = ana and dia = hoy_mx()), '2 1'::text,
+    'Cuenta visitas y clics (las suyas no)');
+  update comisionistas set porcentaje_forzado = 28 where persona_id = ana;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select visitas || ' ' || whatsapp from mis_estadisticas_tarjeta(3) where mes = mes_de(hoy_mx())), '2 1'::text,
+    'Socio o más: ve sus estadísticas por mes');
+
+  -- Administración: pausar, despublicar; inactivo → no disponible.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select moderar_tarjeta(%L, 'despublicar', '')$q$, ana), 'motivo', 'Despublicar lleva motivo');
+  perform moderar_tarjeta(ana, 'despublicar', 'Foto no adecuada');
+  perform pg_temp.como(null);
+  perform pg_temp.igual((datos_tarjeta('xg', 'ana-prueba')->>'disponible')::boolean, false, 'Despublicada: "no disponible"');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar('select publicar_mi_tarjeta(true)', 'despublicó', 'Él no la vuelve a publicar');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform moderar_tarjeta(ana, 'publicar', null);
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform publicar_mi_tarjeta(false);
+  perform pg_temp.como(null);
+  perform pg_temp.igual((datos_tarjeta('xg', 'ana-prueba')->>'disponible')::boolean, false, 'Pausada por él: no disponible');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform publicar_mi_tarjeta(true);
+  perform pg_temp.sistema();
+  update membresias set activa = false where persona_id = ana and organizacion_id = xg;
+  perform pg_temp.como(null);
+  perform pg_temp.igual((datos_tarjeta('xg', 'ana-prueba')->>'disponible')::boolean, false, 'Comisionista inactivo: no disponible');
+  perform pg_temp.sistema();
+  update membresias set activa = true where persona_id = ana and organizacion_id = xg;
+  update comisionistas set porcentaje_forzado = null where persona_id = ana;
+  perform pg_temp.como(null);
+  perform pg_temp.igual(datos_tarjeta('xg', 'no-existe'), null::jsonb, 'Una tarjeta que no existe: nada');
+  perform pg_temp.debe_fallar('select count(*) from tarjetas', 'permission denied', 'Sin sesión no se lee la tabla');
 end;
 $$;
 

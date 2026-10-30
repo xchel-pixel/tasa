@@ -155,6 +155,7 @@ la app las muestra, la base las hace cumplir.
   prueba, así que al crear una pantalla se agrega ahí (con su espera para los cuatro roles). Usa
   Microsoft Edge en esta PC y necesita `SUPABASE_SECRET_KEY` en `.env.local`. Como prueba lo que ya
   está publicado, después del push (cuando Vercel termine) se corre otra vez para confirmar lo nuevo.
+- **Humo antes de publicar una ruta nueva:** como humo prueba lo publicado, una pantalla nueva da 404 hasta el despliegue. Antes del push se corre contra la versión compilada en local (`npx next start -p 3200` y `HUMO_URL=http://localhost:3200 npm run humo`); usa la base de producción y solo lee. Humo elige la organización que prueba con `elegir_organizacion` y al terminar deja la que la persona tenía activa: Xchel, como super_plataforma, puede tener DEMO activa.
 - **DEMO es la organización de datos sintéticos** para que humo pruebe con datos. Se regenera con
   `npm run demo` (solo toca DEMO). Toda función nueva que haga algo hacia afuera (correos,
   conectores, cron) debe excluir las organizaciones con `demo = true` (ver 0043), y todo correo

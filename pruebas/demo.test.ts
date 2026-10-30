@@ -44,6 +44,15 @@ beforeAll(async () => {
   await db.exec(leer("supabase", "semilla_prueba.sql"));
   // La semilla de pruebas trae su propia "Demo Valuadores" (slug demo): aquí hace de DEMO.
   await db.exec("update organizaciones set demo = true where slug = 'demo'");
+  // La DEMO de producción nace con la escala estándar (Enlace…Socio Plus, Élite); la de la semilla trae otra.
+  await db.exec(`
+    update niveles set orden = 5 where organizacion_id = (select id from organizaciones where slug = 'demo') and es_forzado;
+    update niveles set nombre = 'Enlace', porcentaje = 5 where organizacion_id = (select id from organizaciones where slug = 'demo') and orden = 1;
+    update niveles set nombre = 'Aliado', porcentaje = 10, umbral_minimo = 10000 where organizacion_id = (select id from organizaciones where slug = 'demo') and orden = 2;
+    insert into niveles (organizacion_id, nombre, orden, umbral_minimo, porcentaje, es_forzado)
+    select id, v.n, v.o, v.u, v.p, false from organizaciones, (values ('Socio', 3, 30000, 12.5), ('Socio Plus', 4, 60000, 15)) v(n, o, u, p)
+     where slug = 'demo';
+  `);
 }, 90_000);
 
 describe("Datos DEMO", () => {
@@ -86,6 +95,10 @@ describe("Datos DEMO", () => {
     expect(await demo(`select (count(*) filter (where referidor_id is not null))::text || ' ' || (count(*) filter (where referidor_miembro_id is not null))::text as v
                          from solicitudes_alta where ${enDemo}`)).toEqual(["1 1"]);
     expect(await demo(`select estado as v from cierres where ${enDemo}`)).toEqual(["aprobado"]);
+    // Tarjetas en los 4 niveles (Élite cuenta como Socio Plus) y una en pausa.
+    expect(await demo(`select string_agg(nivel_tarjeta(organizacion_id, comisionista_id)::text, ',' order by nivel_tarjeta(organizacion_id, comisionista_id)) as v from tarjetas where ${enDemo} and estado = 'publicada'`))
+      .toEqual(["1,2,3,4,4"]);
+    expect(await demo(`select count(*)::text as v from tarjetas where ${enDemo} and estado = 'pausada'`)).toEqual(["1"]);
     // Bono de referidos del cierre: Ana con 3 activos (3%), uno recortado por tope; ni vencido ni inactivo generan; equipo aparte.
     expect(await demo(`select string_agg(porcentaje || ':' || monto || ':' || tope_ajustado, ' ' order by monto) as v from comisiones where ${enDemo} and tipo = 'referido'`))
       .toEqual(["3.00:160.00:true 3.00:180.00:false 3.00:300.00:false"]);

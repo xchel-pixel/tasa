@@ -66,6 +66,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
           detalle={p.deLiga > 0 ? `${p.deLiga === 1 ? "1 llegó" : `${p.deLiga} llegaron`} por liga de cliente` : undefined} />
         <Renglon href="/admin/alertas" titulo="Alertas" cuenta={p.alertas} />
         {staff ? <Renglon href="/admin/altas" titulo="Solicitudes de alta" cuenta={p.altas} /> : null}
+        {persona.rol === "admin_org" && p.testimonios > 0 ? <Renglon href="/admin/testimonios" titulo="Testimonios por aprobar" cuenta={p.testimonios} /> : null}
         {staff ? (
           <>
             <li>
