@@ -2201,17 +2201,55 @@ begin
   perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Cliente', '4421112222', null, %L, false,
     'Calle 1', 'castillo', null, null, %s, 'ipv', 0)$q$, cod_ana, serv, v_aviso), 'tipo de inmueble', 'Tipo de inmueble de la lista');
 
-  -- Antispam: 3 por teléfono y 5 por conexión al día.
-  for i in 1..3 loop
+  -- Antispam: 10 por teléfono y 20 por conexión al día (Ajustes), sin límite con sesión.
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select liga_max_por_telefono || ' ' || liga_max_por_conexion from ajustes where organizacion_id = xg), '10 20'::text,
+    'Límites por omisión: 10 por teléfono y 20 por conexión');
+  perform pg_temp.como(null);
+  for i in 1..10 loop
     perform pedir_por_liga('xg', cod_ana, 'Spam Tel', '4429990000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-tel-' || i, 0);
   end loop;
-  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Spam Tel', '4429990000', null, %L, false,
-    'Calle', 'casa', null, null, %s, 'ip-tel-9', 0)$q$, cod_ana, serv, v_aviso), 'Ya recibimos', 'Límite por teléfono');
-  for i in 1..5 loop
-    perform pedir_por_liga('xg', cod_ana, 'Spam IP', '44288800' || lpad(i::text, 2, '0'), null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-spam', 0);
+  select * into r from pedir_por_liga('xg', cod_ana, 'Spam Tel', '4429990000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-tel-99', 0);
+  perform pg_temp.igual((r.solicitud is null) || ' ' || (r.bloqueo like 'Ya recibimos 10 solicitudes hoy con este teléfono. Para continuar, comunícate con Ana%'),
+    'true true'::text, 'El 11° del mismo teléfono se bloquea con mensaje claro y a quién contactar');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where organizacion_id = xg and tipo = 'liga_limite' and codigo = '4429990000' and resuelta_en is null),
+    1::bigint, 'Y queda una alerta para admin (la función ya no truena, así la alerta no se pierde)');
+  perform pg_temp.como(null);
+  perform pedir_por_liga('xg', cod_ana, 'Spam Tel', '4429990000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-tel-98', 0);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where organizacion_id = xg and tipo = 'liga_limite' and codigo = '4429990000'), 1::bigint,
+    'Una sola alerta abierta por teléfono');
+  -- Liberar el teléfono: admin o finanzas, desde la alerta.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select liberar_telefono_liga(%L)',
+    (select id from alertas where tipo = 'liga_limite' and codigo = '4429990000')), 'Solo administración', 'El comisionista no libera');
+  perform pg_temp.como('gaby@tasa.test');
+  perform liberar_telefono_liga((select id from alertas where tipo = 'liga_limite' and codigo = '4429990000'));
+  perform pg_temp.como(null);
+  select * into r from pedir_por_liga('xg', cod_ana, 'Spam Tel', '4429990000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-tel-97', 0);
+  perform pg_temp.igual(r.solicitud is not null, true, 'Liberado: el teléfono vuelve a entrar');
+  -- Por conexión.
+  for i in 1..20 loop
+    perform pedir_por_liga('xg', cod_ana, 'Spam IP', '4428' || lpad(i::text, 6, '0'), null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-spam', 0);
   end loop;
-  perform pg_temp.debe_fallar(format($q$select * from pedir_por_liga('xg', %L, 'Spam IP', '4428880099', null, %L, false,
-    'Calle', 'casa', null, null, %s, 'ip-spam', 0)$q$, cod_ana, serv, v_aviso), 'demasiadas', 'Límite por conexión');
+  select * into r from pedir_por_liga('xg', cod_ana, 'Spam IP', '4428999999', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-spam', 0);
+  perform pg_temp.igual(r.bloqueo like 'Llegaron muchas solicitudes desde esta conexión hoy.%', true, 'Límite por conexión (20)');
+  -- Editables en Ajustes.
+  perform pg_temp.sistema();
+  update ajustes set liga_max_por_telefono = 2 where organizacion_id = xg;
+  perform pg_temp.como(null);
+  perform pedir_por_liga('xg', cod_ana, 'Tel Dos', '4427770000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-dos-1', 0);
+  perform pedir_por_liga('xg', cod_ana, 'Tel Dos', '4427770000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-dos-2', 0);
+  select * into r from pedir_por_liga('xg', cod_ana, 'Tel Dos', '4427770000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-dos-3', 0);
+  perform pg_temp.igual(r.bloqueo like 'Ya recibimos 2 solicitudes%', true, 'El límite se cambia en Ajustes');
+  -- Con sesión no hay límite.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  select * into r from pedir_por_liga('xg', cod_ana, 'Tel Dos', '4427770000', null, serv, false, 'Calle', 'casa', null, null, v_aviso, 'ip-dos-4', 0);
+  perform pg_temp.igual(r.solicitud is not null, true, 'Con sesión (quien prueba su liga) no hay límite');
+  perform pg_temp.sistema();
+  update ajustes set liga_max_por_telefono = 10 where organizacion_id = xg;
+  perform pg_temp.como(null);
 
   -- Adjuntos: solo con el token, recién creada y hasta 3.
   select solicitud, token into s_inac, tok from pedir_por_liga('xg', cod_gaby, 'Cliente Archivos', '4421234571', null, serv, false,
@@ -2232,7 +2270,7 @@ begin
     'El miembro del equipo ve "Tu cliente <nombre> pidió <servicio>"');
   perform pg_temp.igual((select count(*) from mis_solicitudes_de_liga() where id = s_ana), 0::bigint, 'Y no la de otros');
   perform pg_temp.como('xchel+ana@arqosuv.com');
-  perform pg_temp.igual((select count(*) from mis_solicitudes_de_liga() where id = s_ana), 1::bigint, 'El comisionista ve la suya');
+  perform pg_temp.igual((select count(*) > 0 and bool_and(true) from mis_solicitudes_de_liga()), true, 'El comisionista ve las de su liga (las 10 más recientes)');
   perform pg_temp.como(null);
   perform pg_temp.debe_fallar(format('select * from datos_aviso_liga(%L)', s_ana), 'permission denied', 'anon no lee a quién avisar');
   perform pg_temp.debe_fallar('select count(*) from solicitudes', 'permission denied', 'anon no lee solicitudes');

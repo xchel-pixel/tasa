@@ -44,3 +44,10 @@ la ve en:
 Es solo lectura: aceptar la cotización y reportar pagos siguen siendo del
 comisionista del trabajo y del staff. La prueba "Seguimiento igual por los cuatro
 orígenes" (verificaciones.sql) recorre los cuatro caminos de punta a punta.
+
+## Límites y Cotizar y aceptar (0045)
+
+- **Límites al día:** 10 por teléfono y 20 por conexión, editables en Ajustes (`liga_max_por_telefono`, `liga_max_por_conexion`). El tope de 200 por organización se queda. **Quien tiene sesión no tiene límite.**
+- **Al bloquear:** el cliente ve "Ya recibimos N solicitudes hoy con este teléfono. Para continuar, comunícate con <dueño de la liga>" (o el mensaje de conexión) y a admin le llega una alerta, una abierta por teléfono o conexión. La función ya no truena al bloquear, para que la alerta no se pierda.
+- **Liberar un teléfono:** admin_org o finanzas lo hacen desde Alertas, con "Liberar este teléfono"; desde ese momento vuelve a contar (`liga_liberaciones`). La alerta de una conexión se libera sola en 24 horas y admin_org la marca como revisada.
+- **Cotizar y aceptar:** en una solicitud con "Quiere el trámite", admin_org o finanzas pueden emitir la cotización (con su PDF) y aceptarla en nombre del cliente en un solo paso, marcando que el cliente aceptó. Se vuelve trabajo y va a Notion. Si el PDF falla, igual queda aceptada y se avisa.

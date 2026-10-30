@@ -28,7 +28,7 @@ type Solicitud = {
 } & Procedencia;
 
 export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/[id]">) {
-  await exigirRol(...ROLES_OPERACION);
+  const persona = await exigirRol(...ROLES_OPERACION);
   const { id } = await params;
   if (!UUID.test(id)) notFound();
 
@@ -113,6 +113,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
           cuentas={oExplota(cuentas, "las cuentas") ?? []}
           convenios={convenios}
           ligables={ligables}
+          cotizarYAceptar={s.quiere_tramite && (persona.rol === "admin_org" || persona.rol === "finanzas")}
         />
       ) : (
         <p className="mt-6 rounded-xl bg-tinte px-4 py-3">Esta solicitud ya no espera precio.</p>

@@ -313,6 +313,11 @@ begin
   perform pedir_por_liga('demo', cod_eq, 'Cliente Equipo Demo', '4429222202', null, v_hacend, false,
                          'Calle Liga Demo 2', 'terreno', null, null, v_aviso, 'demo-ip-2', 0);
 
+  -- Un teléfono que llegó al límite de la liga (Alertas → Liberar este teléfono).
+  insert into alertas (organizacion_id, tipo, codigo, mensaje)
+  values (v_demo, 'liga_limite', '4429222299',
+          'La liga de Ana DEMO llegó al límite de 10 solicitudes al día con el teléfono 4429222299. Si es un cliente real, libera el teléfono.');
+
   -- 8. Referidos de alta: uno de comisionista y uno de equipo (pendientes).
   perform pedir_alta('demo', 'Diego Referido Demo', 'diego@demo.test', '4429333301', 'DERD900101AB6', null, cod_ana, v_aviso, 'demo-ip-3', false);
   perform pedir_alta('demo', 'Elena Referida Demo', 'elena@demo.test', '4429333302', 'DERE900101AB7', null, cod_eq, v_aviso, 'demo-ip-4', false);

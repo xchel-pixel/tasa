@@ -103,6 +103,8 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
   const ligadaA = tipoHonorario === "sin_costo" && UUID.test(String(formData.get("ligada_a") ?? "")) ? String(formData.get("ligada_a")) : null;
   const convenio = UUID.test(String(formData.get("convenio") ?? "")) ? String(formData.get("convenio")) : null;
   const motivo = String(formData.get("motivo") ?? "").trim().slice(0, 500) || null;
+  // "Cotizar y aceptar": el cliente ya aceptó (solo "Quiere el trámite", solo admin_org o finanzas).
+  const aceptar = tipo === "cotizacion" && formData.get("accion") === "aceptar";
   const terceros = formData.get("terceros") ? numero(formData.get("terceros")) : 0;
   const vigencia = String(formData.get("vigencia") ?? "");
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
@@ -123,6 +125,12 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
   }
 
   const supabase = await crearClienteServidor();
+  if (aceptar) {
+    if (persona.rol !== "admin_org" && persona.rol !== "finanzas") return falla("Solo Administración o Finanzas cotizan y aceptan en un paso.");
+    if (formData.get("confirmo_aceptacion") !== "on") return falla("Marca que el cliente aceptó este precio.");
+    const { data: s } = await supabase.from("solicitudes").select("quiere_tramite").eq("id", solicitud).maybeSingle<{ quiere_tramite: boolean }>();
+    if (!s?.quiere_tramite) return falla("\"Cotizar y aceptar\" es solo para solicitudes donde el cliente quiere el trámite.");
+  }
   if (convenio && !motivo && (await apartaDelConvenio(supabase, convenio, solicitud, marca, tipoHonorario, honorarios, minimo))) {
     return falla("Escribe el motivo del ajuste al convenio.");
   }
@@ -191,7 +199,8 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
     return falla("No se pudo emitir la cotización. Inténtalo otra vez.");
   }
 
-  // La cotización ya existe. Si el PDF falla, se avisa, pero no se pierde lo emitido.
+  // La cotización ya existe. Si el PDF falla, se avisa, pero no se pierde lo emitido (ni la aceptación).
+  let sinPdf = false;
   try {
     const s = cot.solicitudes!;
     const m = s.marcas!;
@@ -228,10 +237,25 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
     if (errorRuta) throw errorRuta;
   } catch (e) {
     console.error(`[tasa] Cotización ${cot.id} emitida sin PDF: ${e instanceof Error ? e.message : String(e)}`);
-    revalidatePath("/admin/solicitudes");
-    return { error: null, mensaje: "Cotización emitida, pero el PDF no se pudo generar. Avísame para revisarlo." };
+    sinPdf = true;
   }
 
+  if (aceptar) {
+    // Aceptada en nombre del cliente: se vuelve trabajo (y va a Notion en la siguiente vuelta del conector).
+    const { error: errorAceptar } = await supabase.rpc("aceptar_cotizacion", { p_cotizacion: cot.id });
+    if (errorAceptar) {
+      revalidatePath("/admin/solicitudes");
+      return { error: `Cotización emitida, pero no se pudo aceptar: ${errorAceptar.message}. Acéptala desde la ficha del trabajo.`, mensaje: null };
+    }
+  }
   revalidatePath("/admin/solicitudes");
+  if (sinPdf) {
+    return {
+      error: null,
+      mensaje: aceptar
+        ? "Cotización emitida y aceptada (ya es trabajo), pero el PDF no se pudo generar. Avísame para revisarlo."
+        : "Cotización emitida, pero el PDF no se pudo generar. Avísame para revisarlo.",
+    };
+  }
   redirect(`/trabajos/${solicitud}`);
 }

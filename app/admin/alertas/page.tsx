@@ -4,13 +4,14 @@ import { PantallaAdmin } from "@/components/pantalla-admin";
 import { fechaCorta } from "@/lib/formato";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
+import { CerrarAlerta, LiberarTelefono } from "./liberar-telefono";
 import ResolverAlerta from "./resolver-alerta";
 
 export const metadata = { title: "Alertas — Tasa" };
 
 type Fila = {
   id: string;
-  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "conector";
+  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "conector";
   codigo: string | null;
   mensaje: string;
   creada_en: string;
@@ -80,6 +81,12 @@ export default async function Alertas() {
                   )}
                   . Se cierra sola cuando la siguiente sincronización sale bien.
                 </p>
+              ) : a.tipo === "liga_limite" ? (
+                /^[0-9]{10}$/.test(a.codigo ?? "") ? (
+                  persona.rol === "admin_org" || persona.rol === "finanzas" ? <LiberarTelefono alertaId={a.id} /> : null
+                ) : persona.rol === "admin_org" ? (
+                  <CerrarAlerta alertaId={a.id} />
+                ) : null
               ) : persona.rol === "admin_org" && a.solicitudes ? (
                 <ResolverAlerta alertaId={a.id} solicitudId={a.solicitudes.id} />
               ) : (

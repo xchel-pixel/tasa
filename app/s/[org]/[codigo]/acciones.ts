@@ -43,9 +43,11 @@ export async function pedirPorLiga(formData: FormData): Promise<ResultadoLiga> {
       p_ip_resumen: await ipResumida(),
       p_adjuntos: Math.min(Number(campo("adjuntos")) || 0, 3),
     })
-    .maybeSingle<{ solicitud: string; token: string | null; organizacion: string }>();
+    .maybeSingle<{ solicitud: string | null; token: string | null; organizacion: string; bloqueo: string | null }>();
   // Los mensajes de la base ya están escritos para leerse.
   if (error || !data) return { error: error?.message || "No se pudo enviar la solicitud. Inténtalo otra vez." };
+  // Llegó al límite del día (teléfono o conexión): la base ya avisó a Administración.
+  if (data.bloqueo || !data.solicitud) return { error: data.bloqueo ?? "No se pudo enviar la solicitud. Inténtalo otra vez." };
 
   await avisar(data.solicitud, campo("org"));
   return { error: null, id: data.solicitud, token: data.token, organizacion: data.organizacion };

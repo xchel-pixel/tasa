@@ -47,6 +47,7 @@ export default function FormularioPrecio({
   cuentas,
   convenios,
   ligables,
+  cotizarYAceptar = false,
 }: {
   solicitudId: string;
   tipo: "cotizacion" | "tramite_directo";
@@ -55,6 +56,8 @@ export default function FormularioPrecio({
   cuentas: Cuenta[];
   convenios: ConvenioParaCotizar[];
   ligables: Ligable[];
+  /** "Quiere el trámite" y quien cotiza es admin_org o finanzas: se ofrece cotizar y aceptar en un paso. */
+  cotizarYAceptar?: boolean;
 }) {
   const [estado, enviar] = useActionState<EstadoPrecio, FormData>(ponerPrecio, { error: null, mensaje: null });
   const [marca, setMarca] = useState(marcaInicial ?? "");
@@ -65,6 +68,7 @@ export default function FormularioPrecio({
   const [tipoHonorario, setTipoHonorario] = useState<TipoHonorario>("fijo");
   const [minimo, setMinimo] = useState("");
   const [convenio, setConvenio] = useState("");
+  const [clienteAcepto, setClienteAcepto] = useState(false);
 
   const h = tipoHonorario === "sin_costo" ? 0 : numero(honorarios);
   const elegido = convenios.find((c) => c.id === convenio);
@@ -244,6 +248,24 @@ export default function FormularioPrecio({
       <BotonEnviar pendiente={tipo === "cotizacion" ? "Emitiendo y generando PDF…" : "Guardando…"}>
         {tipo === "cotizacion" ? "Emitir cotización" : "Guardar precio y arrancar trámite"}
       </BotonEnviar>
+
+      {tipo === "cotizacion" && cotizarYAceptar ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-exito bg-exito-fondo px-4 py-4">
+          <p className="font-semibold text-exito">¿El cliente ya aceptó el precio?</p>
+          <p className="text-[0.9375rem] leading-6">
+            Emite la cotización con su PDF y la acepta en su nombre en un solo paso: se vuelve trabajo y va a Notion.
+          </p>
+          <label className="flex items-start gap-3 text-[0.9375rem] leading-6">
+            <input type="checkbox" name="confirmo_aceptacion" checked={clienteAcepto} onChange={(e) => setClienteAcepto(e.target.checked)}
+              className="mt-1 size-5 shrink-0 accent-primario" />
+            El cliente aceptó este precio y quiere el trámite.
+          </label>
+          <button type="submit" name="accion" value="aceptar" disabled={!clienteAcepto}
+            className="min-h-12 rounded-lg bg-primario px-4 font-semibold text-sobre-primario disabled:opacity-50">
+            Cotizar y aceptar
+          </button>
+        </div>
+      ) : null}
     </form>
   );
 }

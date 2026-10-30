@@ -19,6 +19,8 @@ export default function FormularioAjustes({
   slug,
   bonoEquipo,
   vigenciaReferidos,
+  ligaPorTelefono,
+  ligaPorConexion,
 }: {
   contacto: string;
   diaLimite: number;
@@ -29,6 +31,8 @@ export default function FormularioAjustes({
   slug: string;
   bonoEquipo: boolean;
   vigenciaReferidos: number;
+  ligaPorTelefono: number;
+  ligaPorConexion: number;
 }) {
   const [estado, enviar] = useActionState(guardarAjustes, INICIAL);
 
@@ -94,6 +98,24 @@ export default function FormularioAjustes({
         <textarea id="correo_rechazo" name="correo_rechazo" rows={4} maxLength={2000} defaultValue={correoRechazo}
           className={ENTRADA} />
       </div>
+
+      <fieldset>
+        <legend className="font-semibold">Límites de la liga de clientes (por día)</legend>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          Antispam para quien llena la solicitud sin sesión. Al llegar al límite se le pide comunicarse con quien le pasó la
+          liga y te llega una alerta, desde donde puedes liberar el teléfono.
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <label className="block text-[0.9375rem]">
+            Por teléfono
+            <input name="liga_max_por_telefono" type="number" min={1} max={100} required defaultValue={ligaPorTelefono} className={ENTRADA} />
+          </label>
+          <label className="block text-[0.9375rem]">
+            Por conexión
+            <input name="liga_max_por_conexion" type="number" min={1} max={500} required defaultValue={ligaPorConexion} className={ENTRADA} />
+          </label>
+        </div>
+      </fieldset>
 
       <div>
         <label htmlFor="referido_vigencia_meses" className="block font-semibold">Vigencia del bono de referidos (meses)</label>

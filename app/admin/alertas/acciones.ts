@@ -34,3 +34,26 @@ export async function resolverAlerta(_previo: EstadoAlerta, formData: FormData):
   revalidatePath("/");
   return { error: null, mensaje: decision === "cancelar" ? "Trabajo cancelado." : "Alerta descartada." };
 }
+
+/** Liberar un teléfono que llegó al límite de la liga de clientes: vuelve a contar desde ahora. */
+export async function liberarTelefono(_previo: EstadoAlerta, formData: FormData): Promise<EstadoAlerta> {
+  await exigirRol("admin_org", "finanzas");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("liberar_telefono_liga", { p_alerta: String(formData.get("alerta") ?? "") });
+  if (error) return { error: error.message || "No se pudo liberar.", mensaje: null };
+  revalidatePath("/admin/alertas");
+  return { error: null, mensaje: "Teléfono liberado: ya puede volver a enviar solicitudes." };
+}
+
+/** Cerrar una alerta que no pide más acción (p. ej. límite por conexión, que se libera solo), con nota. */
+export async function cerrarAlerta(_previo: EstadoAlerta, formData: FormData): Promise<EstadoAlerta> {
+  await exigirRol("admin_org");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("descartar_alerta", {
+    p_alerta: String(formData.get("alerta") ?? ""),
+    p_nota: String(formData.get("nota") ?? "") || "Revisada",
+  });
+  if (error) return { error: error.message || "No se pudo cerrar.", mensaje: null };
+  revalidatePath("/admin/alertas");
+  return { error: null, mensaje: "Alerta cerrada." };
+}
