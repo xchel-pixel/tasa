@@ -6,10 +6,11 @@ import { Encabezado } from "@/components/encabezado";
 import { fechaCorta } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
+import { ClabeCobro } from "./clabe-cobro";
 
 export const metadata = { title: "Mis datos — Tasa" };
 
-type Yo = { rfc: string | null; curp: string | null; csf_ruta: string | null; csf_subida_en: string | null; codigo_referido: string };
+type Yo = { rfc: string | null; curp: string | null; csf_ruta: string | null; csf_subida_en: string | null; codigo_referido: string; clabe_cobro: string | null };
 
 /** Lo que el comisionista ve de sí mismo y su constancia (la sube o la reemplaza aquí). */
 export default async function MisDatos() {
@@ -18,7 +19,7 @@ export default async function MisDatos() {
   const yo = oExplota(
     await supabase
       .from("comisionistas")
-      .select("rfc, curp, csf_ruta, csf_subida_en, codigo_referido")
+      .select("rfc, curp, csf_ruta, csf_subida_en, codigo_referido, clabe_cobro")
       .eq("persona_id", persona.id)
       .maybeSingle()
       .returns<Yo | null>(),
@@ -50,6 +51,8 @@ export default async function MisDatos() {
           <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
             Para corregir tu nombre, RFC o CURP, escríbele a Administración.
           </p>
+
+          <ClabeCobro actual={yo?.clabe_cobro ?? null} />
 
           {yo ? <TarjetaInvitar liga={`${await urlDelSitio()}/alta/${persona.organizacion.slug}?ref=${yo.codigo_referido}`} /> : null}
 

@@ -6,7 +6,7 @@ import { mesActual, mesLargo, mesSiguiente, pesos } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import Link from "next/link";
-import { AccionCierre } from "./acciones-cierre";
+import { AccionCierre, MarcarBonoPagado } from "./acciones-cierre";
 
 export const metadata = { title: "Cierre — Tasa" };
 
@@ -24,6 +24,20 @@ type Linea = {
   solicitudes: { cliente_nombre: string; folio: string | null; cuentas_receptoras: { alias: string } | null } | null;
 };
 
+type BonoEquipo = {
+  id: string;
+  monto: string | number;
+  porcentaje: string | number;
+  base: string | number;
+  tope_ajustado: boolean;
+  estado: "devengado" | "pagado";
+  pagado_en: string | null;
+  referencia: string | null;
+  persona: { nombre: string } | null;
+  referido: { nombre: string } | null;
+  solicitudes: { folio: string | null } | null;
+};
+
 /**
  * Revisar antes de aprobar: las comisiones del mes por comisionista,
  * subtotales por cuenta (alias) y lo que podría estar faltando (pagos
@@ -36,7 +50,7 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
   const mes = `${param}-01`;
 
   const supabase = await crearClienteServidor();
-  const [lineas, cierre, pendientes, porPagar] = await Promise.all([
+  const [lineas, cierre, pendientes, porPagar, equipo] = await Promise.all([
     supabase
       .from("comisiones")
       .select(
@@ -57,7 +71,14 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
       .select("comisionista_id, monto, pagado")
       .eq("mes", mes)
       .returns<{ comisionista_id: string; monto: string | number; pagado: string | number }[]>(),
+    supabase
+      .from("bonos_equipo")
+      .select("id, monto, porcentaje, base, tope_ajustado, estado, pagado_en, referencia, persona:personas!bonos_equipo_persona_id_fkey(nombre), referido:personas!bonos_equipo_referido_id_fkey(nombre), solicitudes(folio)")
+      .eq("mes", mes)
+      .order("creado_en")
+      .returns<BonoEquipo[]>(),
   ]);
+  const bonosEquipo = oExplota(equipo, "el bono del equipo") ?? [];
   const pendientePor = new Map(
     (oExplota(porPagar, "los pendientes de pago") ?? []).map((p) => [p.comisionista_id, Number(p.monto) - Number(p.pagado)])
   );
@@ -127,7 +148,9 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
               {g.lineas.map((l, i) => (
                 <li key={l.id} className={`flex items-start justify-between gap-3 rounded px-2 py-2 text-[0.9375rem] ${i % 2 ? "bg-alterno" : ""}`}>
                   <span className="min-w-0">
-                    <span className="block font-semibold">{l.solicitudes?.cliente_nombre ?? l.nota ?? TIPO_MOVIMIENTO[l.tipo]}</span>
+                    <span className="block font-semibold">
+                      {l.tipo === "referido" ? (l.nota ?? TIPO_MOVIMIENTO[l.tipo]) : (l.solicitudes?.cliente_nombre ?? l.nota ?? TIPO_MOVIMIENTO[l.tipo])}
+                    </span>
                     <span className="block text-secundario">
                       {TIPO_MOVIMIENTO[l.tipo]}
                       {l.solicitudes?.folio ? ` · ${l.solicitudes.folio}` : ""}
@@ -141,6 +164,12 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
               ))}
             </ul>
             <dl className="mt-3 flex flex-col gap-1 border-t border-linea pt-2 text-[0.9375rem]">
+              {g.lineas.some((l) => l.tipo === "referido") ? (
+                <div className="flex justify-between">
+                  <dt className="font-semibold">Bono de referidos</dt>
+                  <dd className="font-semibold">{pesos(g.lineas.filter((l) => l.tipo === "referido").reduce((s, l) => s + Number(l.monto), 0))}</dd>
+                </div>
+              ) : null}
               {[...g.porCuenta].map(([cuenta, monto]) => (
                 <div key={cuenta} className="flex justify-between"><dt className="text-secundario">{cuenta}</dt><dd className="font-semibold">{pesos(monto)}</dd></div>
               ))}
@@ -149,6 +178,37 @@ export default async function CierreDelMes({ params }: PageProps<"/admin/cierres
           </section>
         ))
       )}
+
+      {bonosEquipo.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="text-[1.125rem] font-bold">Bono de referidos del equipo</h2>
+          <p className="text-[0.9375rem] leading-6 text-secundario">
+            No entra al pago de comisiones: se paga aparte y aquí se registra.
+          </p>
+          <ul className="mt-3 flex flex-col gap-3">
+            {bonosEquipo.map((b) => (
+              <li key={b.id} className="rounded-xl border border-linea px-4 py-3 text-[0.9375rem]">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="font-semibold">{b.persona?.nombre}</p>
+                  <p className="font-bold text-primario">{pesos(Number(b.monto))}</p>
+                </div>
+                <p className="text-secundario">
+                  {b.referido?.nombre}
+                  {b.solicitudes?.folio ? ` · ${b.solicitudes.folio}` : ""} · {Number(b.porcentaje)}% de {pesos(Number(b.base))}
+                  {b.tope_ajustado ? " · ajustado por tope" : ""}
+                </p>
+                {b.estado === "pagado" ? (
+                  <p className="mt-1 font-semibold text-exito">Pagado el {b.pagado_en}{b.referencia ? ` · ${b.referencia}` : ""}</p>
+                ) : estado === "aprobado" ? (
+                  <MarcarBonoPagado bonoId={b.id} />
+                ) : (
+                  <p className="mt-1 text-secundario">Se paga al aprobar el cierre.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {terminado && estado !== "aprobado" ? (
         <div className="mt-6 flex flex-col gap-3">

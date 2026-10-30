@@ -2645,6 +2645,199 @@ begin
 end;
 $$;
 
+-- @@ Bono de referidos
+-- Cada regla del bono, con el mes en curso (abierto) como mes del cálculo.
+-- Los trabajos pagados se insertan con su mes de cierre para poder armar
+-- historia (activos, vigencia, pérdida) sin esperar meses.
+create function pg_temp.comisionista(p_nombre text, p_referidor uuid default null, p_alta date default null, p_tel text default null)
+returns uuid language plpgsql as $$
+declare v uuid;
+begin
+  insert into personas (nombre, correo, telefono, organizacion_activa)
+  values (p_nombre, lower(replace(p_nombre, ' ', '.')) || '@ref.test', p_tel, pg_temp.xg()) returning id into v;
+  insert into membresias (persona_id, organizacion_id, rol) values (v, pg_temp.xg(), 'comisionista');
+  insert into comisionistas (persona_id, slug, fecha_alta, referido_por, curp)
+  values (v, lower(replace(p_nombre, ' ', '-')), coalesce(p_alta, (mes_de(hoy_mx()) - interval '12 months')::date), p_referidor,
+          'REFX900101H' || translate(substr(md5(p_nombre), 1, 5), '0123456789abcdef', 'ABCDEFGHIJKLMNOP') || '00');
+  return v;
+end;
+$$;
+
+-- Un trabajo pagado de `p_com` en el mes `p_mes` (honorarios, y opcionalmente su comisión ya devengada en %).
+create function pg_temp.pagado(p_com uuid, p_honorarios numeric, p_mes date, p_pct_comision numeric default null,
+                               p_regla text default 'normal', p_terceros numeric default 0)
+returns uuid language plpgsql as $$
+declare s uuid; base solicitudes%rowtype;
+begin
+  select * into base from solicitudes where organizacion_id = pg_temp.xg() and marca_id is not null and cuenta_receptora_id is not null limit 1;
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, monto_terceros, estado, estatus_publico, aceptada_en,
+                           pagado_en, mes_cierre, comision_regla, comision_pct)
+  values (p_com, 'tramite_directo', 'admin', base.servicio_id, 'Calle Referidos', 'Cliente Referidos', base.marca_id, base.cuenta_receptora_id,
+          true, p_honorarios, p_terceros, 'tramite', 'pagado', p_mes, p_mes + 5, mes_de(p_mes), p_regla,
+          case when p_regla = 'fija' then 10 end)
+  returning id into s;
+  -- Sin convenio la base pone "normal"; aquí se simula la regla que traería un convenio.
+  update solicitudes set comision_regla = p_regla, comision_pct = case when p_regla = 'fija' then 10 end where id = s;
+  if p_pct_comision is not null then
+    insert into comisiones (comisionista_id, solicitud_id, tipo, base, porcentaje, monto, mes, nota)
+    values (p_com, s, 'comision', p_honorarios, p_pct_comision, round(p_honorarios * p_pct_comision / 100, 2), mes_de(p_mes), 'Prueba');
+  end if;
+  return s;
+end;
+$$;
+
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  m    date := mes_de(hoy_mx());
+  r    uuid;  r2 uuid;  r3 uuid;  q uuid[] := '{}';  z uuid;  vieja uuid;  s uuid;  t uuid;  eva uuid;
+  i    integer;
+  v    uuid;
+begin
+  perform pg_temp.sistema();
+  perform set_config('tasa.org', xg::text, true);
+
+  -- Escala.
+  perform pg_temp.igual((select string_agg(escalon_referidos(xg, n)::text, ' ' order by n) from unnest(array[0,1,2,3,4,5,7,8,20]) n),
+    '0 2.00 2.00 3.00 3.00 4.00 4.00 5.00 5.00'::text, 'Escala: 1–2 → 2%, 3–4 → 3%, 5–7 → 4%, 8+ → 5%');
+
+  -- Rita refiere a 3; los 3 activos y ella también (trabajo pagado este mes) → 3%.
+  r := pg_temp.comisionista('Rita Ref', null, null, '4425550001');
+  perform pg_temp.pagado(r, 5000, m);
+  for i in 1..3 loop
+    q := q || pg_temp.comisionista('Ref Q' || i, r);
+  end loop;
+  perform pg_temp.igual((select count(*) from vinculos_referido where referidor_id = r and estado = 'activo'), 3::bigint,
+    'Cada referido tiene su vínculo (sigue a referido_por)');
+  perform pg_temp.igual((select count(*) from vinculos_referido where referidor_id = r and inicio is null), 3::bigint,
+    'Vínculo en espera hasta el primer trabajo pagado del referido');
+  s := pg_temp.pagado(q[1], 10000, m, null, 'normal', 2000);
+  perform pg_temp.pagado(q[2], 8000, m);
+  perform pg_temp.pagado(q[3], 6000, m);
+  perform pg_temp.igual((select porcentaje || ' ' || monto from bonos_referido_calculados(xg, m) where solicitud = s),
+    '3.00 300.00'::text, 'Base: honorarios sin IVA ni terceros (10,000 × 3%), con 3 activos');
+
+  -- Un referido sin trabajo pagado en los últimos 3 meses no cuenta como activo.
+  vieja := pg_temp.comisionista('Ref Viejo', r);
+  perform pg_temp.pagado(vieja, 4000, (m - interval '3 months')::date);
+  perform pg_temp.igual((select max(activos) from bonos_referido_calculados(xg, m) where beneficiario = r), 3,
+    'Activo = trabajo pagado en los últimos 3 meses (el de hace 4 no cuenta)');
+  -- Dos activos más → 5 → 4%.
+  for i in 4..5 loop
+    q := q || pg_temp.comisionista('Ref Q' || i, r);
+    perform pg_temp.pagado(q[i], 3000, (m - interval '1 month')::date);
+  end loop;
+  perform pg_temp.igual((select porcentaje from bonos_referido_calculados(xg, m) where solicitud = s), 4.00::numeric,
+    'Con 5 referidos activos sube a 4%');
+
+  -- Sin costo y convenio "sin comisión" no generan bono.
+  t := pg_temp.pagado(q[2], 2000, m, null, 'ninguna');
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, m) where solicitud = t), 0::bigint,
+    'Convenio sin comisión: no genera bono');
+
+  -- Tope 30%: el referido con 28% → el bono (4%) se recorta a 2% y queda anotado.
+  t := pg_temp.pagado(q[3], 10000, m, 28);
+  perform pg_temp.igual((select monto || ' ' || tope_ajustado || ' ' || bruto from bonos_referido_calculados(xg, m) where solicitud = t),
+    '200.00 true 400.00'::text, 'Tope 30% por trabajo: se recorta el bono, no la comisión del referido');
+
+  -- Al guardar (cierre): comisiones tipo referido con nota; la comisión del referido no cambia.
+  perform calcular_bonos_referido(xg, m);
+  perform pg_temp.igual((select count(*) from comisiones where comisionista_id = r and mes = m and tipo = 'referido'), 4::bigint,
+    'El cierre guarda una línea "Bono de referidos" por trabajo');
+  perform pg_temp.igual((select nota like 'Bono ajustado por tope%' from comisiones where solicitud_id = t and tipo = 'referido'), true,
+    'La línea recortada dice "Bono ajustado por tope"');
+  perform pg_temp.igual((select monto from comisiones where solicitud_id = t and tipo = 'comision'), 2800.00::numeric,
+    'Sale de la reserva: la comisión del referido queda igual');
+  perform calcular_bonos_referido(xg, m);
+  perform pg_temp.igual((select count(*) from comisiones where comisionista_id = r and mes = m and tipo = 'referido'), 4::bigint,
+    'Recalcular no duplica');
+
+  -- Un solo nivel: Z, referido de Q1, genera bono a Q1 (si está activo), nunca a Rita.
+  z := pg_temp.comisionista('Ref Z', q[1]);
+  t := pg_temp.pagado(z, 5000, m);
+  perform pg_temp.igual((select string_agg(beneficiario::text, ',') from bonos_referido_calculados(xg, m) where solicitud = t), q[1]::text,
+    'Un solo nivel: el referido del referido no le genera bono al primero');
+
+  -- Vigencia: 12 meses desde el primer trabajo pagado (no desde el registro).
+  v := (select id from vinculos_referido where referido_id = vieja);
+  t := pg_temp.pagado(vieja, 1000, (m - interval '14 months')::date);
+  t := pg_temp.pagado(vieja, 7000, m);
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, m) where solicitud = t), 0::bigint,
+    'Vencido: primer pago hace 14 meses, ya no genera bono');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format($q$select cambiar_vinculo(%L, 'ampliar', hoy_mx() + 60, 'Convenio especial')$q$, v), 'Solo admin_org',
+    'Solo admin_org cambia la vigencia');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select cambiar_vinculo(%L, 'ampliar', hoy_mx() + 60, '')$q$, v), 'motivo', 'Con motivo');
+  perform cambiar_vinculo(v, 'ampliar', hoy_mx() + 60, 'Convenio especial');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, m) where solicitud = t), 1::bigint, 'Ampliar: vuelve a generar');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform cambiar_vinculo(v, 'quitar', null, 'Ya no aplica');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, m) where solicitud = t), 0::bigint, 'Quitar: ya no genera');
+  perform pg_temp.igual((select string_agg(tipo, ',' order by creado_en) from eventos_vinculo where vinculo_id = v), 'ampliar,quitar'::text,
+    'Cada cambio queda en su historial (y en bitácora)');
+
+  -- Actividad del que refiere: sin trabajo pagado en 3 meses, ese mes no cobra.
+  r2 := pg_temp.comisionista('Raul Inactivo');
+  perform pg_temp.pagado(r2, 3000, (m - interval '4 months')::date);
+  q := q || pg_temp.comisionista('Ref de Raul', r2);
+  t := pg_temp.pagado(q[6], 9000, m);
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, m) where solicitud = t), 0::bigint,
+    'El que refiere sin trabajos pagados en 3 meses no cobra ese mes (no se acumula)');
+
+  -- Pérdida: 6 meses sin trabajos pagados → vínculos liberados.
+  r3 := pg_temp.comisionista('Rosa Perdida', null, (m - interval '10 months')::date);
+  perform pg_temp.pagado(r3, 3000, (m - interval '7 months')::date);
+  q := q || pg_temp.comisionista('Ref de Rosa', r3);
+  perform actualizar_vinculos(xg, m);
+  perform pg_temp.igual((select estado from vinculos_referido where referido_id = q[7]), 'liberado'::text,
+    '6 meses sin trabajos pagados: sus referidos quedan liberados');
+  perform pg_temp.igual((select count(*) from eventos_vinculo e join vinculos_referido vr on vr.id = e.vinculo_id
+                          where vr.referido_id = q[7] and e.tipo = 'liberar'), 1::bigint, 'Con su evento');
+  perform pg_temp.igual((select inicio is not null from vinculos_referido where referido_id = q[1]), true,
+    'Al aprobar, el vínculo arranca con el primer trabajo pagado del referido');
+
+  -- Equipo: % fijo con los dos interruptores; admin_org nunca.
+  insert into personas (nombre, correo, organizacion_activa) values ('Eva Bono', 'eva.bono@ref.test', xg) returning id into eva;
+  insert into membresias (persona_id, organizacion_id, rol, bono_referido, bono_referido_pct) values (eva, xg, 'equipo', true, 2.5);
+  q := q || pg_temp.comisionista('Ref de Eva');
+  update comisionistas set referido_por_miembro = eva where persona_id = q[8];
+  t := pg_temp.pagado(q[8], 8000, m);
+  update ajustes set bono_referido_equipo = false where organizacion_id = xg;
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, m) where solicitud = t), 0::bigint,
+    'Equipo: con el interruptor de la organización apagado no cobra');
+  update ajustes set bono_referido_equipo = true where organizacion_id = xg;
+  perform pg_temp.igual((select tipo || ' ' || porcentaje || ' ' || monto from bonos_referido_calculados(xg, m) where solicitud = t),
+    'equipo 2.50 200.00'::text, 'Equipo: su % fijo, sin escala');
+  perform calcular_bonos_referido(xg, m);
+  perform pg_temp.igual((select count(*) from bonos_equipo where persona_id = eva and mes = m), 1::bigint, 'Va en bonos_equipo (registro aparte)');
+  update membresias set bono_referido = true, bono_referido_pct = 5 where persona_id = (select id from personas where correo = 'xchel@arqosuv.com') and organizacion_id = xg;
+  update comisionistas set referido_por_miembro = (select id from personas where correo = 'xchel@arqosuv.com') where persona_id = q[8];
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, m) where solicitud = t), 0::bigint, 'admin_org nunca cobra');
+
+  -- Antifraude: el mismo teléfono anula el código al pedir el alta; la misma CLABE anula el vínculo.
+  perform pg_temp.igual(es_autorreferido(xg, r, 'otro@correo.test', null, null, '+52 442 555 0001'), true,
+    'Mismo teléfono que quien invita: autorreferido');
+  update comisionistas set clabe_cobro = '002180000000000012' where persona_id = r;
+  update comisionistas set clabe_cobro = '002180000000000012' where persona_id = q[2];
+  perform pg_temp.igual((select estado from vinculos_referido where referido_id = q[2]), 'anulado'::text,
+    'Misma CLABE de cobro que quien lo invitó: vínculo anulado');
+  perform pg_temp.debe_fallar($q$update comisionistas set clabe_cobro = '002180000000000013' where persona_id = (select id from personas where correo = 'rita.ref@ref.test')$q$,
+    'comisionistas_clabe_cobro_check', 'La CLABE de cobro se valida con su dígito de control');
+
+  -- Lo que ve el que refiere.
+  insert into auth.users (email) values ('rita.ref@ref.test');
+  perform pg_temp.como('rita.ref@ref.test');
+  perform pg_temp.igual((select count(*) > 0 from mis_referidos()), true, 'El que refiere ve "Mis referidos"');
+  -- Le quedan 4 activos (uno anulado por CLABE y otro quitado): 3%, y el siguiente escalón es desde 5.
+  perform pg_temp.igual((select activos || ' ' || porcentaje || ' ' || siguiente_desde from mi_resumen_referidos()), '4 3.00 5'::text,
+    'Ve su escalón actual y desde cuántos activos sube');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

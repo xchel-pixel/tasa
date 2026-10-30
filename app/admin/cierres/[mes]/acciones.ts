@@ -35,3 +35,17 @@ export async function moverCierre(_previo: EstadoCierre, formData: FormData): Pr
   return { error: null, mensaje: accion === "aprobar" ? "Cierre aprobado y publicado." : "Cierre preparado." };
 }
 
+
+/** Registrar que se pagó un bono de referidos del equipo (fuera del pago de comisiones). */
+export async function marcarBonoEquipoPagado(_previo: EstadoCierre, formData: FormData): Promise<EstadoCierre> {
+  await exigirRol("admin_org", "finanzas");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("marcar_bono_equipo_pagado", {
+    p_bono: String(formData.get("bono") ?? ""),
+    p_fecha: String(formData.get("fecha") ?? ""),
+    p_referencia: String(formData.get("referencia") ?? ""),
+  });
+  if (error) return { error: error.message || "No se pudo registrar el pago.", mensaje: null };
+  revalidatePath("/admin/cierres", "layout");
+  return { error: null, mensaje: "Pago registrado." };
+}

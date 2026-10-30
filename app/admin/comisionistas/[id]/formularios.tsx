@@ -5,7 +5,7 @@ import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
 import { CampoBienvenida } from "@/components/campo-bienvenida";
 import type { TratosOrg } from "@/lib/tratos";
-import { agregarMovimiento, cambiarActivo, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
+import { agregarMovimiento, cambiarActivo, cambiarVinculo, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
 
 const INICIAL: EstadoFicha = { error: null, mensaje: null };
 const ENTRADA =
@@ -192,6 +192,30 @@ export function AgregarMovimiento({
           <p className="mt-1 text-[0.9375rem] text-secundario">El comisionista lo ve en su estado de cuenta.</p>
         </div>
         <BotonEnviar variante="secundario">Agregar al mes abierto</BotonEnviar>
+        <Aviso estado={estado} />
+      </form>
+    </details>
+  );
+}
+
+/** Cambiar la vigencia del bono de un referido: ampliar o acortar la fecha de fin, o quitarlo. Con motivo. */
+export function CambiarVinculo({ vinculoId, personaId }: { vinculoId: string; personaId: string }) {
+  const [estado, enviar] = useActionState(cambiarVinculo, { error: null, mensaje: null } as EstadoFicha);
+  return (
+    <details className="mt-2">
+      <summary className="toque cursor-pointer text-[0.9375rem] font-semibold text-acento">Cambiar vigencia</summary>
+      <form action={enviar} className="mt-2 flex flex-col gap-2">
+        <input type="hidden" name="vinculo" value={vinculoId} />
+        <input type="hidden" name="persona" value={personaId} />
+        <select name="accion" defaultValue="ampliar" aria-label="Acción" className="rounded-lg border border-borde-campo bg-fondo px-3 py-2">
+          <option value="ampliar">Ampliar (nueva fecha de fin)</option>
+          <option value="acortar">Acortar (nueva fecha de fin)</option>
+          <option value="quitar">Quitar el bono</option>
+        </select>
+        <input name="fin" type="date" aria-label="Nueva fecha de fin" className="rounded-lg border border-borde-campo bg-fondo px-3 py-2" />
+        <input name="motivo" required minLength={3} maxLength={300} placeholder="Motivo (queda en bitácora)"
+          className="rounded-lg border border-borde-campo bg-fondo px-3 py-2" />
+        <BotonEnviar variante="secundario">Guardar</BotonEnviar>
         <Aviso estado={estado} />
       </form>
     </details>

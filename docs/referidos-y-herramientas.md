@@ -1,6 +1,6 @@
 # Referidos, herramientas y membresías — reglas y esquema
 
-Estado: **reglas acordadas, sin construir**. Se construye en dos fases del plan (README → "Plan
+Estado: **Referidos construido (0044, 30-oct-2026)**; Herramientas y membresías, sin construir. Se construye en dos fases del plan (README → "Plan
 de lo que falta"), después del paso a producción: primero **Referidos**, después **Herramientas
 y membresías**. Las automáticas tienen su propio plan antes de construirse.
 
@@ -47,11 +47,26 @@ sustituye la escala de comisionistas (regla 2) y **sigue sujeto al tope de 30% p
 (regla 7: si no cabe, se recorta el bono). Cada cambio queda en bitácora
 con antes/después y quién lo hizo (motivo "Bono de referido del equipo"). Finanzas lo ve en
 Equipo en solo lectura; el miembro ve el suyo en su tarjeta "Invita a un comisionista" (`mi_bono_referido()`)
-como "Bono de referido: X% (se activa próximamente)": mientras no exista el cálculo, la tarjeta no promete nada más.
+como "Bono de referido: X%", con lo que lleva en el mes y lo que tiene por cobrar (0044).
 El cálculo del bono va en la fase de Referidos. Solo admin_org decide una solicitud; si él la invitó, queda
 `decidida_por_referidor` en bitácora. Reporte en `/admin/referidos`.
 
 Sustituye la vigencia fija de 6 meses.
+
+### Cómo quedó construido (0044)
+
+- **Cálculo:** `calcular_bonos_referido` corre al preparar el cierre (para revisarlo) y otra vez al aprobarlo, después de fijar los % del mes y antes de los saldos y el pago del día 10. Antes, al aprobar, `actualizar_vinculos` fija el inicio de los vínculos que arrancaron y libera a quien pasó 6 meses sin pagos.
+- **Comisionista:** su bono es una comisión `tipo = referido`. Entra solo a su estado de cuenta y al pago del día 10. Ahí no ve la base ni el % (son del trabajo del referido), solo el referido, el folio y el monto; si se recortó, la línea dice "Bono ajustado por tope".
+- **Equipo:** su bono va en `bonos_equipo` (el equipo no tiene estado de cuenta). Se ve en el cierre y en Reportes, y finanzas lo marca pagado en el cierre aprobado. Para el equipo no aplica la regla de actividad propia (no hace trabajos).
+- **Vínculos:** `vinculos_referido` sigue a `referido_por` / `referido_por_miembro` y guarda el estado (activo, quitado, anulado, liberado), el inicio y el fin. "En espera" y "vencido" se calculan a la fecha. Cada cambio queda en `eventos_vinculo` y en bitácora.
+- **Antifraude (decisión del 30-oct-2026):** el mismo teléfono **bloquea** el código como autorreferido al pedir el alta, igual que correo, RFC o CURP; no pasa a "en revisión". La misma CLABE de cobro (`comisionistas.clabe_cobro`, que el comisionista captura en Mis datos) anula el vínculo.
+- **Pantallas:**
+  - Cierre: "Bono de referidos" por persona y el bono del equipo.
+  - Comisionista: "Mis referidos" en su inicio, con el aviso de pérdida desde 4 meses sin pagos.
+  - Ficha del comisionista (staff): sus referidos y su CLABE; admin_org amplía, acorta o quita la vigencia con motivo.
+  - Ajustes: vigencia en meses.
+  - Reportes: bono por persona del mes.
+- **Pruebas:** la sección "Bono de referidos" de `verificaciones.sql` cubre cada regla. DEMO trae escalón, tope, vencido, inactivo y equipo.
 
 ### Reglas
 

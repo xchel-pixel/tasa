@@ -18,6 +18,7 @@ export default function FormularioAjustes({
   correoRechazo,
   slug,
   bonoEquipo,
+  vigenciaReferidos,
 }: {
   contacto: string;
   diaLimite: number;
@@ -27,6 +28,7 @@ export default function FormularioAjustes({
   correoRechazo: string;
   slug: string;
   bonoEquipo: boolean;
+  vigenciaReferidos: number;
 }) {
   const [estado, enviar] = useActionState(guardarAjustes, INICIAL);
 
@@ -91,6 +93,16 @@ export default function FormularioAjustes({
         </p>
         <textarea id="correo_rechazo" name="correo_rechazo" rows={4} maxLength={2000} defaultValue={correoRechazo}
           className={ENTRADA} />
+      </div>
+
+      <div>
+        <label htmlFor="referido_vigencia_meses" className="block font-semibold">Vigencia del bono de referidos (meses)</label>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          Cuenta desde el primer trabajo pagado de cada referido. Cambiarla aplica a los referidos que todavía no arrancan;
+          los que ya corren se ajustan uno por uno en la ficha del comisionista.
+        </p>
+        <input id="referido_vigencia_meses" name="referido_vigencia_meses" type="number" min={1} max={120} required
+          defaultValue={vigenciaReferidos} className={ENTRADA} />
       </div>
 
       <label className="flex items-start gap-3 leading-6">

@@ -183,13 +183,15 @@ export async function VistaEstadoDeCuenta({
 
 function Linea({ m, puedeAnular, mesCerrado }: { m: Movimiento; puedeAnular: boolean; mesCerrado: boolean }) {
   const manual = !m.trabajo && (m.tipo === "bono" || m.tipo === "ajuste" || m.tipo === "cargo") && !m.anula_id;
-  const titulo = m.trabajo ? m.trabajo.cliente : (m.nota ?? TIPO_MOVIMIENTO[m.tipo]);
+  // El bono de referidos se titula con su nota (referido y folio): el trabajo es del referido, no suyo.
+  const titulo = m.tipo === "referido" ? (m.nota ?? TIPO_MOVIMIENTO[m.tipo]) : m.trabajo ? m.trabajo.cliente : (m.nota ?? TIPO_MOVIMIENTO[m.tipo]);
+  const deTrabajo = m.tipo !== "referido" && m.trabajo;
   return (
     <div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          {m.trabajo ? (
-            <Link href={`/trabajos/${m.trabajo.id}`} className="font-semibold text-acento underline underline-offset-4">
+          {deTrabajo ? (
+            <Link href={`/trabajos/${deTrabajo.id}`} className="font-semibold text-acento underline underline-offset-4">
               {titulo}
             </Link>
           ) : (
@@ -197,8 +199,8 @@ function Linea({ m, puedeAnular, mesCerrado }: { m: Movimiento; puedeAnular: boo
           )}
           <p className="text-[0.9375rem] text-secundario">
             {TIPO_MOVIMIENTO[m.tipo]}
-            {m.trabajo?.folio ? ` · ${m.trabajo.folio}` : ""}
-            {m.base !== null && m.porcentaje !== null ? ` · ${m.porcentaje}% de ${pesos(m.base)}` : ""}
+            {deTrabajo && deTrabajo.folio ? ` · ${deTrabajo.folio}` : ""}
+            {m.tipo !== "referido" && m.base !== null && m.porcentaje !== null ? ` · ${m.porcentaje}% de ${pesos(m.base)}` : ""}
             {!m.trabajo && m.tipo !== "arrastre" ? ` · ${m.entidad}` : ""}
           </p>
         </div>

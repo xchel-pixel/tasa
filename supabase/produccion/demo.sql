@@ -34,6 +34,8 @@ declare
   v_conv   uuid;
   v_aviso  integer;
   s uuid; p uuid; t_lig uuid; t6 uuid; t_m1 uuid;
+  v_diego uuid; v_elena uuid; v_fabi uuid; v_gus uuid; v_hugo uuid; v_ivan uuid;
+  v_x record;
   cod_ana  text; cod_eq text;
 begin
   -- 1. La organización (una sola vez) -------------------------
@@ -63,6 +65,9 @@ begin
 
   -- 2. Borrar lo operativo de DEMO (solo DEMO) -----------------
   delete from alertas                    where organizacion_id = v_demo;
+  delete from bonos_equipo               where organizacion_id = v_demo;
+  delete from eventos_vinculo            where organizacion_id = v_demo;
+  delete from vinculos_referido          where organizacion_id = v_demo;
   delete from aplicaciones_pago_comision where organizacion_id = v_demo;
   delete from pagos_comision             where organizacion_id = v_demo;
   delete from pendientes_comision        where organizacion_id = v_demo;
@@ -149,6 +154,63 @@ begin
   insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
   values (t_m1, 'comprobante', 24000, m1 + 9, v_demo || '/' || v_ana || '/demo-1.pdf', v_ana) returning id into p;
   update pagos set estado = 'confirmado', revisado_por = v_fin where id = p;
+
+  -- Bono de referidos (lo calcula el cierre del mes pasado) ------
+  --   · Ana refiere a Diego, Elena y Fabi, los tres con trabajo pagado en el mes → 3 activos → 3%.
+  --   · Elena es Élite 28%: su bono se recorta por el tope de 30% ("Bono ajustado por tope").
+  --   · Gus, también de Ana, tuvo su primer trabajo pagado hace 14 meses: vencido, no genera.
+  --   · Beto refiere a Hugo, pero Beto no tuvo trabajos pagados en los últimos 3 meses: ese mes no cobra.
+  --   · Equipo DEMO (interruptores encendidos, 2.5%) refiere a Iván: su bono va en bonos_equipo.
+  update ajustes set bono_referido_equipo = true where organizacion_id = v_demo;
+  update membresias set bono_referido = true, bono_referido_pct = 2.5, bono_referido_hasta = null
+   where organizacion_id = v_demo and persona_id = v_eq;
+  for v_x in select * from (values
+      ('Diego Referido DEMO', 'diego.ref@demo.test', 'DEMDIEGO'), ('Elena Referida DEMO', 'elena.ref@demo.test', 'DEMELENA'),
+      ('Fabi Referida DEMO', 'fabi.ref@demo.test', 'DEMFABIX'), ('Gus Referido DEMO', 'gus.ref@demo.test', 'DEMGUSXX'),
+      ('Hugo Referido DEMO', 'hugo.ref@demo.test', 'DEMHUGOX'), ('Ivan Referido DEMO', 'ivan.ref@demo.test', 'DEMIVANX')) v(nombre, correo, clave)
+  loop
+    insert into personas (nombre, correo, organizacion_activa) values (v_x.nombre, v_x.correo, v_demo) on conflict ((lower(correo))) do nothing;
+    insert into membresias (persona_id, organizacion_id, rol)
+    select id, v_demo, 'comisionista' from personas where lower(correo) = v_x.correo
+    on conflict (persona_id, organizacion_id) do nothing;
+    insert into comisionistas (persona_id, slug, fecha_alta, curp)
+    select id, lower(replace(v_x.nombre, ' ', '-')), (m1 - interval '15 months')::date,
+           'DEMO900101H' || translate(substr(md5(v_x.nombre), 1, 5), '0123456789abcdef', 'ABCDEFGHIJKLMNOP') || '00'
+      from personas where lower(correo) = v_x.correo
+    on conflict do nothing;
+  end loop;
+  select id into v_diego from personas where correo = 'diego.ref@demo.test';
+  select id into v_elena from personas where correo = 'elena.ref@demo.test';
+  select id into v_fabi  from personas where correo = 'fabi.ref@demo.test';
+  select id into v_gus   from personas where correo = 'gus.ref@demo.test';
+  select id into v_hugo  from personas where correo = 'hugo.ref@demo.test';
+  select id into v_ivan  from personas where correo = 'ivan.ref@demo.test';
+  update comisionistas set porcentaje_forzado = 28 where organizacion_id = v_demo and persona_id = v_elena;
+  -- Los vínculos se rehacen desde cero: primero sin referidor, después con el suyo.
+  update comisionistas set referido_por = null, referido_por_miembro = null
+   where organizacion_id = v_demo and persona_id in (v_diego, v_elena, v_fabi, v_gus, v_hugo, v_ivan);
+  update comisionistas set referido_por = v_ana  where organizacion_id = v_demo and persona_id in (v_diego, v_elena, v_fabi, v_gus);
+  update comisionistas set referido_por = v_beto where organizacion_id = v_demo and persona_id = v_hugo;
+  update comisionistas set referido_por_miembro = v_eq where organizacion_id = v_demo and persona_id = v_ivan;
+
+  -- Gus: su primer trabajo pagado fue hace 14 meses (historia, sin pagos ni comisión).
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           monto_honorarios, estado, estatus_publico, aceptada_en, pagado_en, mes_cierre, creado_por)
+  values (v_gus, 'tramite_directo', 'admin', v_ov, 'Calle Historia Demo', 'Cliente Antiguo Demo', v_marca, v_cuenta,
+          3000, 'tramite', 'pagado', (m1 - interval '14 months')::date, (m1 - interval '14 months')::date + 5,
+          (m1 - interval '14 months')::date, v_adm);
+
+  -- Trabajos de los referidos pagados en el mes pasado.
+  for v_x in select * from (values (v_diego, 10000), (v_elena, 8000), (v_fabi, 6000), (v_gus, 7000), (v_hugo, 9000), (v_ivan, 8000)) v(com, hon)
+  loop
+    insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                             monto_honorarios, estado, estatus_publico, aceptada_en, creado_por)
+    values (v_x.com, 'tramite_directo', 'admin', v_avaluo, 'Calle Referidos Demo', 'Cliente de Referido Demo', v_marca, v_cuenta,
+            v_x.hon, 'tramite', 'entregado', m1 + 2, v_adm) returning id into s;
+    insert into pagos (solicitud_id, via, monto, fecha_pago, referencia, reportado_por)
+    values (s, 'directo', v_x.hon, m1 + 12, 'SPEI DEMO-REF', v_fin) returning id into p;
+    update pagos set estado = 'confirmado', revisado_por = v_adm where id = p;
+  end loop;
 
   perform ejecutar_preparacion_cierre(v_demo, m1, v_fin);
   perform ejecutar_aprobacion_cierre(v_demo, m1, v_adm);

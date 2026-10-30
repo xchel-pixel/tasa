@@ -39,7 +39,7 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
   const superAdmin = persona.rol === "admin_org";
 
   const supabase = await crearClienteServidor();
-  const [comisiones, pagos, trabajos, pendientes, sinCosto] = await Promise.all([
+  const [comisiones, pagos, trabajos, pendientes, sinCosto, bonos] = await Promise.all([
     supabase
       .from("comisiones")
       .select("monto, tipo, cuentas_receptoras(alias), servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre))")
@@ -78,7 +78,11 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
       .gte("aceptada_en", mes)
       .lt("aceptada_en", mesSiguiente(mes))
       .returns<FilaSinCostoBase[]>(),
+    supabase.rpc("reporte_bonos_referido", { p_mes: mes }),
   ]);
+  const bonosDelMes = (oExplota(bonos, "el bono de referidos") ?? []) as {
+    persona_id: string; nombre: string; tipo: "comisionista" | "equipo"; trabajos: number; monto: string | number; recortados: number; pagado: string | number | null;
+  }[];
   const conversion = conversionSinCosto(
     (oExplota(sinCosto, "los trabajos sin costo") ?? []).map((x) => ({
       aceptada_en: x.aceptada_en,
@@ -134,6 +138,34 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
       <Tabla titulo="Por empresa" filas={sumar(filas, (f) => f.cuentas_receptoras?.alias ?? "Sin empresa", monto)} />
       <Tabla titulo="Por servicio" filas={sumar(filas, (f) => f.servicios?.nombre ?? "Sin servicio", monto)} />
       <Tabla titulo="Por comisionista" filas={sumar(filas, (f) => f.comisionistas?.personas?.nombre ?? "", monto)} />
+
+      <h2 className="mt-8 text-[1.125rem] font-bold">Bono de referidos</h2>
+      <p className="text-[0.9375rem] leading-6 text-secundario">Por persona, del mes. Se calcula al preparar el cierre y queda fijo al aprobarlo.</p>
+      {bonosDelMes.length === 0 ? (
+        <p className="mt-3 rounded-xl bg-alterno px-4 py-3 text-[0.9375rem] text-secundario">Sin bono de referidos en el mes (o el cierre no se ha preparado).</p>
+      ) : (
+        <section className="mt-3 rounded-xl border border-linea px-4 py-3">
+          <ul className="flex flex-col gap-2 text-[0.9375rem]">
+            {bonosDelMes.map((b) => (
+              <li key={b.persona_id + b.tipo} className="flex items-start justify-between gap-3">
+                <span>
+                  <span className="block font-semibold">{b.nombre}</span>
+                  <span className="block text-secundario">
+                    {b.tipo === "equipo" ? "Equipo" : "Comisionista"} · {b.trabajos === 1 ? "1 trabajo" : `${b.trabajos} trabajos`}
+                    {b.recortados > 0 ? ` · ${b.recortados} ajustado(s) por tope` : ""}
+                    {Number(b.pagado ?? 0) > 0 ? ` · pagado ${pesos(Number(b.pagado))}` : ""}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap font-semibold">{pesos(Number(b.monto))}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 flex justify-between border-t border-linea pt-2 font-semibold">
+            <span>Total</span>
+            <span>{pesos(bonosDelMes.reduce((s, b) => s + Number(b.monto), 0))}</span>
+          </p>
+        </section>
+      )}
 
       <h2 className="mt-8 text-[1.125rem] font-bold">Trabajos por tipo de honorario</h2>
       <p className="text-[0.9375rem] text-secundario">Aceptados en el mes. En un estimado pendiente, el monto es el estimado.</p>

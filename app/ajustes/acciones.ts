@@ -18,6 +18,7 @@ export async function guardarAjustes(
   const aviso = String(formData.get("aviso_privacidad") ?? "").trim();
   const bienvenida = String(formData.get("correo_bienvenida") ?? "").trim();
   const rechazo = String(formData.get("correo_rechazo") ?? "").trim();
+  const vigencia = Number(formData.get("referido_vigencia_meses"));
   if (terminos.length > 20000 || aviso.length > 20000) {
     return { mensaje: null, error: "Los textos van hasta 20,000 caracteres." };
   }
@@ -29,6 +30,9 @@ export async function guardarAjustes(
   }
   if (!Number.isInteger(dia) || dia < 1 || dia > 28) {
     return { mensaje: null, error: "El día límite va del 1 al 28." };
+  }
+  if (!Number.isInteger(vigencia) || vigencia < 1 || vigencia > 120) {
+    return { mensaje: null, error: "La vigencia del bono de referidos va de 1 a 120 meses." };
   }
 
   const supabase = await crearClienteServidor();
@@ -43,6 +47,7 @@ export async function guardarAjustes(
         correo_bienvenida: bienvenida,
         correo_rechazo: rechazo,
         bono_referido_equipo: formData.get("bono_referido_equipo") === "on",
+        referido_vigencia_meses: vigencia,
         actualizado_en: new Date().toISOString(),
       },
       { count: "exact" }

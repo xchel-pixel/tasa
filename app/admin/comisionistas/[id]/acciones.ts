@@ -107,3 +107,19 @@ export async function agregarMovimiento(_previo: EstadoFicha, formData: FormData
     p_nota: String(formData.get("nota") ?? ""),
   }, "Movimiento agregado al mes abierto.");
 }
+
+/** Ampliar, acortar o quitar la vigencia del bono de un referido. La base exige admin_org y motivo. */
+export async function cambiarVinculo(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
+  await exigirRol("admin_org");
+  const supabase = await crearClienteServidor();
+  const accion = String(formData.get("accion") ?? "");
+  const { error } = await supabase.rpc("cambiar_vinculo", {
+    p_vinculo: String(formData.get("vinculo") ?? ""),
+    p_accion: accion,
+    p_fin: accion === "quitar" ? null : String(formData.get("fin") ?? "") || null,
+    p_motivo: String(formData.get("motivo") ?? ""),
+  });
+  if (error) return { error: error.message || "No se pudo cambiar.", mensaje: null };
+  revalidatePath(`/admin/comisionistas/${String(formData.get("persona") ?? "")}`);
+  return { error: null, mensaje: accion === "quitar" ? "Bono quitado." : "Vigencia cambiada." };
+}

@@ -28,7 +28,7 @@ export default async function Ajustes() {
   const [ajustes, origenes, organizacion, conector] = await Promise.all([
     supabase
       .from("ajustes")
-      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo")
+      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo, referido_vigencia_meses")
       .maybeSingle()
       .returns<{
         contacto_soporte: string | null;
@@ -38,6 +38,7 @@ export default async function Ajustes() {
         correo_bienvenida: string | null;
         correo_rechazo: string | null;
         bono_referido_equipo: boolean;
+        referido_vigencia_meses: number;
       } | null>(),
     supabase
       .from("origenes_pago")
@@ -83,6 +84,7 @@ export default async function Ajustes() {
             correoRechazo={a?.correo_rechazo ?? ""}
             slug={persona.organizacion.slug}
             bonoEquipo={Boolean(a?.bono_referido_equipo)}
+            vigenciaReferidos={a?.referido_vigencia_meses ?? 12}
           />
 
           <section className="mt-10">

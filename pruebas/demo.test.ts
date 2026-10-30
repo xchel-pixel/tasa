@@ -30,7 +30,7 @@ async function huellaDeOtras(): Promise<Record<string, number>> {
     );
     huella[t] = r.rows[0].n;
   }
-  const personas = await db.query<{ n: number }>(`select count(*)::int as n from personas where correo not like 'xchel+demo%'`);
+  const personas = await db.query<{ n: number }>(`select count(*)::int as n from personas p where exists (select 1 from membresias m join organizaciones o on o.id = m.organizacion_id where m.persona_id = p.id and o.slug <> 'demo')`);
   huella.personas = personas.rows[0].n;
   return huella;
 }
@@ -86,6 +86,10 @@ describe("Datos DEMO", () => {
     expect(await demo(`select (count(*) filter (where referidor_id is not null))::text || ' ' || (count(*) filter (where referidor_miembro_id is not null))::text as v
                          from solicitudes_alta where ${enDemo}`)).toEqual(["1 1"]);
     expect(await demo(`select estado as v from cierres where ${enDemo}`)).toEqual(["aprobado"]);
+    // Bono de referidos del cierre: Ana con 3 activos (3%), uno recortado por tope; ni vencido ni inactivo generan; equipo aparte.
+    expect(await demo(`select string_agg(porcentaje || ':' || monto || ':' || tope_ajustado, ' ' order by monto) as v from comisiones where ${enDemo} and tipo = 'referido'`))
+      .toEqual(["3.00:160.00:true 3.00:180.00:false 3.00:300.00:false"]);
+    expect(await demo(`select count(*)::text || ' ' || max(porcentaje)::text || ' ' || max(monto)::text as v from bonos_equipo where ${enDemo}`)).toEqual(["1 2.50 200.00"]);
     expect(await demo(`select string_agg(porcentaje::text, ',' order by porcentaje) as v from comisiones where ${enDemo}`)).toEqual(
       expect.arrayContaining([expect.stringContaining("8.00")])
     );

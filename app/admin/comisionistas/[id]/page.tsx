@@ -11,7 +11,7 @@ import type { FilaComisionista } from "../page";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
-import { AgregarMovimiento, CambiarActivo, CorregirReferidor, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
+import { AgregarMovimiento, CambiarActivo, CambiarVinculo, CorregirReferidor, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
 
@@ -28,6 +28,7 @@ type Ficha = {
   rfc: string | null;
   curp: string | null;
   codigo_referido: string;
+  clabe_cobro: string | null;
   referido_desde: string | null;
   csf_ruta: string | null;
   csf_subida_en: string | null;
@@ -56,7 +57,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
     supabase
       .from("comisionistas")
       .select(
-        "persona_id, slug, rfc, curp, codigo_referido, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por, referido_por_miembro_desde, invito:personas!comisionistas_referido_por_miembro_fkey(nombre:nombre_visible)"
+        "persona_id, slug, rfc, curp, codigo_referido, clabe_cobro, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por, referido_por_miembro_desde, invito:personas!comisionistas_referido_por_miembro_fkey(nombre:nombre_visible)"
       )
       .eq("persona_id", id)
       .maybeSingle()
@@ -118,6 +119,22 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   const nivelDelTrato = f.trato_nivel_id
     ? (await supabase.from("niveles").select("nombre, porcentaje").eq("id", f.trato_nivel_id).maybeSingle()).data
     : null;
+  // Sus referidos (como el que refiere), con la vigencia del bono. Los nombres van aparte (llave compuesta).
+  const { data: vinculos } = staff
+    ? await supabase
+        .from("vinculos_referido")
+        .select("id, referido_id, estado, inicio, fin")
+        .eq("referidor_id", id)
+        .returns<{ id: string; referido_id: string; estado: string; inicio: string | null; fin: string | null }[]>()
+    : { data: [] };
+  const nombresReferidos = new Map(
+    vinculos && vinculos.length > 0
+      ? ((await supabase.from("personas").select("id, nombre").in("id", vinculos.map((v) => v.referido_id))).data ?? []).map(
+          (p: { id: string; nombre: string }) => [p.id, p.nombre]
+        )
+      : []
+  );
+  const hoyMx = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const { data: terminos } = await supabase
     .from("aceptaciones_terminos")
     .select("version, aceptado_en")
@@ -146,6 +163,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           {f.rfc ? null : <Dato etiqueta="RFC" valor="— (llegó con CURP)" />}
           {f.curp ? <Dato etiqueta="CURP" valor={f.curp} /> : null}
           <Dato etiqueta="Código de referido" valor={f.codigo_referido} />
+          {staff ? <Dato etiqueta="CLABE de cobro" valor={f.clabe_cobro ?? "— (no la ha capturado)"} /> : null}
           <Dato etiqueta="Alta" valor={fechaCorta(f.fecha_alta)} />
           {referido ? (
             <Dato etiqueta="Referido por" valor={`${referido}${f.referido_desde ? ` (desde el ${fechaCorta(f.referido_desde)})` : ""}`} />
@@ -183,6 +201,30 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           />
         ) : null}
       </Seccion>
+
+      {staff && vinculos && vinculos.length > 0 ? (
+        <Seccion titulo="Sus referidos">
+          <ul className="flex flex-col gap-2 text-[0.9375rem]">
+            {vinculos.map((v) => {
+              const texto =
+                v.estado !== "activo"
+                  ? { quitado: "Sin bono (quitado)", anulado: "Anulado", liberado: "Liberado" }[v.estado] ?? v.estado
+                  : !v.inicio
+                    ? "En espera: empieza con su primer trabajo pagado"
+                    : v.fin && v.fin < hoyMx
+                      ? `Vencido el ${fechaCorta(v.fin)}`
+                      : `Vigente hasta el ${v.fin ? fechaCorta(v.fin) : "—"}`;
+              return (
+                <li key={v.id} className="rounded-lg border border-linea px-3 py-2">
+                  <p className="font-semibold">{nombresReferidos.get(v.referido_id) ?? "Referido"}</p>
+                  <p className="text-secundario">{texto}</p>
+                  {superAdmin && v.estado === "activo" ? <CambiarVinculo vinculoId={v.id} personaId={id} /> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </Seccion>
+      ) : null}
 
       {staff ? (
       <Seccion titulo="Pagos de comisión">

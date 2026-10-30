@@ -17,7 +17,7 @@ export const TIPO_MOVIMIENTO: Record<TipoMovimiento, string> = {
   bono: "Bono",
   ajuste: "Ajuste",
   cargo: "Cargo",
-  referido: "Referido",
+  referido: "Bono de referidos",
   arrastre: "Saldo arrastrado",
 };
 
