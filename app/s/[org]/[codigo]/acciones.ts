@@ -73,6 +73,8 @@ async function avisar(solicitud: string, org: string) {
   const sitio = await urlDelSitio();
   const privacidad = `${sitio}/privacidad?org=${encodeURIComponent(org)}`;
   const que = d.tramite ? "el trámite" : "una cotización";
+  // La nota de independencia completa (solo si la liga es de un comisionista).
+  const { data: notas } = await servicio.rpc("notas_de_solicitud", { p_solicitud: solicitud }).maybeSingle<{ liga: string; pdf: string }>();
 
   const correos: Promise<string | null>[] = [];
   if (d.dueno_correo) {
@@ -97,7 +99,9 @@ async function avisar(solicitud: string, org: string) {
         asunto: "Recibimos tu solicitud",
         texto:
           `Hola, ${d.cliente_nombre}:\n\nRecibimos tu solicitud de ${que} de ${d.servicio}. ` +
-          `${d.dueno_nombre} te va a contactar para darle seguimiento.\n\n${d.organizacion}`,
+          `${d.dueno_nombre} te va a contactar para darle seguimiento.\n\n` +
+          (notas?.liga ? `${notas.liga}\n\n` : "") +
+          d.organizacion,
         contacto: d.contacto,
         ligaPrivacidad: privacidad,
         demo,

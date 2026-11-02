@@ -95,6 +95,7 @@ const PANTALLAS: Record<string, Pantalla> = {
   "/admin/solicitudes": { rutas: () => ["/admin/solicitudes"], espera: OPERACION },
   "/admin/solicitudes/[id]": { rutas: (d) => [d.porCotizar && `/admin/solicitudes/${d.porCotizar}`], espera: OPERACION },
   "/admin/testimonios": { rutas: () => ["/admin/testimonios"], espera: SOLO_ADMIN },
+  "/admin/traer-de-notion": { rutas: () => ["/admin/traer-de-notion"], espera: SOLO_ADMIN },
   "/admin/tramites": {
     rutas: () => [
       "/admin/tramites",

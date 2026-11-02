@@ -58,7 +58,7 @@ select * from (
   union all
   select 11, 'Ajustes de XG',
          (select contacto_soporte = 'soporte@xgplataform.com' and dia_limite_pago_comision = 10 and bienvenida_meses = 3 and arranque_meses = 2
-                 and terminos_version = 2 and aviso_version = 1 and correo_bienvenida like 'Asunto: Te damos la bienvenida a Tasa%'
+                 and terminos_version = 4 and terminos like '%10. Pagos de clientes. El cliente puede pagar directamente%' and aviso_version = 1 and nota_version >= 1 and correo_bienvenida like 'Asunto: Te damos la bienvenida a Tasa%'
             from ajustes a, xg where a.organizacion_id = xg.id),
          (select 'contacto ' || contacto_soporte || ' · día ' || dia_limite_pago_comision || ' · bienvenida ' || bienvenida_meses
                  || 'm (' || (select nombre from niveles where id = bienvenida_nivel_id) || ') · arranque ' || arranque_meses || 'm ('
@@ -85,7 +85,7 @@ select * from (
          (select count(*) from conectores c, xg where c.organizacion_id = xg.id and c.activo) = 1,
          (select string_agg(tipo || case when activo then ' (activo)' else '' end, ', ') from conectores)
   union all
-  select 16, 'Migraciones aplicadas hasta la 0038',
-         (select max(version) from supabase_migrations.schema_migrations) = '0046',
+  select 16, 'Migraciones aplicadas hasta la 0047',
+         (select max(version) from supabase_migrations.schema_migrations) = '0047',
          (select count(*) || ' migraciones, última ' || max(version) from supabase_migrations.schema_migrations)
 ) r order by n;

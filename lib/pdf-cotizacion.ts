@@ -6,7 +6,8 @@ import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB }
  * (el mismo de la skill de cotización): logo, "PROPUESTA ECONÓMICA",
  * colores, tipografía y hoja de la marca, tabla de honorarios,
  * condiciones, formas de pago con firma y el recuadro "Importante". Al
- * pie: "Solicitud gestionada por <comisionista>". Nunca menciona Tasa.
+ * pie, solo si el trabajo llegó por un comisionista, la nota de
+ * independencia de Ajustes ("Servicio recomendado por…"). Nunca menciona Tasa.
  *
  * IVA con la regla de Tasa: solo si el trabajo requiere factura, y solo
  * sobre honorarios (los terceros no llevan IVA). Sin factura, lo dice.
@@ -50,6 +51,8 @@ export type DatosPdf = {
   total: number;
   cuenta: { titular: string; banco: string | null; clabe: string };
   comisionista: string;
+  /** Pie de independencia ya armado; nulo si el trabajo no llegó por un comisionista. */
+  pie?: string | null;
   marca: MarcaPdf;
 };
 
@@ -173,9 +176,9 @@ export async function generarPdfCotizacion(d: DatosPdf, fuentes: FuentesPdf, log
     const izq = [
       d.marca.direccion,
       [d.marca.correo, d.marca.telefonos].filter(Boolean).join("  ·  ") || null,
-      `Solicitud gestionada por ${d.comisionista}`,
+      d.pie ?? null,
     ].filter((t): t is string => Boolean(t));
-    izq.forEach((t, i) => pagina.drawText(t, { x: mg, y: pie - i * 9, size: 7, font: i === izq.length - 1 ? I : R, color: GRIS }));
+    izq.forEach((t, i) => pagina.drawText(t, { x: mg, y: pie - i * 9, size: 7, font: d.pie && i === izq.length - 1 ? I : R, color: GRIS }));
     const pd = `Cotización ${d.numero}  ·  Página ${numPagina}`;
     pagina.drawText(pd, { x: W - mg - R.widthOfTextAtSize(pd, 7), y: pie, size: 7, font: R, color: GRIS });
     y = inicioCuerpo;

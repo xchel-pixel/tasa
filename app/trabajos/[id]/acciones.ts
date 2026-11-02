@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { exigirPersona } from "@/lib/sesion";
+import { avisarAsignacion } from "@/lib/asignar";
+import { carpetaDe, exigirPersona, exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 /**
@@ -82,4 +83,53 @@ export async function fijarHonorarioFinal(
   if (error) return { error: error.message };
   revalidatePath(`/trabajos/${solicitud}`);
   return { error: null };
+}
+
+/** "Ya lo entregué": el pago que recibió el comisionista ya está en la cuenta (con el comprobante del depósito). */
+export async function entregarPago(_previo: EstadoEstatus, formData: FormData): Promise<EstadoEstatus> {
+  const persona = await exigirPersona();
+  const pago = String(formData.get("pago") ?? "");
+  const solicitud = String(formData.get("solicitud") ?? "");
+  const ruta = String(formData.get("entrega_ruta") ?? "") || null;
+  if (ruta && !ruta.startsWith(`${carpetaDe(persona)}/`)) return { error: "El archivo no es válido. Súbelo otra vez.", mensaje: null };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("marcar_pago_entregado", { p_pago: pago, p_ruta: ruta });
+  if (error) return { error: error.message || "No se pudo guardar.", mensaje: null };
+  revalidatePath(`/trabajos/${solicitud}`);
+  revalidatePath("/admin/pagos");
+  revalidatePath("/");
+  return { error: null, mensaje: "Listo: Administración lo confirma cuando lo vea en la cuenta." };
+}
+
+/** Asignar o cambiar el comisionista de un trámite (admin_org; finanzas si Ajustes lo permite), con aviso por correo. */
+export async function asignarComisionista(_previo: EstadoEstatus, formData: FormData): Promise<EstadoEstatus> {
+  const persona = await exigirRol(...ROLES_OPERACION);
+  const solicitud = String(formData.get("solicitud") ?? "");
+  const comisionista = String(formData.get("comisionista") ?? "");
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (!comisionista) return { error: "Elige el comisionista.", mensaje: null };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("asignar_comisionista", { p_solicitud: solicitud, p_comisionista: comisionista, p_motivo: motivo });
+  if (error) return { error: error.message || "No se pudo asignar.", mensaje: null };
+
+  await avisarAsignacion(solicitud, persona.organizacion.slug);
+  revalidatePath(`/trabajos/${solicitud}`);
+  revalidatePath(`/admin/solicitudes/${solicitud}`);
+  return { error: null, mensaje: "Asignado. Se le avisó por correo." };
+}
+
+/** "Genera comisión sí/no" por trámite, con motivo. */
+export async function generaComision(_previo: EstadoEstatus, formData: FormData): Promise<EstadoEstatus> {
+  await exigirRol(...ROLES_OPERACION);
+  const solicitud = String(formData.get("solicitud") ?? "");
+  const genera = formData.get("genera") === "si";
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("marcar_genera_comision", {
+    p_solicitud: solicitud,
+    p_genera: genera,
+    p_motivo: String(formData.get("motivo") ?? "").trim(),
+  });
+  if (error) return { error: error.message || "No se pudo guardar.", mensaje: null };
+  revalidatePath(`/trabajos/${solicitud}`);
+  return { error: null, mensaje: genera ? "Vuelve a generar comisión." : "Ya no genera comisión." };
 }

@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
+import { paraAsignar } from "@/lib/asignar";
+import { AsignarComisionista } from "@/app/trabajos/[id]/asignar";
 import { quienLaTrajo, type Procedencia } from "@/lib/liga-clientes";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import FormularioPrecio, { type ConvenioParaCotizar, type Ligable } from "./formulario-precio";
@@ -23,6 +25,7 @@ type Solicitud = {
   cliente_correo: string | null;
   servicios: { nombre: string } | null;
   servicio_id: string;
+  comisionista_id: string | null;
   organizacion_id: string;
   quiere_tramite: boolean;
 } & Procedencia;
@@ -39,7 +42,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
       .select(
         `id, tipo, estado, marca_id, inmueble_direccion, inmueble_municipio, inmueble_clave_catastral,
          inmueble_descripcion, cliente_nombre, cliente_telefono, cliente_correo,
-         organizacion_id, origen, liga_sin_dueno, quiere_tramite, servicio_id,
+         organizacion_id, origen, liga_sin_dueno, quiere_tramite, servicio_id, comisionista_id,
          servicios(nombre), comisionistas(personas!comisionistas_persona_id_fkey(nombre)),
          liga:personas!solicitudes_liga_de_fkey(nombre)`
       )
@@ -69,6 +72,7 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
   const cotizable = s.estado === "solicitada" || s.estado === "vencida";
   const [convenios, ligables] = cotizable ? await paraCotizar(supabase, s) : [[], []];
   const adjuntos = s.origen === "liga_cliente" ? await adjuntosDelCliente(supabase, s.organizacion_id, s.id) : [];
+  const { asigna, comisionistas } = s.estado !== "cancelada" ? await paraAsignar() : { asigna: false, comisionistas: [] };
 
   return (
     <PantallaAdmin
@@ -118,6 +122,15 @@ export default async function Cotizar({ params }: PageProps<"/admin/solicitudes/
       ) : (
         <p className="mt-6 rounded-xl bg-tinte px-4 py-3">Esta solicitud ya no espera precio.</p>
       )}
+
+      {asigna ? (
+        <section className="mt-8">
+          <h2 className="font-bold">Comisionista</h2>
+          <div className="mt-2">
+            <AsignarComisionista solicitudId={s.id} actual={s.comisionista_id} comisionistas={comisionistas} />
+          </div>
+        </section>
+      ) : null}
     </PantallaAdmin>
   );
 }

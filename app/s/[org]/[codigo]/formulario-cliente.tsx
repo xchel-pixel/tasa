@@ -49,6 +49,7 @@ export default function FormularioCliente({
   servicios,
   avisoVersion,
   ligaAviso,
+  nota,
 }: {
   org: string;
   codigo: string;
@@ -56,6 +57,7 @@ export default function FormularioCliente({
   servicios: { id: string; nombre: string }[];
   avisoVersion: number;
   ligaAviso: string;
+  nota: string | null;
 }) {
   const [paso, setPaso] = useState<Paso>({ tipo: "llenando" });
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +110,7 @@ export default function FormularioCliente({
         <p className="font-semibold">Recibimos tu solicitud.</p>
         <p className="mt-1">{con} te va a contactar para darle seguimiento.</p>
         {paso.aviso ? <p className="mt-2 text-error">{paso.aviso}</p> : null}
+        {nota ? <NotaIndependencia texto={nota} /> : null}
       </div>
     );
   }
@@ -215,6 +218,7 @@ export default function FormularioCliente({
         </span>
       </label>
 
+      {nota ? <NotaIndependencia texto={nota} /> : null}
       {error ? <p className="text-[0.9375rem] leading-6 text-error">{error}</p> : null}
       <button
         type="submit"
@@ -224,5 +228,14 @@ export default function FormularioCliente({
         {enviando ? paso.que : !montado ? "Preparando…" : "Enviar solicitud"}
       </button>
     </form>
+  );
+}
+
+/** La nota de independencia, a la vista (no en letra chica). */
+function NotaIndependencia({ texto }: { texto: string }) {
+  return (
+    <div className="mt-3 rounded-lg border border-linea bg-fondo px-4 py-3 text-[0.9375rem] leading-6 text-texto" role="note">
+      {texto}
+    </div>
   );
 }

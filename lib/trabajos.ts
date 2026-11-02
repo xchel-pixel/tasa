@@ -20,6 +20,10 @@ export type Pago = {
   motivo_rechazo: string | null;
   motivo_retiro: string | null;
   reportado_por: string | null;
+  /** "Lo recibí yo": el cliente le pagó al comisionista y debe entregarlo a la cuenta. */
+  recibio_asesor: boolean;
+  entregar_antes: string | null;
+  entregado_en: string | null;
 };
 
 export type Trabajo = {
@@ -50,6 +54,12 @@ export type Trabajo = {
   mes_cierre: string | null;
   motivo_cancelacion: string | null;
   creado_en: string;
+  origen: string;
+  comisionista_id: string | null;
+  comisionista: string | null;
+  /** 'ninguna': no genera comisión (convenio o marcado a mano, con `sin_comision_motivo`). */
+  comision_regla: "normal" | "ninguna" | "fija";
+  sin_comision_motivo: string | null;
   pagos: Pago[];
   historial: { estatus_publico: EstatusPublico; desde: string }[];
   cotizacion: {
@@ -96,6 +106,7 @@ type FilaFicha = {
   honorario_estimado: string | number | null;
   honorario_final_en: string | null;
   ligada: { id: string; folio: string | null; cliente_nombre: string } | null;
+  comisionistas: { personas: { nombre: string } | null } | null;
   pagos: (Omit<Pago, "monto"> & { monto: string | number })[];
   historial_estatus: { estatus_publico: EstatusPublico; desde: string }[];
   cotizaciones: {
@@ -124,10 +135,13 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
          inmueble_clave_catastral, inmueble_descripcion, cliente_nombre, cliente_telefono,
          cliente_correo, requiere_factura, monto_honorarios, monto_iva, monto_terceros,
          monto_total, pagado_en, mes_cierre, motivo_cancelacion, creado_en,
+         origen, comisionista_id, comision_regla, sin_comision_motivo,
+         comisionistas(personas!comisionistas_persona_id_fkey(nombre:nombre_visible)),
          honorario_tipo, honorario_minimo, honorario_estimado, honorario_final_en,
          ligada:ligada_a(id, folio, cliente_nombre),
          servicios(nombre), marcas(nombre), cuentas_receptoras(titular, banco, clabe),
-         pagos(id, via, monto, fecha_pago, referencia, nota, recibido_por, estado, motivo_rechazo, motivo_retiro, reportado_por),
+         pagos(id, via, monto, fecha_pago, referencia, nota, recibido_por, estado, motivo_rechazo, motivo_retiro, reportado_por,
+               recibio_asesor, entregar_antes, entregado_en),
          historial_estatus(estatus_publico, desde),
          cotizaciones!cotizaciones_organizacion_id_solicitud_id_fkey(id, estado, monto_honorarios, monto_iva, monto_terceros, monto_total,
                       requiere_factura, vigente_hasta, pdf_ruta, honorario_tipo, honorario_minimo,
@@ -146,6 +160,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
     ...(f as unknown as Trabajo),
     servicio: f.servicios?.nombre ?? "",
     marca: f.marcas?.nombre ?? null,
+    comisionista: f.comisionistas?.personas?.nombre ?? null,
     cuenta: f.cuentas_receptoras,
     monto_honorarios: f.monto_honorarios === null ? null : Number(f.monto_honorarios),
     monto_iva: Number(f.monto_iva),

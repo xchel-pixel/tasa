@@ -27,7 +27,7 @@ const ESTADO = {
 export default async function MiTarjeta() {
   const persona = await exigirRol("comisionista");
   const supabase = await crearClienteServidor();
-  const [tarjeta, nivelR, servicios, yo, testimonios] = await Promise.all([
+  const [tarjeta, nivelR, servicios, yo, testimonios, ajustes] = await Promise.all([
     supabase
       .from("tarjetas")
       .select("frase, telefono, correo, mostrar_correo, zona, foto_ruta, logo_ruta, color, servicios, estado, motivo_estado")
@@ -48,6 +48,7 @@ export default async function MiTarjeta() {
       .eq("comisionista_id", persona.id)
       .order("creado_en", { ascending: false })
       .returns<{ id: string; cliente: string; texto: string; estado: "pendiente" | "aprobado" | "rechazado"; motivo: string | null; creado_en: string }[]>(),
+    supabase.from("ajustes").select("nota_tarjeta").maybeSingle<{ nota_tarjeta: string }>(),
   ]);
   const t = oExplota(tarjeta, "tu tarjeta");
   const nivel = Number(oExplota(nivelR, "tu nivel") ?? 1);
@@ -101,6 +102,7 @@ export default async function MiTarjeta() {
                 orgId={persona.organizacion.id}
                 personaId={persona.id}
                 codigo={c.codigo_referido}
+                nota={ajustes.data?.nota_tarjeta ?? null}
                 servicios={oExplota(servicios, "los servicios") ?? []}
               />
             ) : null}

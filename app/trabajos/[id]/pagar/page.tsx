@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { DatosBancarios } from "@/components/datos-bancarios";
 import { Encabezado } from "@/components/encabezado";
-import { pesos } from "@/lib/formato";
+import { fechaCorta, pesos } from "@/lib/formato";
 import { carpetaDe, exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerTrabajo } from "@/lib/trabajos";
@@ -28,6 +28,11 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
   const porConfirmar = t.pagos.filter((p) => p.estado === "reportado").reduce((s, p) => s + p.monto, 0);
   const falta = Math.max(0, t.monto_total - confirmado);
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+
+  // Si el comisionista lo recibe él: la fecha límite para entregarlo, con la regla de la base.
+  const { data: entregarAntes } = staff
+    ? { data: null }
+    : await (await crearClienteServidor()).rpc("sumar_dias_habiles", { p_desde: hoy, p_dias: 2 });
 
   // "Quién recibió el efectivo": al staff se le sugieren los nombres del equipo.
   let equipo: string[] = [];
@@ -87,6 +92,8 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
             equipo={equipo}
             sugerido={Math.max(0, falta - porConfirmar)}
             hoy={hoy}
+            miNombre={persona.nombre}
+            entregarAntes={fechaCorta(String(entregarAntes ?? hoy))}
           />
         </div>
       </main>

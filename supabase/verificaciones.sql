@@ -2985,6 +2985,243 @@ begin
 end;
 $$;
 
+-- @@ Nota de independencia
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  gaby uuid := (select id from personas where correo = 'gaby@tasa.test');
+  serv uuid;
+  cod  text;
+  v    integer;
+  s    uuid;
+  d    jsonb;
+begin
+  perform pg_temp.sistema();
+  select codigo_referido into cod from comisionistas where persona_id = ana and organizacion_id = xg;
+  update membresias set codigo_referido = 'GABNT7' where persona_id = gaby and organizacion_id = xg;
+  select id into serv from servicios where organizacion_id = xg and activo order by nombre limit 1;
+
+  perform pg_temp.como(null);
+  d := datos_liga_cliente('xg', cod);
+  perform pg_temp.igual(d->>'nota' like 'Tu solicitud se envía a un despacho de valuación independiente%'
+                        and d->>'nota' like '%' || (d->>'con') || ' es un asesor afiliado%'
+                        and d->>'nota' like '%puede recibir una comisión por recomendar el servicio.',
+    true, 'Liga de un comisionista: la nota completa, con su nombre');
+  perform pg_temp.igual(datos_liga_cliente('xg', 'GABNT7')->>'nota', null::text, 'Liga del equipo: sin nota (es del despacho)');
+  perform pg_temp.igual(datos_tarjeta('xg', 'ana-prueba')->>'nota' like 'Los servicios de valuación los presta un despacho independiente.%', true,
+    'La tarjeta trae la nota corta');
+
+  -- Versión y bitácora: cada cambio de texto sube la versión.
+  perform pg_temp.sistema();
+  select nota_version into v from ajustes where organizacion_id = xg;
+  perform pg_temp.como('xchel@arqosuv.com');
+  update ajustes set nota_pdf = 'Servicio recomendado por {nombre}, asesor afiliado independiente.' where organizacion_id = xg;
+  perform pg_temp.igual((select nota_version from ajustes where organizacion_id = xg), v, 'Guardar el mismo texto no sube la versión');
+  update ajustes set nota_pdf = 'Recomendado por {nombre}, asesor afiliado independiente.' where organizacion_id = xg;
+  perform pg_temp.igual((select nota_version from ajustes where organizacion_id = xg), v + 1, 'Cambiar un texto sube la versión');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'ajustes' and despues->>'nota_pdf' like 'Recomendado por%') > 0, true,
+    'Y queda en bitácora');
+  update ajustes set nota_pdf = 'Servicio recomendado por {nombre}, asesor afiliado independiente.' where organizacion_id = xg;
+
+  -- La solicitud por liga de un comisionista guarda la versión que vio el cliente.
+  insert into solicitudes (organizacion_id, comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre)
+  values (xg, ana, 'cotizacion', 'liga_cliente', serv, 'Calle Nota 1', 'Cliente Nota') returning id into s;
+  perform pg_temp.igual((select nota_version from solicitudes where id = s), (select nota_version from ajustes where organizacion_id = xg),
+    'La solicitud anota la versión de la nota');
+  perform pg_temp.igual((select pdf from notas_de_solicitud(s)), 'Servicio recomendado por ' || (select nombre_visible(p) from personas p where p.id = ana)
+    || ', asesor afiliado independiente.', 'El pie del PDF con el nombre del comisionista');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from notas_de_solicitud(s)), 0::bigint, 'El comisionista no lee las notas por la función');
+  perform pg_temp.sistema();
+  delete from solicitudes where id = s;
+end;
+$$;
+
+-- @@ Pagos por entregar
+do $$
+declare
+  xg     uuid := pg_temp.xg();
+  ana    uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  serv   uuid;
+  cuenta uuid;
+  s      uuid;
+  p      uuid;
+begin
+  perform pg_temp.sistema();
+  perform pg_temp.igual(sumar_dias_habiles('2026-11-13', 2), '2026-11-18'::date, 'Días hábiles: brinca el fin de semana y el 3er lunes de noviembre');
+  perform pg_temp.igual(sumar_dias_habiles('2026-12-24', 2), '2026-12-29'::date, 'Días hábiles: brinca el 25 de diciembre');
+  perform pg_temp.igual(es_dia_inhabil('2026-02-02') and es_dia_inhabil('2026-03-16') and es_dia_inhabil('2030-10-01')
+                        and not es_dia_inhabil('2026-10-01'), true, 'Feriados de la LFT (1 de octubre solo cada seis años)');
+
+  select id into serv from servicios where organizacion_id = xg and activo order by nombre limit 1;
+  select id into cuenta from cuentas_receptoras where organizacion_id = xg limit 1;
+  insert into solicitudes (organizacion_id, comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre)
+  values (xg, ana, 'cotizacion', 'portal', serv, 'Calle Entrega 1', 'Cliente Entrega') returning id into s;
+  perform pg_temp.cotizar_y_aceptar(s, cuenta, 'fijo', 3000);
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$insert into pagos (solicitud_id, via, monto, fecha_pago, nota, reportado_por, recibio_asesor)
+    values (%L, 'aviso', 3000, hoy_mx(), 'Me pagó', %L, true)$q$, s, ana), 'comprobante de la transferencia', 'Lo recibí yo: no basta un aviso');
+  insert into pagos (solicitud_id, via, monto, fecha_pago, recibido_por, reportado_por, recibio_asesor)
+  values (s, 'efectivo', 3000, hoy_mx() - 10, 'Ana', ana, true) returning id into p;
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select entregar_antes from pagos where id = p), sumar_dias_habiles(hoy_mx() - 10, 2),
+    'Lo recibí yo: queda por entregar en 2 días hábiles');
+
+  perform pg_temp.sistema();
+  perform alertar_entregas_vencidas();
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s and tipo = 'pago_por_entregar' and resuelta_en is null), 1::bigint,
+    'Vencido: alerta para admin y finanzas');
+  perform alertar_entregas_vencidas();
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s and tipo = 'pago_por_entregar'), 1::bigint, 'Una sola alerta por trabajo');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s and tipo = 'pago_por_entregar'), 1::bigint, 'Finanzas la ve');
+
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select marcar_pago_entregado(%L, null)', p), 'no es tuyo', 'Otro comisionista no la entrega');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select marcar_pago_entregado(%L, null)', p), 'comprobante del depósito', 'Entregar pide el comprobante');
+  perform marcar_pago_entregado(p, xg || '/' || ana || '/deposito.pdf');
+  perform pg_temp.debe_fallar(format('select marcar_pago_entregado(%L, %L)', p, xg || '/' || ana || '/otro.pdf'), 'Ya lo habías', 'Se entrega una vez');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s and tipo = 'pago_por_entregar' and resuelta_en is null), 0::bigint,
+    'Al entregar, la alerta se resuelve');
+
+  update pagos set estado = 'confirmado' where id = p;
+  perform pg_temp.igual((select pagado_en from solicitudes where id = s), (select fecha_en_cuenta from pagos where id = p),
+    'El trabajo se paga con la fecha en que llegó a la cuenta');
+  perform pg_temp.igual((select pagado_en from solicitudes where id = s) <> (select fecha_pago from pagos where id = p), true, 'No con la del cobro al cliente');
+end;
+$$;
+
+-- @@ Asignar comisionista y genera comisión
+do $$
+declare
+  xg     uuid := pg_temp.xg();
+  ana    uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  beto   uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
+  serv   uuid;
+  cuenta uuid;
+  s1     uuid;
+  s2     uuid;
+  c      uuid;
+begin
+  perform pg_temp.sistema();
+  select id into serv from servicios where organizacion_id = xg and activo order by nombre limit 1;
+  select id into cuenta from cuentas_receptoras where organizacion_id = xg limit 1;
+  insert into solicitudes (organizacion_id, comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre)
+  values (xg, ana, 'cotizacion', 'portal', serv, 'Calle Asignar 1', 'Cliente Asignar 1') returning id into s1;
+  insert into solicitudes (organizacion_id, comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre)
+  values (xg, ana, 'cotizacion', 'portal', serv, 'Calle Asignar 2', 'Cliente Asignar 2') returning id into s2;
+  perform pg_temp.cotizar_y_aceptar(s1, cuenta, 'fijo', 2000);
+  perform pg_temp.cotizar_y_aceptar(s2, cuenta, 'fijo', 2000);
+  perform pg_temp.pagar(s1);
+  -- s2 se pagó en octubre (cerrado): su comisión cae en el siguiente mes abierto.
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por)
+  select s2, 'comprobante', monto_total, '2026-10-15', xg || '/x/' || s2 || '.pdf', ana from solicitudes where id = s2;
+  update pagos set estado = 'confirmado' where solicitud_id = s2 and estado = 'reportado';
+  perform pg_temp.igual(mes_aprobado(xg, '2026-10-01'), true, 'Octubre está cerrado');
+
+  -- Quién asigna.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select asignar_comisionista(%L, %L, %L)', s1, beto, 'x'), 'Solo admin_org', 'El comisionista no asigna');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select asignar_comisionista(%L, %L, %L)', s1, beto, 'x'), 'Solo admin_org', 'Finanzas, sin permiso, no asigna');
+  perform pg_temp.como('xchel@arqosuv.com');
+  update ajustes set finanzas_asigna = true where organizacion_id = xg;
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select asignar_comisionista(%L, %L, %L)', s1, beto, ''), 'motivo', 'Sin motivo no');
+  perform pg_temp.debe_fallar(format('select asignar_comisionista(%L, %L, %L)', s1, ana, 'x'), 'ya es el del trabajo', 'Al mismo no');
+
+  -- Mes abierto: a Ana se le borra y Beto la recibe como comisión normal.
+  perform asignar_comisionista(s1, beto, 'Lo trajo Beto');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select string_agg(tipo || ':' || (comisionista_id = beto), ',') from comisiones where solicitud_id = s1),
+    'comision:true'::text, 'Mes abierto: la comisión pasa completa al nuevo');
+  perform pg_temp.igual((select detalle from eventos_trabajo where solicitud_id = s1 and accion = 'asignar_comisionista'),
+    (select nombre_visible(p) from personas p where p.id = ana) || ' → ' || (select nombre_visible(p) from personas p where p.id = beto),
+    'Queda en el historial del trabajo');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from solicitudes where id = s1), 0::bigint, 'Ana ya no ve el trabajo');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select count(*) from solicitudes where id = s1), 1::bigint, 'Beto sí');
+
+  -- Mes del pago cerrado: Beto la recibe como ajuste en el siguiente cierre.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform asignar_comisionista(s2, beto, 'Corrección');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select tipo || ' ' || mes from comisiones where solicitud_id = s2 and comisionista_id = beto),
+    'ajuste ' || mes_abierto_desde(xg, '2026-10-15'), 'Mes cerrado: entra como ajuste en el siguiente cierre');
+
+  -- Si la del anterior ya se cerró, se le descuenta con un cargo; el tope no la cuenta dos veces.
+  alter table comisiones disable trigger mes_cerrado;
+  update comisiones set mes = '2026-10-01' where solicitud_id = s2 and comisionista_id = beto returning id into c;
+  alter table comisiones enable trigger mes_cerrado;
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform asignar_comisionista(s2, ana, 'Siempre fue de Ana');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select monto from comisiones where anula_id = c and tipo = 'cargo'),
+    -(select monto from comisiones where id = c), 'Al anterior: cargo que anula su comisión cerrada');
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s2 and comisionista_id = ana and tipo = 'ajuste'), 1::bigint,
+    'Y Ana la recupera como ajuste');
+
+  -- No genera comisión: se quita y no cuenta para nivel; regresa con su regla.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select marcar_genera_comision(%L, true, %L)', s1, 'x'), 'no se marcó', 'Reactivar algo que sí genera no aplica');
+  perform marcar_genera_comision(s1, false, 'Ya estaba pactado distinto');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select comision_regla || ' ' || sin_comision_motivo from solicitudes where id = s1), 'ninguna Ya estaba pactado distinto'::text,
+    'No genera comisión, con motivo');
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s1), 0::bigint, 'Su comisión (mes abierto) se borra');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform marcar_genera_comision(s1, true, 'Sí aplica');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select comision_regla from solicitudes where id = s1), 'normal'::text, 'Regresa su regla');
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = s1 and comisionista_id = beto), 1::bigint, 'Y su comisión');
+  update ajustes set finanzas_asigna = false where organizacion_id = xg;
+end;
+$$;
+
+-- @@ Traer trámite de Notion
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  pre   text := (select prefijo_folio from organizaciones where id = pg_temp.xg());
+  datos jsonb;
+  s     uuid;
+begin
+  perform pg_temp.sistema();
+  datos := jsonb_build_object(
+    'folio', pre || '-2026-0987', 'externo_id', 'pagina-de-prueba-0987', 'etapa', 'Por asignar',
+    'comisionista', ana, 'servicio', (select id from servicios where organizacion_id = xg and activo order by nombre limit 1),
+    'marca', (select id from marcas where organizacion_id = xg limit 1),
+    'cuenta', (select id from cuentas_receptoras where organizacion_id = xg limit 1),
+    'cliente_nombre', 'Cliente Notion', 'direccion', 'Calle Notion 1', 'honorarios', 4500, 'aceptada', '2026-09-20',
+    'motivo', 'Lo recomendó Ana', 'genera_comision', false, 'sin_comision_motivo', 'Ya estaba pactado');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select importar_tramite(%L)', datos), 'Solo admin_org', 'Finanzas sin permiso no trae');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select importar_tramite(%L)', datos || '{"folio": "XX-1"}'), 'El folio va así', 'Folio con formato');
+  perform pg_temp.debe_fallar(format('select importar_tramite(%L)', datos || '{"externo_id": "demo-1"}'), 'Falta la página',
+    'Fuera de DEMO no se simula la lectura');
+  s := importar_tramite(datos);
+  perform pg_temp.igual((select estado || ' ' || origen || ' ' || folio || ' ' || externo_id || ' ' || (comisionista_id = ana) || ' ' || comision_regla
+                           from solicitudes where id = s),
+    'tramite importado ' || pre || '-2026-0987 pagina-de-prueba-0987 true ninguna', 'Se crea ligado a esa página, con su folio y su comisionista');
+  perform pg_temp.igual((select aceptada_en::date from solicitudes where id = s), '2026-09-20'::date, 'Con la fecha de aceptación de Notion');
+  perform pg_temp.debe_fallar(format('select importar_tramite(%L)', datos), 'ya está en Tasa', 'El mismo folio dos veces no');
+  perform pg_temp.debe_fallar(format('select importar_tramite(%L)', datos || jsonb_build_object('folio', pre || '-2026-0988')),
+    'ya está en Tasa', 'La misma página con otro folio tampoco');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from reclamar_por_crear(pg_temp.notion_xg()) where solicitud_id = s), 0::bigint,
+    'El conector no le crea otra página');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

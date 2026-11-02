@@ -8,6 +8,8 @@ type DatosLiga = {
   organizacion: string;
   con: string;
   aviso_version: number | null;
+  /** Nota de independencia: solo en ligas de comisionistas (las del equipo son del despacho). */
+  nota: string | null;
   servicios: { id: string; nombre: string }[];
 };
 
@@ -44,6 +46,7 @@ export default async function SolicitudDeCliente({ params }: { params: Promise<{
                 con={datos.con}
                 servicios={datos.servicios}
                 avisoVersion={datos.aviso_version}
+                nota={datos.nota}
                 ligaAviso={`/privacidad?org=${encodeURIComponent(org.toLowerCase())}`}
               />
             ) : (

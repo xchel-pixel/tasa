@@ -44,6 +44,22 @@ export type TramitePorCrear = {
   marca: string | null;
 };
 
+/** Un trámite que ya existe afuera, leído completo para traerlo a Tasa (vista previa). */
+export type TramiteExterno = {
+  externo_id: string;
+  titulo: string;
+  etapa: string | null;
+  tipo: string | null;
+  cotizacion: number | null;
+  fecha_aceptacion: string | null;
+  cliente_nombre: string | null;
+  cliente_telefono: string | null;
+  cliente_correo: string | null;
+  clave_catastral: string | null;
+  descripcion: string | null;
+  requiere_factura: boolean;
+};
+
 /** Lo que se leyó de un registro externo. */
 export type Lectura = {
   externo_id: string;
@@ -57,8 +73,13 @@ export interface Conector {
   probar(): Promise<void>;
   /** Crea el registro externo y regresa su id. */
   crearRegistro(t: TramitePorCrear): Promise<string>;
-  /** Lo que cambió afuera desde `desde` (solo registros que vienen de Tasa). */
-  leerCambios(desde: Date): Promise<Lectura[]>;
+  /**
+   * Lo que cambió afuera desde `desde`: los registros que vienen de Tasa y, con `importados`, también
+   * los que se trajeron a Tasa desde afuera (su "medio" no es el de Tasa; los demás los ignora la base).
+   */
+  leerCambios(desde: Date, importados?: boolean): Promise<Lectura[]>;
+  /** El registro cuyo título trae ese folio (nulo si no hay); para "Traer trámite". */
+  buscarPorFolio(folio: string): Promise<TramiteExterno | null>;
   /** Escribe la etapa de cancelado en el registro externo. Falso si el registro ya no existe. */
   marcarCancelado(externoId: string, etapa: string): Promise<boolean>;
   /** ¿Sigue existiendo el registro (ni borrado ni archivado)? */

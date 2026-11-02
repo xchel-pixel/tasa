@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ListaTramites } from "@/components/lista-tramites";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { enCurso, GRUPOS, grupoDe, leerTramites, ordenar, pendienteDeFolio, saldoDe, type Tramite } from "@/lib/tramites";
 
 export const metadata = { title: "Trámites — Tasa" };
@@ -106,6 +107,7 @@ export default async function Tramites({ searchParams }: PageProps<"/admin/trami
   const persona = await exigirRol(...ROLES_OPERACION);
   const f = leerFiltros(await searchParams);
   const todos = await leerTramites({ conNombres: true });
+  const traer = persona.rol !== "admin_marca" && Boolean((await (await crearClienteServidor()).rpc("puedo_asignar")).data);
 
   const filtrados = aplicar(todos, f);
   const orden = GRUPOS.map((g) => g.clave as string);
@@ -137,6 +139,13 @@ export default async function Tramites({ searchParams }: PageProps<"/admin/trami
           </li>
         ))}
       </ul>
+      {traer ? (
+        <p className="mt-3 text-right">
+          <Link href="/admin/traer-de-notion" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+            Traer trámite de Notion
+          </Link>
+        </p>
+      ) : null}
 
       <form action="/admin/tramites" className="mt-4">
         <label htmlFor="q" className="sr-only">Buscar</label>

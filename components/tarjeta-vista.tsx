@@ -15,6 +15,8 @@ export type DatosTarjeta = {
   color: string | null;
   servicios: string[];
   testimonios: { cliente: string; texto: string }[];
+  /** Nota de independencia (de Ajustes), con el nombre ya puesto. */
+  nota: string | null;
 };
 
 /** URL pública de una imagen del bucket `tarjetas`. */
@@ -72,6 +74,7 @@ export function TarjetaVista({
             style={{ backgroundColor: color }}>
             Solicita tu avalúo o cotización
           </a>
+          {d.nota ? <p className="text-[0.8125rem] leading-5 text-secundario">{d.nota}</p> : null}
           {d.telefono ? (
             <a href={`https://wa.me/52${d.telefono}?text=${encodeURIComponent(mensaje)}`} target="_blank" rel="noopener" data-evento="whatsapp"
               className="flex min-h-12 items-center justify-center rounded-lg border border-primario px-4 font-semibold text-primario">

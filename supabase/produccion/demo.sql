@@ -332,6 +332,52 @@ begin
   update solicitudes set estado = 'cancelada', estatus_publico = 'cancelada', cancelada_en = now(),
          motivo_cancelacion = 'El cliente ya no lo necesita (DEMO)' where id = s;
 
+  -- 6b. Pagos que recibió el comisionista, asignaciones y trámites traídos de Notion (0047).
+  -- Ana cobró en efectivo hace 8 días y no lo ha entregado: vencido, con su alerta (el cron no alerta en DEMO).
+  insert into solicitudes (comisionista_id, tipo, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en, creado_por)
+  values (v_ana, 'cotizacion', v_avaluo, 'Calle Efectivo Demo 8', 'Querétaro', 'Cliente Efectivo Demo',
+          v_marca, v_cuenta, 6000, 'tramite', 'visita_agendada', now() - interval '12 days', v_ana) returning id into s;
+  insert into pagos (solicitud_id, via, monto, fecha_pago, recibido_por, reportado_por, recibio_asesor)
+  values (s, 'efectivo', 3000, hoy_mx() - 8, 'Ana Comisionista Demo', v_ana, true);
+  insert into alertas (organizacion_id, tipo, solicitud_id, mensaje)
+  values (v_demo, 'pago_por_entregar', s,
+          'Pago por entregar vencido: Ana DEMO recibió $3,000.00 del cliente hace 8 días y no lo ha entregado a la cuenta · Cliente Efectivo Demo');
+  -- Carla recibió una transferencia y ya la entregó: por confirmar, con su comprobante del depósito.
+  insert into solicitudes (comisionista_id, tipo, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en, creado_por)
+  values (v_carla, 'cotizacion', v_hacend, 'Calle Entrega Demo 2', 'Corregidora', 'Cliente Entrega Demo',
+          v_marca, v_cuenta, 4000, 'tramite', 'en_elaboracion', now() - interval '5 days', v_carla) returning id into s;
+  insert into pagos (solicitud_id, via, monto, fecha_pago, comprobante_ruta, reportado_por, recibio_asesor)
+  values (s, 'comprobante', 4000, hoy_mx() - 1, v_demo || '/' || v_carla || '/demo-entrega-cliente.jpg', v_carla, true) returning id into p;
+  update pagos set entregado_en = now(), entrega_ruta = v_demo || '/' || v_carla || '/demo-entrega-deposito.jpg' where id = p;
+  -- Un trámite que era de Beto y se le asignó a Ana (queda en su historial).
+  insert into solicitudes (comisionista_id, tipo, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en, creado_por)
+  values (v_ana, 'cotizacion', v_avaluo, 'Calle Reasignada Demo 3', 'Querétaro', 'Cliente Reasignado Demo',
+          v_marca, v_cuenta, 8000, 'tramite', 'en_elaboracion', now() - interval '9 days', v_beto) returning id into s;
+  insert into eventos_trabajo (organizacion_id, solicitud_id, accion, motivo, detalle, persona_id)
+  values (v_demo, s, 'asignar_comisionista', 'El cliente lo trajo Ana (DEMO)', 'Beto Comisionista Demo → Ana Comisionista Demo', v_adm);
+  -- Uno que no genera comisión: Diego solo lo recomendó.
+  insert into solicitudes (comisionista_id, tipo, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre,
+                           marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en, creado_por)
+  values (v_diego, 'cotizacion', v_avaluo, 'Calle Recomendada Demo 4', 'El Marqués', 'Cliente Recomendado Demo',
+          v_marca, v_cuenta, 10000, 'tramite', 'aceptada', now() - interval '2 days', v_adm) returning id into s;
+  update solicitudes set comision_regla_antes = 'normal', comision_regla = 'ninguna',
+                         sin_comision_motivo = 'Solo lo recomendó; ya estaba pactado con el despacho (DEMO)' where id = s;
+  insert into eventos_trabajo (organizacion_id, solicitud_id, accion, motivo, persona_id)
+  values (v_demo, s, 'sin_comision', 'Solo lo recomendó; ya estaba pactado con el despacho (DEMO)', v_adm);
+  -- Traído de Notion (lectura simulada): ligado a su "página" y con su folio.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre,
+                           cliente_telefono, marca_id, cuenta_receptora_id, monto_honorarios, estado, estatus_publico, aceptada_en,
+                           folio, externo_id, estatus_externo, externo_leido_en, creado_por)
+  values (v_carla, 'tramite_directo', 'importado', v_avaluo, 'Calle Notion Demo 9', 'Querétaro', 'Cliente Notion Demo',
+          '4429990000', v_marca, v_cuenta, 7500, 'tramite', 'en_elaboracion', now() - interval '25 days',
+          'DEMO-' || extract(year from hoy_mx()) || '-0901', 'demo-notion-0901', 'En elaboración', now(), v_adm) returning id into s;
+  insert into eventos_trabajo (organizacion_id, solicitud_id, accion, motivo, detalle, persona_id)
+  values (v_demo, s, 'importar', 'Lo trajo Carla antes de Tasa (DEMO)',
+          'Traído de Notion con el folio DEMO-' || extract(year from hoy_mx()) || '-0901', v_adm);
+
   -- 7. Liga de cliente: de comisionista ("Quiero el trámite") y de equipo.
   select aviso_version into v_aviso from ajustes where organizacion_id = v_demo;
   select codigo_referido into cod_ana from comisionistas where persona_id = v_ana and organizacion_id = v_demo;

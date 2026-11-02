@@ -21,6 +21,10 @@ type FilaPago = {
   nota: string | null;
   comprobante_ruta: string | null;
   reportado_en: string;
+  recibio_asesor: boolean;
+  entregar_antes: string | null;
+  entregado_en: string | null;
+  entrega_ruta: string | null;
   solicitudes: {
     id: string;
     folio: string | null;
@@ -48,6 +52,7 @@ export default async function PagosPorConfirmar() {
         .from("pagos")
         .select(
           `id, via, monto, fecha_pago, referencia, recibido_por, nota, comprobante_ruta, reportado_en,
+           recibio_asesor, entregar_antes, entregado_en, entrega_ruta,
            solicitudes(id, folio, cliente_nombre, monto_total,
                        comisionistas(personas!comisionistas_persona_id_fkey(nombre)), cuentas_receptoras(alias), pagos(monto, estado))`
         )
@@ -80,6 +85,15 @@ export default async function PagosPorConfirmar() {
       return data?.signedUrl ?? null;
     })
   );
+  // Y el del depósito a la cuenta, cuando el comisionista recibió el pago y ya lo entregó.
+  const ligasEntrega = await Promise.all(
+    pagos.map(async (p) => {
+      if (!p.entrega_ruta) return null;
+      const { data } = await supabase.storage.from("comprobantes").createSignedUrl(p.entrega_ruta, 600);
+      return data?.signedUrl ?? null;
+    })
+  );
+  const hoyMx = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
 
   return (
     <PantallaAdmin titulo="Pagos por confirmar">
@@ -109,6 +123,23 @@ export default async function PagosPorConfirmar() {
                       <div className="mt-1 flex flex-wrap items-center gap-2">
                         <Etiqueta tono="proceso">Efectivo</Etiqueta>
                         <span className="text-[0.9375rem]">Recibió: {p.recibido_por}</span>
+                      </div>
+                    ) : null}
+                    {p.recibio_asesor ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Etiqueta tono={p.entregado_en ? "proceso" : p.entregar_antes && p.entregar_antes < hoyMx ? "error" : "proceso"}>
+                          {p.entregado_en ? "Entregado por el comisionista" : "Por entregar"}
+                        </Etiqueta>
+                        <span className="text-[0.9375rem]">
+                          {p.entregado_en
+                            ? `el ${fechaCorta(p.entregado_en)}: confírmalo cuando lo veas en la cuenta`
+                            : `lo recibió el comisionista; debe entregarlo a más tardar el ${fechaCorta(p.entregar_antes ?? p.fecha_pago)}`}
+                        </span>
+                        {ligasEntrega[i] ? (
+                          <a href={ligasEntrega[i]!} target="_blank" rel="noopener" className="text-[0.9375rem] font-semibold text-acento underline underline-offset-4">
+                            Comprobante del depósito
+                          </a>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

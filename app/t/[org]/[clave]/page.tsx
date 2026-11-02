@@ -57,6 +57,7 @@ export default async function Tarjeta({ params }: Props) {
             color: t.color,
             servicios: t.servicios,
             testimonios: t.testimonios,
+            nota: t.nota,
           }}
           ligaSolicitud={`/s/${t.org}/${t.codigo}`}
           vcardHref={`/t/${t.org}/${t.slug}/vcard`}

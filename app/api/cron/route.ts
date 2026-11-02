@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
   if (!cuerpo.conector) {
     const { error } = await supabase.rpc("vencer_cotizaciones");
     if (error) console.error(`[tasa] No se pudieron vencer cotizaciones: ${error.message}`);
+    // Pagos que recibió un comisionista y no entregó a la cuenta a tiempo: alerta para admin y finanzas.
+    const { error: errorEntregas } = await supabase.rpc("alertar_entregas_vencidas");
+    if (errorEntregas) console.error(`[tasa] No se pudieron revisar las entregas vencidas: ${errorEntregas.message}`);
     await limpiarAltas(supabase, Boolean(cuerpo.barrido_csf));
   }
 

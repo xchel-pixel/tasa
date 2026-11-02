@@ -50,6 +50,9 @@ beforeAll(async () => {
   for (const archivo of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
     await correr(leer("supabase", "migrations", archivo));
   }
+  // Las verificaciones cuentan la historia de octubre a diciembre de 2026 a partir de la semilla,
+  // que fecha sus pagos "hoy": se fija el día para que el calendario real no la mueva de mes.
+  await correr(`create or replace function hoy_mx() returns date language sql stable as $f$ select date '2026-10-28' $f$;`);
 }, 60_000);
 
 describe("semilla de prueba", () => {

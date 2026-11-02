@@ -60,7 +60,10 @@ export async function sincronizarConector(
     const desde = config.ultimo_sync
       ? new Date(new Date(config.ultimo_sync).getTime() - 60 * 60 * 1000)
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    for (const l of await conector.leerCambios(desde)) {
+    // Con trámites traídos de Notion se leen todas las páginas editadas: las suyas no son del medio de Tasa.
+    const { data: importados, error: errorImportados } = await supabase.rpc("tiene_importados", { p_conector: config.id });
+    if (errorImportados) throw new Error(errorImportados.message);
+    for (const l of await conector.leerCambios(desde, Boolean(importados))) {
       const { data: que, error } = await supabase.rpc("registrar_lectura", {
         p_conector: config.id,
         p_externo_id: l.externo_id,

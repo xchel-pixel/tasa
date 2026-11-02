@@ -28,7 +28,7 @@ export default async function Ajustes() {
   const [ajustes, origenes, organizacion, conector] = await Promise.all([
     supabase
       .from("ajustes")
-      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo, referido_vigencia_meses, liga_max_por_telefono, liga_max_por_conexion")
+      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo, referido_vigencia_meses, liga_max_por_telefono, liga_max_por_conexion, nota_tarjeta, nota_liga, nota_pdf, nota_version, nota_actualizada_en, finanzas_asigna")
       .maybeSingle()
       .returns<{
         contacto_soporte: string | null;
@@ -41,6 +41,12 @@ export default async function Ajustes() {
         referido_vigencia_meses: number;
         liga_max_por_telefono: number;
         liga_max_por_conexion: number;
+        nota_tarjeta: string;
+        nota_liga: string;
+        nota_pdf: string;
+        nota_version: number;
+        nota_actualizada_en: string | null;
+        finanzas_asigna: boolean;
       } | null>(),
     supabase
       .from("origenes_pago")
@@ -89,6 +95,16 @@ export default async function Ajustes() {
             vigenciaReferidos={a?.referido_vigencia_meses ?? 12}
             ligaPorTelefono={a?.liga_max_por_telefono ?? 10}
             ligaPorConexion={a?.liga_max_por_conexion ?? 20}
+            nota={{
+              tarjeta: a?.nota_tarjeta ?? "",
+              liga: a?.nota_liga ?? "",
+              pdf: a?.nota_pdf ?? "",
+              version: a?.nota_version ?? 1,
+              actualizada: a?.nota_actualizada_en
+                ? new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long" }).format(new Date(a.nota_actualizada_en))
+                : null,
+            }}
+            finanzasAsigna={Boolean(a?.finanzas_asigna)}
           />
 
           <section className="mt-10">

@@ -28,6 +28,8 @@ export async function reportarPago(_previo: EstadoReporte, formData: FormData): 
   const referencia = String(formData.get("referencia") ?? "").trim() || null;
   const recibidoPor = String(formData.get("recibido_por") ?? "").trim() || null;
   const ruta = String(formData.get("comprobante_ruta") ?? "") || null;
+  // "Lo recibí yo": el cliente le pagó al comisionista; queda por entregar a la cuenta.
+  const recibioAsesor = !staff && formData.get("recibio_asesor") === "on";
 
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const supabase = await crearClienteServidor();
@@ -49,6 +51,7 @@ export async function reportarPago(_previo: EstadoReporte, formData: FormData): 
   if (!Number.isFinite(monto) || monto <= 0) return { error: "Escribe el monto que pagó el cliente." };
   if (monto > falta + 0.001) return { error: "El monto es mayor que lo que falta por pagar." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha > hoy) return { error: "La fecha del pago no puede ser futura." };
+  if (recibioAsesor && via === "aviso") return { error: "Si lo recibiste tú, sube el comprobante de la transferencia o dilo como efectivo." };
   if (via === "comprobante" && !ruta) return { error: "Sube el comprobante, o elige \"Solo aviso, sin archivo\"." };
   // La ruta la puso el teléfono: se comprueba que esté en la carpeta de
   // quien reporta. La política del bucket ya no le dejó subir a otra.
@@ -67,6 +70,7 @@ export async function reportarPago(_previo: EstadoReporte, formData: FormData): 
     recibido_por: via === "efectivo" ? recibidoPor : null,
     comprobante_ruta: via === "aviso" ? null : ruta,
     reportado_por: persona.id,
+    recibio_asesor: recibioAsesor,
   });
 
   if (error) {

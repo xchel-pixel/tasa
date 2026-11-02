@@ -21,6 +21,8 @@ export default function FormularioAjustes({
   vigenciaReferidos,
   ligaPorTelefono,
   ligaPorConexion,
+  nota,
+  finanzasAsigna,
 }: {
   contacto: string;
   diaLimite: number;
@@ -33,6 +35,8 @@ export default function FormularioAjustes({
   vigenciaReferidos: number;
   ligaPorTelefono: number;
   ligaPorConexion: number;
+  nota: { tarjeta: string; liga: string; pdf: string; version: number; actualizada: string | null };
+  finanzasAsigna: boolean;
 }) {
   const [estado, enviar] = useActionState(guardarAjustes, INICIAL);
 
@@ -134,6 +138,39 @@ export default function FormularioAjustes({
           <span className="block text-[0.9375rem] text-secundario">
             Apagado: lo que invita el equipo es solo seguimiento. Encendido, además hay que darlo a cada persona en Equipo; el
             bono cuenta dentro del tope de 30%.
+          </span>
+        </span>
+      </label>
+
+      <fieldset>
+        <legend className="font-semibold">Nota de independencia</legend>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          Lo que ve el cliente cuando llega por un comisionista: que el despacho es independiente y el comisionista es asesor
+          afiliado. {"{nombre}"} se cambia por el nombre para mostrar del comisionista. En las ligas del equipo y de
+          Administración no se muestra. Versión {nota.version}
+          {nota.actualizada ? `, cambiada el ${nota.actualizada}` : ""}; cada cambio queda en bitácora.
+        </p>
+        <label className="mt-3 block text-[0.9375rem]">
+          En la tarjeta, debajo de &quot;Solicita tu avalúo o cotización&quot;
+          <textarea name="nota_tarjeta" rows={3} required maxLength={600} defaultValue={nota.tarjeta} className={ENTRADA} />
+        </label>
+        <label className="mt-3 block text-[0.9375rem]">
+          En la liga de cliente (antes de enviar), en &quot;Recibimos tu solicitud&quot; y en su correo
+          <textarea name="nota_liga" rows={7} required maxLength={2000} defaultValue={nota.liga} className={ENTRADA} />
+        </label>
+        <label className="mt-3 block text-[0.9375rem]">
+          Pie del PDF de la cotización
+          <input name="nota_pdf" required maxLength={160} defaultValue={nota.pdf} className={ENTRADA} />
+        </label>
+      </fieldset>
+
+      <label className="flex items-start gap-3 leading-6">
+        <input type="checkbox" name="finanzas_asigna" defaultChecked={finanzasAsigna} className="mt-1 size-5 shrink-0 accent-primario" />
+        <span>
+          <span className="block font-semibold">Finanzas también asigna comisionistas</span>
+          <span className="block text-[0.9375rem] text-secundario">
+            Asignar o cambiar el comisionista de un trámite, marcar si genera comisión y traer trámites de Notion. Apagado: solo
+            admin_org.
           </span>
         </span>
       </label>

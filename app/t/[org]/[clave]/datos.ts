@@ -18,6 +18,7 @@ export type Publicada = {
   color: string | null;
   servicios: string[];
   testimonios: { cliente: string; texto: string }[];
+  nota: string | null;
 };
 export type NoDisponible = { disponible: false; organizacion: string };
 

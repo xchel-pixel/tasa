@@ -90,7 +90,10 @@ la app las muestra, la base las hace cumplir.
 9. **"Cancelado" en el sistema externo no cancela:** levanta una alerta en el panel admin. La cancelación se
    confirma en Tasa (borra la comisión si el mes está abierto, o mete un cargo si ya cerró).
 10. **Efectivo:** vía `efectivo`, con quién lo recibió; el recibo es opcional. "Solo aviso" nunca
-    pide archivo.
+    pide archivo. **"Lo recibí yo"** (0047): si el cliente le pagó al comisionista, el pago queda por
+    entregar a la cuenta en 2 días hábiles (`sumar_dias_habiles`: sin fines de semana ni feriados de la
+    LFT); vencido, alerta `pago_por_entregar`. El trabajo se paga con `fecha_en_cuenta` (cuando llegó a
+    la cuenta), no con la del cobro. Ver `docs/independencia-entregas-y-asignar.md`.
 11. **Asignación vs pago de comisiones** (dos conceptos separados):
     - *Asignación* (reportes): todo movimiento lleva empresa (cuenta receptora) y servicio. Los
       de un trabajo los toman del trabajo; bonos, ajustes y cargos manuales exigen empresa.
@@ -103,6 +106,12 @@ la app las muestra, la base las hace cumplir.
       `mis_pagos_comision()`, no por la tabla.
     - Vence el día `ajustes.dia_limite_pago_comision` (10) del mes siguiente al de las
       comisiones; se calcula, no se guarda. "Esperando factura" solo si `emite_factura`.
+
+12. **Asignar comisionista / genera comisión** (0047, admin_org; finanzas si `ajustes.finanzas_asigna`):
+    la comisión se mueve con `quitar_comision` (borra en mes abierto; cargo con `anula_id` si cerró) y
+    `devengar_comision` (ajuste en el siguiente cierre si el mes del pago cerró). El tope ignora lo anulado.
+    La nota de independencia (tarjeta, liga, PDF) sale de Ajustes y solo aparece si el trabajo llegó por
+    un comisionista.
 
 ## Reglas técnicas
 

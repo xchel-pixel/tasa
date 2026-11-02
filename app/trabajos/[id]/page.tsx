@@ -5,12 +5,14 @@ import { Encabezado } from "@/components/encabezado";
 import { Etiqueta } from "@/components/etiqueta";
 import { ESTADO_PAGO, VIA_PAGO, estatusVisible } from "@/lib/estatus";
 import { fechaCorta, pesos } from "@/lib/formato";
-import { exigirPersona } from "@/lib/sesion";
+import { paraAsignar } from "@/lib/asignar";
+import { carpetaDe, exigirPersona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerTrabajo, type Trabajo } from "@/lib/trabajos";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import AceptarCotizacion from "./aceptar-cotizacion";
+import { AsignarComisionista, EntregarPago, GeneraComision } from "./asignar";
 import CambiarEstatus from "./cambiar-estatus";
 import FijarHonorarioFinal from "./fijar-honorario-final";
 
@@ -64,6 +66,11 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
     cerrados = meses;
     correcciones = eventos.data ?? [];
   }
+  // Asignar o cambiar comisionista y "genera comisión": admin_org (o finanzas si Ajustes lo permite).
+  const { asigna, comisionistas } =
+    operador && t.estado !== "cancelada" ? await paraAsignar() : { asigna: false, comisionistas: [] };
+  const hoyMx = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+
   // En un mes cerrado no se deshace: ni el mes del pago ni el de la comisión que devengó.
   const mesCerrado = (pago: { fecha_pago: string; estado: string }) =>
     cerrados.has(mesDeFecha(pago.fecha_pago)) ||
@@ -204,6 +211,20 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                       </div>
                       <Etiqueta tono={ESTADO_PAGO[p.estado].tono}>{ESTADO_PAGO[p.estado].texto}</Etiqueta>
                     </div>
+                    {p.recibio_asesor && p.estado === "reportado" ? (
+                      <p className={`mt-2 text-[0.9375rem] leading-6 ${
+                        !p.entregado_en && p.entregar_antes && p.entregar_antes < hoyMx ? "font-semibold text-error" : "text-secundario"}`}>
+                        {p.entregado_en
+                          ? `Lo recibió el comisionista · entregado a la cuenta el ${fechaCorta(p.entregado_en)}, por confirmar`
+                          : `Lo recibió el comisionista · por entregar a la cuenta a más tardar el ${fechaCorta(p.entregar_antes ?? p.fecha_pago)}`}
+                      </p>
+                    ) : p.recibio_asesor ? (
+                      <p className="mt-2 text-[0.9375rem] text-secundario">Lo recibió el comisionista y lo entregó a la cuenta.</p>
+                    ) : null}
+                    {p.recibio_asesor && p.estado === "reportado" && !p.entregado_en &&
+                    ((persona.rol === "comisionista" && p.reportado_por === persona.id) || operador) ? (
+                      <EntregarPago pagoId={p.id} solicitudId={t.id} carpeta={carpetaDe(persona)} staff={operador} />
+                    ) : null}
                     {p.estado === "rechazado" && p.motivo_rechazo ? (
                       <p className="mt-2 text-[0.9375rem] leading-6 text-error">Motivo: {p.motivo_rechazo}</p>
                     ) : null}
@@ -238,6 +259,26 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                   </li>
                 ))}
               </ul>
+            </Seccion>
+          ) : null}
+
+          {asigna ? (
+            <Seccion titulo="Comisionista">
+              <p className="text-[0.9375rem]">
+                {t.comisionista ?? "Sin comisionista"}
+                {t.origen === "importado" ? " · traído de Notion" : ""}
+              </p>
+              {t.comision_regla === "ninguna" ? (
+                <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+                  No genera comisión{t.sin_comision_motivo ? `: ${t.sin_comision_motivo}` : " (convenio sin comisión)"}.
+                </p>
+              ) : null}
+              <div className="mt-3 flex flex-col gap-6">
+                <AsignarComisionista solicitudId={t.id} actual={t.comisionista_id} comisionistas={comisionistas} />
+                {t.comisionista_id && (t.comision_regla !== "ninguna" || t.sin_comision_motivo) ? (
+                  <GeneraComision solicitudId={t.id} genera={t.comision_regla !== "ninguna"} />
+                ) : null}
+              </div>
             </Seccion>
           ) : null}
 
@@ -402,4 +443,8 @@ const ACCION_CORRECCION: Record<string, string> = {
   retirar_pago: "Pago retirado",
   anular_cotizacion: "Cotización anulada",
   cancelar: "Cancelado",
+  asignar_comisionista: "Comisionista asignado",
+  sin_comision: "No genera comisión",
+  con_comision: "Vuelve a generar comisión",
+  importar: "Traído de Notion",
 };

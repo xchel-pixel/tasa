@@ -1,4 +1,4 @@
-import { FallaConector, type ConfigConector, type Conector, type Lectura, type TramitePorCrear } from "./tipos";
+import { FallaConector, type ConfigConector, type Conector, type Lectura, type TramiteExterno, type TramitePorCrear } from "./tipos";
 
 /**
  * Conector Notion, con `fetch` y sin librerías. Usa la versión
@@ -73,6 +73,39 @@ export function leerPagina(pagina: PaginaNotion, mapeo: Record<string, string>):
     titulo: (titulo?.title ?? []).map((t) => t.plain_text).join(""),
     etapa: etapa?.select?.name ?? etapa?.status?.name ?? null,
     fecha_visita: visita?.date?.start?.slice(0, 10) ?? null,
+  };
+}
+
+/** Todo lo que "Traer trámite" muestra de una página, según el mapeo. */
+export function leerTramiteExterno(pagina: PaginaNotion, mapeo: Record<string, string>): TramiteExterno {
+  const prop = (clave: string) => (mapeo[clave] ? pagina.properties[mapeo[clave]] : undefined) as Record<string, unknown> | undefined;
+  const textoDe = (clave: string): string | null => {
+    const p = prop(clave);
+    if (!p) return null;
+    const partes = (p.rich_text ?? p.title) as { plain_text: string }[] | undefined;
+    if (partes) return partes.map((t) => t.plain_text).join("").trim() || null;
+    if (typeof p.phone_number === "string") return p.phone_number;
+    if (typeof p.email === "string") return p.email;
+    return null;
+  };
+  const base = leerPagina(pagina, mapeo);
+  const tipo = prop("tipo_tramite") as { select?: { name: string } | null } | undefined;
+  const cotizacion = prop("cotizacion") as { number?: number | null } | undefined;
+  const aceptacion = prop("fecha_aceptacion") as { date?: { start: string } | null } | undefined;
+  const factura = prop("requiere_factura") as { checkbox?: boolean } | undefined;
+  return {
+    externo_id: base.externo_id,
+    titulo: base.titulo,
+    etapa: base.etapa,
+    tipo: tipo?.select?.name ?? null,
+    cotizacion: typeof cotizacion?.number === "number" ? cotizacion.number : null,
+    fecha_aceptacion: aceptacion?.date?.start?.slice(0, 10) ?? null,
+    cliente_nombre: textoDe("contacto_nombre"),
+    cliente_telefono: textoDe("contacto_telefono"),
+    cliente_correo: textoDe("contacto_correo"),
+    clave_catastral: textoDe("clave_catastral"),
+    descripcion: textoDe("descripcion"),
+    requiere_factura: Boolean(factura?.checkbox),
   };
 }
 
@@ -173,9 +206,22 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
       return true;
     },
 
-    async leerCambios(desde) {
+    async buscarPorFolio(folio) {
+      const nombre = mapeo.titulo?.trim();
+      if (!nombre) throw new FallaConector("propiedad_no_encontrada", "Falta la propiedad del título (folio) en el mapeo del conector.");
+      const r = await notion<{ results: PaginaNotion[] }>(`/databases/${base}/query`, "POST", {
+        filter: { property: nombre, title: { contains: folio } },
+        page_size: 10,
+      });
+      // "contains" también encuentra MGP-2026-01234: se exige el folio completo (ya validado: letras, números y guiones).
+      const exacto = new RegExp(`(^|[^0-9A-Z])${folio}($|[^0-9])`);
+      const pagina = r.results.find((p) => exacto.test(leerPagina(p, mapeo).titulo));
+      return pagina ? leerTramiteExterno(pagina, mapeo) : null;
+    },
+
+    async leerCambios(desde, importados = false) {
       const filtros: unknown[] = [{ timestamp: "last_edited_time", last_edited_time: { on_or_after: desde.toISOString() } }];
-      if (mapeo.medio && config.configuracion.medio) {
+      if (mapeo.medio && config.configuracion.medio && !importados) {
         filtros.push({ property: mapeo.medio, select: { equals: config.configuracion.medio } });
       }
       const lecturas: Lectura[] = [];

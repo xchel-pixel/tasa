@@ -204,6 +204,7 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
   try {
     const s = cot.solicitudes!;
     const m = s.marcas!;
+    const { data: notas } = await supabase.rpc("notas_de_solicitud", { p_solicitud: solicitud }).maybeSingle<{ liga: string; pdf: string }>();
     const pdf = await generarPdfCotizacion(
       {
         numero: cot.numero,
@@ -225,6 +226,7 @@ export async function ponerPrecio(_previo: EstadoPrecio, formData: FormData): Pr
         total: Number(cot.monto_total),
         cuenta: cot.cuentas_receptoras!,
         comisionista: s.comisionistas?.personas?.nombre ?? "",
+        pie: notas?.pdf ?? null,
         marca: m,
       },
       await fuentesDe(m.tipografia),

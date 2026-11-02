@@ -63,6 +63,7 @@ export function EditorTarjeta({
   personaId,
   codigo,
   servicios,
+  nota,
 }: {
   inicial: TarjetaGuardada;
   nivel: number;
@@ -72,6 +73,8 @@ export function EditorTarjeta({
   personaId: string;
   codigo: string;
   servicios: { id: string; nombre: string }[];
+  /** Nota de independencia de Ajustes, con {nombre} sin poner. */
+  nota: string | null;
 }) {
   const [estado, enviar] = useActionState<EstadoTarjeta, FormData>(guardarTarjeta, { error: null, mensaje: null });
   const [frase, setFrase] = useState(inicial.frase ?? "");
@@ -130,6 +133,7 @@ export function EditorTarjeta({
               color: nivel >= 2 ? color : null,
               servicios: nivel >= 4 ? nombresServicios : [],
               testimonios: [],
+              nota: nota ? nota.split("{nombre}").join(nombre) : null,
             }}
             ligaSolicitud={`/s/${org}/${codigo}`}
             vcardHref={null}

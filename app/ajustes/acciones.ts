@@ -21,6 +21,12 @@ export async function guardarAjustes(
   const vigencia = Number(formData.get("referido_vigencia_meses"));
   const porTelefono = Number(formData.get("liga_max_por_telefono"));
   const porConexion = Number(formData.get("liga_max_por_conexion"));
+  const notaTarjeta = String(formData.get("nota_tarjeta") ?? "").trim();
+  const notaLiga = String(formData.get("nota_liga") ?? "").trim();
+  const notaPdf = String(formData.get("nota_pdf") ?? "").trim();
+  if (!notaTarjeta || !notaLiga || !notaPdf || notaTarjeta.length > 600 || notaLiga.length > 2000 || notaPdf.length > 160) {
+    return { mensaje: null, error: "La nota de independencia no puede quedar vacía (tarjeta hasta 600, liga hasta 2,000 y PDF hasta 160 caracteres)." };
+  }
   if (terminos.length > 20000 || aviso.length > 20000) {
     return { mensaje: null, error: "Los textos van hasta 20,000 caracteres." };
   }
@@ -55,6 +61,10 @@ export async function guardarAjustes(
         referido_vigencia_meses: vigencia,
         liga_max_por_telefono: porTelefono,
         liga_max_por_conexion: porConexion,
+        nota_tarjeta: notaTarjeta,
+        nota_liga: notaLiga,
+        nota_pdf: notaPdf,
+        finanzas_asigna: formData.get("finanzas_asigna") === "on",
         actualizado_en: new Date().toISOString(),
       },
       { count: "exact" }

@@ -109,5 +109,12 @@ describe("Datos DEMO", () => {
     expect(await demo(`select string_agg(rol, ',' order by rol) as v from membresias where ${enDemo} and persona_id in (select id from personas where correo like 'xchel+demo-%')`)).toEqual(
       ["admin_org,comisionista,comisionista,comisionista,equipo,finanzas"]
     );
+    // 0047: un pago por entregar vencido (con alerta) y uno ya entregado; asignado, sin comisión y traído de Notion.
+    expect(await demo(`select (count(*) filter (where entregado_en is null and entregar_antes < hoy_mx()))::text || ' ' || (count(*) filter (where entregado_en is not null))::text as v
+                       from pagos where ${enDemo} and recibio_asesor and estado = 'reportado'`)).toEqual(["1 1"]);
+    expect(await demo(`select count(*)::text as v from alertas where ${enDemo} and tipo = 'pago_por_entregar' and resuelta_en is null`)).toEqual(["1"]);
+    expect(await demo(`select string_agg(accion, ',' order by accion) as v from eventos_trabajo where ${enDemo} and accion in ('asignar_comisionista', 'sin_comision', 'importar')`))
+      .toEqual(["asignar_comisionista,importar,sin_comision"]);
+    expect(await demo(`select count(*)::text as v from solicitudes where ${enDemo} and origen = 'importado' and externo_id like 'demo-%' and folio is not null`)).toEqual(["1"]);
   });
 });

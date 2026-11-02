@@ -7,6 +7,7 @@ import { CompartirTarjeta } from "@/components/compartir-tarjeta";
 import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { urlDelSitio } from "@/lib/altas";
+import { fechaCorta, pesos } from "@/lib/formato";
 import type { Persona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { miNivel } from "@/lib/trabajos";
@@ -19,13 +20,19 @@ import { leerTramites } from "@/lib/tramites";
  */
 export async function InicioComisionista({ persona }: { persona: Persona }) {
   const supabase = await crearClienteServidor();
-  const [trabajos, nivel, { data: yo }, { data: tarjeta }] = await Promise.all([
+  const [trabajos, nivel, { data: yo }, { data: tarjeta }, { data: porEntregar }] = await Promise.all([
     leerTramites(),
     miNivel(persona.id, persona.organizacion.id),
     supabase.from("comisionistas").select("csf_ruta, codigo_referido, slug").eq("persona_id", persona.id).maybeSingle()
       .returns<{ csf_ruta: string | null; codigo_referido: string; slug: string } | null>(),
     supabase.from("tarjetas").select("estado").eq("comisionista_id", persona.id).maybeSingle().returns<{ estado: string } | null>(),
+    // Pagos que le hicieron a él y todavía no entrega a la cuenta.
+    supabase.from("pagos").select("id, monto, entregar_antes, solicitud_id, solicitudes(cliente_nombre)")
+      .eq("recibio_asesor", true).eq("estado", "reportado").is("entregado_en", null).eq("reportado_por", persona.id)
+      .order("entregar_antes")
+      .returns<{ id: string; monto: string | number; entregar_antes: string; solicitud_id: string; solicitudes: { cliente_nombre: string } | null }[]>(),
   ]);
+  const hoyMx = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const sitio = await urlDelSitio();
 
   return (
@@ -33,6 +40,23 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
       <h1 className="text-[1.5rem] font-bold tracking-tight">
         Hola, {persona.nombre.split(" ")[0]}
       </h1>
+
+      {(porEntregar ?? []).length > 0 ? (
+        <div className="mt-4 rounded-xl bg-proceso-fondo px-4 py-3 text-proceso">
+          <p className="font-semibold">Pagos por entregar a la cuenta</p>
+          <ul className="mt-1 flex flex-col gap-1 text-[0.9375rem] leading-6">
+            {porEntregar!.map((p) => (
+              <li key={p.id}>
+                <Link href={`/trabajos/${p.solicitud_id}`} className="font-semibold underline underline-offset-4">
+                  {pesos(Number(p.monto))} de {p.solicitudes?.cliente_nombre ?? "tu cliente"}
+                </Link>
+                {p.entregar_antes < hoyMx ? ` · venció el ${fechaCorta(p.entregar_antes)}` : ` · a más tardar el ${fechaCorta(p.entregar_antes)}`}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[0.9375rem] leading-6">Al depositarlo, márcalo como entregado en el trabajo con su comprobante.</p>
+        </div>
+      ) : null}
 
       {yo && !yo.csf_ruta ? <AvisoCsf carpeta={`${persona.organizacion.id}/${persona.id}`} /> : null}
 
