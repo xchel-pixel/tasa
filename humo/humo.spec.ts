@@ -214,14 +214,42 @@ async function tarjetaPublicada(db: SupabaseClient, org: string): Promise<string
   return null;
 }
 
+/**
+ * El código de acceso, pedido directo a Supabase (no pasa por Tasa). Si la conexión con Supabase
+ * falla, reintenta tras 2, 5 y 10 s; cualquier otro error falla a la primera. Las pantallas nunca
+ * se reintentan: si una falla, la prueba falla.
+ */
+async function generarCodigo(correo: string) {
+  const admin = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
+  const ESPERAS = [2, 5, 10];
+  let ultimo = "";
+  for (let intento = 0; intento <= ESPERAS.length; intento++) {
+    if (intento > 0) await new Promise((ok) => setTimeout(ok, ESPERAS[intento - 1] * 1000));
+    let resultado;
+    try {
+      resultado = await admin.auth.admin.generateLink({ type: "magiclink", email: correo });
+    } catch (e) {
+      ultimo = (e as Error).message;
+      continue;
+    }
+    const { data, error } = resultado;
+    if (!error && data.properties?.email_otp) return data.properties;
+    // Sin conexión, supabase-js devuelve AuthRetryableFetchError ("fetch failed"); un 5xx también es de Supabase.
+    const deConexion = error && (error.name === "AuthRetryableFetchError" || /fetch failed/i.test(error.message) || (error.status ?? 0) >= 500);
+    if (!deConexion) throw new Error(`No se pudo generar el código de ${correo}: ${error?.message ?? "Supabase no devolvió el código"}`);
+    ultimo = error.message;
+  }
+  throw new Error(
+    `Falla de conexión con Supabase al generar el acceso, no de Tasa (${correo}, ${ESPERAS.length + 1} intentos): ${ultimo}`
+  );
+}
+
 /** La sesión en las cookies que lee @supabase/ssr (en trozos si es larga). */
 async function entrar(contexto: BrowserContext, correo: string, sitio: string): Promise<SupabaseClient> {
-  const admin = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
-  const { data: liga, error: e1 } = await admin.auth.admin.generateLink({ type: "magiclink", email: correo });
-  if (e1 || !liga.properties?.email_otp) throw new Error(`No se pudo generar el código de ${correo}: ${e1?.message}`);
+  const liga = await generarCodigo(correo);
 
   const anon = createClient(URL_SUPABASE, ANON, { auth: { persistSession: false } });
-  const { data, error: e2 } = await anon.auth.verifyOtp({ email: correo, token: liga.properties.email_otp, type: "email" });
+  const { data, error: e2 } = await anon.auth.verifyOtp({ email: correo, token: liga.email_otp, type: "email" });
   if (e2 || !data.session) throw new Error(`No se pudo entrar como ${correo}: ${e2?.message}`);
 
   const ref = new URL(URL_SUPABASE).hostname.split(".")[0];
