@@ -145,8 +145,8 @@ export default function FormularioAjustes({
       <fieldset>
         <legend className="font-semibold">Nota de independencia</legend>
         <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
-          Lo que ve el cliente cuando llega por un comisionista: que el despacho es independiente y el comisionista es asesor
-          afiliado. {"{nombre}"} se cambia por el nombre para mostrar del comisionista. En las ligas del equipo y de
+          Lo que ve el cliente cuando llega por un comisionista: que el despacho es independiente y el comisionista es aliado
+          comercial. {"{nombre}"} se cambia por el nombre para mostrar del comisionista. En las ligas del equipo y de
           Administración no se muestra. Versión {nota.version}
           {nota.actualizada ? `, cambiada el ${nota.actualizada}` : ""}; cada cambio queda en bitácora.
         </p>

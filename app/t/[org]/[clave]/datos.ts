@@ -9,6 +9,7 @@ export type Publicada = {
   slug: string;
   nivel: number;
   nombre: string;
+  perfil: string;
   frase: string | null;
   telefono: string | null;
   correo: string | null;

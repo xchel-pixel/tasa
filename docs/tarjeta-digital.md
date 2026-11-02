@@ -1,10 +1,17 @@
-# Tarjeta digital del comisionista (0046, 0050)
+# Tarjeta digital del comisionista (0046, 0050, 0051)
 
 **Liga pública:** `/t/<org>/<slug>`. El slug es el que ya tiene cada comisionista; su código de referido también abre la tarjeta. Está pensada para celular y para WhatsApp: la vista previa al pegar la liga trae nombre, frase y foto (Open Graph).
 
 ## Qué muestra
 
-- Foto, nombre para mostrar, frase, zona y la leyenda fija **"Asesor afiliado"**.
+- Foto, nombre para mostrar, frase, zona y la leyenda fija **"{perfil} · aliado comercial"** (p. ej. "Topógrafo · aliado comercial"). También es el título de la vista previa y de la vCard.
+
+## Perfil del aliado (0051)
+
+- **Catálogo** en Catálogos → Perfiles (admin_org): Asesor inmobiliario, Topógrafo, Arquitecto, Ingeniero civil, Gestor, Notaría o despacho jurídico y Constructor o desarrollador. Cada organización nueva nace con ellos. Uno en uso no se borra: se desactiva.
+- **"Mi perfil"** en "Mis datos" y en "Mi tarjeta". Por omisión, Asesor inmobiliario. De la lista se aplica de inmediato.
+- **"Otro":** texto libre de 2 a 60 caracteres, sin palabras prohibidas. Llega una alerta a admin_org, que lo aprueba o lo rechaza con motivo en la ficha del comisionista. Mientras tanto la tarjeta sigue con el perfil anterior. Si lo que escribe ya está en la lista, se elige directo.
+- admin_org también le puede poner un perfil de la lista desde su ficha. Todo cambio queda en bitácora.
 - **"Solicita tu avalúo o cotización":** abre su liga de clientes, ya atribuida a él.
 - **"Escríbeme por WhatsApp":** usa un teléfono propio de la tarjeta, prellenado con el de su registro.
 - **Correo:** solo si decide mostrarlo.

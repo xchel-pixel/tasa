@@ -11,7 +11,7 @@ export const metadata = { title: "Alertas — Tasa" };
 
 type Fila = {
   id: string;
-  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "conector";
+  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector";
   codigo: string | null;
   mensaje: string;
   creada_en: string;
@@ -80,6 +80,12 @@ export default async function Alertas() {
                     "Ajustes"
                   )}
                   . Se cierra sola cuando la siguiente sincronización sale bien.
+                </p>
+              ) : a.tipo === "perfil_por_aprobar" ? (
+                <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
+                  {persona.rol === "admin_org" ? "Apruébalo o recházalo en " : "Lo aprueba Administración en "}
+                  <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>.
+                  Mientras tanto, su tarjeta sigue con el perfil anterior.
                 </p>
               ) : a.tipo === "liga_limite" ? (
                 /^[0-9]{10}$/.test(a.codigo ?? "") ? (

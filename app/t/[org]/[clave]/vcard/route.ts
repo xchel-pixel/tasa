@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ org: st
     "VERSION:3.0",
     `FN:${v(t.nombre)}`,
     `N:${v(t.nombre)};;;;`,
-    "TITLE:Asesor afiliado",
+    `TITLE:${v(`${t.perfil} · aliado comercial`)}`,
     t.telefono ? `TEL;TYPE=CELL:+52${t.telefono}` : null,
     t.correo ? `EMAIL:${v(t.correo)}` : null,
     `URL:${liga}`,

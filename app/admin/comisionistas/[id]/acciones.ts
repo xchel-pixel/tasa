@@ -136,6 +136,26 @@ export async function moderarTarjeta(_previo: EstadoFicha, formData: FormData): 
   return { error: null, mensaje: accion === "publicar" ? "Tarjeta publicada." : accion === "pausar" ? "Tarjeta en pausa." : "Tarjeta despublicada." };
 }
 
+/** Aprobar o rechazar (con motivo) el perfil "Otro" que pidió para su tarjeta (admin_org). */
+export async function decidirPerfil(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
+  await exigirRol("admin_org");
+  const persona = String(formData.get("persona") ?? "");
+  const aprobar = formData.get("decision") === "aprobar";
+  const r = await llamar(persona, "decidir_perfil", { p_persona: persona, p_aprobar: aprobar, p_motivo: String(formData.get("motivo") ?? "") },
+    aprobar ? "Perfil aprobado: ya sale en su tarjeta." : "Perfil rechazado: el comisionista ve el motivo.");
+  revalidatePath("/admin/alertas");
+  return r;
+}
+
+/** Ponerle un perfil de la lista (quita "Otro" y lo que estuviera por aprobar). */
+export async function ponerPerfil(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
+  await exigirRol("admin_org");
+  const persona = String(formData.get("persona") ?? "");
+  const r = await llamar(persona, "poner_perfil", { p_persona: persona, p_perfil: String(formData.get("perfil") ?? "") }, "Perfil cambiado.");
+  revalidatePath("/admin/alertas");
+  return r;
+}
+
 /** Ocultar (con motivo) o volver a mostrar un servicio propio o un inmueble de su tarjeta (admin_org). */
 export async function moderarElemento(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
   await exigirRol("admin_org");

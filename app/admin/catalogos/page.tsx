@@ -5,7 +5,7 @@ import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { FormularioConvenio, type Convenio } from "./convenios";
 import { textoComision } from "./textos";
-import { FormularioCuenta, FormularioMarca, FormularioServicio, type Cuenta, type Marca, type Servicio } from "./formularios";
+import { FormularioCuenta, FormularioMarca, FormularioPerfil, FormularioServicio, type Cuenta, type Marca, type Perfil, type Servicio } from "./formularios";
 
 type FilaConvenio = Omit<Convenio, "precios" | "comision_pct"> & {
   comision_pct: string | number | null;
@@ -22,7 +22,7 @@ export const metadata = { title: "Catálogos — Tasa" };
 export default async function Catalogos() {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
-  const [marcas, cuentas, servicios, convenios] = await Promise.all([
+  const [marcas, cuentas, servicios, convenios, perfiles] = await Promise.all([
     supabase
       .from("marcas")
       .select(
@@ -46,6 +46,7 @@ export default async function Catalogos() {
       .select("id, nombre, contacto, vigente_desde, vigente_hasta, notas, comision_regla, comision_pct, activo, convenio_precios(servicio_id, marca_id, honorario_tipo, monto, monto_minimo, nota)")
       .order("nombre")
       .returns<FilaConvenio[]>(),
+    supabase.from("perfiles").select("id, nombre, activo").order("orden").order("nombre").returns<Perfil[]>(),
   ]);
   const conLogo = oExplota(marcas, "las marcas") ?? [];
   // Vista previa del logo: URL firmada por una hora (el bucket es privado).
@@ -101,6 +102,15 @@ export default async function Catalogos() {
           </Elemento>
         ))}
         <Nuevo texto="Agregar servicio"><FormularioServicio /></Nuevo>
+      </Seccion>
+
+      <Seccion titulo="Perfiles" detalle="Lo que eligen los comisionistas en «Mi perfil»; sale en su tarjeta como «… · aliado comercial». «Otro» lo escriben ellos y lo apruebas en su ficha.">
+        {(oExplota(perfiles, "los perfiles") ?? []).map((p) => (
+          <Elemento key={p.id} titulo={p.nombre} inactivo={!p.activo}>
+            <FormularioPerfil perfil={p} />
+          </Elemento>
+        ))}
+        <Nuevo texto="Agregar perfil"><FormularioPerfil /></Nuevo>
       </Seccion>
 
       <Seccion titulo="Convenios" detalle="Precios pactados con un cliente o empresa y si generan comisión. El comisionista solo ve el precio de su trabajo.">

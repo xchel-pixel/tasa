@@ -34,7 +34,7 @@ declare
   v_conv   uuid;
   v_aviso  integer;
   s uuid; p uuid; t_lig uuid; t6 uuid; t_m1 uuid;
-  v_diego uuid; v_elena uuid; v_fabi uuid; v_gus uuid; v_hugo uuid; v_ivan uuid;
+  v_diego uuid; v_elena uuid; v_fabi uuid; v_gus uuid; v_hugo uuid; v_ivan uuid; v_tomas uuid;
   v_x record;
   cod_ana  text; cod_eq text;
 begin
@@ -197,6 +197,26 @@ begin
   update comisionistas set referido_por = v_beto where organizacion_id = v_demo and persona_id = v_hugo;
   update comisionistas set referido_por_miembro = v_eq where organizacion_id = v_demo and persona_id = v_ivan;
 
+  -- Perfil del aliado (0051): Tomás es topógrafo (pide avalúos para subdivisiones y fusiones); Fabi pidió
+  -- "Otro" y espera la aprobación de admin_org (con su alerta). Los demás, Asesor inmobiliario.
+  insert into personas (nombre, correo, organizacion_activa) values ('Tomás Topógrafo DEMO', 'tomas.topo@demo.test', v_demo)
+  on conflict ((lower(correo))) do nothing;
+  select id into v_tomas from personas where correo = 'tomas.topo@demo.test';
+  insert into membresias (persona_id, organizacion_id, rol) values (v_tomas, v_demo, 'comisionista')
+  on conflict (persona_id, organizacion_id) do nothing;
+  insert into comisionistas (persona_id, slug, fecha_alta, curp)
+  values (v_tomas, 'tomas-topografo-demo', (m1 - interval '6 months')::date, 'DEMO900101HTOMAS00')
+  on conflict do nothing;
+  update comisionistas set perfil_id = (select id from perfiles where organizacion_id = v_demo and nombre = 'Asesor inmobiliario'),
+                           perfil_otro = null, perfil_solicitado = null, perfil_solicitado_en = null, perfil_rechazo = null
+   where organizacion_id = v_demo;
+  update comisionistas set perfil_id = (select id from perfiles where organizacion_id = v_demo and nombre = 'Topógrafo')
+   where organizacion_id = v_demo and persona_id = v_tomas;
+  update comisionistas set perfil_solicitado = 'Corredora de seguros inmobiliarios', perfil_solicitado_en = now() - interval '1 day'
+   where organizacion_id = v_demo and persona_id = v_fabi;
+  insert into alertas (organizacion_id, tipo, codigo, mensaje)
+  values (v_demo, 'perfil_por_aprobar', v_fabi::text, 'Fabi Referida DEMO pide el perfil "Corredora de seguros inmobiliarios" para su tarjeta.');
+
   -- Gus: su primer trabajo pagado fue hace 14 meses (historia, sin pagos ni comisión).
   insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
                            monto_honorarios, estado, estatus_publico, aceptada_en, pagado_en, mes_cierre, creado_por)
@@ -222,7 +242,7 @@ begin
   -- Tarjeta digital en los 4 niveles (el nivel del mes se fija aquí, solo en DEMO):
   --   Beto Enlace · Carla Aliado (color) · Ana Socio (estadísticas) · Diego Socio Plus (servicios y
   --   testimonios, uno por aprobar) · Elena Élite (= Socio Plus) · Gus en pausa ("no disponible").
-  for v_x in select * from (values (v_beto, 1), (v_carla, 2), (v_ana, 3), (v_diego, 4)) v(com, orden) loop
+  for v_x in select * from (values (v_beto, 1), (v_carla, 2), (v_tomas, 2), (v_ana, 3), (v_diego, 4)) v(com, orden) loop
     insert into niveles_mensuales (organizacion_id, comisionista_id, mes, nivel_id, porcentaje, promedio, meses_considerados, motivo)
     select v_demo, v_x.com, m0, n.id, n.porcentaje, 0, 1, 'promedio'
       from niveles n where n.organizacion_id = v_demo and n.orden = v_x.orden and not n.es_forzado
@@ -236,7 +256,9 @@ begin
      array[v_avaluo, v_hacend], 'publicada', null),
     (v_demo, v_elena, 'Más de 10 años en el mercado inmobiliario', '4429000005', null, false, 'Juriquilla', '#0f766e',
      array[v_avaluo, v_ov], 'publicada', null),
-    (v_demo, v_gus,   'Tarjeta en pausa', '4429000006', null, false, null, null, '{}', 'pausada', null);
+    (v_demo, v_gus,   'Tarjeta en pausa', '4429000006', null, false, null, null, '{}', 'pausada', null),
+    (v_demo, v_tomas, 'Levantamientos y deslindes en todo Querétaro', '4429000007', null, false, 'Querétaro y Corregidora', '#1d4ed8',
+     '{}', 'publicada', null);
   -- Tarjeta de presentación (0050): servicios propios, redes y portafolio según el nivel.
   --   Beto (Enlace) 3 servicios + redes · Carla (Aliado) 6, uno oculto por Administración · Ana (Socio) 4 + 3 inmuebles ·
   --   Diego (Socio Plus) 8 + 4 inmuebles, despacho abajo · Elena (Élite) 2. Las fotos las sube scripts/demo.mjs.
@@ -272,7 +294,13 @@ begin
       (v_diego, 'Renta vacacional', 'Departamentos amueblados.', 'llave', null, 6),
       (v_diego, 'Asesoría legal inmobiliaria', 'Con abogados aliados.', 'documento', null, 7),
       (v_elena, 'Venta en Juriquilla', 'Casas y departamentos en Juriquilla.', 'casa', null, 0),
-      (v_elena, 'Rentas corporativas', 'Para empresas que reubican personal.', 'maletin', null, 1)
+      (v_elena, 'Rentas corporativas', 'Para empresas que reubican personal.', 'maletin', null, 1),
+      (v_tomas, 'Levantamiento topográfico', 'Medición del terreno con estación total y GPS.', 'mapa', null, 0),
+      (v_tomas, 'Deslinde de predios', 'Ubicamos y marcamos los linderos de tu terreno.', 'documento', null, 1),
+      (v_tomas, 'Subdivisiones y fusiones', 'Planos para dividir o unir predios ante el municipio.', 'edificio', null, 2),
+      (v_tomas, 'Planos con curvas de nivel', 'Para proyectos de construcción y fraccionamientos.', 'grafica', null, 3),
+      (v_tomas, 'Trazo de obra', 'Ejes y niveles en el terreno antes de construir.', 'herramienta', null, 4),
+      (v_tomas, 'Georreferenciación', 'Coordenadas UTM para catastro y registro.', 'calculadora', null, 5)
     ) x(com, titulo, descripcion, icono, enlace, orden);
   update tarjeta_servicios set oculto_en = now(), oculto_por = v_adm, oculto_motivo = 'Ofrece un seguro sin dar el nombre de la aseguradora (DEMO)'
    where organizacion_id = v_demo and comisionista_id = v_carla and titulo = 'Seguro de renta';

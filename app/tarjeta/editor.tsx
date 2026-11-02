@@ -46,7 +46,7 @@ export function EditorTarjeta({
   /** Nota de independencia de Ajustes, con {nombre} sin poner. */
   nota: string | null;
   /** Lo ya guardado de "Mis servicios", portafolio y redes (lo que se ve con su nivel), para la vista previa. */
-  extras: Pick<DatosTarjeta, "misServicios" | "inmuebles" | "redes" | "despachoArriba">;
+  extras: Pick<DatosTarjeta, "perfil" | "misServicios" | "inmuebles" | "redes" | "despachoArriba">;
 }) {
   const [estado, enviar] = useActionState<EstadoTarjeta, FormData>(guardarTarjeta, { error: null, mensaje: null });
   const [frase, setFrase] = useState(inicial.frase ?? "");
@@ -138,7 +138,7 @@ export function EditorTarjeta({
       <form action={enviar} className="flex flex-col gap-3 rounded-xl border border-linea px-4 py-4">
         <h2 className="font-bold">Tus datos en la tarjeta</h2>
         <p className="text-[0.875rem] leading-5 text-secundario">
-          Se ve como &quot;Asesor afiliado&quot;. No escribas perito, valuador ni los nombres de las marcas.
+          Arriba se ve tu perfil: &quot;{extras.perfil} · aliado comercial&quot;. No escribas perito, valuador ni los nombres de las marcas.
         </p>
         <label className="block text-[0.9375rem] font-semibold">
           Frase corta

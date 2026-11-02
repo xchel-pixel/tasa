@@ -11,7 +11,8 @@ import type { FilaComisionista } from "../page";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
-import { AgregarMovimiento, CambiarActivo, CambiarVinculo, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
+import { leerPerfil } from "@/lib/perfil";
+import { AgregarMovimiento, CambiarActivo, CambiarVinculo, DecidirPerfil, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, PonerPerfil, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
 
@@ -116,6 +117,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
       : Promise.resolve(null),
   ]);
   const tratos = await tratosDeLaOrg(yo.organizacion.id);
+  const perfil = await leerPerfil(supabase, id);
   const nivelDelTrato = f.trato_nivel_id
     ? (await supabase.from("niveles").select("nombre, porcentaje").eq("id", f.trato_nivel_id).maybeSingle()).data
     : null;
@@ -174,6 +176,8 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           <Dato etiqueta="Correo" valor={f.personas.correo} />
           {f.rfc ? null : <Dato etiqueta="RFC" valor="— (llegó con CURP)" />}
           {f.curp ? <Dato etiqueta="CURP" valor={f.curp} /> : null}
+          <Dato etiqueta="Perfil" valor={`${perfil.actual} · aliado comercial`} />
+          {perfil.rechazo ? <Dato etiqueta="Último rechazo" valor={perfil.rechazo} /> : null}
           <Dato etiqueta="Código de referido" valor={f.codigo_referido} />
           {staff ? <Dato etiqueta="CLABE de cobro" valor={f.clabe_cobro ?? "— (no la ha capturado)"} /> : null}
           <Dato etiqueta="Alta" valor={fechaCorta(f.fecha_alta)} />
@@ -203,6 +207,8 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
               .sort((a, b) => a.nombre.localeCompare(b.nombre))}
           />
         ) : null}
+        {superAdmin && perfil.solicitado ? <DecidirPerfil personaId={id} solicitado={perfil.solicitado} /> : null}
+        {superAdmin ? <PonerPerfil personaId={id} actual={perfil.otro ? null : perfil.perfilId} opciones={perfil.opciones} /> : null}
         {staff ? (
           <EditarDatos
             personaId={id}

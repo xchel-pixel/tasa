@@ -5,7 +5,7 @@ import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
 import { CampoBienvenida } from "@/components/campo-bienvenida";
 import type { TratosOrg } from "@/lib/tratos";
-import { agregarMovimiento, cambiarActivo, cambiarVinculo, moderarElemento, moderarTarjeta, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
+import { agregarMovimiento, cambiarActivo, cambiarVinculo, decidirPerfil, moderarElemento, moderarTarjeta, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, ponerPerfil, type EstadoFicha } from "./acciones";
 
 const INICIAL: EstadoFicha = { error: null, mensaje: null };
 const ENTRADA =
@@ -217,6 +217,44 @@ export function CambiarVinculo({ vinculoId, personaId }: { vinculoId: string; pe
           className="rounded-lg border border-borde-campo bg-fondo px-3 py-2" />
         <BotonEnviar variante="secundario">Guardar</BotonEnviar>
         <Aviso estado={estado} />
+      </form>
+    </details>
+  );
+}
+
+/** El perfil "Otro" que pidió: aprobarlo o rechazarlo con motivo (lo ve el comisionista). */
+export function DecidirPerfil({ personaId, solicitado }: { personaId: string; solicitado: string }) {
+  const [resultado, enviar] = useActionState(decidirPerfil, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-2 rounded-xl border border-linea px-4 py-3">
+      <p className="text-[0.9375rem] font-semibold">Pidió el perfil &quot;{solicitado}&quot;</p>
+      <input type="hidden" name="persona" value={personaId} />
+      <select name="decision" defaultValue="aprobar" aria-label="Decisión" className="rounded-lg border border-borde-campo bg-fondo px-3 py-2">
+        <option value="aprobar">Aprobar: sale en su tarjeta</option>
+        <option value="rechazar">Rechazar</option>
+      </select>
+      <input name="motivo" maxLength={300} placeholder="Motivo (obligatorio para rechazar; lo ve el comisionista)"
+        className="rounded-lg border border-borde-campo bg-fondo px-3 py-2" />
+      <BotonEnviar variante="secundario">Guardar decisión</BotonEnviar>
+      <Aviso estado={resultado} />
+    </form>
+  );
+}
+
+/** Ponerle un perfil de la lista. */
+export function PonerPerfil({ personaId, actual, opciones }: { personaId: string; actual: string | null; opciones: { id: string; nombre: string }[] }) {
+  const [resultado, enviar] = useActionState(ponerPerfil, INICIAL);
+  return (
+    <details className="mt-3 rounded-xl border border-linea px-4 py-3">
+      <summary className="toque cursor-pointer font-semibold text-acento">Cambiar perfil</summary>
+      <form action={enviar} className="mt-3 flex flex-col gap-2">
+        <input type="hidden" name="persona" value={personaId} />
+        <select name="perfil" defaultValue={actual ?? ""} aria-label="Perfil" required
+          className="rounded-lg border border-borde-campo bg-fondo px-3 py-2">
+          {opciones.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+        </select>
+        <BotonEnviar variante="secundario">Guardar perfil</BotonEnviar>
+        <Aviso estado={resultado} />
       </form>
     </details>
   );

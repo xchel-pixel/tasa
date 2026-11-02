@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { AvisoCsf } from "@/components/aviso-csf";
+import { MiPerfilFormulario } from "@/components/mi-perfil";
+import { leerPerfil } from "@/lib/perfil";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { urlDelSitio } from "@/lib/altas";
 import { Encabezado } from "@/components/encabezado";
@@ -25,6 +27,7 @@ export default async function MisDatos() {
       .returns<Yo | null>(),
     "tus datos"
   );
+  const perfil = await leerPerfil(supabase, persona.id);
 
   const fila = (titulo: string, valor: string) => (
     <div className="flex justify-between gap-4 border-b border-linea py-2 text-[0.9375rem]">
@@ -51,6 +54,8 @@ export default async function MisDatos() {
           <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
             Para corregir tu nombre, RFC o CURP, escríbele a Administración.
           </p>
+
+          <MiPerfilFormulario perfil={perfil} />
 
           <ClabeCobro actual={yo?.clabe_cobro ?? null} />
 

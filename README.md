@@ -179,7 +179,7 @@ En este orden. Lo marcado como **por decidir** se pregunta antes de construir.
    digital, que la reutilizará)
    - Ruta pública `/s/<slug>`. Slug inexistente o comisionista inactivo: "Este enlace no está
      disponible", sin formulario.
-   - Muestra "Te atiende: <nombre> · Asesor afiliado", sin correo ni teléfono del comisionista
+   - Muestra "Te atiende: <nombre> · aliado comercial", sin correo ni teléfono del comisionista
      (salvo que él lo active después en su tarjeta).
    - Formulario corto sin cuenta: servicio, tipo (cotización o trámite), inmueble (dirección,
      municipio, clave catastral opcional), cliente (nombre, teléfono, correo) y comentarios.

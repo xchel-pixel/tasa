@@ -3005,7 +3005,7 @@ begin
   perform pg_temp.como(null);
   d := datos_liga_cliente('xg', cod);
   perform pg_temp.igual(d->>'nota' like 'Tu solicitud se envía a un despacho de valuación independiente%'
-                        and d->>'nota' like '%' || (d->>'con') || ' es un asesor afiliado%'
+                        and d->>'nota' like '%' || (d->>'con') || ' es un aliado comercial%'
                         and d->>'nota' like '%la cuenta a la que se paga.' and d->>'nota' not like '%comisión%',
     true, 'Liga de un comisionista: la nota completa, con su nombre');
   perform pg_temp.igual(datos_liga_cliente('xg', 'GABNT7')->>'nota', null::text, 'Liga del equipo: sin nota (es del despacho)');
@@ -3016,14 +3016,14 @@ begin
   perform pg_temp.sistema();
   select nota_version into v from ajustes where organizacion_id = xg;
   perform pg_temp.como('xchel@arqosuv.com');
-  update ajustes set nota_pdf = 'Servicio recomendado por {nombre}, asesor afiliado independiente.' where organizacion_id = xg;
+  update ajustes set nota_pdf = 'Servicio recomendado por {nombre}, aliado comercial independiente.' where organizacion_id = xg;
   perform pg_temp.igual((select nota_version from ajustes where organizacion_id = xg), v, 'Guardar el mismo texto no sube la versión');
-  update ajustes set nota_pdf = 'Recomendado por {nombre}, asesor afiliado independiente.' where organizacion_id = xg;
+  update ajustes set nota_pdf = 'Recomendado por {nombre}, aliado comercial independiente.' where organizacion_id = xg;
   perform pg_temp.igual((select nota_version from ajustes where organizacion_id = xg), v + 1, 'Cambiar un texto sube la versión');
   perform pg_temp.sistema();
   perform pg_temp.igual((select count(*) from bitacora where tabla = 'ajustes' and despues->>'nota_pdf' like 'Recomendado por%') > 0, true,
     'Y queda en bitácora');
-  update ajustes set nota_pdf = 'Servicio recomendado por {nombre}, asesor afiliado independiente.' where organizacion_id = xg;
+  update ajustes set nota_pdf = 'Servicio recomendado por {nombre}, aliado comercial independiente.' where organizacion_id = xg;
 
   -- La solicitud por liga de un comisionista guarda la versión que vio el cliente.
   insert into solicitudes (organizacion_id, comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre)
@@ -3031,7 +3031,7 @@ begin
   perform pg_temp.igual((select nota_version from solicitudes where id = s), (select nota_version from ajustes where organizacion_id = xg),
     'La solicitud anota la versión de la nota');
   perform pg_temp.igual((select pdf from notas_de_solicitud(s)), 'Servicio recomendado por ' || (select nombre_visible(p) from personas p where p.id = ana)
-    || ', asesor afiliado independiente.', 'El pie del PDF con el nombre del comisionista');
+    || ', aliado comercial independiente.', 'El pie del PDF con el nombre del comisionista');
   perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.igual((select count(*) from notas_de_solicitud(s)), 0::bigint, 'El comisionista no lee las notas por la función');
   perform pg_temp.sistema();
@@ -3370,6 +3370,96 @@ begin
   perform pg_temp.debe_fallar('select count(*) from tarjeta_servicios', 'permission denied', 'Sin sesión no se lee la tabla');
   perform pg_temp.sistema();
   update comisionistas set porcentaje_forzado = null where persona_id = ana and organizacion_id = xg;
+end;
+$$;
+
+-- @@ Perfil del aliado
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  topo  uuid;
+begin
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from perfiles where organizacion_id = xg), 7::bigint, 'Cada organización nace con 7 perfiles');
+  perform pg_temp.igual((select p.nombre from comisionistas c join perfiles p on p.id = c.perfil_id
+                          where c.persona_id = ana and c.organizacion_id = xg), 'Asesor inmobiliario', 'Por omisión: Asesor inmobiliario');
+  select id into topo from perfiles where organizacion_id = xg and nombre = 'Topógrafo';
+  insert into tarjetas (organizacion_id, comisionista_id, estado) values (xg, ana, 'publicada')
+  on conflict (organizacion_id, comisionista_id) do update set estado = 'publicada';
+
+  -- Las palabras prohibidas no tocan la topografía.
+  perform pg_temp.igual(palabra_prohibida('Levantamiento topográfico, deslinde, subdivisión y fusión de predios, plano con curvas de nivel'),
+    null::text, 'Los términos de topografía pasan');
+  perform pg_temp.igual(palabra_prohibida('Topógrafo perito'), 'perito', 'Perito sigue prohibido');
+
+  -- El comisionista elige de la lista: la tarjeta lo dice.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(guardar_mi_perfil(topo, null), 'listo', 'Elige Topógrafo');
+  perform pg_temp.como(null);
+  perform pg_temp.igual(datos_tarjeta('xg', 'ana-prueba')->>'perfil', 'Topógrafo', 'La tarjeta dice su perfil');
+  perform pg_temp.igual(datos_tarjeta('xg', 'ana-prueba')->>'nota' like '%es aliado comercial y no realiza los avalúos.', true,
+    'La nota de la tarjeta dice aliado comercial');
+
+  -- "Otro": queda por aprobar y la tarjeta sigue con el anterior.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select guardar_mi_perfil(null, 'Valuadora certificada')$q$, 'no puede decir', '"Otro" sin palabras prohibidas');
+  perform pg_temp.debe_fallar($q$select guardar_mi_perfil(null, '  ')$q$, 'Elige tu perfil', 'Sin perfil no se guarda');
+  perform pg_temp.igual(guardar_mi_perfil(null, 'arquitecto'), 'listo', 'Si "Otro" ya está en la lista, se elige directo');
+  perform pg_temp.igual(guardar_mi_perfil(null, 'Corredor   de seguros'), 'pendiente', '"Otro" queda por aprobar');
+  perform pg_temp.como(null);
+  perform pg_temp.igual(datos_tarjeta('xg', 'ana-prueba')->>'perfil', 'Arquitecto', 'Mientras tanto, la tarjeta sigue con el anterior');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select mensaje from alertas where organizacion_id = xg and tipo = 'perfil_por_aprobar' and codigo = ana::text
+                          and resuelta_en is null) like '%pide el perfil "Corredor de seguros"%', true, 'Llega la alerta a admin_org');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform guardar_mi_perfil(null, 'Corredor inmobiliario');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'perfil_por_aprobar' and codigo = ana::text and resuelta_en is null),
+    1::bigint, 'Pedir otro cambia la misma alerta, no abre otra');
+
+  -- Solo admin_org decide; rechazar pide motivo.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select decidir_perfil(%L, true, null)$q$, ana), 'Solo admin_org', 'El comisionista no se aprueba solo');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select decidir_perfil(%L, false, ' ')$q$, ana), 'motivo', 'Rechazar pide motivo');
+  perform decidir_perfil(ana, false, 'Escribe tu profesión, no tu puesto');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select perfil_rechazo from comisionistas where persona_id = ana and organizacion_id = xg),
+    '"Corredor inmobiliario": Escribe tu profesión, no tu puesto', 'El comisionista ve qué se rechazó y por qué');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'perfil_por_aprobar' and codigo = ana::text and resuelta_en is null),
+    0::bigint, 'Decidir cierra la alerta');
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform guardar_mi_perfil(null, 'Gestor de trámites catastrales');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select perfil_rechazo from comisionistas where persona_id = ana and organizacion_id = xg), null::text,
+    'Pedir de nuevo borra el rechazo anterior');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform decidir_perfil(ana, true, null);
+  perform pg_temp.como(null);
+  perform pg_temp.igual(datos_tarjeta('xg', 'ana-prueba')->>'perfil', 'Gestor de trámites catastrales', 'Aprobado, la tarjeta lo dice');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'comisionistas' and motivo like 'Perfil aprobado:%') > 0, true,
+    'Queda en bitácora');
+
+  -- admin_org le pone uno de la lista; un perfil en uso no se borra.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform poner_perfil(ana, (select id from perfiles where organizacion_id = xg and nombre = 'Asesor inmobiliario'));
+  perform pg_temp.como(null);
+  perform pg_temp.igual(datos_tarjeta('xg', 'ana-prueba')->>'perfil', 'Asesor inmobiliario', 'Admin le regresa el perfil de la lista');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$delete from perfiles where id = %L$q$,
+    (select id from perfiles where organizacion_id = xg and nombre = 'Asesor inmobiliario')), 'foreign key', 'Un perfil en uso no se borra');
+  perform pg_temp.debe_fallar($q$insert into perfiles (nombre) values ('Perito topógrafo')$q$, 'no puede decir', 'El catálogo tampoco dice perito');
+  insert into perfiles (nombre) values ('Paisajista');
+  perform pg_temp.debe_fallar($q$insert into perfiles (nombre) values ('paisajista')$q$, 'duplicate', 'Sin nombres repetidos');
+
+  -- Solo admin_org escribe el catálogo; el comisionista lo lee.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from perfiles) >= 8, true, 'El comisionista lee el catálogo');
+  perform pg_temp.debe_fallar($q$insert into perfiles (nombre) values ('Inventado')$q$, 'row-level security', 'Pero no lo escribe');
+  perform pg_temp.sistema();
 end;
 $$;
 

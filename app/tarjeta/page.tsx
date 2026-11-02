@@ -9,6 +9,8 @@ import { EditorTarjeta, type TarjetaGuardada } from "./editor";
 import { NuevoTestimonio, PublicarTarjeta } from "./formularios";
 import { FormularioRedes, MisServicios, Portafolio, type InmuebleEditable, type Limites, type ServicioEditable } from "./presentacion";
 import { urlImagenTarjeta } from "@/components/tarjeta-vista";
+import { MiPerfilFormulario } from "@/components/mi-perfil";
+import { leerPerfil } from "@/lib/perfil";
 
 export const metadata = { title: "Mi tarjeta — Tasa" };
 
@@ -82,6 +84,7 @@ export default async function MiTarjeta() {
     limites[k % 2 === 0 ? "servicio" : "inmueble"][Math.floor(k / 2) + 1] = Number(r.data ?? 0);
   });
   const misServicios = oExplota(propios, "tus servicios") ?? [];
+  const perfil = await leerPerfil(supabase, persona.id);
   const misInmuebles = (oExplota(inmueblesR, "tu portafolio") ?? []).map((i) => ({ ...i, precio: i.precio === null ? null : Number(i.precio) }));
   // Lo que hoy se ve en la tarjeta (sin lo oculto por Administración y hasta el límite de su nivel).
   const visibles = <T extends { oculto_motivo: string | null }>(lista: T[], tope: number) => lista.filter((x) => !x.oculto_motivo).slice(0, tope);
@@ -133,6 +136,7 @@ export default async function MiTarjeta() {
                 codigo={c.codigo_referido}
                 nota={ajustes.data?.nota_tarjeta ?? null}
                 extras={{
+                  perfil: perfil.actual,
                   misServicios: visibles(misServicios, limites.servicio[nivel]),
                   inmuebles: visibles(misInmuebles, limites.inmueble[nivel]).map((i) => ({ ...i, fotoUrl: urlImagenTarjeta(i.foto_ruta) })),
                   redes: Object.fromEntries(
@@ -157,6 +161,8 @@ export default async function MiTarjeta() {
           ) : !t ? (
             <p className="mt-4 text-[0.9375rem] text-secundario">Guarda tu tarjeta para poder publicarla.</p>
           ) : null}
+
+          <MiPerfilFormulario perfil={perfil} />
 
           <section className="mt-8">
             <h2 className="font-bold">Mis servicios</h2>

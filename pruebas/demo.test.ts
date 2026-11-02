@@ -17,7 +17,7 @@ const TABLAS_CON_ORG = [
   "aceptaciones_terminos", "ajustes", "alertas", "aplicaciones_pago_comision", "cierres", "comisiones", "comisionistas",
   "conectores", "convenio_precios", "convenios", "cotizaciones", "csf_reemplazadas", "cuentas_receptoras", "eventos_trabajo",
   "folios_contador", "historial_estatus", "mapeo_estatus", "marcas", "membresia_marcas", "membresias", "niveles",
-  "niveles_mensuales", "origenes_pago", "pagos", "pagos_comision", "pendientes_comision", "servicios", "solicitudes",
+  "niveles_mensuales", "origenes_pago", "pagos", "pagos_comision", "pendientes_comision", "perfiles", "servicios", "solicitudes",
   "solicitudes_alta", "tarjeta_servicios", "tarjeta_inmuebles", "tarjeta_clics",
 ];
 
@@ -97,7 +97,7 @@ describe("Datos DEMO", () => {
     expect(await demo(`select estado as v from cierres where ${enDemo}`)).toEqual(["aprobado"]);
     // Tarjetas en los 4 niveles (Élite cuenta como Socio Plus) y una en pausa.
     expect(await demo(`select string_agg(nivel_tarjeta(organizacion_id, comisionista_id)::text, ',' order by nivel_tarjeta(organizacion_id, comisionista_id)) as v from tarjetas where ${enDemo} and estado = 'publicada'`))
-      .toEqual(["1,2,3,4,4"]);
+      .toEqual(["1,2,2,3,4,4"]);
     expect(await demo(`select count(*)::text as v from tarjetas where ${enDemo} and estado = 'pausada'`)).toEqual(["1"]);
     // Bono de referidos del cierre: Ana con 3 activos (3%), uno recortado por tope; ni vencido ni inactivo generan; equipo aparte.
     expect(await demo(`select string_agg(porcentaje || ':' || monto || ':' || tope_ajustado, ' ' order by monto) as v from comisiones where ${enDemo} and tipo = 'referido'`))
@@ -118,10 +118,15 @@ describe("Datos DEMO", () => {
     expect(await demo(`select count(*)::text as v from solicitudes where ${enDemo} and origen = 'importado' and externo_id like 'demo-%' and folio is not null`)).toEqual(["1"]);
     // 0050: servicios propios en cada nivel (uno oculto por Administración), portafolio desde Socio y clics.
     expect(await demo(`select string_agg(n::text, ',' order by n) as v from (select count(*) n from tarjeta_servicios where ${enDemo} group by comisionista_id) x`))
-      .toEqual(["2,3,4,6,8"]);
+      .toEqual(["2,3,4,6,6,8"]);
     expect(await demo(`select count(*)::text as v from tarjeta_servicios where ${enDemo} and oculto_en is not null`)).toEqual(["1"]);
-    expect(await demo(`select string_agg(nivel_tarjeta(organizacion_id, comisionista_id)::text, ',' order by 1) as v from (select distinct organizacion_id, comisionista_id from tarjeta_inmuebles where ${enDemo}) x`))
+    expect(await demo(`select string_agg(n::text, ',' order by n) as v from (select distinct nivel_tarjeta(organizacion_id, comisionista_id) as n, comisionista_id from tarjeta_inmuebles where ${enDemo}) x`))
       .toEqual(["3,4"]);
     expect(await demo(`select (count(*) > 0)::text as v from tarjeta_clics where ${enDemo}`)).toEqual(["true"]);
+    // 0051: un topógrafo con servicios de su ramo y un perfil "Otro" por aprobar (con su alerta).
+    expect(await demo(`select perfil_de(organizacion_id, persona_id) as v from comisionistas where ${enDemo} and slug = 'tomas-topografo-demo'`))
+      .toEqual(["Topógrafo"]);
+    expect(await demo(`select count(*)::text as v from comisionistas c join alertas a on a.codigo = c.persona_id::text and a.tipo = 'perfil_por_aprobar'
+                       where c.${enDemo} and c.perfil_solicitado is not null and a.resuelta_en is null`)).toEqual(["1"]);
   });
 });

@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { org, clave } = await params;
   const t = await leerTarjeta(org, clave);
   if (!t || !t.disponible) return { title: "Tarjeta no disponible", robots: { index: false } };
-  const titulo = `${t.nombre} · Asesor afiliado`;
+  const titulo = `${t.nombre} · ${t.perfil} · aliado comercial`;
   const descripcion = t.frase ?? `Solicita tu avalúo o cotización con ${t.nombre}.`;
   const foto = urlImagenTarjeta(t.foto);
   return {
@@ -48,6 +48,7 @@ export default async function Tarjeta({ params }: Props) {
         <TarjetaVista
           d={{
             nombre: t.nombre,
+            perfil: t.perfil,
             frase: t.frase,
             telefono: t.telefono,
             correo: t.correo,

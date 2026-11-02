@@ -136,6 +136,20 @@ export async function guardarServicio(_previo: EstadoCatalogo, f: FormData): Pro
   return listo(id ? "Servicio guardado." : "Servicio agregado.");
 }
 
+/** Un perfil del catálogo (lo eligen los comisionistas y sale en su tarjeta). */
+export async function guardarPerfil(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  await exigirRol("admin_org");
+  const id = campo(f, "id");
+  const nombre = campo(f, "nombre").replace(/\s+/g, " ");
+  if (nombre.length < 2 || nombre.length > 60) return falla("El perfil va de 2 a 60 caracteres.");
+  const supabase = await crearClienteServidor();
+  const { error } = id
+    ? await supabase.from("perfiles").update({ nombre, activo: f.get("activo") === "on" }).eq("id", id)
+    : await supabase.from("perfiles").insert({ nombre });
+  if (error) return /no puede decir/.test(error.message) ? falla(error.message) : traducir(error, "un perfil");
+  return listo(id ? "Perfil guardado." : "Perfil agregado.");
+}
+
 /**
  * Borrar solo lo que nunca se usó. Si ya tiene trabajos o movimientos,
  * la base lo impide (llaves) y se pide desactivarlo.
@@ -143,7 +157,7 @@ export async function guardarServicio(_previo: EstadoCatalogo, f: FormData): Pro
 export async function eliminar(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
   await exigirRol("admin_org");
   const tabla = campo(f, "tabla");
-  if (!["marcas", "cuentas_receptoras", "servicios"].includes(tabla)) return falla("No válido.");
+  if (!["marcas", "cuentas_receptoras", "servicios", "perfiles"].includes(tabla)) return falla("No válido.");
   const supabase = await crearClienteServidor();
   const { error, count } = await supabase.from(tabla).delete({ count: "exact" }).eq("id", campo(f, "id"));
   if (error) return traducir(error, "un registro");

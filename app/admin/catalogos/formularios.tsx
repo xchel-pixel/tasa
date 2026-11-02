@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { Aviso } from "@/components/aviso";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { eliminar, guardarCuenta, guardarMarca, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
+import { eliminar, guardarCuenta, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
 
 const INICIAL: EstadoCatalogo = { error: null, mensaje: null };
 const ENTRADA =
@@ -32,6 +32,8 @@ export type Marca = {
   logo_url?: string | null;
 };
 export type Cuenta = { id: string; alias: string; titular: string; banco: string | null; clabe: string; rfc: string | null; marca_id: string; activa: boolean };
+export type Perfil = { id: string; nombre: string; activo: boolean };
+
 export type Servicio = {
   id: string;
   nombre: string;
@@ -256,6 +258,24 @@ export function FormularioCuenta({ cuenta, marcas }: { cuenta?: Cuenta; marcas: 
         <Aviso estado={estado} />
       </form>
       {cuenta ? <Borrar tabla="cuentas_receptoras" id={cuenta.id} /> : null}
+    </div>
+  );
+}
+
+export function FormularioPerfil({ perfil }: { perfil?: Perfil }) {
+  const [estado, enviar] = useActionState(guardarPerfil, INICIAL);
+  return (
+    <div className="flex flex-col gap-3">
+      <form action={enviar} className="flex flex-col gap-3">
+        {perfil ? <input type="hidden" name="id" value={perfil.id} /> : null}
+        <Campo etiqueta="Nombre (sale en la tarjeta: «… · aliado comercial»)">
+          <input name="nombre" required maxLength={60} defaultValue={perfil?.nombre} className={ENTRADA} />
+        </Campo>
+        {perfil ? <Activa nombre="activo" valor={perfil.activo} texto="Activo (aparece al elegir perfil)" /> : null}
+        <BotonEnviar variante="secundario">{perfil ? "Guardar perfil" : "Agregar perfil"}</BotonEnviar>
+        <Aviso estado={estado} />
+      </form>
+      {perfil ? <Borrar tabla="perfiles" id={perfil.id} /> : null}
     </div>
   );
 }

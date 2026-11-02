@@ -4,7 +4,7 @@ import { pesos } from "@/lib/formato";
 /**
  * La tarjeta digital tal como se ve: la usan la página pública /t/… y la vista previa en vivo de
  * "Mi tarjeta". Sin datos de la base: recibe solo lo que el comisionista decidió publicar (y lo que
- * su nivel permite). Leyenda fija "Asesor afiliado".
+ * su nivel permite). Leyenda fija "{perfil} · aliado comercial".
  *
  * Dos responsabilidades separadas a la vista: el bloque del despacho aliado (solicitar avalúo + la
  * nota de independencia, siempre visible) y "Mis servicios" del comisionista, que responde él.
@@ -24,6 +24,8 @@ export type Redes = Partial<Record<"facebook" | "instagram" | "tiktok" | "linked
 
 export type DatosTarjeta = {
   nombre: string;
+  /** Su perfil profesional (Asesor inmobiliario, Topógrafo…), antes de "· aliado comercial". */
+  perfil: string;
   frase: string | null;
   telefono: string | null;
   correo: string | null;
@@ -145,7 +147,7 @@ export function TarjetaVista({
           </div>
         )}
         <h1 className="mt-3 text-[1.375rem] font-bold leading-tight">{d.nombre}</h1>
-        <p className="mt-1 rounded-full bg-tinte px-3 py-1 text-[0.875rem] font-semibold text-primario">Asesor afiliado</p>
+        <p className="mt-1 rounded-full bg-tinte px-3 py-1 text-[0.875rem] font-semibold text-primario">{d.perfil} · aliado comercial</p>
         {d.frase ? <p className="mt-3 leading-6">{d.frase}</p> : null}
         {d.zona ? <p className="mt-1 text-[0.9375rem] text-secundario">{d.zona}</p> : null}
         {d.logoUrl ? (

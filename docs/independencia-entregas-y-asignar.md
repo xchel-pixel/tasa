@@ -2,13 +2,13 @@
 
 ## Nota de independencia
 
-Le dice al cliente que el despacho es independiente y que el comisionista es asesor afiliado. Los tres textos viven en **Ajustes → Nota de independencia**: los edita admin_org, cada cambio sube la versión y queda en bitácora. `{nombre}` se cambia por el nombre para mostrar del comisionista.
+Le dice al cliente que el despacho es independiente y que el comisionista es aliado comercial. Los tres textos viven en **Ajustes → Nota de independencia**: los edita admin_org, cada cambio sube la versión y queda en bitácora. `{nombre}` se cambia por el nombre para mostrar del comisionista.
 
 | Dónde | Texto |
 |---|---|
 | Tarjeta `/t/`, debajo de "Solicita tu avalúo o cotización" | Corto (`nota_tarjeta`) |
 | Liga de cliente `/s/`: recuadro antes de enviar, "Recibimos tu solicitud" y el correo al cliente | Completo (`nota_liga`) |
-| Pie del PDF de la cotización | `nota_pdf`: "Servicio recomendado por {nombre}, asesor afiliado independiente." |
+| Pie del PDF de la cotización | `nota_pdf`: "Servicio recomendado por {nombre}, aliado comercial independiente." |
 
 - **Solo cuando el trabajo llegó por un comisionista.** En las ligas del equipo o de admin_org no se muestra, porque son del despacho. Sin comisionista, el PDF ya no lleva la línea del pie.
 - **Versión que vio el cliente:** la solicitud por liga anota `nota_version`.
