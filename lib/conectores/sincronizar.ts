@@ -106,6 +106,22 @@ export async function sincronizarConector(
       }
     }
 
+    // 6. Comisionista asignado o cambiado en Tasa: se reescribe SOLO "Solicitado por". Si la página ya no
+    //    existe o Notion la rechaza, alerta para admin_org y sigue (el cambio en Tasa no espera a Notion).
+    const { data: porSolicitado, error: errorSolicitado } = await supabase.rpc("por_actualizar_solicitado_afuera", { p_conector: config.id });
+    if (errorSolicitado) throw new Error(errorSolicitado.message);
+    for (const x of (porSolicitado ?? []) as { solicitud_id: string; externo_id: string; nombre: string }[]) {
+      let error: string | null = null;
+      try {
+        if (!(await conector.actualizarSolicitadoPor(x.externo_id, x.nombre))) error = "la página ya no existe";
+      } catch (falla) {
+        // Si Notion pide esperar, se reintenta en la siguiente vuelta.
+        if (falla instanceof FallaConector && falla.codigo === "limite") continue;
+        error = falla instanceof Error ? falla.message : String(falla);
+      }
+      await registrar(supabase, "registrar_solicitado_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_error: error });
+    }
+
     await registrar(supabase, "registrar_sync_ok", { p_conector: config.id });
   } catch (falla) {
     const f = falla instanceof FallaConector ? falla : new FallaConector("otro", falla instanceof Error ? falla.message : String(falla));

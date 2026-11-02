@@ -447,4 +447,5 @@ const ACCION_CORRECCION: Record<string, string> = {
   sin_comision: "No genera comisión",
   con_comision: "Vuelve a generar comisión",
   importar: "Traído de Notion",
+  notion_solicitado: "Notion actualizado",
 };

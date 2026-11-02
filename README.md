@@ -75,6 +75,7 @@ npm run demo
 - La primera vez crea DEMO.
 - En cada corrida borra y vuelve a crear **solo** sus datos (`supabase/produccion/demo.sql`).
 - Crea las cuentas de su gente con la API de administración, sin mandar correos: `xchel+demo-admin`, `-finanzas`, `-equipo`, `-ana`, `-beto` y `-carla` `@arqosuv.com`.
+- Escribe en la base de producción: requiere `--yes` y el OK de Xchel (ver "Confirmación en producción").
 
 **Qué no toca:**
 - Nunca toca XG. Lo prueba `pruebas/demo.test.ts`: dos corridas seguidas dejan XG idéntico.
@@ -115,6 +116,13 @@ Luego copia `.env.example` como `.env.local` y llénalo (el archivo dice dónde 
 
 Cada comando vuelve a amarrar el proyecto antes de actuar. Las migraciones aplicadas quedan
 registradas en el proyecto: `db:push` solo aplica las que falten.
+
+> **Confirmación en producción.** La CLI de Supabase pide confirmar todo lo que escribe en la base de
+> producción. Desde un agente (Claude) no puede preguntar: `db:push` y `npm run demo` fallan con
+> "Confirmation required" y no cambian nada. Para correrlos hay que agregar `--yes` a la llamada de la
+> CLI (`supabase db push --linked --yes`, `supabase db query --linked --yes -f …`), **y solo con el OK de
+> Xchel para esa corrida**. Los scripts se quedan sin `--yes` a propósito, para que la confirmación
+> siga existiendo. Las consultas de solo lectura van con `--read-only` y no la piden.
 
 ### Pasar a producción (una sola vez, antes de lanzar)
 

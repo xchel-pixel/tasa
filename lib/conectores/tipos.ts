@@ -78,6 +78,8 @@ export interface Conector {
    * los que se trajeron a Tasa desde afuera (su "medio" no es el de Tasa; los demás los ignora la base).
    */
   leerCambios(desde: Date, importados?: boolean): Promise<Lectura[]>;
+  /** Reescribe SOLO "Solicitado por" al asignar o cambiar comisionista. Falso si el registro ya no existe. */
+  actualizarSolicitadoPor(externoId: string, nombre: string): Promise<boolean>;
   /** El registro cuyo título trae ese folio (nulo si no hay); para "Traer trámite". */
   buscarPorFolio(folio: string): Promise<TramiteExterno | null>;
   /** Escribe la etapa de cancelado en el registro externo. Falso si el registro ya no existe. */

@@ -44,7 +44,8 @@ En la ficha del trabajo y en la de la solicitud por cotizar.
 
   Al nuevo se le devenga si el trabajo ya está pagado: como comisión normal si el mes del pago sigue abierto, o como **ajuste** en el siguiente cierre si ya cerró.
 - **Tope del 30%:** no cuenta dos veces una comisión anulada.
-- **Sin efecto hacia atrás:** el bono de referido que ya se calculó en un cierre aprobado no se recalcula, y la página de Notion no cambia su "Solicitado por".
+- **Sin efecto hacia atrás:** el bono de referido que ya se calculó en un cierre aprobado no se recalcula.
+- **Notion (0049):** si el trabajo ya tiene página, en la siguiente vuelta del cron (máx. 15 min) se escribe **solo** "Solicitado por" con el nombre para mostrar del comisionista nuevo; nada más se escribe en Notion. Pasa lo mismo al traer un trámite de Notion. Queda en el historial ("Notion actualizado") y en bitácora. Si la página ya no existe o Notion la rechaza, alerta "externo_solicitado" para admin_org; no se reintenta y el cambio en Tasa no se bloquea.
 
 ## Genera comisión: sí o no
 

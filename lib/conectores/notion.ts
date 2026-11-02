@@ -206,6 +206,14 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
       return true;
     },
 
+    async actualizarSolicitadoPor(externoId, nombreComisionista) {
+      const nombre = mapeo.solicitado_por?.trim();
+      if (!nombre) throw new FallaConector("propiedad_no_encontrada", "Falta la propiedad \"Solicitado por\" en el mapeo del conector.");
+      if (!(await existe(externoId))) return false;
+      await notion(`/pages/${externoId}`, "PATCH", { properties: { [nombre]: { rich_text: texto(nombreComisionista) } } });
+      return true;
+    },
+
     async buscarPorFolio(folio) {
       const nombre = mapeo.titulo?.trim();
       if (!nombre) throw new FallaConector("propiedad_no_encontrada", "Falta la propiedad del título (folio) en el mapeo del conector.");

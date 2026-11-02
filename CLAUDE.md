@@ -140,7 +140,9 @@ la app las muestra, la base las hace cumplir.
 - La llave de servicio de Supabase solo existe en `/api/cron`, protegida con `CRON_SECRET`.
   Nunca en el navegador, nunca en otra ruta.
 - Migraciones numeradas en `supabase/migrations/`; una aplicada no se edita nunca. Se aplican con
-  la CLI (`npm run db:push`). Un solo proyecto de Supabase: `TASA_MODO` (pruebas|produccion) en
+  la CLI (`npm run db:push`). **`db:push` y `npm run demo` escriben en producción y la CLI pide
+  confirmar: se corren con `--yes` solo con el OK explícito de Xchel para esa corrida** (los scripts no
+  lo traen a propósito; ver README). Lo de solo lectura va con `--read-only`. Un solo proyecto de Supabase: `TASA_MODO` (pruebas|produccion) en
   `.env.local` decide si se permiten semilla y verificaciones. El paso a producción es
   `npm run db:reset-produccion`, una sola vez. Tras un cambio de estructura, `npm run db:resembrar`
   (solo pruebas) deja la base en cero con la semilla.

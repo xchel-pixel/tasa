@@ -154,4 +154,17 @@ describe("Cancelar y páginas borradas", () => {
     expect(llamadas.find((l) => l.metodo === "PATCH")!.cuerpo).toEqual({ properties: { [config.mapeo_campos.cotizacion]: { number: 4000 } } });
     expect(await notion.actualizarMonto("borrada", 4000)).toBe(false);
   });
+
+  test("al asignar comisionista se reescribe SOLO Solicitado por", async () => {
+    const { notion, llamadas } = notionFalso({
+      "GET /pages/p3": { status: 200, cuerpo: { id: "p3", archived: false } },
+      "PATCH /pages/p3": { status: 200, cuerpo: { id: "p3" } },
+    });
+    expect(await notion.actualizarSolicitadoPor("p3", "Beto Prueba")).toBe(true);
+    expect(llamadas.find((l) => l.metodo === "PATCH")!.cuerpo).toEqual({
+      properties: { "Solicitado por": { rich_text: [{ type: "text", text: { content: "Beto Prueba" } }] } },
+    });
+    expect(await notion.actualizarSolicitadoPor("borrada", "Beto Prueba")).toBe(false);
+    expect(llamadas.filter((l) => l.metodo === "PATCH")).toHaveLength(1);
+  });
 });

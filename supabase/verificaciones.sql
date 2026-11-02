@@ -3222,6 +3222,51 @@ begin
 end;
 $$;
 
+-- @@ Solicitado por en Notion
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  k    uuid := pg_temp.notion_xg();
+  beto uuid := (select id from personas where correo = 'xchel+beto@arqosuv.com');
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  s    uuid := (select id from solicitudes where externo_id = 'pagina-de-prueba-0987');
+  sin  uuid;
+begin
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select externo_solicitado_pendiente from solicitudes where id = s), true,
+    'Traído de Notion: queda pendiente escribir su comisionista en "Solicitado por"');
+  perform pg_temp.igual((select nombre from por_actualizar_solicitado_afuera(k) where solicitud_id = s),
+    (select nombre_visible(p) from personas p where p.id = ana), 'Con el nombre para mostrar del comisionista');
+  perform registrar_solicitado_afuera(k, s, null);
+  perform pg_temp.igual((select externo_solicitado_pendiente from solicitudes where id = s), false, 'Escrito: deja de estar pendiente');
+  perform pg_temp.igual((select count(*) from eventos_trabajo where solicitud_id = s and accion = 'notion_solicitado'), 1::bigint,
+    'Y queda en el historial del trabajo');
+
+  -- Cambiar el comisionista lo vuelve a marcar; si Notion falla, alerta y no se reintenta.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform asignar_comisionista(s, beto, 'Lo atiende Beto');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select nombre from por_actualizar_solicitado_afuera(k) where solicitud_id = s),
+    (select nombre_visible(p) from personas p where p.id = beto), 'Al cambiar comisionista se vuelve a escribir');
+  perform registrar_solicitado_afuera(k, s, 'la página ya no existe');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s and tipo = 'externo_solicitado' and resuelta_en is null), 1::bigint,
+    'Si falla: alerta para admin_org');
+  perform pg_temp.igual((select count(*) from por_actualizar_solicitado_afuera(k) where solicitud_id = s), 0::bigint, 'Y no se reintenta');
+  perform pg_temp.igual((select comisionista_id from solicitudes where id = s), beto, 'El cambio en Tasa no se bloquea');
+
+  -- Sin página en Notion no hay nada que escribir.
+  select id into sin from solicitudes where organizacion_id = xg and externo_id is null and comisionista_id = ana and estado = 'tramite' limit 1;
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform asignar_comisionista(sin, beto, 'Prueba sin página');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select externo_solicitado_pendiente from solicitudes where id = sin), false, 'Sin página: no queda pendiente');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select registrar_solicitado_afuera(%L, %L, null)', k, s), 'Solo admin_org', 'Finanzas no registra lecturas del conector');
+  perform pg_temp.sistema();
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
