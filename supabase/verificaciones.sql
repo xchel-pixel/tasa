@@ -3006,7 +3006,7 @@ begin
   d := datos_liga_cliente('xg', cod);
   perform pg_temp.igual(d->>'nota' like 'Tu solicitud se envía a un despacho de valuación independiente%'
                         and d->>'nota' like '%' || (d->>'con') || ' es un asesor afiliado%'
-                        and d->>'nota' like '%puede recibir una comisión por recomendar el servicio.',
+                        and d->>'nota' like '%la cuenta a la que se paga.' and d->>'nota' not like '%comisión%',
     true, 'Liga de un comisionista: la nota completa, con su nombre');
   perform pg_temp.igual(datos_liga_cliente('xg', 'GABNT7')->>'nota', null::text, 'Liga del equipo: sin nota (es del despacho)');
   perform pg_temp.igual(datos_tarjeta('xg', 'ana-prueba')->>'nota' like 'Los servicios de valuación los presta un despacho independiente.%', true,
