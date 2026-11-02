@@ -3,12 +3,12 @@
 import { useActionState, useState } from "react";
 import { Aviso } from "@/components/aviso";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { TarjetaVista, urlImagenTarjeta } from "@/components/tarjeta-vista";
+import { TarjetaVista, urlImagenTarjeta, type DatosTarjeta } from "@/components/tarjeta-vista";
 import { crearClienteNavegador } from "@/lib/supabase/client";
 import { guardarTarjeta, ponerImagen, type EstadoTarjeta } from "./acciones";
+import { prepararImagen } from "./imagen";
 
 const ENTRADA = "mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento";
-const MAXIMO_BYTES = 2 * 1024 * 1024;
 const NIVEL = { 2: "Aliado", 3: "Socio", 4: "Socio Plus" } as const;
 
 export type TarjetaGuardada = {
@@ -23,37 +23,6 @@ export type TarjetaGuardada = {
   servicios: string[];
 };
 
-/**
- * Recorta en el teléfono, sin librerías: la foto, al cuadrado del centro; el logo, entero dentro de
- * 512×512. Sale en 512 px (JPEG la foto, PNG el logo para conservar transparencia).
- */
-async function prepararImagen(archivo: File, tipo: "foto" | "logo"): Promise<Blob> {
-  if (!["image/jpeg", "image/png", "image/webp"].includes(archivo.type)) {
-    throw new Error("Usa una imagen JPG, PNG o WebP.");
-  }
-  const img = await createImageBitmap(archivo);
-  const lado = 512;
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
-  if (tipo === "foto") {
-    const corte = Math.min(img.width, img.height);
-    canvas.width = lado;
-    canvas.height = lado;
-    ctx.drawImage(img, (img.width - corte) / 2, (img.height - corte) / 2, corte, corte, 0, 0, lado, lado);
-  } else {
-    const escala = Math.min(1, lado / Math.max(img.width, img.height));
-    canvas.width = Math.round(img.width * escala);
-    canvas.height = Math.round(img.height * escala);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  }
-  const blob = await new Promise<Blob | null>((ok) =>
-    canvas.toBlob(ok, tipo === "foto" ? "image/jpeg" : "image/png", tipo === "foto" ? 0.85 : undefined)
-  );
-  if (!blob) throw new Error("No se pudo preparar la imagen.");
-  if (blob.size > MAXIMO_BYTES) throw new Error("La imagen pesa más de 2 MB aun recortada: usa una más ligera.");
-  return blob;
-}
-
 export function EditorTarjeta({
   inicial,
   nivel,
@@ -64,6 +33,7 @@ export function EditorTarjeta({
   codigo,
   servicios,
   nota,
+  extras,
 }: {
   inicial: TarjetaGuardada;
   nivel: number;
@@ -75,6 +45,8 @@ export function EditorTarjeta({
   servicios: { id: string; nombre: string }[];
   /** Nota de independencia de Ajustes, con {nombre} sin poner. */
   nota: string | null;
+  /** Lo ya guardado de "Mis servicios", portafolio y redes (lo que se ve con su nivel), para la vista previa. */
+  extras: Pick<DatosTarjeta, "misServicios" | "inmuebles" | "redes" | "despachoArriba">;
 }) {
   const [estado, enviar] = useActionState<EstadoTarjeta, FormData>(guardarTarjeta, { error: null, mensaje: null });
   const [frase, setFrase] = useState(inicial.frase ?? "");
@@ -134,6 +106,7 @@ export function EditorTarjeta({
               servicios: nivel >= 4 ? nombresServicios : [],
               testimonios: [],
               nota: nota ? nota.split("{nombre}").join(nombre) : null,
+              ...extras,
             }}
             ligaSolicitud={`/s/${org}/${codigo}`}
             vcardHref={null}

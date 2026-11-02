@@ -316,7 +316,7 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, invitado_por, pedir_alta, pedir_por_liga, registrar_evento_tarjeta'::text,
+  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, invitado_por, pedir_alta, pedir_por_liga, registrar_clic_tarjeta, registrar_evento_tarjeta'::text,
     'anon solo ejecuta lo de la pantalla de acceso, la solicitud de alta y el aviso de privacidad');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -3264,6 +3264,112 @@ begin
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.debe_fallar(format('select registrar_solicitado_afuera(%L, %L, null)', k, s), 'Solo admin_org', 'Finanzas no registra lecturas del conector');
   perform pg_temp.sistema();
+end;
+$$;
+
+-- @@ Tarjeta de presentación
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  ids   uuid[] := '{}';
+  una   uuid;
+  i     integer;
+  n     integer;
+  d     jsonb;
+  foto  text;
+begin
+  perform pg_temp.sistema();
+  -- Élite: todo disponible.
+  update comisionistas set porcentaje_forzado = 25, elite_vence = null where persona_id = ana and organizacion_id = xg;
+  foto := xg || '/' || ana || '/' || gen_random_uuid() || '.jpg';
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(mi_nivel_tarjeta(), 4, 'Élite cuenta como Socio Plus');
+  -- Redes: solo ligas de esa red.
+  perform pg_temp.debe_fallar($q$select guardar_mis_redes(null, 'https://facebook.com/ana', null, null, null, true)$q$,
+    'Instagram', 'Instagram solo acepta ligas de Instagram');
+  perform pg_temp.debe_fallar($q$select guardar_mis_redes(null, null, null, null, 'javascript:alert(1)', true)$q$,
+    'sitio web', 'El sitio web debe ser una liga');
+  perform guardar_mis_redes('https://www.facebook.com/ana.asesora', 'https://instagram.com/ana', 'https://www.tiktok.com/@ana',
+                            'https://mx.linkedin.com/in/ana', 'https://ana-inmuebles.mx', false);
+
+  -- Mis servicios: sin palabras prohibidas, enlace válido.
+  perform pg_temp.debe_fallar($q$select guardar_mi_servicio(null, 'Perito en avalúos', null, 'casa', null)$q$,
+    'no puede decir', 'Un servicio no puede decir perito');
+  perform pg_temp.debe_fallar($q$select guardar_mi_servicio(null, 'Asesoría', 'Te ayudo con MGP', 'casa', null)$q$,
+    'no puede decir', 'Ni nombrar las marcas en la descripción');
+  perform pg_temp.debe_fallar($q$select guardar_mi_servicio(null, 'Asesoría', null, 'casa', 'ftp://x')$q$,
+    'liga completa', 'El enlace es una liga https');
+  for i in 1..7 loop
+    ids := ids || guardar_mi_servicio(null, 'Servicio ' || i, 'Descripción ' || i, 'llave', case when i = 1 then 'https://ana-inmuebles.mx/s1' end);
+  end loop;
+  perform guardar_mi_inmueble(null, 'Casa en Juriquilla', 'venta', 3500000, 'Juriquilla', foto, null);
+  perform pg_temp.debe_fallar($q$select guardar_mi_inmueble(null, 'Depa', 'renta', null, 'Centro', 'otra/ruta.jpg', null)$q$,
+    'foto', 'El inmueble pide su foto, en su carpeta');
+
+  -- El orden que eligió manda.
+  perform ordenar_mi_tarjeta('servicio', array[ids[7], ids[1], ids[2], ids[3], ids[4], ids[5], ids[6]]);
+  perform pg_temp.como(null);
+  d := datos_tarjeta('xg', 'ana-prueba');
+  perform pg_temp.igual(jsonb_array_length(d->'mis_servicios') || ' ' || (d->'mis_servicios'->0->>'titulo') || ' ' || jsonb_array_length(d->'inmuebles'),
+    '7 Servicio 7 1'::text, 'Socio Plus: todos sus servicios, en su orden, y el portafolio');
+  perform pg_temp.igual((d->>'despacho_arriba')::boolean || ' ' || (d->'redes'->>'instagram'), 'false https://instagram.com/ana'::text,
+    'Las redes y el bloque del despacho abajo');
+  perform pg_temp.igual(d->'inmuebles'->0 ? 'direccion', false, 'El inmueble no trae dirección');
+
+  -- Clics: por servicio e inmueble; lo oculto no cuenta.
+  perform registrar_clic_tarjeta('xg', 'ana-prueba', ids[1]);
+  perform registrar_clic_tarjeta('xg', 'ana-prueba', ids[1]);
+  perform registrar_clic_tarjeta('xg', 'ana-prueba', (d->'inmuebles'->0->>'id')::uuid);
+  perform registrar_clic_tarjeta('xg', 'ana-prueba', gen_random_uuid());
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select este_mes from mis_clics_tarjeta() where id = ids[1]), 2::bigint, 'Clics por servicio propio');
+  perform pg_temp.igual((select sum(este_mes) from mis_clics_tarjeta() where tipo = 'inmueble'), 1::numeric, 'Y por inmueble');
+
+  -- Moderación: solo admin_org, con motivo.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select moderar_elemento_tarjeta(%L, %L, true, %L)', 'servicio', ids[2], 'x'), 'Solo admin_org',
+    'Finanzas no modera');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select moderar_elemento_tarjeta(%L, %L, true, %L)', 'servicio', ids[2], ''), 'motivo', 'Ocultar pide motivo');
+  perform moderar_elemento_tarjeta('servicio', ids[2], true, 'Promete resultados que no puede garantizar');
+  perform pg_temp.como(null);
+  perform pg_temp.igual(jsonb_array_length(datos_tarjeta('xg', 'ana-prueba')->'mis_servicios'), 6, 'Lo oculto por Administración no se ve');
+  perform registrar_clic_tarjeta('xg', 'ana-prueba', ids[2]);
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select oculto_motivo from tarjeta_servicios where id = ids[2]), 'Promete resultados que no puede garantizar'::text,
+    'Él ve el motivo');
+  perform pg_temp.igual((select este_mes from mis_clics_tarjeta() where id = ids[2]), 0::bigint, 'Un clic en algo oculto no cuenta');
+
+  -- Si baja de nivel, lo que excede se oculta (no se borra) y no puede agregar más.
+  perform pg_temp.sistema();
+  update comisionistas set porcentaje_forzado = null where persona_id = ana and organizacion_id = xg;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  n := mi_nivel_tarjeta();
+  i := limite_tarjeta(n, 'inmueble');
+  perform pg_temp.como(null);
+  d := datos_tarjeta('xg', 'ana-prueba');
+  perform pg_temp.igual(jsonb_array_length(d->'mis_servicios'), least(6, case when n <= 1 then 3 when n <= 3 then 6 else 30 end),
+    'Al bajar de nivel solo se ven los que caben');
+  perform pg_temp.igual(jsonb_array_length(d->'inmuebles'), least(1, i), 'El portafolio, según su nivel');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from tarjeta_servicios where comisionista_id = ana and organizacion_id = xg), 7::bigint,
+    'Nada se borró');
+  if n < 4 then
+    perform pg_temp.como('xchel+ana@arqosuv.com');
+    perform pg_temp.debe_fallar($q$select guardar_mi_servicio(null, 'Otro más', null, 'casa', null)$q$, 'hasta', 'Y no puede agregar más');
+  end if;
+
+  -- Borrar regresa la foto (para quitarla del bucket).
+  perform pg_temp.sistema();
+  update comisionistas set porcentaje_forzado = 25 where persona_id = ana and organizacion_id = xg;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(borrar_de_mi_tarjeta('inmueble', (select id from tarjeta_inmuebles where foto_ruta = foto)), foto, 'Borrar el inmueble regresa su foto');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar('select count(*) from tarjeta_servicios', 'permission denied', 'Sin sesión no se lee la tabla');
+  perform pg_temp.sistema();
+  update comisionistas set porcentaje_forzado = null where persona_id = ana and organizacion_id = xg;
 end;
 $$;
 

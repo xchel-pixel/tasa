@@ -11,3 +11,14 @@ export async function registrarEvento(org: string, clave: string, tipo: "visita"
     // Un contador que falla no estorba a quien visita.
   }
 }
+
+/** Un clic en un servicio propio o un inmueble de la tarjeta. Nunca truena. */
+export async function registrarClic(org: string, clave: string, ref: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(ref)) return;
+  try {
+    const supabase = await crearClienteServidor();
+    await supabase.rpc("registrar_clic_tarjeta", { p_org: org, p_clave: clave, p_ref: ref });
+  } catch {
+    // Un contador que falla no estorba a quien visita.
+  }
+}

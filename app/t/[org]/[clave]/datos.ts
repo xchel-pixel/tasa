@@ -19,6 +19,10 @@ export type Publicada = {
   servicios: string[];
   testimonios: { cliente: string; texto: string }[];
   nota: string | null;
+  despacho_arriba: boolean;
+  redes: Partial<Record<"facebook" | "instagram" | "tiktok" | "linkedin" | "sitio", string>>;
+  mis_servicios: { id: string; titulo: string; descripcion: string | null; icono: string; enlace: string | null }[];
+  inmuebles: { id: string; titulo: string; operacion: "venta" | "renta"; precio: number | null; zona: string; foto: string; enlace: string | null }[];
 };
 export type NoDisponible = { disponible: false; organizacion: string };
 

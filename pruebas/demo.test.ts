@@ -18,7 +18,7 @@ const TABLAS_CON_ORG = [
   "conectores", "convenio_precios", "convenios", "cotizaciones", "csf_reemplazadas", "cuentas_receptoras", "eventos_trabajo",
   "folios_contador", "historial_estatus", "mapeo_estatus", "marcas", "membresia_marcas", "membresias", "niveles",
   "niveles_mensuales", "origenes_pago", "pagos", "pagos_comision", "pendientes_comision", "servicios", "solicitudes",
-  "solicitudes_alta",
+  "solicitudes_alta", "tarjeta_servicios", "tarjeta_inmuebles", "tarjeta_clics",
 ];
 
 /** Cuántas filas tiene cada tabla de las organizaciones que NO son demo. */
@@ -116,5 +116,12 @@ describe("Datos DEMO", () => {
     expect(await demo(`select string_agg(accion, ',' order by accion) as v from eventos_trabajo where ${enDemo} and accion in ('asignar_comisionista', 'sin_comision', 'importar')`))
       .toEqual(["asignar_comisionista,importar,sin_comision"]);
     expect(await demo(`select count(*)::text as v from solicitudes where ${enDemo} and origen = 'importado' and externo_id like 'demo-%' and folio is not null`)).toEqual(["1"]);
+    // 0050: servicios propios en cada nivel (uno oculto por Administración), portafolio desde Socio y clics.
+    expect(await demo(`select string_agg(n::text, ',' order by n) as v from (select count(*) n from tarjeta_servicios where ${enDemo} group by comisionista_id) x`))
+      .toEqual(["2,3,4,6,8"]);
+    expect(await demo(`select count(*)::text as v from tarjeta_servicios where ${enDemo} and oculto_en is not null`)).toEqual(["1"]);
+    expect(await demo(`select string_agg(nivel_tarjeta(organizacion_id, comisionista_id)::text, ',' order by 1) as v from (select distinct organizacion_id, comisionista_id from tarjeta_inmuebles where ${enDemo}) x`))
+      .toEqual(["3,4"]);
+    expect(await demo(`select (count(*) > 0)::text as v from tarjeta_clics where ${enDemo}`)).toEqual(["true"]);
   });
 });

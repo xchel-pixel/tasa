@@ -120,7 +120,7 @@ registradas en el proyecto: `db:push` solo aplica las que falten.
 > **Confirmación en producción.** La CLI de Supabase pide confirmar todo lo que escribe en la base de
 > producción. Desde un agente (Claude) no puede preguntar: `db:push` y `npm run demo` fallan con
 > "Confirmation required" y no cambian nada. Para correrlos hay que agregar `--yes` a la llamada de la
-> CLI (`supabase db push --linked --yes`, `supabase db query --linked --yes -f …`), **y solo con el OK de
+> CLI (`supabase db push --linked --yes`, `npm run demo -- --yes`), **y solo con el OK de
 > Xchel para esa corrida**. Los scripts se quedan sin `--yes` a propósito, para que la confirmación
 > siga existiendo. Las consultas de solo lectura van con `--read-only` y no la piden.
 

@@ -67,6 +67,7 @@ begin
   delete from alertas                    where organizacion_id = v_demo;
   delete from bonos_equipo               where organizacion_id = v_demo;
   delete from tarjeta_eventos            where organizacion_id = v_demo;
+  delete from tarjeta_clics              where organizacion_id = v_demo;
   delete from testimonios                where organizacion_id = v_demo;
   delete from tarjetas                   where organizacion_id = v_demo;
   delete from eventos_vinculo            where organizacion_id = v_demo;
@@ -236,6 +237,61 @@ begin
     (v_demo, v_elena, 'Más de 10 años en el mercado inmobiliario', '4429000005', null, false, 'Juriquilla', '#0f766e',
      array[v_avaluo, v_ov], 'publicada', null),
     (v_demo, v_gus,   'Tarjeta en pausa', '4429000006', null, false, null, null, '{}', 'pausada', null);
+  -- Tarjeta de presentación (0050): servicios propios, redes y portafolio según el nivel.
+  --   Beto (Enlace) 3 servicios + redes · Carla (Aliado) 6, uno oculto por Administración · Ana (Socio) 4 + 3 inmuebles ·
+  --   Diego (Socio Plus) 8 + 4 inmuebles, despacho abajo · Elena (Élite) 2. Las fotos las sube scripts/demo.mjs.
+  update tarjetas set facebook = 'https://facebook.com/beto.demo', instagram = 'https://instagram.com/beto.demo'
+   where organizacion_id = v_demo and comisionista_id = v_beto;
+  update tarjetas set instagram = 'https://instagram.com/ana.demo', linkedin = 'https://linkedin.com/in/ana-demo',
+                      sitio_web = 'https://ana-demo.example.com'
+   where organizacion_id = v_demo and comisionista_id = v_ana;
+  update tarjetas set tiktok = 'https://tiktok.com/@diego.demo', facebook = 'https://facebook.com/diego.demo', despacho_arriba = false
+   where organizacion_id = v_demo and comisionista_id = v_diego;
+  insert into tarjeta_servicios (organizacion_id, comisionista_id, titulo, descripcion, icono, enlace, orden)
+  select v_demo, x.com, x.titulo, x.descripcion, x.icono, x.enlace, x.orden
+    from (values
+      (v_beto,  'Venta de casas', 'Te acompaño desde la publicación hasta la firma.', 'casa', null, 0),
+      (v_beto,  'Renta de departamentos', 'Busco inquilino y reviso su documentación.', 'llave', null, 1),
+      (v_beto,  'Asesoría para comprar', 'Te ayudo a elegir zona y negociar el precio.', 'trato', null, 2),
+      (v_carla, 'Venta de terrenos', 'Lotes en Corregidora y El Pueblito.', 'mapa', null, 0),
+      (v_carla, 'Administración de rentas', 'Cobro, mantenimiento y reportes mensuales.', 'calculadora', null, 1),
+      (v_carla, 'Fotografía de inmuebles', 'Fotos para tus anuncios.', 'camara', null, 2),
+      (v_carla, 'Trámites de escrituración', 'Te acompaño con la notaría.', 'documento', null, 3),
+      (v_carla, 'Locales comerciales', 'Renta y venta de locales.', 'edificio', null, 4),
+      (v_carla, 'Seguro de renta', 'Te conecto con aseguradoras.', 'escudo', null, 5),
+      (v_ana,   'Venta y compra de casas', 'Querétaro y El Marqués.', 'casa', 'https://ana-demo.example.com/casas', 0),
+      (v_ana,   'Créditos hipotecarios', 'Te explico opciones de crédito.', 'grafica', null, 1),
+      (v_ana,   'Herencias y sucesiones', 'Te oriento para vender un inmueble heredado.', 'documento', null, 2),
+      (v_ana,   'Remodelación para vender', 'Contactos de confianza para mejorar tu casa.', 'herramienta', null, 3),
+      (v_diego, 'Venta de residencias', 'Zona metropolitana de Querétaro.', 'casa', null, 0),
+      (v_diego, 'Naves industriales', 'Renta y venta en parques industriales.', 'edificio', null, 1),
+      (v_diego, 'Inversiones inmobiliarias', 'Análisis de rendimiento para inversionistas.', 'grafica', 'https://example.com/diego-inversiones', 2),
+      (v_diego, 'Preventas', 'Desarrollos nuevos con precio de preventa.', 'llave', null, 3),
+      (v_diego, 'Oficinas', 'Renta de oficinas por metro cuadrado.', 'maletin', null, 4),
+      (v_diego, 'Ranchos y terrenos', 'Terrenos rústicos.', 'mapa', null, 5),
+      (v_diego, 'Renta vacacional', 'Departamentos amueblados.', 'llave', null, 6),
+      (v_diego, 'Asesoría legal inmobiliaria', 'Con abogados aliados.', 'documento', null, 7),
+      (v_elena, 'Venta en Juriquilla', 'Casas y departamentos en Juriquilla.', 'casa', null, 0),
+      (v_elena, 'Rentas corporativas', 'Para empresas que reubican personal.', 'maletin', null, 1)
+    ) x(com, titulo, descripcion, icono, enlace, orden);
+  update tarjeta_servicios set oculto_en = now(), oculto_por = v_adm, oculto_motivo = 'Ofrece un seguro sin dar el nombre de la aseguradora (DEMO)'
+   where organizacion_id = v_demo and comisionista_id = v_carla and titulo = 'Seguro de renta';
+  insert into tarjeta_inmuebles (organizacion_id, comisionista_id, titulo, operacion, precio, zona, foto_ruta, enlace, orden)
+  values (v_demo, v_ana,   'Casa con jardín', 'venta', 3450000, 'El Refugio', 'demo/inmueble-1.png', null, 0),
+         (v_demo, v_ana,   'Departamento amueblado', 'renta', 14500, 'Centro Sur', 'demo/inmueble-2.png', null, 1),
+         (v_demo, v_ana,   'Terreno habitacional', 'venta', null, 'Zibatá', 'demo/inmueble-3.png', null, 2),
+         (v_demo, v_diego, 'Nave industrial 1,200 m²', 'renta', 98000, 'Parque Industrial Querétaro', 'demo/inmueble-4.png', null, 0),
+         (v_demo, v_diego, 'Residencia en club de golf', 'venta', 12800000, 'Juriquilla', 'demo/inmueble-5.png', 'https://example.com/residencia', 1),
+         (v_demo, v_diego, 'Oficina en corporativo', 'renta', 32000, 'Centro Sur', 'demo/inmueble-6.png', null, 2),
+         (v_demo, v_diego, 'Departamento en preventa', 'venta', 2650000, 'El Marqués', 'demo/inmueble-7.png', null, 3);
+  insert into tarjeta_clics (organizacion_id, comisionista_id, tipo, ref_id, dia, clics)
+  select v_demo, v_ana, 'servicio', s.id, hoy_mx() - g, 1 + (g % 3)
+    from tarjeta_servicios s, generate_series(0, 20, 4) g
+   where s.organizacion_id = v_demo and s.comisionista_id = v_ana and s.orden < 2;
+  insert into tarjeta_clics (organizacion_id, comisionista_id, tipo, ref_id, dia, clics)
+  select v_demo, v_ana, 'inmueble', i.id, hoy_mx() - g, 2
+    from tarjeta_inmuebles i, generate_series(0, 12, 3) g
+   where i.organizacion_id = v_demo and i.comisionista_id = v_ana;
   insert into testimonios (organizacion_id, comisionista_id, cliente, texto, estado, decidido_por, decidido_en) values
     (v_demo, v_diego, 'M. R.', 'Me explicó todo y el avalúo llegó antes de lo prometido.', 'aprobado', v_adm, now() - interval '5 days'),
     (v_demo, v_diego, 'Familia Torres', 'Muy amable y paciente con nuestras dudas.', 'aprobado', v_adm, now() - interval '2 days'),

@@ -11,7 +11,7 @@ import type { FilaComisionista } from "../page";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
-import { AgregarMovimiento, CambiarActivo, CambiarVinculo, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
+import { AgregarMovimiento, CambiarActivo, CambiarVinculo, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
 
@@ -140,6 +140,13 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
         .returns<{ estado: string; motivo_estado: string | null } | null>()
     : { data: null };
   const ligaTarjeta = `/t/${yo.organizacion.slug}/${f.slug}`;
+  type Elemento = { id: string; titulo: string; oculto_motivo: string | null };
+  const [{ data: susServicios }, { data: susInmuebles }] = staff && tarjeta
+    ? await Promise.all([
+        supabase.from("tarjeta_servicios").select("id, titulo, oculto_motivo").eq("comisionista_id", id).order("orden").returns<Elemento[]>(),
+        supabase.from("tarjeta_inmuebles").select("id, titulo, oculto_motivo").eq("comisionista_id", id).order("orden").returns<Elemento[]>(),
+      ])
+    : [{ data: null }, { data: null }];
   const { data: terminos } = await supabase
     .from("aceptaciones_terminos")
     .select("version, aceptado_en")
@@ -219,6 +226,22 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
                 Ver la tarjeta
               </a>
               {superAdmin ? <ModerarTarjeta personaId={id} estado={tarjeta.estado} /> : null}
+              {([["servicio", "Sus servicios", susServicios], ["inmueble", "Su portafolio", susInmuebles]] as const).map(([tipo, titulo, lista]) =>
+                lista && lista.length > 0 ? (
+                  <div key={tipo} className="mt-4">
+                    <h3 className="font-semibold">{titulo}</h3>
+                    <ul className="mt-1 flex flex-col gap-2">
+                      {lista.map((x) => (
+                        <li key={x.id} className="rounded-lg border border-linea px-3 py-2 text-[0.9375rem]">
+                          <p>{x.titulo}</p>
+                          {x.oculto_motivo ? <p className="text-error">Oculto: {x.oculto_motivo}</p> : null}
+                          {superAdmin ? <ModerarElemento personaId={id} tipo={tipo} id={x.id} oculto={Boolean(x.oculto_motivo)} /> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null
+              )}
             </>
           ) : (
             <p className="text-[0.9375rem] text-secundario">No ha armado su tarjeta.</p>

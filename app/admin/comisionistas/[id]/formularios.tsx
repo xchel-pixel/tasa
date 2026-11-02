@@ -5,7 +5,7 @@ import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
 import { CampoBienvenida } from "@/components/campo-bienvenida";
 import type { TratosOrg } from "@/lib/tratos";
-import { agregarMovimiento, cambiarActivo, cambiarVinculo, moderarTarjeta, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
+import { agregarMovimiento, cambiarActivo, cambiarVinculo, moderarElemento, moderarTarjeta, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, type EstadoFicha } from "./acciones";
 
 const INICIAL: EstadoFicha = { error: null, mensaje: null };
 const ENTRADA =
@@ -237,6 +237,25 @@ export function ModerarTarjeta({ personaId, estado }: { personaId: string; estad
       <input name="motivo" maxLength={300} placeholder="Motivo (obligatorio para pausar o despublicar)"
         className="rounded-lg border border-borde-campo bg-fondo px-3 py-2" />
       <BotonEnviar variante="secundario">Guardar</BotonEnviar>
+      <Aviso estado={resultado} />
+    </form>
+  );
+}
+
+/** Un servicio propio o un inmueble de la tarjeta: ocultarlo con motivo o volver a mostrarlo. */
+export function ModerarElemento({ personaId, tipo, id, oculto }: { personaId: string; tipo: "servicio" | "inmueble"; id: string; oculto: boolean }) {
+  const [resultado, enviar] = useActionState(moderarElemento, { error: null, mensaje: null } as EstadoFicha);
+  return (
+    <form action={enviar} className="mt-2 flex flex-col gap-2">
+      <input type="hidden" name="persona" value={personaId} />
+      <input type="hidden" name="tipo" value={tipo} />
+      <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="ocultar" value={oculto ? "no" : "si"} />
+      {oculto ? null : (
+        <input name="motivo" required maxLength={300} placeholder="Motivo para ocultarlo (lo ve el comisionista)"
+          className="rounded-lg border border-borde-campo bg-fondo px-3 py-2" />
+      )}
+      <BotonEnviar variante="secundario">{oculto ? "Volver a mostrar" : "Ocultar"}</BotonEnviar>
       <Aviso estado={resultado} />
     </form>
   );

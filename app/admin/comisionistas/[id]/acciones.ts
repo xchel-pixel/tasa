@@ -135,3 +135,20 @@ export async function moderarTarjeta(_previo: EstadoFicha, formData: FormData): 
   revalidatePath(`/admin/comisionistas/${persona}`);
   return { error: null, mensaje: accion === "publicar" ? "Tarjeta publicada." : accion === "pausar" ? "Tarjeta en pausa." : "Tarjeta despublicada." };
 }
+
+/** Ocultar (con motivo) o volver a mostrar un servicio propio o un inmueble de su tarjeta (admin_org). */
+export async function moderarElemento(_previo: EstadoFicha, formData: FormData): Promise<EstadoFicha> {
+  await exigirRol("admin_org");
+  const persona = String(formData.get("persona") ?? "");
+  const ocultar = formData.get("ocultar") === "si";
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("moderar_elemento_tarjeta", {
+    p_tipo: String(formData.get("tipo") ?? ""),
+    p_id: String(formData.get("id") ?? ""),
+    p_ocultar: ocultar,
+    p_motivo: String(formData.get("motivo") ?? ""),
+  });
+  if (error) return { error: error.message || "No se pudo.", mensaje: null };
+  revalidatePath(`/admin/comisionistas/${persona}`);
+  return { error: null, mensaje: ocultar ? "Oculto en su tarjeta." : "Se vuelve a mostrar." };
+}

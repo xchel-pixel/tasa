@@ -1,4 +1,4 @@
-# Tarjeta digital del comisionista (0046)
+# Tarjeta digital del comisionista (0046, 0050)
 
 **Liga pública:** `/t/<org>/<slug>`. El slug es el que ya tiene cada comisionista; su código de referido también abre la tarjeta. Está pensada para celular y para WhatsApp: la vista previa al pegar la liga trae nombre, frase y foto (Open Graph).
 
@@ -12,18 +12,31 @@
 - **Aviso de privacidad:** enlazado al pie.
 - **Prohibido en el texto libre** (frase, zona y testimonios): perito, pericial, valuador o valuadora, MGP, AP73 y ARQOS. Lo bloquea la base con `palabra_prohibida`.
 
+## Tarjeta de presentación (0050)
+
+La tarjeta presenta al comisionista, no solo el servicio del despacho. Dos responsabilidades a la vista:
+
+- **"Avalúos y valuación · despacho aliado":** el botón "Solicita tu avalúo o cotización" y la nota de independencia (y, en Socio Plus, los servicios destacados del despacho). Siempre se ve; el comisionista solo elige si va arriba o abajo de sus servicios.
+- **"Mis servicios":** los suyos (título, descripción de hasta 160, ícono de una lista fija, enlace opcional), en el orden que elija (arrastrando desde ⠿ o con flechas). Debajo, fijo: "Servicios ofrecidos directamente por {nombre}."
+- **Redes:** Facebook, Instagram, TikTok, LinkedIn y sitio web; la base solo acepta ligas de esa red (`red_valida`).
+- **Portafolio (Socio en adelante):** inmuebles con foto 4:3 (bucket `tarjetas`, 2 MB), título, venta o renta, precio opcional, zona (nunca la dirección) y enlace. "Me interesa" abre WhatsApp con el nombre del inmueble.
+- **Moderación:** admin_org oculta un servicio o un inmueble con motivo desde la ficha del comisionista; él ve el motivo en "Mi tarjeta".
+- **Clics:** por servicio propio (su enlace) y por inmueble ("Me interesa" o su enlace), contador por día en `tarjeta_clics`.
+
+Todo texto libre pasa por `palabra_prohibida`. El comisionista escribe por funciones (`guardar_mi_servicio`, `guardar_mi_inmueble`, `ordenar_mi_tarjeta`, `borrar_de_mi_tarjeta`, `guardar_mis_redes`).
+
 ## Por nivel del mes
 
-`nivel_tarjeta` lee el nivel con `nivel_vigente`; Élite cuenta como Socio Plus.
+`nivel_tarjeta` lee el nivel con `nivel_vigente`; Élite cuenta como Socio Plus. Los topes salen de `limite_tarjeta`.
 
 | Nivel | Agrega |
 |---|---|
-| Enlace | Tarjeta básica y QR |
-| Aliado | Su logo y su color |
-| Socio | Estadísticas por mes: visitas, clics en WhatsApp y solicitudes por su liga |
-| Socio Plus | Servicios destacados (del catálogo, hasta 6) y testimonios aprobados |
+| Enlace | Tarjeta básica, QR, redes y hasta 3 servicios propios |
+| Aliado | Su logo y su color; hasta 6 servicios propios |
+| Socio | Estadísticas por mes (visitas, WhatsApp, solicitudes y clics por servicio e inmueble) y portafolio de hasta 6 |
+| Socio Plus | Servicios propios y portafolio sin límite (tope técnico de 30), servicios destacados del despacho y testimonios |
 
-Si baja de nivel, lo extra se oculta, pero no se borra.
+Si baja de nivel, lo que excede se oculta (los últimos en su orden), pero no se borra; "Mi tarjeta" dice qué se ocultó y qué nivel lo recupera. Mientras tenga más de lo que su nivel permite, no puede agregar.
 
 ## Estados
 

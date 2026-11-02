@@ -58,6 +58,10 @@ export default async function Tarjeta({ params }: Props) {
             servicios: t.servicios,
             testimonios: t.testimonios,
             nota: t.nota,
+            despachoArriba: t.despacho_arriba,
+            redes: t.redes ?? {},
+            misServicios: t.mis_servicios ?? [],
+            inmuebles: (t.inmuebles ?? []).map((i) => ({ ...i, precio: i.precio === null ? null : Number(i.precio), fotoUrl: urlImagenTarjeta(i.foto) })),
           }}
           ligaSolicitud={`/s/${t.org}/${t.codigo}`}
           vcardHref={`/t/${t.org}/${t.slug}/vcard`}
