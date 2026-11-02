@@ -228,6 +228,9 @@ export function TarjetaVista({
                 </li>
               ))}
             </ul>
+            <p className="mt-2 text-[0.8125rem] leading-5 text-secundario">
+              Inmuebles ofrecidos directamente por {d.nombre}. El despacho de valuación no participa en su comercialización.
+            </p>
           </section>
         ) : null}
 

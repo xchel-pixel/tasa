@@ -19,7 +19,7 @@ La tarjeta presenta al comisionista, no solo el servicio del despacho. Dos respo
 - **"Avalúos y valuación · despacho aliado":** el botón "Solicita tu avalúo o cotización" y la nota de independencia (y, en Socio Plus, los servicios destacados del despacho). Siempre se ve; el comisionista solo elige si va arriba o abajo de sus servicios.
 - **"Mis servicios":** los suyos (título, descripción de hasta 160, ícono de una lista fija, enlace opcional), en el orden que elija (arrastrando desde ⠿ o con flechas). Debajo, fijo: "Servicios ofrecidos directamente por {nombre}."
 - **Redes:** Facebook, Instagram, TikTok, LinkedIn y sitio web; la base solo acepta ligas de esa red (`red_valida`).
-- **Portafolio (Socio en adelante):** inmuebles con foto 4:3 (bucket `tarjetas`, 2 MB), título, venta o renta, precio opcional, zona (nunca la dirección) y enlace. "Me interesa" abre WhatsApp con el nombre del inmueble.
+- **Portafolio (Socio en adelante):** inmuebles con foto 4:3 (bucket `tarjetas`, 2 MB), título, venta o renta, precio opcional, zona (nunca la dirección) y enlace. "Me interesa" abre WhatsApp con el nombre del inmueble. Debajo, fijo: "Inmuebles ofrecidos directamente por {nombre}. El despacho de valuación no participa en su comercialización."
 - **Moderación:** admin_org oculta un servicio o un inmueble con motivo desde la ficha del comisionista; él ve el motivo en "Mi tarjeta".
 - **Clics:** por servicio propio (su enlace) y por inmueble ("Me interesa" o su enlace), contador por día en `tarjeta_clics`.
 
