@@ -3463,6 +3463,61 @@ begin
 end;
 $$;
 
+-- @@ Dos admin_org
+-- Alguien del equipo pasa a admin_org sobre su misma membresía (como Alex en XG):
+-- conserva su código, pierde el bono, y los dos administradores ven y deciden lo mismo.
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  alex  uuid;
+  m     uuid;
+  cod   text;
+begin
+  perform pg_temp.sistema();
+  insert into personas (nombre, correo, organizacion_activa) values ('Alex Segundo Admin', 'xchel+alex@arqosuv.com', xg) returning id into alex;
+  insert into membresias (persona_id, organizacion_id, rol, bono_referido, bono_referido_pct) values (alex, xg, 'equipo', true, 2)
+  returning id, codigo_referido into m, cod;
+  insert into auth.users (id, email) values (gen_random_uuid(), 'xchel+alex@arqosuv.com');
+
+  -- El cambio, igual que en producción.
+  perform set_config('tasa.motivo', 'Administrador de XG, autorizado por Xchel', true);
+  update membresias set rol = 'admin_org', bono_referido = false, bono_referido_pct = null, bono_referido_hasta = null where id = m;
+  perform set_config('tasa.motivo', '', true);
+  perform pg_temp.igual((select count(*) from membresias where persona_id = alex), 1::bigint, 'Misma membresía, sin registro nuevo');
+  perform pg_temp.igual((select codigo_referido from membresias where id = m), cod, 'Conserva su código de referido');
+  perform pg_temp.igual((select (antes->>'rol') || ' → ' || (despues->>'rol') || ' · ' || motivo from bitacora
+                          where tabla = 'membresias' and registro_id = m::text and accion = 'UPDATE' order by id desc limit 1),
+    'equipo → admin_org · Administrador de XG, autorizado por Xchel', 'La bitácora guarda antes, después y motivo');
+  perform pg_temp.igual(miembro_cobra_bono(xg, alex), false, 'admin_org no cobra bono de referido');
+
+  perform pg_temp.como('xchel+alex@arqosuv.com');
+  perform pg_temp.igual(soy_admin_org(), true, 'Entra como admin_org');
+  perform pg_temp.igual(soy_super_plataforma(), false, 'Sin super_plataforma');
+  perform pg_temp.debe_fallar(format($q$select poner_bono_referido_miembro(%L, true, 2, null)$q$, m), 'no lleva bono',
+    'No se le puede volver a encender el bono');
+
+  -- Una alerta para admin_org: la ven los dos y la decide cualquiera.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(guardar_mi_perfil(null, 'Corredora de seguros'), 'pendiente', 'Ana pide un perfil "Otro"');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'perfil_por_aprobar' and codigo = ana::text and resuelta_en is null),
+    1::bigint, 'Xchel ve la alerta');
+  perform pg_temp.como('xchel+alex@arqosuv.com');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'perfil_por_aprobar' and codigo = ana::text and resuelta_en is null),
+    1::bigint, 'Alex ve la misma alerta');
+  perform decidir_perfil(ana, true, null);
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'perfil_por_aprobar' and codigo = ana::text and resuelta_en is null),
+    0::bigint, 'Lo que decide uno se cierra para los dos');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select perfil_otro from comisionistas where persona_id = ana and organizacion_id = xg), 'Corredora de seguros',
+    'La aprobación del segundo admin_org vale');
+  perform pg_temp.igual((select persona_id from bitacora where tabla = 'comisionistas' and motivo like 'Perfil aprobado%' order by id desc limit 1),
+    alex, 'La bitácora dice cuál de los dos decidió');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

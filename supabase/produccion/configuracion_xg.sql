@@ -118,7 +118,7 @@ update organizaciones set prefijo_folio = 'MGP' where id = current_setting('tasa
 update ajustes_plataforma set contacto_soporte = 'soporte@xgplataform.com';
 
 -- ------------------------------------------------------------
--- EQUIPO (Xchel además es super_plataforma). Nadie recibe correo: cada
+-- EQUIPO (dos admin_org: Xchel y Alex; solo Xchel es super_plataforma). Nadie recibe correo: cada
 -- quien entra con su correo y el código de 6 dígitos.
 -- ------------------------------------------------------------
 insert into personas (nombre, correo, organizacion_activa, super_plataforma)
@@ -138,7 +138,7 @@ select p.id, current_setting('tasa.org')::uuid, v.rol
     ('xchel@arqosuv.com', 'admin_org'),
     ('xchel+finanzas@arqosuv.com', 'finanzas'),
     ('olveragabriela.mgp@gmail.com', 'finanzas'),
-    ('asoriano.mgp@gmail.com', 'equipo'),
+    ('asoriano.mgp@gmail.com', 'admin_org'),  -- desde nov-2026; antes equipo. Sin bono ni super_plataforma.
     ('muriostegui.mgp@gmail.com', 'equipo'),
     ('radame.mgp@gmail.com', 'equipo'),
     ('cguerrero.mgp@gmail.com', 'equipo'),
