@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
 import { CampoBienvenida } from "@/components/campo-bienvenida";
 import type { TratosOrg } from "@/lib/tratos";
-import { agregarMovimiento, cambiarActivo, cambiarVinculo, decidirPerfil, moderarElemento, moderarTarjeta, corregirReferidor, editarDatos, forzarElite, ponerBienvenida, ponerPerfil, type EstadoFicha } from "./acciones";
+import { agregarMovimiento, cambiarActivo, cambiarVinculo, decidirPerfil, moderarElemento, moderarTarjeta, corregirReferidor, editarDatos, forzarElite, notionComisionista, ponerBienvenida, ponerPerfil, type EstadoFicha, type EstadoNotion } from "./acciones";
 
 const INICIAL: EstadoFicha = { error: null, mensaje: null };
 const ENTRADA =
@@ -218,6 +218,72 @@ export function CambiarVinculo({ vinculoId, personaId }: { vinculoId: string; pe
         <BotonEnviar variante="secundario">Guardar</BotonEnviar>
         <Aviso estado={estado} />
       </form>
+    </details>
+  );
+}
+
+/**
+ * "Página en Notion" (admin_org): buscar por nombre y ligar, o crearla con confirmación. Sin página, su
+ * comisión y su bono se escriben en Trámites sin la relación (y sale una alerta).
+ */
+export function PaginaNotion({ personaId, nombre, ligada }: { personaId: string; nombre: string; ligada: string | null }) {
+  const [estado, enviar] = useActionState<EstadoNotion, FormData>(notionComisionista, INICIAL);
+  const [texto, setTexto] = useState(nombre);
+  const [confirmar, setConfirmar] = useState(false);
+  const accion = (valor: string, extra: Record<string, string> = {}) => (
+    <>
+      <input type="hidden" name="persona" value={personaId} />
+      <input type="hidden" name="accion" value={valor} />
+      {Object.entries(extra).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+    </>
+  );
+  return (
+    <details className="mt-3 rounded-xl border border-linea px-4 py-3" open={!ligada}>
+      <summary className="toque cursor-pointer font-semibold text-acento">
+        {ligada ? `Página en Notion: ${ligada}` : "Página en Notion: sin ligar"}
+      </summary>
+      <form action={enviar} className="mt-3 flex flex-col gap-2">
+        {accion("buscar")}
+        <label className="text-[0.9375rem] text-secundario" htmlFor={`notion-${personaId}`}>Buscar en Ext Comisionistas por nombre</label>
+        <input id={`notion-${personaId}`} name="nombre" value={texto} onChange={(e) => setTexto(e.target.value)} required minLength={2} maxLength={120} className={ENTRADA} />
+        <BotonEnviar variante="secundario">Buscar en Notion</BotonEnviar>
+      </form>
+      {estado.paginas?.length ? (
+        <ul className="mt-3 flex flex-col gap-2">
+          {estado.paginas.map((p) => (
+            <li key={p.id}>
+              <form action={enviar} className="flex items-center justify-between gap-3 rounded-lg border border-linea px-3 py-2">
+                {accion("ligar", { pagina: p.id, nombre: p.nombre })}
+                <span>{p.nombre}</span>
+                <BotonEnviar variante="secundario">Ligar</BotonEnviar>
+              </form>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {estado.buscado ? (
+        confirmar ? (
+          <form action={enviar} className="mt-3 flex flex-col gap-2 rounded-lg bg-proceso-fondo px-3 py-3">
+            {accion("crear", { nombre: estado.buscado, confirmo: "si" })}
+            <p className="text-[0.9375rem] leading-6">¿Crear &quot;{estado.buscado}&quot; en Ext Comisionistas de Notion y ligarlo?</p>
+            <div className="flex gap-2">
+              <BotonEnviar variante="secundario">Sí, crear en Notion</BotonEnviar>
+              <button type="button" onClick={() => setConfirmar(false)} className="toque px-3 font-semibold text-secundario">Cancelar</button>
+            </div>
+          </form>
+        ) : (
+          <button type="button" onClick={() => setConfirmar(true)} className="toque mt-3 self-start font-semibold text-acento underline underline-offset-4">
+            Crear &quot;{estado.buscado}&quot; en Notion
+          </button>
+        )
+      ) : null}
+      {ligada ? (
+        <form action={enviar} className="mt-3">
+          {accion("quitar")}
+          <BotonEnviar variante="secundario">Quitar la liga</BotonEnviar>
+        </form>
+      ) : null}
+      <Aviso estado={estado} />
     </details>
   );
 }

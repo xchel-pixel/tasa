@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
-import { fijarUltimoFolio, guardarAjustes, guardarOrigen, guardarPrefijo, usarConectorManual, type EstadoAjustes } from "./acciones";
+import { fijarUltimoFolio, guardarAjustes, guardarPrefijo, usarConectorManual, type EstadoAjustes } from "./acciones";
 
 const INICIAL: EstadoAjustes = { mensaje: null, error: null };
 const ENTRADA =
@@ -225,30 +225,6 @@ export function VolverAManual() {
   return (
     <form action={enviar} className="mt-3 flex flex-col gap-2">
       <BotonEnviar variante="secundario">Usar el conector manual</BotonEnviar>
-      <Aviso estado={estado} />
-    </form>
-  );
-}
-
-/** Una fila del catálogo (nombre + activo) o, sin `id`, la de agregar. */
-export function FilaOrigen({ id, nombre, activo }: { id?: string; nombre?: string; activo?: boolean }) {
-  const [estado, enviar] = useActionState(guardarOrigen, INICIAL);
-  return (
-    <form action={enviar} className="flex flex-col gap-2 rounded-lg border border-linea px-3 py-3">
-      {id ? <input type="hidden" name="id" value={id} /> : null}
-      <div className="flex items-center gap-2">
-        <label htmlFor={`origen-${id ?? "nuevo"}`} className="sr-only">Nombre</label>
-        <input id={`origen-${id ?? "nuevo"}`} name="nombre" required maxLength={40} defaultValue={nombre}
-          placeholder={id ? undefined : "Nuevo origen"}
-          className="min-w-0 flex-1 rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento" />
-        <div className="w-28 shrink-0"><BotonEnviar variante="secundario">{id ? "Guardar" : "Agregar"}</BotonEnviar></div>
-      </div>
-      {id ? (
-        <label className="flex items-center gap-2 text-[0.9375rem]">
-          <input type="checkbox" name="activo" defaultChecked={activo} className="h-5 w-5 accent-primario" />
-          Activo (aparece al registrar un pago)
-        </label>
-      ) : null}
       <Aviso estado={estado} />
     </form>
   );

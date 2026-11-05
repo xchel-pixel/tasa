@@ -40,6 +40,12 @@ export function mesLargo(valor: string): string {
   return fecha.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
 }
 
+/** Como título o al inicio de un renglón: "Octubre de 2026" (solo la primera letra, nunca "De"). */
+export function mesTitulo(valor: string): string {
+  const m = mesLargo(valor);
+  return m.charAt(0).toUpperCase() + m.slice(1);
+}
+
 /** El primer día del mes en curso en hora de México, "AAAA-MM-01". */
 export function mesActual(): string {
   const partes = new Intl.DateTimeFormat("en-CA", { timeZone: ZONA, year: "numeric", month: "2-digit" })

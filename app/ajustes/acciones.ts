@@ -84,24 +84,6 @@ export async function guardarAjustes(
   };
 }
 
-/** Catálogo de orígenes del dinero para pagar comisiones. No se borran: se apagan. */
-export async function guardarOrigen(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
-  await exigirRol("admin_org");
-  const id = String(formData.get("id") ?? "");
-  const nombre = String(formData.get("nombre") ?? "").trim();
-  if (!nombre || nombre.length > 40) return { mensaje: null, error: "El nombre va de 1 a 40 caracteres." };
-
-  const supabase = await crearClienteServidor();
-  const { error } = id
-    ? await supabase.from("origenes_pago").update({ nombre, activo: formData.get("activo") === "on" }).eq("id", id)
-    : await supabase.from("origenes_pago").insert({ nombre, orden: 99 });
-  if (error) {
-    return { mensaje: null, error: error.code === "23505" ? "Ya existe un origen con ese nombre." : "No se pudo guardar." };
-  }
-  revalidatePath("/ajustes");
-  return { mensaje: id ? "Guardado." : "Agregado.", error: null };
-}
-
 /** El prefijo con el que Tasa genera folios (conector manual). Aplica a los siguientes. */
 export async function guardarPrefijo(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
   const persona = await exigirRol("admin_org");

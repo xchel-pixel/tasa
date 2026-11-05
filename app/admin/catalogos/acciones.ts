@@ -136,6 +136,26 @@ export async function guardarServicio(_previo: EstadoCatalogo, f: FormData): Pro
   return listo(id ? "Servicio guardado." : "Servicio agregado.");
 }
 
+/**
+ * Una cuenta para pagar comisiones: se elige al registrar el pago. "Cuenta en Notion" es el nombre
+ * exacto en Cuentas MGP; sin él, el movimiento en Cobros y Gastos queda con Cuenta vacía y sale alerta.
+ * No se borran: se apagan.
+ */
+export async function guardarCuentaPago(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  await exigirRol("admin_org");
+  const id = campo(f, "id");
+  const nombre = campo(f, "nombre");
+  const notion = campo(f, "notion_cuenta").replace(/\s+/g, " ") || null;
+  if (nombre.length < 1 || nombre.length > 40) return falla("El nombre va de 1 a 40 caracteres.");
+  if (notion && notion.length > 120) return falla("La cuenta de Notion va de 1 a 120 caracteres.");
+  const supabase = await crearClienteServidor();
+  const { error } = id
+    ? await supabase.from("origenes_pago").update({ nombre, notion_cuenta: notion, activo: f.get("activo") === "on" }).eq("id", id)
+    : await supabase.from("origenes_pago").insert({ nombre, notion_cuenta: notion, orden: 99 });
+  if (error) return traducir(error, "una cuenta");
+  return listo(id ? "Cuenta guardada." : "Cuenta agregada.");
+}
+
 /** Un perfil del catálogo (lo eligen los comisionistas y sale en su tarjeta). */
 export async function guardarPerfil(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
   await exigirRol("admin_org");

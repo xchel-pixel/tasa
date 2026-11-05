@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PantallaAdmin } from "@/components/pantalla-admin";
-import { mesActual, mesLargo, mesSiguiente, pesos } from "@/lib/formato";
+import { mesActual, mesTitulo, mesSiguiente, pesos } from "@/lib/formato";
 import { conversionSinCosto, DIAS_SIN_LIGAR, type Conversion } from "@/lib/conversion-sin-costo";
 import { mesAnterior } from "@/lib/panel";
 import { exigirRol } from "@/lib/sesion";
@@ -121,7 +121,7 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
     <PantallaAdmin titulo="Reportes">
       <nav aria-label="Mes" className="mt-3 flex items-center justify-between gap-3">
         <Link href={`/admin/reportes?mes=${mesAnterior(mes)}`} className="toque font-semibold text-acento">← Anterior</Link>
-        <span className="font-bold capitalize">{mesLargo(mes)}</span>
+        <span className="font-bold">{mesTitulo(mes)}</span>
         {mes < mesActual() ? (
           <Link href={`/admin/reportes?mes=${mesSiguiente(mes)}`} className="toque font-semibold text-acento">Siguiente →</Link>
         ) : (
@@ -213,7 +213,7 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
         <>
           <h2 className="mt-8 text-[1.125rem] font-bold">Pagos de comisión hechos en el mes</h2>
           <p className="text-[0.9375rem] text-secundario">Por fecha de pago, sin importar de qué cierre son.</p>
-          <Tabla titulo="Por origen del dinero" filas={sumar(listaPagos ?? [], (p) => p.origenes_pago?.nombre ?? "", monto)} />
+          <Tabla titulo="Por cuenta de pago" filas={sumar(listaPagos ?? [], (p) => p.origenes_pago?.nombre ?? "", monto)} />
           <Tabla
             titulo="Pagados sin factura"
             filas={sumar(sinFactura, (p) => p.comisionistas?.personas?.nombre ?? "", monto)}

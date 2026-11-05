@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { conectorDeLaOrg } from "@/lib/conectores/desde-app";
+import type { PaginaComisionista } from "@/lib/conectores/tipos";
 import { errorDeRfc, errorDeTelefono, limpiarRfc, limpiarTelefono } from "@/lib/limpiar";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
@@ -134,6 +136,43 @@ export async function moderarTarjeta(_previo: EstadoFicha, formData: FormData): 
   if (error) return { error: error.message || "No se pudo.", mensaje: null };
   revalidatePath(`/admin/comisionistas/${persona}`);
   return { error: null, mensaje: accion === "publicar" ? "Tarjeta publicada." : accion === "pausar" ? "Tarjeta en pausa." : "Tarjeta despublicada." };
+}
+
+export type EstadoNotion = EstadoFicha & { paginas?: PaginaComisionista[]; buscado?: string };
+
+/**
+ * "Página en Notion" (admin_org): buscar por nombre en la base de comisionistas, ligar una, quitarla
+ * o crearla. Con la página ligada, la comisión y el bono que se escriben en Trámites llevan la relación.
+ */
+export async function notionComisionista(_previo: EstadoNotion, formData: FormData): Promise<EstadoNotion> {
+  const yo = await exigirRol("admin_org");
+  const persona = String(formData.get("persona") ?? "");
+  const accion = String(formData.get("accion") ?? "");
+  const nombre = String(formData.get("nombre") ?? "").trim();
+
+  if (accion === "ligar" || accion === "quitar") {
+    return llamar(persona, "ligar_pagina_notion", {
+      p_persona: persona,
+      p_pagina: accion === "ligar" ? String(formData.get("pagina") ?? "") : null,
+      p_nombre: accion === "ligar" ? nombre : null,
+    }, accion === "ligar" ? `Ligado a "${nombre}" en Notion.` : "Ya no está ligado a Notion.");
+  }
+
+  if (nombre.length < 2) return { error: "Escribe al menos dos letras del nombre.", mensaje: null };
+  const r = await conectorDeLaOrg(yo.organizacion.id);
+  if ("error" in r) return { error: r.error, mensaje: null };
+  try {
+    if (accion === "crear") {
+      if (formData.get("confirmo") !== "si") return { error: "Confirma que quieres crearlo en Notion.", mensaje: null };
+      const pagina = await r.conector.crearComisionista(nombre);
+      return llamar(persona, "ligar_pagina_notion", { p_persona: persona, p_pagina: pagina.id, p_nombre: pagina.nombre },
+        `Creado en Notion y ligado: "${pagina.nombre}".`);
+    }
+    const paginas = await r.conector.buscarComisionistas(nombre);
+    return { error: null, mensaje: paginas.length ? null : `No encontré "${nombre}" en Notion.`, paginas, buscado: nombre };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo leer Notion.", mensaje: null };
+  }
 }
 
 /** Aprobar o rechazar (con motivo) el perfil "Otro" que pidió para su tarjeta (admin_org). */

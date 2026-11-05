@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { Aviso } from "@/components/aviso";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { eliminar, guardarCuenta, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
+import { eliminar, guardarCuenta, guardarCuentaPago, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
 
 const INICIAL: EstadoCatalogo = { error: null, mensaje: null };
 const ENTRADA =
@@ -33,6 +33,26 @@ export type Marca = {
 };
 export type Cuenta = { id: string; alias: string; titular: string; banco: string | null; clabe: string; rfc: string | null; marca_id: string; activa: boolean };
 export type Perfil = { id: string; nombre: string; activo: boolean };
+
+export type CuentaPago = { id: string; nombre: string; notion_cuenta: string | null; activo: boolean };
+
+export function FormularioCuentaPago({ cuenta }: { cuenta?: CuentaPago }) {
+  const [estado, enviar] = useActionState(guardarCuentaPago, INICIAL);
+  return (
+    <form action={enviar} className="flex flex-col gap-3">
+      {cuenta ? <input type="hidden" name="id" value={cuenta.id} /> : null}
+      <Campo etiqueta="Nombre en Tasa (se elige al registrar el pago)">
+        <input name="nombre" required maxLength={40} defaultValue={cuenta?.nombre} className={ENTRADA} />
+      </Campo>
+      <Campo etiqueta="Cuenta en Notion (nombre exacto en Cuentas MGP)">
+        <input name="notion_cuenta" maxLength={120} defaultValue={cuenta?.notion_cuenta ?? ""} placeholder="Ej. Scotiabank XG 4246" className={ENTRADA} />
+      </Campo>
+      {cuenta ? <Activa nombre="activo" valor={cuenta.activo} texto="Activa (aparece al registrar un pago)" /> : null}
+      <BotonEnviar variante="secundario">{cuenta ? "Guardar cuenta" : "Agregar cuenta"}</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
 
 export type Servicio = {
   id: string;

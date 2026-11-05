@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { comisionesPorPagar, type PorPagar } from "@/lib/comisiones";
-import { fechaCorta, mesLargo, pesos } from "@/lib/formato";
+import { fechaCorta, mesTitulo, pesos } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
 
 export const metadata = { title: "Comisiones por pagar — Tasa" };
@@ -43,7 +43,7 @@ export default async function ComisionesPorPagar() {
                 {g.filas.map((p) => (
                   <li key={p.pendiente_id} className="text-[0.9375rem]">
                     <div className="flex justify-between gap-3">
-                      <span className="capitalize">{mesLargo(p.mes)}</span>
+                      <span>{mesTitulo(p.mes)}</span>
                       <span className="font-semibold">{pesos(p.saldo)}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2">

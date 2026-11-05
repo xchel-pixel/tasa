@@ -3,7 +3,7 @@ import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { Etiqueta } from "@/components/etiqueta";
 import { SubirFactura } from "@/components/subir-factura";
 import { TIPO_MOVIMIENTO, estadoDelMes, mesesDisponibles, type Movimiento } from "@/lib/estado-de-cuenta";
-import { fechaCorta, mesActual, mesLargo, mesSiguiente, pesos } from "@/lib/formato";
+import { fechaCorta, mesActual, mesLargo, mesTitulo, mesSiguiente, pesos } from "@/lib/formato";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 /**
@@ -52,11 +52,11 @@ export async function VistaEstadoDeCuenta({
                 href={`${base}?mes=${m}`}
                 scroll={false}
                 aria-current={m === mes ? "page" : undefined}
-                className={`toque whitespace-nowrap rounded-full border px-4 text-[0.9375rem] font-semibold capitalize ${
+                className={`toque whitespace-nowrap rounded-full border px-4 text-[0.9375rem] font-semibold ${
                   m === mes ? "border-primario bg-primario text-sobre-primario" : "border-linea bg-fondo text-primario"
                 }`}
               >
-                {mesLargo(m)}
+                {mesTitulo(m)}
               </Link>
             </li>
           ))}
@@ -65,7 +65,7 @@ export async function VistaEstadoDeCuenta({
 
       <section className="mt-6">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[1.125rem] font-bold capitalize">{mesLargo(mes)}</h2>
+          <h2 className="text-[1.125rem] font-bold">{mesTitulo(mes)}</h2>
           {cuenta.publicado ? <Etiqueta tono="exito">Cierre publicado</Etiqueta> : <Etiqueta tono="proceso">En curso</Etiqueta>}
         </div>
         {!cuenta.publicado ? (
@@ -169,7 +169,7 @@ export async function VistaEstadoDeCuenta({
 
       {cuenta.nivelSiguiente ? (
         <p className="mt-6 text-[0.9375rem] leading-6 text-secundario">
-          Con este cierre, el nivel para <span className="capitalize">{mesLargo(mesSiguiente(mes))}</span> quedó en{" "}
+          Con este cierre, el nivel para {mesLargo(mesSiguiente(mes))} quedó en{" "}
           <strong className="font-semibold text-texto">
             {cuenta.nivelSiguiente.nombre} · {cuenta.nivelSiguiente.porcentaje}%
           </strong>{" "}

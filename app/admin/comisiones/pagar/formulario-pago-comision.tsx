@@ -5,7 +5,7 @@ import { BotonEnviar } from "@/components/boton-enviar";
 import { CampoArchivo } from "@/components/campo-archivo";
 import { Etiqueta } from "@/components/etiqueta";
 import { Aviso } from "@/components/aviso";
-import { mesLargo, pesos } from "@/lib/formato";
+import { mesTitulo, pesos } from "@/lib/formato";
 import { registrarPagoComision, type EstadoPagoComision } from "./acciones";
 
 const ENTRADA =
@@ -68,7 +68,7 @@ export default function FormularioPagoComision({
               />
               <span className="min-w-0 flex-1">
                 <span className="flex justify-between gap-3">
-                  <span className="font-semibold capitalize">{mesLargo(p.mes)}</span>
+                  <span className="font-semibold">{mesTitulo(p.mes)}</span>
                   <span className="font-semibold">{pesos(p.saldo)}</span>
                 </span>
                 {p.vencido ? <span className="mt-1 inline-block"><Etiqueta tono="error">Vencido</Etiqueta></span> : null}
@@ -114,9 +114,9 @@ export default function FormularioPagoComision({
         <input id="fecha" name="fecha" type="date" required max={hoy} defaultValue={hoy} className={ENTRADA} />
       </div>
       <div>
-        <label htmlFor="origen" className="block font-semibold">De dónde salió el dinero</label>
+        <label htmlFor="origen" className="block font-semibold">Cuenta con la que se pagó</label>
         <select id="origen" name="origen" required defaultValue="" className={ENTRADA}>
-          <option value="" disabled>Elige el origen</option>
+          <option value="" disabled>Elige la cuenta</option>
           {origenes.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
         </select>
         <p className="mt-1 text-[0.9375rem] text-secundario">El comisionista no ve el origen.</p>

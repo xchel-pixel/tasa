@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { comisionesPorPagar, type PorPagar } from "@/lib/comisiones";
-import { mesLargo, pesos } from "@/lib/formato";
+import { mesTitulo, pesos } from "@/lib/formato";
 import { SeccionesDeInicio } from "@/components/secciones-de-inicio";
 import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
@@ -73,7 +73,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
               <Link href="/admin/cierres" className="flex items-center justify-between gap-3 rounded-xl border border-linea bg-alterno px-4 py-4">
                 <span>
                   <span className="block font-semibold">Cierre mensual</span>
-                  <span className="block text-[0.9375rem] capitalize text-secundario">{mesLargo(p.cierre.mes)}</span>
+                  <span className="block text-[0.9375rem] text-secundario">{mesTitulo(p.cierre.mes)}</span>
                 </span>
                 <Etiqueta tono={cierre.tono}>{cierre.texto}</Etiqueta>
               </Link>

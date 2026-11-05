@@ -5,7 +5,7 @@ import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { FormularioConvenio, type Convenio } from "./convenios";
 import { textoComision } from "./textos";
-import { FormularioCuenta, FormularioMarca, FormularioPerfil, FormularioServicio, type Cuenta, type Marca, type Perfil, type Servicio } from "./formularios";
+import { FormularioCuenta, FormularioCuentaPago, FormularioMarca, FormularioPerfil, FormularioServicio, type Cuenta, type CuentaPago, type Marca, type Perfil, type Servicio } from "./formularios";
 
 type FilaConvenio = Omit<Convenio, "precios" | "comision_pct"> & {
   comision_pct: string | number | null;
@@ -22,7 +22,7 @@ export const metadata = { title: "Catálogos — Tasa" };
 export default async function Catalogos() {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
-  const [marcas, cuentas, servicios, convenios, perfiles] = await Promise.all([
+  const [marcas, cuentas, servicios, convenios, perfiles, cuentasPago] = await Promise.all([
     supabase
       .from("marcas")
       .select(
@@ -47,6 +47,7 @@ export default async function Catalogos() {
       .order("nombre")
       .returns<FilaConvenio[]>(),
     supabase.from("perfiles").select("id, nombre, activo").order("orden").order("nombre").returns<Perfil[]>(),
+    supabase.from("origenes_pago").select("id, nombre, notion_cuenta, activo").order("orden").order("nombre").returns<CuentaPago[]>(),
   ]);
   const conLogo = oExplota(marcas, "las marcas") ?? [];
   // Vista previa del logo: URL firmada por una hora (el bucket es privado).
@@ -104,6 +105,15 @@ export default async function Catalogos() {
         <Nuevo texto="Agregar servicio"><FormularioServicio /></Nuevo>
       </Seccion>
 
+      <Seccion titulo="Cuentas para pagar comisiones" detalle="De dónde sale el pago de una comisión; se elige al registrarlo. Con su cuenta de Notion, el pago se anota en Cobros y Gastos con esa Cuenta. Solo lo ve Administración.">
+        {(oExplota(cuentasPago, "las cuentas para pagar") ?? []).map((c) => (
+          <Elemento key={c.id} titulo={`${c.nombre}${c.notion_cuenta ? ` → ${c.notion_cuenta}` : " · sin cuenta de Notion"}`} inactivo={!c.activo}>
+            <FormularioCuentaPago cuenta={c} />
+          </Elemento>
+        ))}
+        <Nuevo texto="Agregar cuenta"><FormularioCuentaPago /></Nuevo>
+      </Seccion>
+
       <Seccion titulo="Perfiles" detalle="Lo que eligen los comisionistas en «Mi perfil»; sale en su tarjeta como «… · aliado comercial». «Otro» lo escriben ellos y lo apruebas en su ficha.">
         {(oExplota(perfiles, "los perfiles") ?? []).map((p) => (
           <Elemento key={p.id} titulo={p.nombre} inactivo={!p.activo}>
@@ -152,7 +162,7 @@ function Elemento({
 }) {
   return (
     <details className="rounded-xl border border-linea px-4 py-3">
-      <summary className="toque flex cursor-pointer items-center justify-between gap-3">
+      <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2">
           {color ? <span aria-hidden className="h-4 w-4 shrink-0 rounded-full border border-linea" style={{ backgroundColor: color }} /> : null}
           <span className="min-w-0">

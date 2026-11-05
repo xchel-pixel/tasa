@@ -1,4 +1,13 @@
-import { FallaConector, type ConfigConector, type Conector, type Lectura, type TramiteExterno, type TramitePorCrear } from "./tipos";
+import {
+  FallaConector,
+  type ConfigConector,
+  type Conector,
+  type Lectura,
+  type PaginaComisionista,
+  type PagoPorRegistrar,
+  type TramiteExterno,
+  type TramitePorCrear,
+} from "./tipos";
 
 /**
  * Conector Notion, con `fetch` y sin librerías. Usa la versión
@@ -12,6 +21,57 @@ import { FallaConector, type ConfigConector, type Conector, type Lectura, type T
 
 const API = "https://api.notion.com/v1";
 const VERSION = "2022-06-28";
+/** Para las bases que se leen por su fuente de datos (comisionistas, Cobros y Gastos, cuentas, categorías). */
+const VERSION_FUENTES = "2025-09-03";
+
+/**
+ * Cobros y Gastos: los nombres de sus propiedades, como las captura el equipo. La base y las de
+ * comisionistas, cuentas y categorías van en la configuración del conector (`base_pagos`,
+ * `base_comisionistas`, `base_cuentas`, `base_categorias`, `categoria_pagos`, `entidad_pagos`).
+ */
+const COBROS = {
+  tipo: "Tipo de cuenta",
+  entidad: "Entidad",
+  descripcion: "Descripción",
+  monto: "Monto Reportado",
+  fecha: "Fecha del Movimiento",
+  comisionista: "Ext Comisionista",
+  cuenta: "Cuenta",
+  categoria: "Categoría",
+} as const;
+
+/** Notion da ids con guiones; Tasa los guarda sin ellos. */
+export const sinGuiones = (id: string) => id.replace(/-/g, "").toLowerCase();
+
+const dosDecimales = (n: number) => Math.round(n * 100) / 100;
+
+/** "26/11/10-": el prefijo del título de los movimientos del día, como los numera el equipo. */
+export function prefijoDelDia(fecha: string): string {
+  const [a, m, d] = fecha.slice(0, 10).split("-");
+  return `${a.slice(2)}/${m}/${d}-`;
+}
+
+/** El siguiente consecutivo del día a partir de los títulos que ya existen ("26/11/10-003" → 4). */
+export function siguienteConsecutivo(titulos: string[], prefijo: string): number {
+  let mayor = 0;
+  for (const t of titulos) {
+    if (!t.startsWith(prefijo)) continue;
+    const n = Number(t.slice(prefijo.length).match(/^\d+/)?.[0]);
+    if (Number.isFinite(n) && n > mayor) mayor = n;
+  }
+  return mayor + 1;
+}
+
+/** Las descripciones de los movimientos del pago (y de su anulación). */
+export function descripcionesDePago(p: PagoPorRegistrar): { comision: string; bono: string } {
+  const detalle = [p.folios, p.origen, p.referencia ? `ref. ${p.referencia}` : null].filter(Boolean).join(" · ");
+  const pie = `Registrado desde Tasa${p.registro ? ` por ${p.registro}` : ""}`;
+  const anulado = p.anular ? "ANULACIÓN · " : "";
+  return {
+    comision: `${anulado}Pago de comisión externa a ${p.comisionista}${detalle ? `: ${detalle}` : ""} · ${pie}`,
+    bono: `${anulado}Bono de referido pagado a ${p.comisionista} (no entra en su Saldo de comisiones)${detalle ? `: ${detalle}` : ""} · ${pie}`,
+  };
+}
 
 type Propiedades = Record<string, unknown>;
 
@@ -110,13 +170,13 @@ export function leerTramiteExterno(pagina: PaginaNotion, mapeo: Record<string, s
 }
 
 /** De la respuesta de error de Notion a una falla que admin_org entienda. */
-export function fallaDeNotion(status: number, cuerpo: { code?: string; message?: string }): FallaConector {
+export function fallaDeNotion(status: number, cuerpo: { code?: string; message?: string }, base = "Trámites"): FallaConector {
   const mensaje = cuerpo.message ?? `Notion respondió ${status}`;
   if (status === 401 || cuerpo.code === "unauthorized") {
     return new FallaConector("credencial_invalida", "Notion rechazó la credencial: revisa el secreto de la integración.");
   }
   if (status === 404 || status === 403 || cuerpo.code === "object_not_found" || cuerpo.code === "restricted_resource") {
-    return new FallaConector("inaccesible", "La integración no ve la base de Trámites: conéctala en Notion (⋯ → Conexiones).");
+    return new FallaConector("inaccesible", `La integración no ve la base de ${base}: conéctala en Notion (⋯ → Conexiones).`);
   }
   if (status === 429 || cuerpo.code === "rate_limited") {
     return new FallaConector("limite", "Notion pidió esperar (límite de llamadas). Se reintenta en la siguiente vuelta.");
@@ -131,15 +191,64 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
   const base = config.configuracion.base_de_datos;
   const mapeo = config.mapeo_campos;
 
-  async function notion<T>(ruta: string, metodo: "GET" | "POST" | "PATCH", cuerpo?: unknown): Promise<T> {
+  async function notion<T>(ruta: string, metodo: "GET" | "POST" | "PATCH", cuerpo?: unknown, version = VERSION, que = "Trámites"): Promise<T> {
     const r = await llamar(`${API}${ruta}`, {
       method: metodo,
-      headers: { Authorization: `Bearer ${credencial}`, "Notion-Version": VERSION, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${credencial}`, "Notion-Version": version, "Content-Type": "application/json" },
       body: cuerpo ? JSON.stringify(cuerpo) : undefined,
     });
     const json = await r.json().catch(() => ({}));
-    if (!r.ok) throw fallaDeNotion(r.status, json as { code?: string; message?: string });
+    if (!r.ok) throw fallaDeNotion(r.status, json as { code?: string; message?: string }, que);
     return json as T;
+  }
+
+  /** Una base leída por su fuente de datos (`configuracion[clave]`). */
+  function fuente(clave: string, que: string) {
+    const id = config.configuracion[clave]?.trim();
+    if (!id) throw new FallaConector("inaccesible", `Falta la base de ${que} en la configuración del conector (${clave}).`);
+    let titulo: string | null = null;
+    const llamarFuente = <T>(ruta: string, metodo: "GET" | "POST" | "PATCH", cuerpo?: unknown) =>
+      notion<T>(ruta, metodo, cuerpo, VERSION_FUENTES, que);
+    return {
+      id,
+      llamar: llamarFuente,
+      /** El nombre de su propiedad de título (Name, Projects…). */
+      async titulo() {
+        if (!titulo) {
+          const ds = await llamarFuente<{ properties: Record<string, { type: string }> }>(`/data_sources/${id}`, "GET");
+          titulo = Object.entries(ds.properties).find(([, p]) => p.type === "title")?.[0] ?? null;
+          if (!titulo) throw new FallaConector("propiedad_no_encontrada", `La base de ${que} no tiene título.`);
+        }
+        return titulo;
+      },
+      async buscar(filtroTitulo: Record<string, string>, maximo = 100): Promise<{ id: string; titulo: string }[]> {
+        const prop = await this.titulo();
+        const r = await llamarFuente<{ results: { id: string; properties: Record<string, { title?: { plain_text: string }[] }> }[] }>(
+          `/data_sources/${id}/query`, "POST", { filter: { property: prop, title: filtroTitulo }, page_size: maximo });
+        return r.results.map((p) => ({ id: sinGuiones(p.id), titulo: (p.properties[prop]?.title ?? []).map((x) => x.plain_text).join("") }));
+      },
+    };
+  }
+
+  /** La página cuyo título es exactamente ese nombre (cuentas, categorías). */
+  async function porNombre(clave: string, que: string, nombre: string | null | undefined): Promise<string | null> {
+    if (!nombre?.trim()) return null;
+    const exacto = nombre.trim().toLowerCase();
+    return (await fuente(clave, que).buscar({ equals: nombre.trim() }, 10)).find((p) => p.titulo.trim().toLowerCase() === exacto)?.id ?? null;
+  }
+
+  /** Escribe un número y una relación del trámite (comisión directa o bono de referido). */
+  async function escribirMontoYRelacion(externoId: string, claveMonto: string, claveRelacion: string, monto: number, pagina: string | null) {
+    const nMonto = mapeo[claveMonto]?.trim();
+    const nRelacion = mapeo[claveRelacion]?.trim();
+    if (!nMonto || !nRelacion) {
+      throw new FallaConector("propiedad_no_encontrada", `Faltan "${claveMonto}" y "${claveRelacion}" en el mapeo del conector.`);
+    }
+    if (!(await existe(externoId))) return false;
+    await notion(`/pages/${externoId}`, "PATCH", {
+      properties: { [nMonto]: { number: dosDecimales(monto) }, [nRelacion]: { relation: pagina ? [{ id: pagina }] : [] } },
+    });
+    return true;
   }
 
   /** Borrada (404) o en la papelera / archivada: para Tasa ya no existe. */
@@ -212,6 +321,71 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
       if (!(await existe(externoId))) return false;
       await notion(`/pages/${externoId}`, "PATCH", { properties: { [nombre]: { rich_text: texto(nombreComisionista) } } });
       return true;
+    },
+
+    actualizarComision(externoId, monto, pagina) {
+      return escribirMontoYRelacion(externoId, "ext_comision", "ext_comisionista", monto, pagina);
+    },
+
+    actualizarReferido(externoId, monto, pagina) {
+      return escribirMontoYRelacion(externoId, "ref_bono", "ref_comisionista", monto, pagina);
+    },
+
+    async buscarComisionistas(nombre) {
+      const r = await fuente("base_comisionistas", "comisionistas").buscar({ contains: nombre.trim() }, 20);
+      return r.map((p): PaginaComisionista => ({ id: p.id, nombre: p.titulo }));
+    },
+
+    async crearComisionista(nombre) {
+      const base = fuente("base_comisionistas", "comisionistas");
+      const pagina = await base.llamar<{ id: string }>("/pages", "POST", {
+        parent: { type: "data_source_id", data_source_id: base.id },
+        properties: { [await base.titulo()]: { title: texto(nombre.trim()) } },
+      });
+      return { id: sinGuiones(pagina.id), nombre: nombre.trim() };
+    },
+
+    async registrarPago(p) {
+      const cobros = fuente("base_pagos", "Cobros y Gastos");
+      const [cuenta, categoria, prop] = await Promise.all([
+        porNombre("base_cuentas", "cuentas", p.cuenta),
+        porNombre("base_categorias", "categorías", config.configuracion.categoria_pagos),
+        cobros.titulo(),
+      ]);
+      const prefijo = prefijoDelDia(p.fecha);
+      let n = siguienteConsecutivo((await cobros.buscar({ starts_with: prefijo })).map((x) => x.titulo), prefijo);
+      const signo = p.anular ? -1 : 1;
+      const desc = descripcionesDePago(p);
+      const comision = dosDecimales(p.monto - p.bono);
+      const movimientos = [
+        { monto: comision, relacion: p.pagina, descripcion: desc.comision },
+        { monto: dosDecimales(p.bono), relacion: null, descripcion: desc.bono },
+      ].filter((m) => m.monto > 0);
+
+      const ids: string[] = [];
+      for (const m of movimientos) {
+        const pagina = await cobros.llamar<{ id: string }>("/pages", "POST", {
+          parent: { type: "data_source_id", data_source_id: cobros.id },
+          properties: {
+            [prop]: { title: texto(`${prefijo}${String(n++).padStart(3, "0")}`) },
+            [COBROS.tipo]: { select: { name: "Gasto" } },
+            ...(config.configuracion.entidad_pagos ? { [COBROS.entidad]: { select: { name: config.configuracion.entidad_pagos } } } : {}),
+            [COBROS.descripcion]: { rich_text: texto(m.descripcion) },
+            [COBROS.monto]: { number: signo * m.monto },
+            [COBROS.fecha]: { date: { start: p.fecha.slice(0, 10) } },
+            [COBROS.comisionista]: { relation: m.relacion ? [{ id: m.relacion }] : [] },
+            [COBROS.cuenta]: { relation: cuenta ? [{ id: cuenta }] : [] },
+            [COBROS.categoria]: { relation: categoria ? [{ id: categoria }] : [] },
+          },
+        });
+        ids.push(sinGuiones(pagina.id));
+      }
+      const faltas = [
+        cuenta ? null : p.cuenta ? `sin Cuenta (no encontré "${p.cuenta}" en Cuentas MGP)` : "sin Cuenta (el origen del pago no tiene cuenta de Notion)",
+        p.pagina || comision <= 0 ? null : "sin Ext Comisionista (no tiene Página en Notion)",
+        categoria || !config.configuracion.categoria_pagos ? null : `sin Categoría (no encontré "${config.configuracion.categoria_pagos}")`,
+      ].filter(Boolean);
+      return { ids, avisos: faltas.length ? faltas.join(", ") : null };
     },
 
     async buscarPorFolio(folio) {

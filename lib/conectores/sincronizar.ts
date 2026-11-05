@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conectorNotion } from "./notion";
-import { FallaConector, type ConfigConector, type Conector, type TramitePorCrear } from "./tipos";
+import { FallaConector, type ConfigConector, type Conector, type PagoPorRegistrar, type TramitePorCrear } from "./tipos";
 
 /**
  * Una vuelta del cron para un conector: crear lo nuevo afuera, leer lo
@@ -120,6 +120,48 @@ export async function sincronizarConector(
         error = falla instanceof Error ? falla.message : String(falla);
       }
       await registrar(supabase, "registrar_solicitado_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_error: error });
+    }
+
+    // 7 y 8. Comisión directa ("Ext Comisión") y, al aprobar el cierre, bono de referido ("Ref Bono"). Solo con
+    //    las propiedades en el mapeo; si faltan, quedan pendientes. Igual que "Solicitado por": alerta y sigue.
+    const pasos = [
+      { mapeo: "ext_comision", leer: "por_actualizar_comision_afuera", anotar: "registrar_comision_afuera",
+        escribir: (id: string, monto: number, pagina: string | null) => conector.actualizarComision(id, monto, pagina) },
+      { mapeo: "ref_bono", leer: "por_actualizar_ref_afuera", anotar: "registrar_ref_afuera",
+        escribir: (id: string, monto: number, pagina: string | null) => conector.actualizarReferido(id, monto, pagina) },
+    ];
+    for (const paso of pasos) {
+      if (!config.mapeo_campos[paso.mapeo]) continue;
+      const { data: porEscribir, error: errorLeer } = await supabase.rpc(paso.leer, { p_conector: config.id });
+      if (errorLeer) throw new Error(errorLeer.message);
+      for (const x of (porEscribir ?? []) as { solicitud_id: string; externo_id: string; monto: string | number; pagina: string | null }[]) {
+        let error: string | null = null;
+        try {
+          if (!(await paso.escribir(x.externo_id, Number(x.monto), x.pagina))) error = "la página ya no existe";
+        } catch (falla) {
+          if (falla instanceof FallaConector && falla.codigo === "limite") continue;
+          error = falla instanceof Error ? falla.message : String(falla);
+        }
+        await registrar(supabase, paso.anotar, { p_conector: config.id, p_solicitud: x.solicitud_id, p_monto: Number(x.monto), p_error: error });
+      }
+    }
+
+    // 9. Pagos de comisión (y sus anulaciones) → Cobros y Gastos. Solo si la base está configurada.
+    if (config.configuracion.base_pagos) {
+      const { data: pagos, error: errorPagos } = await supabase.rpc("por_registrar_pagos_afuera", { p_conector: config.id });
+      if (errorPagos) throw new Error(errorPagos.message);
+      for (const p of (pagos ?? []) as (Omit<PagoPorRegistrar, "monto" | "bono"> & { monto: string | number; bono: string | number })[]) {
+        let ids: string[] = [];
+        let avisos: string | null = null;
+        let error: string | null = null;
+        try {
+          ({ ids, avisos } = await conector.registrarPago({ ...p, monto: Number(p.monto), bono: Number(p.bono) }));
+        } catch (falla) {
+          if (falla instanceof FallaConector && falla.codigo === "limite") continue;
+          error = falla instanceof Error ? falla.message : String(falla);
+        }
+        await registrar(supabase, "registrar_pago_afuera", { p_conector: config.id, p_pago: p.pago_id, p_ids: ids, p_avisos: avisos, p_error: error });
+      }
     }
 
     await registrar(supabase, "registrar_sync_ok", { p_conector: config.id });

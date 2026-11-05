@@ -4,7 +4,7 @@ import { Etiqueta } from "@/components/etiqueta";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { ActivarNotion, ConfigNotion, VolverAManualBoton, type DatosNotion } from "./conector-notion";
-import FormularioAjustes, { FilaOrigen, FormularioPrefijo, FormularioUltimoFolio } from "./formulario-ajustes";
+import FormularioAjustes, { FormularioPrefijo, FormularioUltimoFolio } from "./formulario-ajustes";
 
 export const metadata = { title: "Ajustes — Tasa" };
 
@@ -25,7 +25,7 @@ export default async function Ajustes() {
   const persona = await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
 
-  const [ajustes, origenes, organizacion, conector] = await Promise.all([
+  const [ajustes, organizacion, conector] = await Promise.all([
     supabase
       .from("ajustes")
       .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo, referido_vigencia_meses, liga_max_por_telefono, liga_max_por_conexion, nota_tarjeta, nota_liga, nota_pdf, nota_version, nota_actualizada_en, finanzas_asigna")
@@ -48,12 +48,6 @@ export default async function Ajustes() {
         nota_actualizada_en: string | null;
         finanzas_asigna: boolean;
       } | null>(),
-    supabase
-      .from("origenes_pago")
-      .select("id, nombre, activo")
-      .order("orden")
-      .order("nombre")
-      .returns<{ id: string; nombre: string; activo: boolean }[]>(),
     supabase
       .from("organizaciones")
       .select("prefijo_folio")
@@ -157,19 +151,6 @@ export default async function Ajustes() {
               prefijo={oExplota(organizacion, "la organización")?.prefijo_folio ?? ""}
               ultimo={typeof ultimoFolio.data === "number" ? ultimoFolio.data : null}
             />
-          </section>
-
-          <section className="mt-10">
-            <h2 className="text-[1.125rem] font-bold">Origen del dinero</h2>
-            <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
-              De dónde sale el pago de una comisión. Solo lo ve Administración; el comisionista nunca.
-            </p>
-            <div className="mt-3 flex flex-col gap-2">
-              {(oExplota(origenes, "los orígenes") ?? []).map((o) => (
-                <FilaOrigen key={o.id} id={o.id} nombre={o.nombre} activo={o.activo} />
-              ))}
-              <FilaOrigen />
-            </div>
           </section>
         </div>
       </main>

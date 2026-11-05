@@ -11,7 +11,8 @@ export const metadata = { title: "Alertas — Tasa" };
 
 type Fila = {
   id: string;
-  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector";
+  tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector"
+    | "externo_comision" | "notion_sin_pagina" | "notion_pago";
   codigo: string | null;
   mensaje: string;
   creada_en: string;
@@ -87,6 +88,14 @@ export default async function Alertas() {
                   <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>.
                   Mientras tanto, su tarjeta sigue con el perfil anterior.
                 </p>
+              ) : a.tipo === "notion_sin_pagina" ? (
+                <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
+                  {persona.rol === "admin_org" ? "Lígalo en " : "Lo liga Administración en "}
+                  <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>
+                  {" "}(Página en Notion). Se cierra sola al ligarlo; lo ya escrito se corrige a mano en Notion.
+                </p>
+              ) : a.tipo === "notion_pago" ? (
+                persona.rol === "admin_org" ? <CerrarAlerta alertaId={a.id} /> : null
               ) : a.tipo === "liga_limite" ? (
                 /^[0-9]{10}$/.test(a.codigo ?? "") ? (
                   persona.rol === "admin_org" || persona.rol === "finanzas" ? <LiberarTelefono alertaId={a.id} /> : null

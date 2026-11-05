@@ -4,7 +4,7 @@ import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { VistaEstadoDeCuenta } from "@/components/vista-estado-de-cuenta";
 import { estatusVisible, type EstatusPublico } from "@/lib/estatus";
-import { fechaCorta, mesLargo, pesos } from "@/lib/formato";
+import { fechaCorta, mesTitulo, pesos } from "@/lib/formato";
 import { esStaff, exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import type { FilaComisionista } from "../page";
@@ -12,7 +12,7 @@ import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
 import { leerPerfil } from "@/lib/perfil";
-import { AgregarMovimiento, CambiarActivo, CambiarVinculo, DecidirPerfil, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, PonerPerfil, TasaDeBienvenida } from "./formularios";
+import { AgregarMovimiento, CambiarActivo, CambiarVinculo, DecidirPerfil, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, PaginaNotion, PonerPerfil, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
 
@@ -30,6 +30,8 @@ type Ficha = {
   curp: string | null;
   codigo_referido: string;
   clabe_cobro: string | null;
+  notion_pagina: string | null;
+  notion_nombre: string | null;
   referido_desde: string | null;
   csf_ruta: string | null;
   csf_subida_en: string | null;
@@ -58,7 +60,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
     supabase
       .from("comisionistas")
       .select(
-        "persona_id, slug, rfc, curp, codigo_referido, clabe_cobro, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por, referido_por_miembro_desde, invito:personas!comisionistas_referido_por_miembro_fkey(nombre:nombre_visible)"
+        "persona_id, slug, rfc, curp, codigo_referido, clabe_cobro, notion_pagina, notion_nombre, referido_desde, csf_ruta, csf_subida_en, emite_factura, porcentaje_forzado, elite_vence, trato_inicial, trato_nivel_id, trato_desde, trato_hasta, fecha_alta, personas!comisionistas_persona_id_fkey(nombre, correo, telefono, activo), referido_por, referido_por_miembro_desde, invito:personas!comisionistas_referido_por_miembro_fkey(nombre:nombre_visible)"
       )
       .eq("persona_id", id)
       .maybeSingle()
@@ -180,6 +182,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           {perfil.rechazo ? <Dato etiqueta="Último rechazo" valor={perfil.rechazo} /> : null}
           <Dato etiqueta="Código de referido" valor={f.codigo_referido} />
           {staff ? <Dato etiqueta="CLABE de cobro" valor={f.clabe_cobro ?? "— (no la ha capturado)"} /> : null}
+          {staff ? <Dato etiqueta="Página en Notion" valor={f.notion_pagina ? (f.notion_nombre ?? "ligada") : "— (sin ligar)"} /> : null}
           <Dato etiqueta="Alta" valor={fechaCorta(f.fecha_alta)} />
           {referido ? (
             <Dato etiqueta="Referido por" valor={`${referido}${f.referido_desde ? ` (desde el ${fechaCorta(f.referido_desde)})` : ""}`} />
@@ -209,6 +212,9 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
         ) : null}
         {superAdmin && perfil.solicitado ? <DecidirPerfil personaId={id} solicitado={perfil.solicitado} /> : null}
         {superAdmin ? <PonerPerfil personaId={id} actual={perfil.otro ? null : perfil.perfilId} opciones={perfil.opciones} /> : null}
+        {superAdmin ? (
+          <PaginaNotion personaId={id} nombre={f.personas.nombre} ligada={f.notion_pagina ? (f.notion_nombre ?? "ligada") : null} />
+        ) : null}
         {staff ? (
           <EditarDatos
             personaId={id}
@@ -298,7 +304,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
             {listaPendientes.map((p) => (
               <li key={p.id} className="flex items-start justify-between gap-3 rounded-lg border border-linea px-4 py-3 text-[0.9375rem]">
                 <span>
-                  <span className="block font-semibold capitalize">{mesLargo(p.mes)}</span>
+                  <span className="block font-semibold">{mesTitulo(p.mes)}</span>
                   <span className="block text-secundario">
                     {pesos(Number(p.monto))} · pagado {pesos(Number(p.pagado))}
                     {f.emite_factura ? (p.factura_ruta ? " · con factura" : " · sin factura") : ""}
@@ -388,7 +394,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           <ul className="flex flex-col">
             {(oExplota(niveles, "los niveles") ?? []).map((n, i) => (
               <li key={n.mes} className={`flex justify-between gap-3 rounded px-2 py-2 text-[0.9375rem] ${i % 2 ? "bg-alterno" : ""}`}>
-                <span className="capitalize">{mesLargo(n.mes)}</span>
+                <span>{mesTitulo(n.mes)}</span>
                 <span>
                   <span className="font-semibold">{n.niveles?.nombre} · {Number(n.porcentaje)}%</span>
                   <span className="text-secundario"> · prom. {pesos(Number(n.promedio))}</span>

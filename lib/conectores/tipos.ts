@@ -88,4 +88,34 @@ export interface Conector {
   existe(externoId: string): Promise<boolean>;
   /** Reescribe el honorario ("Cotización") al fijarse el final de un estimado. Falso si el registro ya no existe. */
   actualizarMonto(externoId: string, monto: number): Promise<boolean>;
+  /** "Ext Comisionista" + "Ext Comisión" del trámite (relación vacía si no hay página). Falso si el registro ya no existe. */
+  actualizarComision(externoId: string, monto: number, pagina: string | null): Promise<boolean>;
+  /** "Ref Comisionista" + "Ref Bono" del trámite, al aprobar el cierre. Falso si el registro ya no existe. */
+  actualizarReferido(externoId: string, monto: number, pagina: string | null): Promise<boolean>;
+  /** Movimientos del pago (o su anulación) en Cobros y Gastos: ids creados y, si quedó incompleto, qué faltó. */
+  registrarPago(pago: PagoPorRegistrar): Promise<{ ids: string[]; avisos: string | null }>;
+  /** Páginas de la base de comisionistas cuyo nombre contiene el texto. */
+  buscarComisionistas(nombre: string): Promise<PaginaComisionista[]>;
+  /** Crea la página del comisionista en la base de comisionistas. */
+  crearComisionista(nombre: string): Promise<PaginaComisionista>;
 }
+
+export type PaginaComisionista = { id: string; nombre: string };
+
+/** Un pago de comisión (o su anulación) para Cobros y Gastos. */
+export type PagoPorRegistrar = {
+  pago_id: string;
+  anular: boolean;
+  fecha: string;
+  monto: number;
+  /** Parte del pago que es bono de referido: va en un movimiento aparte, sin relación al comisionista. */
+  bono: number;
+  comisionista: string;
+  pagina: string | null;
+  /** Nombre exacto de la cuenta en Notion (Catálogos → Cuentas para pagar comisiones). */
+  cuenta: string | null;
+  origen: string | null;
+  referencia: string | null;
+  folios: string | null;
+  registro: string | null;
+};

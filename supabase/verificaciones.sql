@@ -3463,6 +3463,101 @@ begin
 end;
 $$;
 
+-- @@ Comisiones en Notion
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  k    uuid := pg_temp.notion_xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  m    date := '2031-01-01';
+  q    uuid;
+  s    uuid;
+  o    uuid;
+  pen  uuid;
+  pago uuid;
+  pag  text := 'ab12cd34ef56ab12cd34ef56ab12cd34';
+begin
+  perform pg_temp.sistema();
+  update conectores set activo = false where organizacion_id = xg and id <> k;
+  update conectores set activo = true where id = k;
+  q := pg_temp.comisionista('Ref Notion', ana);
+  s := pg_temp.pagado(q, 10000, m);
+  update solicitudes set externo_id = 'pagina-comision-1' where id = s;
+  perform pg_temp.igual((select externo_comision_pendiente from solicitudes where id = s), false, 'Sin comisión todavía: nada pendiente');
+
+  -- 1. Comisión directa: al quedar pagado (nace la comisión) queda pendiente; sin página, alerta.
+  insert into comisiones (comisionista_id, solicitud_id, tipo, base, porcentaje, monto, mes, nota)
+  values (q, s, 'comision', 10000, 10, 1000, m, 'Prueba Notion');
+  perform pg_temp.igual((select monto from por_actualizar_comision_afuera(k) where solicitud_id = s), 1000.00::numeric,
+    'Ext Comisión: el 10 % de su nivel');
+  perform pg_temp.igual((select pagina from por_actualizar_comision_afuera(k) where solicitud_id = s), null::text, 'Sin página ligada');
+  perform registrar_comision_afuera(k, s, 1000, null);
+  perform pg_temp.igual((select externo_comision_pendiente from solicitudes where id = s), false, 'Escrita: deja de estar pendiente');
+  perform pg_temp.igual((select count(*) from eventos_trabajo where solicitud_id = s and accion = 'notion_comision'), 1::bigint, 'Queda en el historial');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_sin_pagina' and codigo = q::text and resuelta_en is null), 1::bigint,
+    'Sin "Página en Notion": se escribe el monto y sale alerta');
+
+  -- Ligarla (solo admin_org) cierra la alerta; un ajuste vuelve a escribir el monto.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select ligar_pagina_notion(%L, %L, %L)', q, pag, 'Ref'), 'Solo admin_org', 'El comisionista no se liga solo');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select ligar_pagina_notion(%L, %L, %L)', q, 'no-es-pagina', 'Ref'), 'no es una página', 'Solo ids de Notion');
+  perform ligar_pagina_notion(q, 'AB12CD34-EF56-AB12-CD34-EF56AB12CD34', 'Ref Notion');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select notion_pagina from comisionistas where persona_id = q), pag, 'Se guarda sin guiones');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_sin_pagina' and codigo = q::text and resuelta_en is null), 0::bigint,
+    'Ligarla cierra la alerta');
+  insert into comisiones (comisionista_id, solicitud_id, tipo, monto, mes, nota) values (q, s, 'ajuste', -200, m, 'Tope de 30 %');
+  perform pg_temp.igual((select monto || ' ' || pagina from por_actualizar_comision_afuera(k) where solicitud_id = s), '800.00 ' || pag,
+    'Un ajuste cambia el monto, ya con la relación');
+  perform registrar_comision_afuera(k, s, 800, 'la página ya no existe');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = s and tipo = 'externo_comision' and resuelta_en is null), 1::bigint,
+    'Si Notion falla: alerta y no se reintenta');
+  perform pg_temp.igual((select count(*) from por_actualizar_comision_afuera(k) where solicitud_id = s), 0::bigint, 'Ya no está pendiente');
+  insert into comisiones (comisionista_id, solicitud_id, tipo, monto, mes, nota) values (q, s, 'cargo', -900, m, 'Cancelado');
+  perform pg_temp.igual((select monto from por_actualizar_comision_afuera(k) where solicitud_id = s), 0.00::numeric,
+    'Cancelado: Ext Comisión 0, nunca negativa');
+  perform registrar_comision_afuera(k, s, 0, null);
+
+  -- 2. Bono de referido: SOLO al aprobar el cierre.
+  insert into comisiones (comisionista_id, solicitud_id, tipo, base, porcentaje, monto, mes, nota)
+  values (ana, s, 'referido', 10000, 3, 300, m, 'Bono de referidos');
+  perform pg_temp.igual((select externo_ref_pendiente from solicitudes where id = s), false, 'El bono no se escribe antes del cierre');
+  insert into cierres (organizacion_id, mes, estado) values (xg, m, 'preparado');
+  update cierres set estado = 'aprobado', aprobado_en = now() where organizacion_id = xg and mes = m;
+  perform pg_temp.igual((select monto || ' ' || beneficiario from por_actualizar_ref_afuera(k) where solicitud_id = s), '300.00 ' || ana,
+    'Al aprobar el cierre: el bono que ese trabajo generó y para quién');
+  perform registrar_ref_afuera(k, s, 300, null);
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_sin_pagina' and codigo = ana::text and resuelta_en is null), 1::bigint,
+    'Quien refirió sin página: alerta');
+  perform pg_temp.igual((select count(*) from eventos_trabajo where solicitud_id = s and accion = 'notion_referido'), 1::bigint, 'Queda en el historial');
+
+  -- 3. Pago (día 10) → Cobros y Gastos, con el bono aparte; anularlo crea el movimiento en negativo.
+  select id into o from origenes_pago where organizacion_id = xg order by orden limit 1;
+  update origenes_pago set notion_cuenta = 'Scotiabank XG 4246' where id = o;
+  insert into pendientes_comision (organizacion_id, comisionista_id, cierre_id, mes, monto)
+  values (xg, ana, (select id from cierres where organizacion_id = xg and mes = m), m, 300) returning id into pen;
+  insert into pagos_comision (organizacion_id, comisionista_id, fecha, monto, origen_id, documento, referencia)
+  values (xg, ana, '2031-02-10', 300, o, 'ninguno', 'SPEI 77') returning id into pago;
+  insert into aplicaciones_pago_comision (organizacion_id, pago_id, pendiente_id, monto) values (xg, pago, pen, 300);
+  perform pg_temp.igual((select bono || ' ' || cuenta || ' ' || referencia from por_registrar_pagos_afuera(k) where pago_id = pago),
+    '300.00 Scotiabank XG 4246 SPEI 77', 'El pago: su parte de bono y la cuenta de Notion del origen');
+  perform registrar_pago_afuera(k, pago, array['p1'], null, null);
+  perform pg_temp.igual((select externo_ids from pagos_comision where id = pago), array['p1'], 'Guarda la página creada');
+  perform pg_temp.igual((select count(*) from por_registrar_pagos_afuera(k) where pago_id = pago), 0::bigint, 'Y no lo vuelve a escribir');
+  update pagos_comision set estado = 'anulado', motivo_anulacion = 'Prueba' where id = pago;
+  perform pg_temp.igual((select anular from por_registrar_pagos_afuera(k) where pago_id = pago), true, 'Anularlo queda pendiente en Notion');
+  perform registrar_pago_afuera(k, pago, array['p2'], 'sin Cuenta', null);
+  perform pg_temp.igual((select externo_ids from pagos_comision where id = pago), array['p1', 'p2'], 'Se suma la anulación');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_pago' and codigo = pago::text and resuelta_en is null), 1::bigint,
+    'Escrito incompleto: alerta');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select registrar_comision_afuera(%L, %L, 1, null)', k, s), 'Solo admin_org', 'Finanzas no registra escrituras del conector');
+  perform pg_temp.sistema();
+end;
+$$;
+
 -- @@ Dos admin_org
 -- Alguien del equipo pasa a admin_org sobre su misma membresía (como Alex en XG):
 -- conserva su código, pierde el bono, y los dos administradores ven y deciden lo mismo.

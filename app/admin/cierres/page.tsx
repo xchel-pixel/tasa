@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
-import { mesActual, mesLargo, pesos } from "@/lib/formato";
+import { mesActual, mesTitulo, pesos } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 
@@ -41,7 +41,7 @@ export default async function Cierres() {
             <li key={m}>
               <Link href={`/admin/cierres/${m.slice(0, 7)}`} className="flex items-center justify-between gap-3 rounded-xl border border-linea bg-alterno px-4 py-3">
                 <span>
-                  <span className="block font-semibold capitalize">{mesLargo(m)}</span>
+                  <span className="block font-semibold">{mesTitulo(m)}</span>
                   <span className="block text-[0.9375rem] text-secundario">{pesos(totales.get(m) ?? 0)} en comisiones</span>
                 </span>
                 <Etiqueta tono={e.tono}>{e.texto}</Etiqueta>
