@@ -12,7 +12,7 @@ export const metadata = { title: "Alertas — Tasa" };
 type Fila = {
   id: string;
   tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector"
-    | "externo_comision" | "notion_sin_pagina" | "notion_pago";
+    | "externo_comision" | "notion_sin_pagina" | "notion_pago" | "parametros_fiscales";
   codigo: string | null;
   mensaje: string;
   creada_en: string;
@@ -94,6 +94,12 @@ export default async function Alertas() {
                   <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>
                   {" "}(Página en Notion). Se cierra sola al ligarlo; lo ya escrito se corrige a mano en Notion.
                 </p>
+              ) : a.tipo === "parametros_fiscales" ? (
+                persona.rol === "admin_org" ? (
+                  <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
+                    Actualízalos en <Link href="/ajustes/parametros" className="font-semibold text-acento underline underline-offset-4">Parámetros fiscales</Link>; la del INPC se cierra sola al agregar el mes.
+                  </p>
+                ) : <p className="mt-2 text-[0.9375rem] text-secundario">La resuelve Administración.</p>
               ) : a.tipo === "notion_pago" ? (
                 persona.rol === "admin_org" ? <CerrarAlerta alertaId={a.id} /> : null
               ) : a.tipo === "liga_limite" ? (

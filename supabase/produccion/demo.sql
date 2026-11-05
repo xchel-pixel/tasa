@@ -480,6 +480,19 @@ begin
   perform pedir_alta('demo', 'Diego Referido Demo', 'diego@demo.test', '4429333301', 'DERD900101AB6', null, cod_ana, v_aviso, 'demo-ip-3', false);
   perform pedir_alta('demo', 'Elena Referida Demo', 'elena@demo.test', '4429333302', 'DERE900101AB7', null, cod_eq, v_aviso, 'demo-ip-4', false);
 
+  -- 9. Calculadora de traslado (0055): activa en DEMO; la completa, para Socio en adelante y el equipo (catálogo 0053).
+  perform sembrar_herramientas(v_demo);
+  perform sembrar_parametros_fiscales(v_demo);
+  update herramientas set activa = true where organizacion_id = v_demo and clave in ('calculadora_traslado', 'calculadora_traslado_completa');
+  delete from calculos_traslado where organizacion_id = v_demo;
+  delete from usos_herramienta where organizacion_id = v_demo;
+  -- Un cálculo de ejemplo para cada persona DEMO ("Mis cálculos" es solo de quien calculó): caso 01 de las skills.
+  insert into calculos_traslado (organizacion_id, persona_id, modo, referencia, municipio, lado, entrada, resultado)
+  select v_demo, p.id, 'rapida', 'Ejemplo DEMO · casa en Querétaro', 'Querétaro', 'C',
+         '{"fecha_firma":"2026-11-20","referencia":"Ejemplo DEMO · casa en Querétaro","operacion":"compraventa","donacion_exenta":false,"valor_catastral":0,"comprador":{"vivienda_primera":null,"incluir_avaluo":true,"certificados_gravamen":1},"vendedor":{"isr":null,"cancelar_hipoteca":0},"extemporaneo":null,"detalle":true,"lado":"C","municipio":"Querétaro","valor_operacion":2500000,"avaluo":2400000}'::jsonb,
+         '{"lado":"C","municipio":"Querétaro","fecha":"2026-11-20","vo":2500000,"va":2400000,"vk":0,"C":[["Impuestos","Impuesto sobre traslado de dominio (ISTD)",140772.41],["Honorarios notariales","Honorarios por la escritura",20711.7],["Honorarios notariales","Trámite de inscripción en el Registro Público",469.24],["Honorarios notariales","IVA de honorarios (16 %)",3388.95],["Derechos y trámites","Inscripción en el Registro Público",18750],["Derechos y trámites","Avisos preventivo y definitivo",703.86],["Derechos y trámites","Certificado de libertad de gravamen",586.55],["Derechos y trámites","Avalúo hacendario (incluye folio)",11300],["Derechos y trámites","IVA del avalúo (16 %)",1808]],"V":[],"totC":198490.71,"totV":0,"det":[["ISTD · Querétaro (Art. 15)",["Base: el mayor entre operación 2,500,000.00, comercial 2,400,000.00 → operación.","Cálculo: cuota fija 74,616.95 + (2,500,000.00 − 1,379,992.90) × 0.059067 = $140,772.41."]],["ISR por adquisición",["Avalúo no excede en más de 10 % el precio: no hay ISR por adquisición."]],["Honorarios notariales (Ley del Notariado, arts. 147 y 171-V)",["Base: el mayor entre operación, comercial y fiscal = $2,500,000.00.","36 UMA fijas + 140.56 UMA progresivas sobre 21,311.1 UMA = $20,711.70.","Trámite de inscripción 4 UMA = $469.24."]],["Registro Público de la Propiedad (LHEQ)",["7.5 al millar sobre 2,500,000.00 (LHEQ arts. 90, 97 y 110) = $18,750.00.","Avisos preventivo (4 UMA) y definitivo (2 UMA) = $703.86.","Certificado de libertad de gravamen 5 UMA × 1 = $586.55."]],["Avalúo hacendario",["Arancel del Consejo de Valuadores sobre $2,400,000.00 = $11,300.00 + IVA (incluye derechos de folio)."]]],"notas":["La ley excluye las deducciones de vivienda de interés social y popular.","Herencias y donaciones entre cónyuges y línea recta: estímulo del programa municipal (PEF-TP, de 40 % a 100 %), no incluido."],"mejora":null,"ley_istd":"Ley de Ingresos 2026 (P.O. No. 103, 25-XII-2025, pág. 50252)","SC":["El avalúo es menor al precio: el ISTD y los derechos se calculan sobre el precio pactado."],"SV":[],"avisos":[]}'::jsonb
+    from personas p where p.correo in ('xchel+demo-admin@arqosuv.com', 'xchel+demo-finanzas@arqosuv.com', 'xchel+demo-equipo@arqosuv.com', 'xchel+demo-ana@arqosuv.com');
+
   perform set_config('tasa.motivo', '', true);
 end;
 $$;

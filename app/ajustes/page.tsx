@@ -144,6 +144,12 @@ export default async function Ajustes() {
           </section>
 
           <section className="mt-10">
+            <h2 className="text-[1.125rem] font-bold">Parámetros fiscales</h2>
+            <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">UMA, UDI, INPC, recargos, tarifa del art. 126, arancel notarial, avalúo y tarifas de ISTD de la calculadora de traslado, con su vigencia.</p>
+            <Link href="/ajustes/parametros" className="toque mt-2 inline-block font-semibold text-acento underline underline-offset-4">Abrir parámetros fiscales</Link>
+          </section>
+
+          <section className="mt-10">
             <h2 className="text-[1.125rem] font-bold">Folios</h2>
             <FormularioPrefijo prefijo={oExplota(organizacion, "la organización")?.prefijo_folio ?? ""} />
             <FormularioUltimoFolio

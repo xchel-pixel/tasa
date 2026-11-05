@@ -51,6 +51,8 @@ type Datos = {
   tarjeta: string | null;
   /** El mes anterior, AAAA-MM. */
   mesCierre: string;
+  /** Un cálculo de traslado propio (Mis cálculos es solo de quien calculó). */
+  calculo: string | null;
 };
 
 type Pantalla = {
@@ -108,6 +110,11 @@ const PANTALLAS: Record<string, Pantalla> = {
     espera: OPERACION,
   },
   "/ajustes": { rutas: () => ["/ajustes"], espera: SOLO_ADMIN },
+  "/ajustes/parametros": { rutas: () => ["/ajustes/parametros"], espera: SOLO_ADMIN },
+  // Calculadora de traslado (0055): activa en XG y DEMO para todos; un cálculo guardado es de quien lo hizo (no se abre aquí).
+  "/calculadora": { rutas: () => ["/calculadora"], espera: TODOS },
+  "/calculadora/mis-calculos": { rutas: () => ["/calculadora/mis-calculos"], espera: TODOS },
+  "/calculadora/[id]": { rutas: (d) => [d.calculo && `/calculadora/${d.calculo}`], espera: TODOS },
   "/alta/[org]": { rutas: (d) => [`/alta/${d.org}`], espera: TODOS, publica: true },
   "/entrar": { rutas: () => ["/entrar"], espera: TODOS, publica: true },
   "/estado-de-cuenta": { rutas: () => ["/estado-de-cuenta"], espera: SOLO_COMISIONISTA },
@@ -193,6 +200,8 @@ async function datosPara(correo: string, rol: Rol, orgSlug: string): Promise<Dat
     // solicitudes_alta está cerrada aun para la clave secreta: el staff la toma de la pantalla.
     alta: staff ? null : NINGUNO,
     tarjeta: await tarjetaPublicada(db, org),
+    // Mis cálculos es privado aun para la clave secreta: se toma con la sesión de la persona (ver la prueba por rol).
+    calculo: null,
     mesCierre: anterior,
   };
 }
@@ -352,6 +361,8 @@ for (const q of QUIENES) {
       const { error } = await sesion.rpc("elegir_organizacion", { p_org: esperada?.id });
       if (error) throw new Error(`No se pudo elegir ${q.org} para ${q.correo}: ${error.message}`);
     }
+    // Su propio cálculo de traslado (RLS: solo de quien calculó; DEMO trae uno por persona).
+    datos.calculo = (await sesion.from("calculos_traslado").select("id").limit(1)).data?.[0]?.id ?? null;
     const problemas: string[] = [];
     let abiertas = 0;
     try {

@@ -6,7 +6,12 @@ import FormularioSolicitud from "./formulario-solicitud";
 
 export const metadata = { title: "Nueva solicitud — Tasa" };
 
-export default async function NuevaSolicitud() {
+/**
+ * Desde la calculadora de traslado llega con ?servicio=hacendario|comercial&municipio=…&clave=…&notas=… para
+ * dejar el formulario casi lleno; el cliente se captura aquí.
+ */
+export default async function NuevaSolicitud({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const q = await searchParams;
   await exigirRol("comisionista");
   const supabase = await crearClienteServidor();
   const servicios =
@@ -32,7 +37,12 @@ export default async function NuevaSolicitud() {
           <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
             Administración revisa los datos y te manda la cotización. Los montos los pone ella.
           </p>
-          <FormularioSolicitud servicios={servicios} />
+          <FormularioSolicitud servicios={servicios} inicial={{
+            servicio_id: q.servicio ? servicios.find((s) => s.nombre.toLowerCase().includes(q.servicio === "comercial" ? "comercial" : "hacendario"))?.id : undefined,
+            municipio: q.municipio?.slice(0, 80),
+            clave: q.clave?.slice(0, 40),
+            descripcion: q.notas?.slice(0, 600),
+          }} />
         </div>
       </main>
     </>

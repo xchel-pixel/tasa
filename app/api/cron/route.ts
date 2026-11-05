@@ -46,6 +46,9 @@ export async function POST(request: NextRequest) {
     // Pagos que recibió un comisionista y no entregó a la cuenta a tiempo: alerta para admin y finanzas.
     const { error: errorEntregas } = await supabase.rpc("alertar_entregas_vencidas");
     if (errorEntregas) console.error(`[tasa] No se pudieron revisar las entregas vencidas: ${errorEntregas.message}`);
+    // Calculadora de traslado: borra los cálculos de más de 90 días y avisa si el INPC o las tarifas quedaron viejos.
+    const { error: errorCalc } = await supabase.rpc("mantener_calculadora");
+    if (errorCalc) console.error(`[tasa] No se pudo mantener la calculadora: ${errorCalc.message}`);
     await limpiarAltas(supabase, Boolean(cuerpo.barrido_csf));
   }
 

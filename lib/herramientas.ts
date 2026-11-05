@@ -1,5 +1,5 @@
 import { cache } from "react";
-import type { Persona } from "@/lib/sesion";
+import type { Persona, Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 /** Las herramientas del catálogo (0053). La base decide quién ve cuál, por rol y nivel. */
@@ -17,6 +17,9 @@ export const misHerramientas = cache(async (): Promise<Herramienta[]> => {
 export async function tengoHerramienta(clave: ClaveHerramienta): Promise<boolean> {
   return (await misHerramientas()).some((h) => h.clave === clave);
 }
+
+/** Para pantallas de herramientas que puede abrir cualquier rol (el catálogo decide quién la ve). */
+export const TODOS_LOS_ROLES: Rol[] = ["admin_org", "finanzas", "admin_marca", "equipo", "comisionista"];
 
 export type EntradaMenu = { href: string; texto: string };
 

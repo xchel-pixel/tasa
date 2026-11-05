@@ -7,7 +7,10 @@ import { crearSolicitud, type EstadoSolicitud } from "./acciones";
 const ENTRADA =
   "mt-2 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
-export default function FormularioSolicitud({ servicios }: { servicios: { id: string; nombre: string }[] }) {
+export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string };
+
+/** `inicial`: lo que trae la liga de la calculadora de traslado (servicio, municipio, clave y notas). */
+export default function FormularioSolicitud({ servicios, inicial = {} }: { servicios: { id: string; nombre: string }[]; inicial?: InicialSolicitud }) {
   const [estado, enviar] = useActionState<EstadoSolicitud, FormData>(crearSolicitud, { error: null });
 
   return (
@@ -31,7 +34,7 @@ export default function FormularioSolicitud({ servicios }: { servicios: { id: st
 
       <div>
         <label htmlFor="servicio_id" className="block font-semibold">Servicio</label>
-        <select id="servicio_id" name="servicio_id" required defaultValue="" className={ENTRADA}>
+        <select id="servicio_id" name="servicio_id" required defaultValue={inicial.servicio_id ?? ""} className={ENTRADA}>
           <option value="" disabled>Elige uno</option>
           {servicios.map((s) => (
             <option key={s.id} value={s.id}>{s.nombre}</option>
@@ -42,8 +45,8 @@ export default function FormularioSolicitud({ servicios }: { servicios: { id: st
       <fieldset className="flex flex-col gap-4">
         <legend className="text-[1.125rem] font-bold">Inmueble</legend>
         <Campo id="inmueble_direccion" etiqueta="Dirección" requerido autoComplete="street-address" />
-        <Campo id="inmueble_municipio" etiqueta="Municipio" opcional />
-        <Campo id="inmueble_clave_catastral" etiqueta="Clave catastral" opcional />
+        <Campo id="inmueble_municipio" etiqueta="Municipio" opcional inicial={inicial.municipio} />
+        <Campo id="inmueble_clave_catastral" etiqueta="Clave catastral" opcional inicial={inicial.clave} />
         <div>
           <label htmlFor="inmueble_descripcion" className="block font-semibold">
             Descripción <span className="font-normal text-secundario">(opcional)</span>
@@ -53,6 +56,7 @@ export default function FormularioSolicitud({ servicios }: { servicios: { id: st
             name="inmueble_descripcion"
             rows={3}
             placeholder="Casa, terreno, nave… lo que ayude a cotizar"
+            defaultValue={inicial.descripcion}
             className={ENTRADA}
           />
         </div>
@@ -90,6 +94,7 @@ function Campo({
   opcional = false,
   tipo = "text",
   autoComplete,
+  inicial,
 }: {
   id: string;
   etiqueta: string;
@@ -97,6 +102,7 @@ function Campo({
   opcional?: boolean;
   tipo?: string;
   autoComplete?: string;
+  inicial?: string;
 }) {
   return (
     <div>
@@ -110,6 +116,7 @@ function Campo({
         type={tipo}
         required={requerido}
         autoComplete={autoComplete ?? "off"}
+        defaultValue={inicial}
         inputMode={tipo === "tel" ? "tel" : tipo === "email" ? "email" : undefined}
         className={ENTRADA}
       />

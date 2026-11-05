@@ -3621,6 +3621,70 @@ begin
 end;
 $$;
 
+-- @@ Calculadora de traslado
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  p    jsonb;
+  c    uuid;
+begin
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(distinct clave) from parametros_fiscales where organizacion_id = xg), 12::bigint, 'Cada organización nace con sus 12 parámetros');
+  perform pg_temp.igual((select (valor ->> 'Querétaro')::jsonb ->> 'tipo' from parametros_fiscales where organizacion_id = xg and clave = 'istd'), 'tarifa',
+    'Con las tarifas de ISTD de las skills');
+
+  -- Apagada: nadie la usa.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select parametros_traslado('2026-11-20')$q$, 'no está disponible', 'Calculadora apagada: no se leen los parámetros');
+  perform pg_temp.sistema();
+  update herramientas set activa = true, niveles = '{}' where organizacion_id = xg and clave in ('calculadora_traslado', 'calculadora_traslado_completa');
+  update herramientas set niveles = null where organizacion_id = xg and clave = 'calculadora_traslado';
+
+  -- Encendida: la rápida sí; la completa no para un nivel que no está en la lista.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  p := parametros_traslado('2026-11-20');
+  perform pg_temp.igual((p ->> 'uma')::numeric, 117.31, 'Lee la UMA vigente a la fecha de firma');
+  perform pg_temp.igual(jsonb_array_length(p -> 'avisos'), 1, 'Avisa que el INPC del mes anterior aún no está (se usa el último)');
+  perform pg_temp.igual((parametros_traslado('2027-03-10') -> 'avisos') ->> 0, 'Tarifas de 2026; las de 2027 aún no se cargan.', 'Fecha de un año sin tarifas: aviso');
+  c := guardar_calculo_traslado('rapida', '  Casa Juriquilla  ', 'Querétaro', 'C', '{"x": 1}', '{"totC": 100}');
+  perform pg_temp.debe_fallar($q$select guardar_calculo_traslado('completa', null, 'Querétaro', 'V', '{}', '{}')$q$, 'no está disponible', 'La completa, solo con su nivel');
+  perform pg_temp.igual((select referencia from calculos_traslado where id = c), 'Casa Juriquilla', 'Mis cálculos guarda la referencia limpia');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select count(*) from calculos_traslado where id = c), 0::bigint, 'Nadie más ve mis cálculos');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from calculos_traslado where id = c), 0::bigint, 'Ni Administración');
+  perform pg_temp.igual((select count(*) from usos_herramienta where persona_id = ana and herramienta = 'calculadora_traslado'), 1::bigint,
+    'Administración sí ve el registro de uso');
+
+  -- Editar parámetros: solo admin_org, con versión por vigencia; el cálculo toma la vigente a la fecha.
+  perform guardar_parametro_fiscal('uma', '120.5', '2027-02-01');
+  perform pg_temp.igual((parametros_traslado('2027-03-01') ->> 'uma')::numeric, 120.5, 'Firma después de la nueva vigencia: UMA nueva');
+  perform pg_temp.igual((parametros_traslado('2026-12-01') ->> 'uma')::numeric, 117.31, 'Firma antes: la anterior');
+  perform pg_temp.debe_fallar($q$select guardar_parametro_fiscal('uma', '-1', '2027-02-01')$q$, 'mayor que cero', 'Valores imposibles no');
+  perform agregar_inpc('2026-10', 141.2);
+  perform pg_temp.igual(((select valor from parametros_fiscales where organizacion_id = xg and clave = 'inpc') ->> '2026-10')::numeric, 141.2, 'Agregar un mes de INPC');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select agregar_inpc('2026-10', 1)$q$, 'Solo admin_org', 'El comisionista no cambia parámetros');
+  perform pg_temp.igual((select count(*) from parametros_fiscales), 0::bigint, 'Ni los lee');
+
+  -- Mantenimiento: borra lo de más de 90 días y avisa del INPC viejo.
+  perform pg_temp.sistema();
+  update calculos_traslado set creado_en = now() - interval '91 days' where id = c;
+  update parametros_fiscales set actualizado_en = now() - interval '50 days' where organizacion_id = xg and clave = 'inpc';
+  perform mantener_calculadora();
+  perform pg_temp.igual((select count(*) from calculos_traslado where id = c), 0::bigint, 'A los 90 días el cálculo se borra');
+  perform pg_temp.igual((select count(*) from alertas where organizacion_id = xg and tipo = 'parametros_fiscales' and codigo = 'inpc' and resuelta_en is null), 1::bigint,
+    'INPC con más de 45 días: alerta a admin_org');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform agregar_inpc('2026-11', 141.9);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where organizacion_id = xg and tipo = 'parametros_fiscales' and codigo = 'inpc' and resuelta_en is null), 0::bigint,
+    'Agregar el mes la cierra');
+  update herramientas set activa = false, niveles = null where organizacion_id = xg and clave like 'calculadora%';
+end;
+$$;
+
 -- @@ Dos admin_org
 -- Alguien del equipo pasa a admin_org sobre su misma membresía (como Alex en XG):
 -- conserva su código, pierde el bono, y los dos administradores ven y deciden lo mismo.
