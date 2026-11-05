@@ -15,3 +15,6 @@ next-env.d.ts
 # Playwright (npm run humo)
 /test-results/
 /playwright-report/
+
+# Material de XG que vive en la carpeta pero no en el repositorio.
+XG/
