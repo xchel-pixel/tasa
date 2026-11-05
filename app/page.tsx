@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { InicioComisionista } from "@/components/inicio-comisionista";
 import { InicioStaff } from "@/components/inicio-staff";
+import { PortadaPublica } from "@/components/portada-publica";
+import { Lanzador } from "@/components/lanzador";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { SeccionesDeInicio } from "@/components/secciones-de-inicio";
 import { TarjetaClientes } from "@/components/tarjeta-clientes";
@@ -16,7 +18,7 @@ import { obtenerSesion } from "@/lib/sesion";
  */
 export default async function Inicio() {
   const sesion = await obtenerSesion();
-  if (!sesion) redirect("/entrar");
+  if (!sesion) return <PortadaPublica />;
   if (sesion.sinOrganizacion) redirect(sesion.superPlataforma ? "/plataforma" : "/organizacion");
 
   const { persona } = sesion;
@@ -47,6 +49,7 @@ export default async function Inicio() {
             <>
               <h1 className="text-[1.5rem] font-bold tracking-tight">Hola, {persona.nombre.split(" ")[0]}</h1>
               <p className="mt-1 text-[0.9375rem] text-secundario">Equipo de {persona.organizacion.nombre}</p>
+              <Lanzador persona={persona} />
               <SeccionesDeInicio persona={persona} opera={false} />
               <LigasEquipo persona={persona} />
             </>

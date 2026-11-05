@@ -50,7 +50,8 @@ export async function proxy(request: NextRequest) {
 
   const ruta = request.nextUrl.pathname;
   const enAcceso = ruta.startsWith(RUTA_ACCESO);
-  const abierta = RUTAS_ABIERTAS.some((libre) => ruta.startsWith(libre));
+  // La portada "/" también se ve sin sesión (portada pública, 0054); solo esa ruta exacta.
+  const abierta = ruta === "/" || RUTAS_ABIERTAS.some((libre) => ruta.startsWith(libre));
 
   if (!user && !abierta) {
     return redirigir(request, RUTA_ACCESO, respuesta);

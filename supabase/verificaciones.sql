@@ -316,7 +316,7 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, invitado_por, pedir_alta, pedir_por_liga, registrar_clic_tarjeta, registrar_evento_tarjeta'::text,
+  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, invitado_por, organizaciones_con_alta, pedir_alta, pedir_por_liga, registrar_clic_tarjeta, registrar_evento_tarjeta'::text,
     'anon solo ejecuta lo de la pantalla de acceso, la solicitud de alta y el aviso de privacidad');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -3607,6 +3607,17 @@ begin
   perform pg_temp.debe_fallar('select count(*) from herramientas', 'permission denied', 'Sin sesión no se lee el catálogo');
   perform pg_temp.sistema();
   update herramientas set activa = false, niveles = null where organizacion_id = xg and clave like 'calculadora%';
+end;
+$$;
+
+-- @@ Portada pública
+do $$
+begin
+  perform pg_temp.como(null);
+  perform pg_temp.igual((select count(*) from organizaciones_con_alta() where slug = 'xg'), 1::bigint, 'Sin sesión: XG aparece para pedir el alta');
+  perform pg_temp.igual((select count(*) from organizaciones_con_alta() where slug = 'demo'), 0::bigint, 'DEMO nunca aparece');
+  perform pg_temp.debe_fallar('select count(*) from organizaciones', 'permission denied', 'Y la tabla sigue cerrada');
+  perform pg_temp.sistema();
 end;
 $$;
 

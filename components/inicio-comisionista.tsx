@@ -4,6 +4,7 @@ import { BloqueNivel } from "@/components/bloque-nivel";
 import { ListaTramites } from "@/components/lista-tramites";
 import { MisReferidos } from "@/components/mis-referidos";
 import { CompartirTarjeta } from "@/components/compartir-tarjeta";
+import { Lanzador } from "@/components/lanzador";
 import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { urlDelSitio } from "@/lib/altas";
@@ -44,6 +45,9 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
         Hola, {persona.nombre.split(" ")[0]}
       </h1>
 
+      {/* Portada tipo lanzador: herramientas, luego la franja de pendientes y lo del mes. */}
+      <Lanzador persona={persona} />
+
       {(porEntregar ?? []).length > 0 ? (
         <div className="mt-4 rounded-xl bg-proceso-fondo px-4 py-3 text-proceso">
           <p className="font-semibold">Pagos por entregar a la cuenta</p>
@@ -67,24 +71,8 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
         <BloqueNivel nivel={nivel} />
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Link
-          href="/solicitudes/nueva"
-          className="flex min-h-12 items-center justify-center rounded-lg bg-primario px-3 py-3 text-center text-[1rem] font-semibold text-sobre-primario"
-        >
-          Nueva solicitud
-        </Link>
-        <Link
-          href="/estado-de-cuenta"
-          className="flex min-h-12 items-center justify-center rounded-lg border border-primario px-3 py-3 text-center text-[1rem] font-semibold text-primario"
-        >
-          Estado de cuenta
-        </Link>
-      </div>
-
-      <p className="mt-3 flex justify-center gap-6">
-        <Link href="/perfil" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mis datos</Link>
-        {conTarjeta ? <Link href="/tarjeta" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mi tarjeta</Link> : null}
+      <p className="mt-3 text-center">
+        <Link href="/estado-de-cuenta" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Ver mi estado de cuenta</Link>
       </p>
 
       <section className="mt-8">

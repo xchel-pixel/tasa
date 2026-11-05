@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
+import { Lanzador } from "@/components/lanzador";
 import { comisionesPorPagar, type PorPagar } from "@/lib/comisiones";
 import { mesTitulo, pesos } from "@/lib/formato";
 import { SeccionesDeInicio } from "@/components/secciones-de-inicio";
@@ -49,6 +50,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
     <>
       <h1 className="text-[1.5rem] font-bold tracking-tight">Hola, {persona.nombre.split(" ")[0]}</h1>
       <p className="mt-1 text-[0.9375rem] text-secundario">{NOMBRE_DEL_ROL[persona.rol]}</p>
+      <Lanzador persona={persona} />
 
       {conectorConError ? (
         <Link

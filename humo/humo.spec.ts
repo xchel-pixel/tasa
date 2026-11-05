@@ -72,7 +72,7 @@ const COMISIONISTA_Y_STAFF: Record<Rol, Espera> = { admin_org: "abre", finanzas:
 
 /** Cada ruta real de la aplicación y qué le pasa a cada rol. */
 const PANTALLAS: Record<string, Pantalla> = {
-  "/": { rutas: () => ["/"], espera: TODOS },
+  "/": { rutas: () => ["/"], espera: TODOS, publica: true },
   "/admin/alertas": { rutas: () => ["/admin/alertas"], espera: OPERACION },
   "/admin/altas": { rutas: () => ["/admin/altas", "/admin/altas?ver=todas"], espera: OPERACION },
   "/admin/altas/[id]": { rutas: (d) => [d.alta && `/admin/altas/${d.alta}`], espera: OPERACION },
