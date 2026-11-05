@@ -70,7 +70,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         {staff ? (
           <>
             <li>
-              <Link href="/admin/cierres" className="flex items-center justify-between gap-3 rounded-xl border border-linea bg-alterno px-4 py-4">
+              <Link href={`/admin/cierres/${p.cierre.mes.slice(0, 7)}`} className="flex items-center justify-between gap-3 rounded-xl border border-linea bg-alterno px-4 py-4">
                 <span>
                   <span className="block font-semibold">Cierre mensual</span>
                   <span className="block text-[0.9375rem] text-secundario">{mesTitulo(p.cierre.mes)}</span>
