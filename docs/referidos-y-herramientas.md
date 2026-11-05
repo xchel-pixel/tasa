@@ -162,6 +162,14 @@ comisiones (ya existe)
 
 ## 3. Herramientas y membresías (fase 8)
 
+> **Ya construido (0053, 05-nov-2026): el catálogo mínimo.** Tabla `herramientas` por organización: activa,
+> roles que la ven, niveles de comisionista (nulo = todos; lista = solo esos) y si va en el menú fijo. Lo edita
+> admin_org en Catálogos → Herramientas; `mis_herramientas()` decide qué ve cada quien. Hoy: `mi_tarjeta`
+> (activa, comisionistas), `calculadora_traslado` y `calculadora_traslado_completa` (inactivas hasta construir la
+> calculadora; la completa, Socio/Socio Plus/Élite y el equipo). El menú fijo (arriba en computadora, abajo en
+> celular) sale de ahí: Portada · Comisiones · herramientas · Mis datos (comisionista); Portada · herramientas
+> (equipo). Cupos, membresías y cobros siguen pendientes, como se describe abajo.
+
 ### Los tres productos
 
 | Producto | Cómo se entrega | Nota |

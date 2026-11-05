@@ -5,7 +5,7 @@ import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { FormularioConvenio, type Convenio } from "./convenios";
 import { textoComision } from "./textos";
-import { FormularioCuenta, FormularioCuentaPago, FormularioMarca, FormularioPerfil, FormularioServicio, type Cuenta, type CuentaPago, type Marca, type Perfil, type Servicio } from "./formularios";
+import { FormularioCuenta, FormularioCuentaPago, FormularioHerramienta, FormularioMarca, FormularioPerfil, FormularioServicio, type Cuenta, type CuentaPago, type HerramientaCatalogo, type Marca, type Perfil, type Servicio } from "./formularios";
 
 type FilaConvenio = Omit<Convenio, "precios" | "comision_pct"> & {
   comision_pct: string | number | null;
@@ -22,7 +22,7 @@ export const metadata = { title: "Catálogos — Tasa" };
 export default async function Catalogos() {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
-  const [marcas, cuentas, servicios, convenios, perfiles, cuentasPago] = await Promise.all([
+  const [marcas, cuentas, servicios, convenios, perfiles, cuentasPago, herramientas, niveles] = await Promise.all([
     supabase
       .from("marcas")
       .select(
@@ -48,6 +48,8 @@ export default async function Catalogos() {
       .returns<FilaConvenio[]>(),
     supabase.from("perfiles").select("id, nombre, activo").order("orden").order("nombre").returns<Perfil[]>(),
     supabase.from("origenes_pago").select("id, nombre, notion_cuenta, activo").order("orden").order("nombre").returns<CuentaPago[]>(),
+    supabase.from("herramientas").select("id, clave, nombre, activa, roles, niveles, en_menu").order("orden").returns<HerramientaCatalogo[]>(),
+    supabase.from("niveles").select("id, nombre").order("orden").returns<{ id: string; nombre: string }[]>(),
   ]);
   const conLogo = oExplota(marcas, "las marcas") ?? [];
   // Vista previa del logo: URL firmada por una hora (el bucket es privado).
@@ -103,6 +105,14 @@ export default async function Catalogos() {
           </Elemento>
         ))}
         <Nuevo texto="Agregar servicio"><FormularioServicio /></Nuevo>
+      </Seccion>
+
+      <Seccion titulo="Herramientas" detalle="Qué herramientas están activas, quién las ve y cuáles van en el menú fijo. Para comisionistas cuenta además su nivel del mes. «Calculadora completa» es el modo completo de la calculadora: no va en el menú.">
+        {(oExplota(herramientas, "las herramientas") ?? []).map((h) => (
+          <Elemento key={h.id} titulo={h.nombre} inactivo={!h.activa}>
+            <FormularioHerramienta herramienta={h} niveles={oExplota(niveles, "los niveles") ?? []} />
+          </Elemento>
+        ))}
       </Seccion>
 
       <Seccion titulo="Cuentas para pagar comisiones" detalle="De dónde sale el pago de una comisión; se elige al registrarlo. Con su cuenta de Notion, el pago se anota en Cobros y Gastos con esa Cuenta. Solo lo ve Administración.">

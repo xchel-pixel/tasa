@@ -156,6 +156,28 @@ export async function guardarCuentaPago(_previo: EstadoCatalogo, f: FormData): P
   return listo(id ? "Cuenta guardada." : "Cuenta agregada.");
 }
 
+const ROLES_HERRAMIENTA = ["admin_org", "finanzas", "admin_marca", "equipo", "comisionista"];
+
+/**
+ * Una herramienta del catálogo (0053): activa, quién la ve (roles y, para comisionistas, niveles) y si va en
+ * el menú. "Todos los niveles" guarda nulo; marcar niveles deja solo esos.
+ */
+export async function guardarHerramienta(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  await exigirRol("admin_org");
+  const nombre = campo(f, "nombre").replace(/\s+/g, " ");
+  if (nombre.length < 2 || nombre.length > 40) return falla("El nombre va de 2 a 40 caracteres.");
+  const roles = f.getAll("roles").map(String).filter((r) => ROLES_HERRAMIENTA.includes(r));
+  const niveles = f.get("todos_niveles") === "on" ? null : f.getAll("niveles").map(String);
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase
+    .from("herramientas")
+    .update({ nombre, roles, niveles, activa: f.get("activa") === "on", en_menu: f.get("en_menu") === "on", actualizada_en: new Date().toISOString() })
+    .eq("id", campo(f, "id"));
+  if (error) return traducir(error, "una herramienta");
+  revalidatePath("/", "layout");
+  return listo("Herramienta guardada.");
+}
+
 /** Un perfil del catálogo (lo eligen los comisionistas y sale en su tarjeta). */
 export async function guardarPerfil(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
   await exigirRol("admin_org");

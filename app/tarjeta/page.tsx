@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { Etiqueta } from "@/components/etiqueta";
 import { urlDelSitio } from "@/lib/altas";
 import { mesLargo } from "@/lib/formato";
+import { tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { EditorTarjeta, type TarjetaGuardada } from "./editor";
@@ -39,6 +41,7 @@ const ESTADO = {
  */
 export default async function MiTarjeta() {
   const persona = await exigirRol("comisionista");
+  if (!(await tengoHerramienta("mi_tarjeta"))) redirect("/");
   const supabase = await crearClienteServidor();
   const [tarjeta, nivelR, servicios, yo, testimonios, ajustes, propios, inmueblesR, limitesR] = await Promise.all([
     supabase

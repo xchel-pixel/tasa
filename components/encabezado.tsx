@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { cerrarSesion } from "@/app/acciones";
 import { Marca } from "@/components/marca";
+import { MenuFijo } from "@/components/menu-fijo";
+import { menuDe } from "@/lib/herramientas";
 import { obtenerSesion } from "@/lib/sesion";
 
 /**
  * La barra de arriba de toda pantalla con sesión: la marca lleva al
  * inicio, debajo va la organización (con "Cambiar" si hay más de una) y
- * "Salir" cierra la sesión. No hay menú: cada pantalla abre a su
- * detalle y regresa.
+ * "Salir" cierra la sesión. El menú fijo (0053) va aquí arriba en la
+ * computadora y abajo en el celular; sus entradas salen del catálogo de
+ * herramientas, por rol.
  *
  * Si la plataforma entra a una organización que no es suya, una franja
  * fija lo dice: lo que haga ahí queda a nombre de la plataforma.
@@ -15,6 +18,7 @@ import { obtenerSesion } from "@/lib/sesion";
 export async function Encabezado() {
   const sesion = await obtenerSesion();
   const persona = sesion?.persona;
+  const entradas = persona ? await menuDe(persona) : [];
 
   return (
     <>
@@ -24,7 +28,7 @@ export async function Encabezado() {
         </div>
       ) : null}
       <header className="border-b border-linea bg-fondo px-6 py-3">
-        <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3">
+        <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3 md:max-w-3xl">
           <div className="min-w-0">
             <Link href="/" className="toque">
               <Marca alto={44} />
@@ -43,6 +47,7 @@ export async function Encabezado() {
               </p>
             ) : null}
           </div>
+          {entradas.length > 1 ? <MenuFijo entradas={entradas} lugar="arriba" /> : null}
           <form action={cerrarSesion}>
             <button
               type="submit"
@@ -53,6 +58,7 @@ export async function Encabezado() {
           </form>
         </div>
       </header>
+      {entradas.length > 1 ? <MenuFijo entradas={entradas} lugar="abajo" /> : null}
     </>
   );
 }

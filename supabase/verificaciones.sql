@@ -3558,6 +3558,58 @@ begin
 end;
 $$;
 
+-- @@ Catálogo de herramientas
+do $$
+declare
+  xg  uuid := pg_temp.xg();
+  ana uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  nv  uuid;
+begin
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 3::bigint, 'Cada organización nace con sus herramientas');
+  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from herramientas where organizacion_id = xg and activa), 'mi_tarjeta',
+    'Hoy solo está activa Mi tarjeta (la calculadora aún no)');
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select string_agg(clave, ',') from mis_herramientas()), 'mi_tarjeta', 'El comisionista ve Mi tarjeta');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select count(*) from mis_herramientas()), 0::bigint, 'Finanzas no ve Mi tarjeta (es de comisionistas)');
+  update herramientas set activa = true where clave = 'calculadora_traslado';  -- RLS: no cambia nada
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select activa from herramientas where organizacion_id = xg and clave = 'calculadora_traslado'), false, 'Y nada cambió');
+
+  -- Activar la calculadora: la ven todos; el modo completo, solo los niveles marcados.
+  perform pg_temp.como('xchel@arqosuv.com');
+  update herramientas set activa = true where clave in ('calculadora_traslado', 'calculadora_traslado_completa');
+  perform pg_temp.sistema();
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from mis_herramientas()), 'calculadora_traslado,calculadora_traslado_completa',
+    'El equipo ve la calculadora y su modo completo');
+  perform pg_temp.sistema();
+  nv := coalesce((select nivel_id from niveles_mensuales where comisionista_id = ana and mes = mes_de(hoy_mx())),
+                 (select nivel_id from calcular_nivel(xg, ana, mes_de(hoy_mx()))));
+  update herramientas set niveles = array_remove((select array_agg(id) from niveles where organizacion_id = xg), nv)
+   where organizacion_id = xg and clave = 'calculadora_traslado_completa';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from mis_herramientas()), 'mi_tarjeta,calculadora_traslado',
+    'Un comisionista fuera de los niveles del modo completo solo ve la rápida');
+  perform pg_temp.sistema();
+  update herramientas set niveles = array[nv] where organizacion_id = xg and clave = 'calculadora_traslado_completa';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from mis_herramientas() where clave = 'calculadora_traslado_completa'), 1::bigint,
+    'Con su nivel marcado, también la completa');
+  perform pg_temp.sistema();
+  update herramientas set niveles = '{}' where organizacion_id = xg and clave = 'calculadora_traslado_completa';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from mis_herramientas() where clave = 'calculadora_traslado_completa'), 0::bigint,
+    'Lista de niveles vacía: ningún comisionista');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar('select count(*) from herramientas', 'permission denied', 'Sin sesión no se lee el catálogo');
+  perform pg_temp.sistema();
+  update herramientas set activa = false, niveles = null where organizacion_id = xg and clave like 'calculadora%';
+end;
+$$;
+
 -- @@ Dos admin_org
 -- Alguien del equipo pasa a admin_org sobre su misma membresía (como Alex en XG):
 -- conserva su código, pierde el bono, y los dos administradores ven y deciden lo mismo.

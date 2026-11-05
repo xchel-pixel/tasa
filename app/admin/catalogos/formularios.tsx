@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { Aviso } from "@/components/aviso";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { eliminar, guardarCuenta, guardarCuentaPago, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
+import { eliminar, guardarCuenta, guardarCuentaPago, guardarHerramienta, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
 
 const INICIAL: EstadoCatalogo = { error: null, mensaje: null };
 const ENTRADA =
@@ -33,6 +33,65 @@ export type Marca = {
 };
 export type Cuenta = { id: string; alias: string; titular: string; banco: string | null; clabe: string; rfc: string | null; marca_id: string; activa: boolean };
 export type Perfil = { id: string; nombre: string; activo: boolean };
+
+export type HerramientaCatalogo = {
+  id: string;
+  clave: string;
+  nombre: string;
+  activa: boolean;
+  roles: string[];
+  niveles: string[] | null;
+  en_menu: boolean;
+};
+
+const ROLES: { valor: string; texto: string }[] = [
+  { valor: "comisionista", texto: "Comisionistas" },
+  { valor: "equipo", texto: "Equipo" },
+  { valor: "finanzas", texto: "Finanzas" },
+  { valor: "admin_marca", texto: "Admin de marca" },
+  { valor: "admin_org", texto: "Administración" },
+];
+
+export function FormularioHerramienta({ herramienta, niveles }: { herramienta: HerramientaCatalogo; niveles: { id: string; nombre: string }[] }) {
+  const [estado, enviar] = useActionState(guardarHerramienta, INICIAL);
+  return (
+    <form action={enviar} className="flex flex-col gap-3">
+      <input type="hidden" name="id" value={herramienta.id} />
+      <Campo etiqueta="Nombre (así sale en el menú y en la portada)">
+        <input name="nombre" required maxLength={40} defaultValue={herramienta.nombre} className={ENTRADA} />
+      </Campo>
+      <Activa nombre="activa" valor={herramienta.activa} texto="Activa" />
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-[0.9375rem] font-semibold">Quién la ve</legend>
+        {ROLES.map((r) => (
+          <label key={r.valor} className="flex items-center gap-2 text-[0.9375rem]">
+            <input type="checkbox" name="roles" value={r.valor} defaultChecked={herramienta.roles.includes(r.valor)} className="h-5 w-5 accent-primario" />
+            {r.texto}
+          </label>
+        ))}
+      </fieldset>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-[0.9375rem] font-semibold">Niveles de comisionista que la ven</legend>
+        <label className="flex items-center gap-2 text-[0.9375rem]">
+          <input type="checkbox" name="todos_niveles" defaultChecked={herramienta.niveles === null} className="h-5 w-5 accent-primario" />
+          Todos los niveles
+        </label>
+        {niveles.map((n) => (
+          <label key={n.id} className="flex items-center gap-2 text-[0.9375rem]">
+            <input type="checkbox" name="niveles" value={n.id} defaultChecked={herramienta.niveles?.includes(n.id) ?? false} className="h-5 w-5 accent-primario" />
+            {n.nombre}
+          </label>
+        ))}
+        <p className="text-[0.875rem] leading-5 text-secundario">Si marcas &quot;Todos los niveles&quot;, los niveles de abajo no cuentan.</p>
+      </fieldset>
+      {herramienta.clave !== "calculadora_traslado_completa" ? (
+        <Activa nombre="en_menu" valor={herramienta.en_menu} texto="Aparece en el menú" />
+      ) : null}
+      <BotonEnviar variante="secundario">Guardar herramienta</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
 
 export type CuentaPago = { id: string; nombre: string; notion_cuenta: string | null; activo: boolean };
 

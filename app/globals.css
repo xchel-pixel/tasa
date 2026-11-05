@@ -108,3 +108,10 @@ body {
     opacity: 1;
   }
 }
+
+/* El menú fijo de abajo (celular) no tapa lo último de la pantalla. */
+@media (max-width: 767px) {
+  body:has([data-menu-fijo]) {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
+  }
+}

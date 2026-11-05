@@ -8,6 +8,7 @@ import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { urlDelSitio } from "@/lib/altas";
 import { fechaCorta, pesos } from "@/lib/formato";
+import { tengoHerramienta } from "@/lib/herramientas";
 import type { Persona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { miNivel } from "@/lib/trabajos";
@@ -19,6 +20,8 @@ import { leerTramites } from "@/lib/tramites";
  * cliente, junto con lo demás). Entregados y cancelados, cerrados.
  */
 export async function InicioComisionista({ persona }: { persona: Persona }) {
+  // "Mi tarjeta" es una herramienta del catálogo (0053): si la organización la apaga, no se ofrece.
+  const conTarjeta = await tengoHerramienta("mi_tarjeta");
   const supabase = await crearClienteServidor();
   const [trabajos, nivel, { data: yo }, { data: tarjeta }, { data: porEntregar }] = await Promise.all([
     leerTramites(),
@@ -81,7 +84,7 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
 
       <p className="mt-3 flex justify-center gap-6">
         <Link href="/perfil" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mis datos</Link>
-        <Link href="/tarjeta" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mi tarjeta</Link>
+        {conTarjeta ? <Link href="/tarjeta" className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mi tarjeta</Link> : null}
       </p>
 
       <section className="mt-8">
@@ -91,7 +94,7 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
 
       <MisReferidos usuario={persona.id} />
 
-      {yo ? <CompartirTarjeta liga={`${sitio}/t/${persona.organizacion.slug}/${yo.slug}`} publicada={tarjeta?.estado === "publicada"} /> : null}
+      {yo && conTarjeta ? <CompartirTarjeta liga={`${sitio}/t/${persona.organizacion.slug}/${yo.slug}`} publicada={tarjeta?.estado === "publicada"} /> : null}
 
       {yo ? <TarjetaClientes liga={`${sitio}/s/${persona.organizacion.slug}/${yo.codigo_referido}`} /> : null}
       {yo ? <TarjetaInvitar liga={`${sitio}/alta/${persona.organizacion.slug}?ref=${yo.codigo_referido}`} /> : null}
