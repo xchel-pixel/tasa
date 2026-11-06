@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { aLonLat, aUtm, caja, centroide, contiene, geometriaValida, utmAGeografica, type Geometria } from "@/lib/catastro/geo";
+import { aLonLat, aUtm, caja, centroide, contiene, geometriaValida, ligaMaps, puntoInterior, utmAGeografica, type Geometria } from "@/lib/catastro/geo";
 import { CAMPOS, centroideDelExpediente, datosDeCapa, limpiarExpediente, tieneLlaveProhibida } from "@/lib/catastro/limpiar";
-import { ETIQUETAS } from "@/lib/catastro/etiquetas";
+import { ETIQUETAS, fechaLegible, lineasDeColindancias, SECCIONES, seccionesDeFicha, valorLegible } from "@/lib/catastro/etiquetas";
 import type { Ficha } from "@/lib/catastro/servicio";
 
 /**
@@ -272,6 +272,86 @@ describe("La llave de servicio no llega al navegador", () => {
   });
 });
 
+describe("Punto del predio, secciones y prellenado", () => {
+  // Coordenadas reales de Querétaro (en grados), donde el centroide calculado sin cuidado se iba hasta 150 m.
+  const L = (x: number, y: number) => [-100.3637 + x * 1e-5, 20.5723 + y * 1e-5] as [number, number];
+  const casos: Geometria[] = [
+    { type: "Polygon", coordinates: [[L(0, 0), L(10, 0), L(10, 18), L(0, 18), L(0, 0)]] },
+    // En L: el centroide cae fuera.
+    { type: "Polygon", coordinates: [[L(0, 0), L(30, 0), L(30, 4), L(4, 4), L(4, 30), L(0, 30), L(0, 0)]] },
+    // En U (cóncavo) y con hueco en medio.
+    { type: "Polygon", coordinates: [[L(0, 0), L(30, 0), L(30, 30), L(24, 30), L(24, 6), L(6, 6), L(6, 30), L(0, 30), L(0, 0)]] },
+    { type: "Polygon", coordinates: [[L(0, 0), L(20, 0), L(20, 20), L(0, 20), L(0, 0)], [L(5, 5), L(15, 5), L(15, 15), L(5, 15), L(5, 5)]] },
+    // Condominio: la unidad y un cajón aparte, lejos.
+    { type: "MultiPolygon", coordinates: [[[L(0, 0), L(12, 0), L(12, 10), L(0, 10), L(0, 0)]], [[L(400, 0), L(402, 0), L(402, 5), L(400, 5), L(400, 0)]]] },
+  ];
+
+  test("el punto de la liga, el QR y el prellenado siempre cae dentro del polígono (Polygon y MultiPolygon)", () => {
+    for (const g of casos) {
+      const p = puntoInterior(g);
+      expect(contiene(g, p), JSON.stringify(g).slice(0, 60)).toBe(true);
+      expect(ligaMaps(p[1], p[0])).toMatch(/^https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=-?\d+\.\d{6},-?\d+\.\d{6}$/);
+    }
+    // En el condominio, en la unidad (el polígono grande), no en el cajón.
+    expect(puntoInterior(casos[4])[0]).toBeLessThan(L(12, 0)[0]);
+  });
+
+  test("el centroide en grados ya no pierde precisión (rectángulo: al centro)", () => {
+    const [lon, lat] = centroide(casos[0]);
+    expect(lon).toBeCloseTo(L(5, 9)[0], 8);
+    expect(lat).toBeCloseTo(L(5, 9)[1], 8);
+  });
+
+  test("formato: m² y pesos con miles y 2 decimales, indiviso en %, fechas dd/mmm/aaaa, colindancias por lado", () => {
+    expect(valorLegible("sup_terreno", 1234.5)).toBe("1,234.50 m²");
+    expect(valorLegible("valor_catastral_total", 1234567.891)).toBe("$1,234,567.89");
+    expect(valorLegible("indiviso", "1.2345")).toBe("1.2345 %");
+    expect(valorLegible("fecha_alta", "2001-03-05")).toBe("05/mar/2001");
+    expect(valorLegible("fecha_mantenimiento", "05/11/2025")).toBe("05/nov/2025");
+    expect(fechaLegible("2026-11-06T23:20:27.923Z")).toBe("06/nov/2026");
+    expect(lineasDeColindancias("AL NORTE 10.00 M CON CALLE HIDALGO AL SUR 10.00 M CON LOTE 8, AL ORIENTE 16 M CON LOTE 6; al poniente 16 m con lote 4"))
+      .toEqual(["AL NORTE 10.00 M CON CALLE HIDALGO", "AL SUR 10.00 M CON LOTE 8", "AL ORIENTE 16 M CON LOTE 6", "al poniente 16 m con lote 4"]);
+    expect(valorLegible("series_valor", [{ nivel: 1, areaCons: 100 }])).toBe("Nivel 1 · Construcción 100");
+    expect(valorLegible("ubicacion", "")).toBeNull();
+    expect(valorLegible("ubicacion", "PROL. TRUCHUELO 1004 int. 102 A, CONDOMINIO PUNTA DEL ESTE, CP --, EL PUEBLITO, CORREGIDORA"))
+      .toBe("PROL. TRUCHUELO 1004 int. 102 A, CONDOMINIO PUNTA DEL ESTE, EL PUEBLITO, CORREGIDORA");
+    // Guardado antes del total: se suma al mostrar.
+    const viejo = { clave: "140100136031048", municipio: "14", consultado_en: "2026-11-06T18:00:00Z", expediente: "completo", geometria: null,
+      latitud: null, longitud: null, campos: { valor_terreno: 100, valor_construccion: 50.5 } } as unknown as Ficha;
+    expect(seccionesDeFicha(viejo).find((s) => s.id === "valores")!.filas.at(-1)).toEqual(["Total", "$150.50"]);
+  });
+
+  test("cada campo del catálogo está en una sección, y las secciones van en el orden pedido", () => {
+    const enSecciones = SECCIONES.flatMap((s) => s.campos);
+    expect([...enSecciones].sort()).toEqual([...CAMPOS].sort());
+    expect(new Set(enSecciones).size).toBe(enSecciones.length);
+    expect(SECCIONES.map((s) => s.titulo)).toEqual(["Identificación", "Ubicación", "Superficies", "Valores catastrales", "Medidas y colindancias",
+      "Datos del registro", "Propietario y operación", "Historial de cambios"]);
+  });
+
+  test("lo del comisionista: sin campos vacíos ni secciones vacías; nada de equipo", () => {
+    const f = { clave: "060100113059119", municipio: "06", consultado_en: "2026-11-06T18:00:00Z", expediente: "completo", geometria: null,
+      latitud: null, longitud: null,
+      campos: { ubicacion: "Constituyentes 200 int. 301, Centro", sup_terreno: 45.5, sup_construccion: 97.3, indiviso: 1.2345, sup_terreno_privativa: 0,
+        valor_terreno: 300000, valor_construccion: 900000, valor_catastral_total: 1200000, rppc_medid_colind: "" } } as unknown as Ficha;
+    const s = seccionesDeFicha(f);
+    expect(s.map((x) => x.id)).toEqual(["identificacion", "ubicacion", "superficies", "valores"]);
+    expect(s[0].filas).toEqual([["Clave catastral", "060100113059119"], ["Municipio", "Corregidora"]]);
+    expect(s[2].filas.map(([e]) => e)).toEqual(["Terreno", "Construcción total", "Terreno privativo", "Indiviso"]);
+    expect(s[3].filas).toEqual([["Terreno", "$300,000.00"], ["Construcción", "$900,000.00"], ["Total", "$1,200,000.00"]]);
+  });
+
+  test("prellenado: la calculadora recibe clave, municipio y valor catastral total; la solicitud, la clave", async () => {
+    const { inicialCalculadora, inicialSolicitudDelMapa } = await import("@/lib/catastro/prellenado");
+    const municipios = ["Corregidora", "Querétaro"];
+    expect(inicialCalculadora({ clave: "140100136031048", municipio: "Querétaro", valor_catastral: "3584484.90" }, municipios))
+      .toEqual({ clave_catastral: "140100136031048", municipio: "Querétaro", valor_catastral: "3584484.90" });
+    expect(inicialCalculadora({ clave: "14 01 001", municipio: "Marte", valor_catastral: "abc" }, municipios)).toEqual({ clave_catastral: "1401001" });
+    expect(inicialSolicitudDelMapa({ clave: "140100136031048", municipio: "Querétaro", direccion: "Calle 1" }))
+      .toEqual({ clave: "140100136031048", municipio: "Querétaro", direccion: "Calle 1", descripcion: "" });
+  });
+});
+
 describe("Fuente sin nombrar y PDF", () => {
   const fichaCompleta = (privados: boolean): Ficha => ({
     clave: "060100113059119", municipio: "06", consultado_en: "2026-11-06T18:00:00Z", expediente: "completo" as const,
@@ -302,10 +382,11 @@ describe("Fuente sin nombrar y PDF", () => {
   test("el PDF del comisionista: sin propietario ni operación y sin llaves fuera del catálogo", async () => {
     const { contenidoPdf } = await import("@/lib/catastro/pdf");
     const c = contenidoPdf(fichaCompleta(false));
-    expect(c.privados).toEqual([]);
+    expect(c.secciones.map((s) => s.id)).not.toContain("propietario");
     const texto = JSON.stringify(c);
     for (const x of ["Propietari", "XEXX900101HQTXXX09", "4421234567", "Notaría", "2,900,000"]) expect(texto).not.toContain(x);
-    expect(contenidoPdf(fichaCompleta(true)).privados[0]).toEqual(["Propietario (Registro Público)", "Propietaria Ejemplo · 100 % · COMPRAVENTA"]);
+    const conEquipo = contenidoPdf(fichaCompleta(true)).secciones.find((s) => s.id === "propietario")!;
+    expect(conEquipo.filas[0]).toEqual(["Propietario (Registro Público)", "Propietaria Ejemplo · 100 % · COMPRAVENTA"]);
   });
 
   test("ningún texto del PDF usa un símbolo que la tipografía no tenga, y el PDF se arma (croquis, QR)", async () => {
@@ -315,8 +396,8 @@ describe("Fuente sin nombrar y PDF", () => {
     const { fuentesDe } = await import("@/lib/fuentes-pdf");
     const f = fontkit.create(readFileSync(join(import.meta.dirname, "..", "assets", "fuentes", "manrope-400.ttf"))) as unknown as { hasGlyphForCodePoint: (c: number) => boolean };
     const c = contenidoPdf(fichaCompleta(true));
-    const textos = [c.titulo, c.subtitulo, c.croquis, c.sinPoligono, c.ligaTitulo, c.liga ?? "", c.nota, "Datos del predio", "Propietario y operación",
-      "Hoja 1 de 2", "N", "0", "10 m", ...c.campos.flat(), ...c.privados.flat(), ...Object.values(ETIQUETAS).map(([e]) => e)];
+    const textos = [c.titulo, c.subtitulo, c.croquis, c.sinPoligono, c.ligaTitulo, c.liga ?? "", c.nota, "Hoja 1 de 2", "N", "0", "10 m",
+      ...c.secciones.flatMap((s) => [s.titulo, ...s.filas.flat()]), ...Object.values(ETIQUETAS).map(([e]) => e)];
     const faltan = textos.flatMap((t) => [...t].filter((ch) => !f.hasGlyphForCodePoint(ch.codePointAt(0)!)).map((ch) => `${ch} en "${t.slice(0, 50)}"`));
     expect(faltan).toEqual([]);
     const pdf = await PDFDocument.load(await pdfPredio(fichaCompleta(true), await fuentesDe("manrope")));

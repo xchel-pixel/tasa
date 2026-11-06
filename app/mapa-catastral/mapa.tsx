@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import Link from "next/link";
 import type { Map as MapaGL, GeoJSONSource, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { camposEnOrden, valorLegible } from "@/lib/catastro/etiquetas";
+import { fechaLegible, seccionesDeFicha } from "@/lib/catastro/etiquetas";
 import { caja, ligaMaps, ligaVisor, type Geometria } from "@/lib/catastro/geo";
 import { NOTA_FUENTE } from "@/lib/catastro/textos";
 import type { Ficha, Resultado } from "@/lib/catastro/servicio";
@@ -13,9 +13,8 @@ import { buscarClave, picarMapa } from "./acciones";
 
 const CENTRO: [number, number] = [-100.3899, 20.5888]; // Querétaro
 const ZOOM_PREDIOS = 17;
-const CAPAS = Array.from({ length: 18 }, (_, i) => `queretaro:M${String(i + 1).padStart(2, "0")}_PA`).join(",");
-const WMS = "https://catastroedo.queretaro.gob.mx/geoserver/queretaro/wms?service=WMS&version=1.1.1&request=GetMap"
-  + `&layers=${CAPAS}&styles=&format=image/png&transparent=true&srs=EPSG:3857&bbox={bbox-epsg-3857}&width=512&height=512`;
+// La capa de predios pasa por Tasa (la fuente no deja que el navegador la lea directo).
+const PREDIOS = "/mapa-catastral/predios/{z}/{x}/{y}";
 const ENTRADA = "w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento";
 const BOTON = "flex min-h-11 items-center justify-center rounded-lg border border-linea bg-fondo px-3 text-center text-[0.9375rem] font-semibold";
 
@@ -41,6 +40,14 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
   const [error, setError] = useState<string | null>(null);
   const [clave, setClave] = useState(claveInicial ?? "");
   const [ocupado, empezar] = useTransition();
+  const [copiada, setCopiada] = useState(false);
+
+  function copiar(texto: string) {
+    navigator.clipboard?.writeText(texto).then(() => {
+      setCopiada(true);
+      setTimeout(() => setCopiada(false), 2000);
+    }, () => {});
+  }
 
   function pintar(g: Geometria | null | undefined, centrar: boolean, punto?: { lat: number; lon: number } | null) {
     const m = mapa.current;
@@ -97,7 +104,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
             },
             // La capa de predios de la fuente, directo del navegador y solo a nivel de calle (no cargar su servidor).
             // Sin atribución con su nombre: el comisionista no ve de dónde viene.
-            predios: { type: "raster", tiles: [WMS], tileSize: 512, minzoom: ZOOM_PREDIOS, maxzoom: 20 },
+            predios: { type: "raster", tiles: [location.origin + PREDIOS], tileSize: 512, minzoom: ZOOM_PREDIOS, maxzoom: 20 },
             seleccion: { type: "geojson", data: vacio },
           },
           layers: [
@@ -199,58 +206,58 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
       {aviso ? <p role="status" className="mt-3 rounded-xl bg-proceso-fondo px-4 py-3 text-[0.9375rem] leading-6 text-proceso">{aviso}</p> : null}
 
       {ficha ? (
-        <article className="mt-3 rounded-xl border border-linea bg-fondo px-4 py-4">
-          <h2 className="text-[1.125rem] font-bold">Clave {ficha.clave}</h2>
-          <p className="text-[0.9375rem] text-secundario">
-            {municipio}{ficha.expediente === "pendiente" ? " · expediente pendiente" : ""} · consultado el{" "}
-            {new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long" }).format(new Date(ficha.consultado_en))}
-          </p>
+        <article className="mt-3 flex flex-col gap-3">
+          <header className="px-1">
+            <h2 className="text-[1.125rem] font-bold">Clave {ficha.clave}</h2>
+            <p className="text-[0.875rem] text-secundario">
+              Consultado el {fechaLegible(ficha.consultado_en)}{ficha.expediente === "pendiente" ? " · expediente incompleto" : ""}
+            </p>
+          </header>
 
-          <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-            {camposEnOrden(ficha.campos).map(([c, etiqueta, valor]) => (
-              <div key={c}>
-                <dt className="text-[0.8125rem] text-secundario">{etiqueta}</dt>
-                <dd className="whitespace-pre-line text-[0.9375rem]">{valor}</dd>
-              </div>
-            ))}
-          </dl>
-
-          {ficha.privados ? (
-            <section className="mt-4 border-t border-linea pt-3">
-              <h3 className="font-semibold">Propietario y operación <span className="text-[0.8125rem] font-normal text-secundario">(solo el equipo)</span></h3>
-              <ul className="mt-1 text-[0.9375rem]">
-                {ficha.privados.propietarios.map((p, i) => (
-                  <li key={i}>{p.nombre}{p.porcentaje !== null ? ` · ${p.porcentaje} %` : ""} · {p.origen === "rppc" ? "Registro Público" : "Catastro"}{p.tipo_adquisicion ? ` · ${p.tipo_adquisicion}` : ""}</li>
+          {seccionesDeFicha(ficha).map((s) => {
+            const filas = (
+              <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                {s.filas.map(([etiqueta, valor], i) => (
+                  <div key={i} className={valor.length > 60 || valor.includes("\n") ? "sm:col-span-2" : ""}>
+                    <dt className="text-[0.8125rem] text-secundario">{etiqueta}</dt>
+                    <dd className="whitespace-pre-line text-[0.9375rem]">
+                      {valor}
+                      {s.id === "identificacion" && i === 0 ? (
+                        <button type="button" onClick={() => copiar(ficha.clave)} className="ml-2 align-middle text-[0.8125rem] font-semibold text-acento underline underline-offset-4">
+                          {copiada ? "Copiada" : "Copiar"}
+                        </button>
+                      ) : null}
+                    </dd>
+                  </div>
                 ))}
-              </ul>
-              <dl className="mt-2 grid grid-cols-1 gap-2 text-[0.9375rem] sm:grid-cols-2">
-                {[["Valor de operación", valorLegible("valor_terreno", ficha.privados.valor_operacion)], ["Escritura", ficha.privados.escritura],
-                  ["Notario", ficha.privados.notario], ["Contrato", ficha.privados.numero_contrato]]
-                  .filter(([, v]) => v).map(([e, v]) => (
-                    <div key={e}><dt className="text-[0.8125rem] text-secundario">{e}</dt><dd>{v}</dd></div>
-                  ))}
               </dl>
+            );
+            const maps = s.id === "ubicacion" && punto ? (
+              <a href={ligaMaps(punto.lat, punto.lon)} target="_blank" rel="noopener noreferrer" className={`mt-3 ${BOTON}`}>Abrir en Google Maps</a>
+            ) : null;
+            return s.equipo ? (
+              <details key={s.id} className="rounded-xl border border-linea bg-fondo px-4 py-3">
+                <summary className="cursor-pointer font-semibold">{s.titulo} <span className="text-[0.8125rem] font-normal text-secundario">(solo el equipo)</span></summary>
+                {filas}
+              </details>
+            ) : (
+              <section key={s.id} className="rounded-xl border border-linea bg-fondo px-4 py-3">
+                <h3 className="font-semibold">{s.titulo}</h3>
+                {filas}
+                {maps}
+              </section>
+            );
+          })}
+          {/* Sin dirección visible pero con punto: la liga de Maps no se pierde. */}
+          {punto && !seccionesDeFicha(ficha).some((s) => s.id === "ubicacion") ? (
+            <section className="rounded-xl border border-linea bg-fondo px-4 py-3">
+              <h3 className="font-semibold">Ubicación</h3>
+              <a href={ligaMaps(punto.lat, punto.lon)} target="_blank" rel="noopener noreferrer" className={`mt-3 ${BOTON}`}>Abrir en Google Maps</a>
             </section>
           ) : null}
 
-          {ficha.historial?.length ? (
-            <section className="mt-4 border-t border-linea pt-3">
-              <h3 className="font-semibold">Kardex</h3>
-              <ul className="mt-1 text-[0.875rem] text-secundario">
-                {ficha.historial.map((h, i) => (
-                  <li key={i}>
-                    {new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium" }).format(new Date(h.reemplazada_en))}:
-                    {" "}cambió {h.cambios.join(", ")}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {punto ? <a href={ligaMaps(punto.lat, punto.lon)} target="_blank" rel="noopener noreferrer" className={BOTON}>Google Maps</a> : null}
+          <div className="grid grid-cols-2 gap-2">
             <a href={`https://wa.me/?text=${encodeURIComponent(textoCompartir)}`} target="_blank" rel="noopener noreferrer" className={BOTON}>Compartir por WhatsApp</a>
-            {veVisor ? <a href={ligaVisor(ficha.clave)} target="_blank" rel="noopener noreferrer" className={BOTON}>Visor oficial</a> : null}
             <a href={`/mapa-catastral/pdf?clave=${ficha.clave}`} target="_blank" rel="noopener" className={BOTON}>Descargar PDF</a>
             {puedeCotizar ? (
               <Link href={`/solicitudes/nueva?${new URLSearchParams({ clave: ficha.clave, municipio: municipio ?? "", direccion: ubicacionTexto, nota: descripcionSolicitud })}`} className={BOTON}>
@@ -262,6 +269,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
                 Calculadora de traslado
               </Link>
             ) : null}
+            {veVisor ? <a href={ligaVisor(ficha.clave)} target="_blank" rel="noopener noreferrer" className={BOTON}>Visor oficial</a> : null}
             <button type="button" disabled={ocupado} onClick={() => buscar(true, ficha.clave)} className={BOTON}>
               Actualizar información
             </button>

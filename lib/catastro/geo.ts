@@ -70,14 +70,22 @@ function areaAnillo(a: Punto[]): number {
   return s / 2;
 }
 
+/** El primer vértice: todo se calcula relativo a él (en grados, x·y de -100 × 20 pierde precisión: hasta ~100 m). */
+function origen(g: Geometria): Punto {
+  return poligonos(g)[0][0][0];
+}
+
 /**
- * Centroide de la geometría (para la liga de Maps): el del área de todos los polígonos juntos, restando huecos.
+ * Centroide de la geometría: el del área de todos los polígonos juntos, restando huecos. Ojo: en un terreno en L,
+ * en un condominio con cajón aparte o en un polígono cóncavo puede caer FUERA; para ligas y QR usar puntoInterior().
  * Si el área sale cero (polígono degenerado), el promedio de los vértices.
  */
 export function centroide(g: Geometria): Punto {
+  const [ox, oy] = origen(g);
   let ax = 0, ay = 0, at = 0, sx = 0, sy = 0, n = 0;
   for (const pol of poligonos(g)) {
-    pol.forEach((anillo, i) => {
+    pol.forEach((anilloAbs, i) => {
+      const anillo = anilloAbs.map(([x, y]) => [x - ox, y - oy] as Punto);
       const area = Math.abs(areaAnillo(anillo)) * (i === 0 ? 1 : -1);
       let cx = 0, cy = 0, a2 = 0;
       for (let k = 0, j = anillo.length - 1; k < anillo.length; j = k++) {
@@ -96,7 +104,46 @@ export function centroide(g: Geometria): Punto {
       }
     });
   }
-  return at > 0 ? [ax / at, ay / at] : [sx / n, sy / n];
+  return at > 0 ? [ox + ax / at, oy + ay / at] : [ox + sx / n, oy + sy / n];
+}
+
+/**
+ * Un punto que SIEMPRE cae dentro del predio (como ST_PointOnSurface): el del polígono más grande (en un
+ * condominio, la unidad y no su cajón aparte). Si su centroide cae dentro, ese; si no (terreno en L, cóncavo),
+ * el centro del tramo interior más ancho de varias líneas horizontales. Para Maps, WhatsApp, QR y prellenado.
+ */
+export function puntoInterior(g: Geometria): Punto {
+  const [ox, oy] = origen(g);
+  const rel = poligonos(g).map((pol) => pol.map((anillo) => anillo.map(([x, y]) => [x - ox, y - oy] as Punto)));
+  const area = (pol: Punto[][]) => Math.abs(areaAnillo(pol[0])) - pol.slice(1).reduce((s, h) => s + Math.abs(areaAnillo(h)), 0);
+  const mayor = rel.reduce((a, b) => (area(b) > area(a) ? b : a));
+  const unico: Geometria = { type: "Polygon", coordinates: mayor };
+  const c = centroide(unico);
+  const dentroRel = (p: Punto) => dentroDeAnillo(p, mayor[0]) && !mayor.slice(1).some((h) => dentroDeAnillo(p, h));
+  if (dentroRel(c)) return [ox + c[0], oy + c[1]];
+  const ys = mayor[0].map((p) => p[1]);
+  const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+  let mejor: Punto | null = null, ancho = -1;
+  for (let k = 1; k < 20; k++) {
+    const y = y0 + ((y1 - y0) * k) / 20;
+    // Cruces de la línea horizontal con todos los anillos (exterior y huecos), ordenados.
+    const xs: number[] = [];
+    for (const anillo of mayor) {
+      for (let i = 0, j = anillo.length - 1; i < anillo.length; j = i++) {
+        const [xa, ya] = anillo[j], [xb, yb] = anillo[i];
+        if ((ya > y) !== (yb > y)) xs.push(xa + ((y - ya) * (xb - xa)) / (yb - ya));
+      }
+    }
+    xs.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < xs.length; i += 2) {
+      if (xs[i + 1] - xs[i] > ancho) {
+        ancho = xs[i + 1] - xs[i];
+        mejor = [(xs[i] + xs[i + 1]) / 2, y];
+      }
+    }
+  }
+  const p = mejor ?? c;
+  return [ox + p[0], oy + p[1]];
 }
 
 /** [latMin, latMax, lonMin, lonMax] de una geometría en longitud/latitud. */

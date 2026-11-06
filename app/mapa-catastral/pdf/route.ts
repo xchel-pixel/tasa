@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { fuentesDe } from "@/lib/fuentes-pdf";
 import { pdfPredio } from "@/lib/catastro/pdf";
-import { normalizarClave, type Ficha } from "@/lib/catastro/servicio";
+import { conPunto, normalizarClave, type Ficha } from "@/lib/catastro/servicio";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("catastro_pdf", { p_clave: clave });
   if (error) return mensaje(error.message, 403);
-  const bytes = await pdfPredio(data as Ficha, await fuentesDe("manrope"));
+  const bytes = await pdfPredio(conPunto(data as Ficha), await fuentesDe("manrope"));
   return new NextResponse(Buffer.from(bytes), {
     headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="Ficha_predio_${clave}.pdf"`, "Cache-Control": "private, no-store" },
   });

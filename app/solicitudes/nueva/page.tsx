@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Encabezado } from "@/components/encabezado";
+import { inicialSolicitudDelMapa } from "@/lib/catastro/prellenado";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { prellenadoDesdeCalculo } from "@/lib/traslado/prellenado";
@@ -18,7 +19,7 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
   const calculo = q.calculo && /^[0-9a-f-]{36}$/.test(q.calculo) ? await leerCalculo(q.calculo) : null;
   const pre = calculo ? prellenadoDesdeCalculo(calculo, q.servicio ?? "hacendario") : null;
   // Desde el Mapa catastral (0059): ?clave=&municipio=&nota= (sin datos del cliente).
-  const delMapa = !pre && q.clave ? { municipio: (q.municipio ?? "").slice(0, 60), clave: q.clave.replace(/[^d-]/g, "").slice(0, 40), descripcion: (q.nota ?? "").slice(0, 800), direccion: (q.direccion ?? "").slice(0, 300) } : null;
+  const delMapa = pre ? null : inicialSolicitudDelMapa(q);
   await exigirRol("comisionista");
   const supabase = await crearClienteServidor();
   const servicios =

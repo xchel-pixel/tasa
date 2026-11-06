@@ -408,3 +408,54 @@ for (const q of QUIENES) {
     expect(problemas).toEqual([]);
   });
 }
+
+/**
+ * De extremo a extremo (XG admin_org): ficha de un predio YA GUARDADO y vigente en el Mapa catastral → botón
+ * "Calculadora de traslado" → la calculadora abre con clave, municipio y valor catastral total llenos. Solo lee:
+ * el predio sale de lo guardado en Tasa (no se consulta la fuente). Sin predio guardado, se anota y se salta.
+ */
+test("humo: mapa catastral → calculadora con los datos del predio", async ({ browser, baseURL }) => {
+  test.setTimeout(120_000);
+  const q = QUIENES.find((x) => x.org === "XG" && x.rol === "admin_org")!;
+  const db = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
+  const hace80 = new Date(Date.now() - 80 * 86_400_000).toISOString();
+  const { data: guardado } = await db.from("catastro_predios").select("clave")
+    .eq("demo", false).eq("expediente", "completo").not("geometria", "is", null).not("extra->valor_terreno", "is", null)
+    .gt("consultado_en", hace80).order("consultado_en", { ascending: false }).limit(1).maybeSingle<{ clave: string }>();
+  // HUMO_CLAVE_PREDIO: una clave guardada a mano, para cuando se quiere probar un predio en particular.
+  const predio = process.env.HUMO_CLAVE_PREDIO ? { clave: process.env.HUMO_CLAVE_PREDIO } : guardado;
+  const contexto = await browser.newContext();
+  const sesion = await entrar(contexto, q.correo, baseURL!);
+  const { data: xg } = await db.from("organizaciones").select("id").eq("slug", "xg").single();
+  const original = await organizacionActiva(q.correo);
+  if (original !== xg?.id) await sesion.rpc("elegir_organizacion", { p_org: xg?.id });
+  try {
+    const herramientas = (((await sesion.rpc("mis_herramientas")).data ?? []) as { clave: string }[]).map((h) => h.clave);
+    if (!predio || !herramientas.includes("mapa_catastral") || !herramientas.includes("calculadora_traslado")) {
+      test.info().annotations.push({ type: "sin datos", description: "mapa → calculadora (sin predio guardado o sin herramienta)" });
+      return;
+    }
+    const pagina = await contexto.newPage();
+    await pagina.goto(`/mapa-catastral?clave=${predio.clave}`);
+    // El botón de la ficha (el menú de arriba también dice "Calculadora de traslado", sin datos).
+    const liga = pagina.locator("main article").getByRole("link", { name: "Calculadora de traslado" });
+    await expect(liga).toBeVisible({ timeout: 45_000 });
+    const href = (await liga.getAttribute("href")) ?? "";
+    test.info().annotations.push({ type: "liga del botón", description: href });
+    await liga.click();
+    await pagina.waitForURL(/\/calculadora\?/, { timeout: 30_000 });
+    test.info().annotations.push({ type: "abrió", description: pagina.url() });
+    const llenos = {
+      clave: await pagina.locator('input[name="clave_catastral"]').inputValue(),
+      municipio: await pagina.locator('select[name="municipio"]').inputValue(),
+      valor: await pagina.locator('input[name="valor_catastral"]').inputValue(),
+    };
+    test.info().annotations.push({ type: "campos", description: JSON.stringify(llenos) });
+    expect(llenos.clave, "clave catastral en la calculadora").toBe(predio.clave);
+    expect(llenos.municipio, "municipio en la calculadora").not.toBe("");
+    expect(Number(llenos.valor), "valor catastral total en la calculadora").toBeGreaterThan(0);
+  } finally {
+    if (original && original !== xg?.id) await sesion.rpc("elegir_organizacion", { p_org: original });
+    await contexto.close();
+  }
+});

@@ -1,6 +1,6 @@
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { clienteDeServicio } from "@/lib/supabase/servicio";
-import { aLonLat, caja, centroide, contiene, geometriaValida, type Geometria } from "./geo";
+import { aLonLat, caja, contiene, geometriaValida, puntoInterior, type Geometria } from "./geo";
 import { consultarExpediente, consultarMapa, type PredioDeCapa } from "./idecatq";
 import { centroideDelExpediente, limpiarExpediente, type Datos, type Privados } from "./limpiar";
 
@@ -59,11 +59,22 @@ export function normalizarClave(texto: string): string | null {
   return /^(0[1-9]|1[0-8])\d{13}$/.test(c) ? c : null;
 }
 
+/**
+ * El punto del predio (Maps, WhatsApp, QR, prellenado) se calcula del polígono al leer: siempre dentro del
+ * terreno. Así también se corrigen los guardados antes (su centroide podía caer fuera).
+ */
+export function conPunto<T extends Ficha | null>(f: T): T {
+  const g = f?.geometria ? geometriaValida(f.geometria) : null;
+  if (!f || !g) return f;
+  const [lon, lat] = puntoInterior(g);
+  return { ...f, latitud: Math.round(lat * 1e6) / 1e6, longitud: Math.round(lon * 1e6) / 1e6 };
+}
+
 async function ficha(clave: string): Promise<Ficha | null> {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("catastro_ficha", { p_clave: clave });
   if (error) throw new Error(error.message);
-  return (data as Ficha | null) ?? null;
+  return conPunto((data as Ficha | null) ?? null);
 }
 
 async function impedimento(): Promise<string | null> {
@@ -80,7 +91,7 @@ async function registrarFalla(quien: Quien, tipo: "mapa" | "expediente") {
 async function guardar(quien: Quien, p: {
   clave: string; geometria: Geometria | null; datos: Datos; expediente: "completo" | "pendiente"; privados: Privados | null; modo: "consulta" | "actualizar";
 }): Promise<string | null> {
-  const [lon, lat] = p.geometria ? centroide(p.geometria) : [null, null];
+  const [lon, lat] = p.geometria ? puntoInterior(p.geometria) : [null, null];
   const { error } = await servicio().rpc("catastro_guardar", {
     p_org: quien.organizacion,
     p_persona: quien.persona,

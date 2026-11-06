@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import type { FuentesPdf } from "@/lib/pdf-cotizacion";
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import { sinSimbolosFaltantes } from "@/lib/traslado/pdf";
-import { camposEnOrden, valorLegible } from "./etiquetas";
+import { fechaLegible, seccionesDeFicha } from "./etiquetas";
 import { aUtm, ligaMaps, type Geometria, type Punto } from "./geo";
 import type { Ficha } from "./servicio";
 import { NOTA_FUENTE } from "./textos";
@@ -21,26 +21,13 @@ const ANCHO = 612, ALTO = 792, MARGEN = 56;
 
 /** Todo el texto del PDF, en orden (también lo usa la prueba de glifos). */
 export function contenidoPdf(f: Ficha) {
-  const fecha = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long" }).format(new Date(f.consultado_en));
   const municipio = municipioPorClave(f.clave) ?? f.municipio;
   const punto = f.latitud && f.longitud ? { lat: Number(f.latitud), lon: Number(f.longitud) } : null;
-  const privados: [string, string][] = [];
-  if (f.privados) {
-    for (const p of f.privados.propietarios) {
-      privados.push([p.origen === "rppc" ? "Propietario (Registro Público)" : "Propietario",
-        [p.nombre, p.porcentaje !== null ? `${p.porcentaje} %` : null, p.tipo_adquisicion].filter(Boolean).join(" · ")]);
-    }
-    const v = valorLegible("valor_terreno", f.privados.valor_operacion);
-    if (v) privados.push(["Valor de operación", v]);
-    if (f.privados.escritura) privados.push(["Escritura", f.privados.escritura]);
-    if (f.privados.notario) privados.push(["Notario", f.privados.notario]);
-    if (f.privados.numero_contrato) privados.push(["Contrato", f.privados.numero_contrato]);
-  }
   return {
     titulo: "Ficha del predio",
-    subtitulo: `Clave catastral ${f.clave} · ${municipio}, Qro. · Consultado el ${fecha}${f.expediente === "pendiente" ? " · expediente incompleto" : ""}`,
-    campos: camposEnOrden(f.campos).map(([, etiqueta, valor]) => [etiqueta, valor] as [string, string]),
-    privados,
+    subtitulo: `Clave catastral ${f.clave} · ${municipio}, Qro. · Consultado el ${fechaLegible(f.consultado_en)}${f.expediente === "pendiente" ? " · expediente incompleto" : ""}`,
+    // Las mismas secciones y el mismo orden que la pantalla.
+    secciones: seccionesDeFicha(f),
     croquis: "Croquis del polígono",
     sinPoligono: "Sin polígono disponible.",
     liga: punto ? ligaMaps(punto.lat, punto.lon) : null,
@@ -193,16 +180,12 @@ export async function pdfPredio(f: Ficha, fuentes: FuentesPdf): Promise<Uint8Arr
   }
   l.y = arriba - altoCroquis - 16;
 
-  if (c.campos.length) {
-    texto(l, "Datos del predio", { tam: 10, negrita: true });
+  for (const s of c.secciones) {
+    // Que el título no quede solo al pie de la hoja.
+    if (l.y < MARGEN + 60) nuevaHoja(l);
+    texto(l, s.titulo, { tam: 10, negrita: true });
     l.y -= 2;
-    tabla(l, c.campos);
-    l.y -= 10;
-  }
-  if (c.privados.length) {
-    texto(l, "Propietario y operación", { tam: 10, negrita: true });
-    l.y -= 2;
-    tabla(l, c.privados);
+    tabla(l, s.filas);
     l.y -= 10;
   }
   l.y -= 4;

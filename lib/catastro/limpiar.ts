@@ -58,7 +58,8 @@ function txt(x: unknown): string | null {
   if (typeof x === "number" && Number.isFinite(x)) return String(x);
   if (typeof x !== "string") return null;
   const t = x.replace(/\s+/g, " ").trim();
-  return t && t !== "null" ? t.slice(0, 500) : null;
+  // "--" es como la fuente marca un dato vacío.
+  return t && t !== "null" && !/^-+$/.test(t) ? t.slice(0, 500) : null;
 }
 
 /** Número (acepta "1,234.50"), o nulo. */
