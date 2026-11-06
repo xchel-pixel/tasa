@@ -15,7 +15,13 @@ const ANCHO = 612, ALTO = 792, MARGEN = 56;
 const pesos = (x: number) => `$${x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sinHtml = (s: string) => s.replace(/<[^>]+>/g, "");
 
-type Lienzo = { pdf: PDFDocument; pag: PDFPage; y: number; R: PDFFont; B: PDFFont };
+/** Símbolos que Manrope no tiene (saldrían como un cuadro): en palabras. Lo demás sin glifo se quita. */
+const EN_PALABRAS: Record<string, string> = { "→": ":", "≈": "aprox.", "≥": "mayor o igual a", "≤": "menor o igual a", "⚑": "" };
+export function sinSimbolosFaltantes(texto: string, tiene: (c: number) => boolean): string {
+  return [...texto].map((ch) => (tiene(ch.codePointAt(0)!) ? ch : (EN_PALABRAS[ch] ?? ""))).join("");
+}
+
+type Lienzo = { pdf: PDFDocument; pag: PDFPage; y: number; R: PDFFont; B: PDFFont; limpio: (t: string) => string };
 
 function partir(texto: string, fuente: PDFFont, tam: number, ancho: number): string[] {
   const renglones: string[] = [];
@@ -40,7 +46,7 @@ function nuevaHoja(l: Lienzo) {
 
 function texto(l: Lienzo, t: string, { tam = 9, negrita = false, color = TINTA, x = MARGEN, ancho = ANCHO - 2 * MARGEN, interlinea = 1.35 } = {}) {
   const f = negrita ? l.B : l.R;
-  for (const r of partir(t, f, tam, ancho)) {
+  for (const r of partir(l.limpio(t), f, tam, ancho)) {
     if (l.y < MARGEN + tam * 2) nuevaHoja(l);
     l.pag.drawText(r, { x, y: l.y - tam, size: tam, font: f, color });
     l.y -= tam * interlinea;
@@ -51,7 +57,7 @@ function bloque(l: Lienzo, titulo: string, filas: Concepto[], total: number, x: 
   let y = yInicio;
   const fila = (izq: string, der: string, { negrita = false, color = TINTA, tam = 9 } = {}) => {
     const f = negrita ? l.B : l.R;
-    const lineas = partir(izq, f, tam, ancho * 0.64);
+    const lineas = partir(l.limpio(izq), f, tam, ancho * 0.64);
     lineas.forEach((r, i) => l.pag.drawText(r, { x, y: y - tam - i * tam * 1.3, size: tam, font: f, color }));
     if (der) l.pag.drawText(der, { x: x + ancho - f.widthOfTextAtSize(der, tam), y: y - tam, size: tam, font: f, color });
     y -= lineas.length * tam * 1.3 + 4;
@@ -80,7 +86,9 @@ export async function pdfTraslado(r: Resultado & { avisos?: string[] }, opciones
   pdf.setTitle("Estimación de gastos de traslado");
   const R = await pdf.embedFont(opciones.fuentes.regular, { subset: opciones.fuentes.subconjunto });
   const B = await pdf.embedFont(opciones.fuentes.negrita, { subset: opciones.fuentes.subconjunto });
-  const l: Lienzo = { pdf, pag: pdf.addPage([ANCHO, ALTO]), y: ALTO - MARGEN, R, B };
+  const glifos = new Set(R.getCharacterSet());
+  const limpio = (t: string) => sinSimbolosFaltantes(t, (c) => glifos.has(c));
+  const l: Lienzo = { pdf, pag: pdf.addPage([ANCHO, ALTO]), y: ALTO - MARGEN, R, B, limpio };
   const [a, mm, d] = r.fecha.split("-");
   const W = ANCHO - 2 * MARGEN;
 
@@ -166,8 +174,10 @@ export async function pdfTraslado(r: Resultado & { avisos?: string[] }, opciones
       + "Ley del Notariado del Estado de Querétaro arts. 147, 158 y 171; Ley de Hacienda del Estado de Querétaro arts. 90-110; INPC (INEGI); UDI (Banxico).", { tam: 7.6, color: TENUE });
     texto(l, LEYENDA, { tam: 7.6, color: TENUE });
   }
-  pdf.getPages().forEach((p, i) => {
-    const t = `Hoja ${i + 1}`;
+  // Pie: "Hoja 1 de 2" en el detallado; el de una hoja va sin número.
+  const hojas = pdf.getPages();
+  if (hojas.length > 1) hojas.forEach((p, i) => {
+    const t = `Hoja ${i + 1} de ${hojas.length}`;
     p.drawText(t, { x: ANCHO - MARGEN - R.widthOfTextAtSize(t, 7), y: 34, size: 7, font: R, color: TENUE });
   });
   return pdf.save();

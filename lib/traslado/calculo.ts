@@ -204,7 +204,10 @@ function calcIstd(p: Parametros, ist: TarifaIstd, d: DatosIstd) {
   }[ist.base ?? "op_com"] as unknown as Record<string, number>;
   const entradas = Object.entries(cands);
   const [cual, base] = entradas.reduce((a, b) => (b[1] > a[1] ? b : a));
-  const pasos = [`Base: el mayor entre ${entradas.map(([k, v]) => `${k} ${m(v)}`).join(", ")} → ${cual}.`];
+  const lista = entradas.map(([k, v]) => `${k} $${m(v)}`);
+  const enumeradas = lista.length > 1 ? `${lista.slice(0, -1).join(", ")} y ${lista.at(-1)}` : lista[0];
+  const tomada = ({ operación: "la operación", comercial: "el valor comercial", catastral: "el valor catastral" } as Record<string, string>)[cual];
+  const pasos = [`Base: el mayor entre ${enumeradas}: se toma ${tomada}.`];
   const [base2, txt] = deduccionIstd(p, ist.deduccion, base, d.vivienda_primera);
   if (txt) pasos.push(txt);
   const [bruto, form] = tarifaIstd(ist, base2);
@@ -273,7 +276,7 @@ export function isrEnajenacion(p: Parametros, d: DatosEnajenacion, venta: string
     const v = monto * Math.max(1 - 0.03 * nm, 0.2) * fm;
     mej += v;
     const etq = { cfdi: "CFDI", aviso: "aviso de terminación de obra", avaluo: "avalúo referido, 80 %" }[comp] ?? comp;
-    pasos.push(`Mejora ${x.fecha} (${etq}) $${m(Number(x.monto))} → depreciada y actualizada = $${m(v)}.`);
+    pasos.push(`Mejora ${x.fecha} (${etq}) ${m(Number(x.monto))}, depreciada y actualizada: ${m(v)}.`);
   }
   let costo = Tact + Kact + mej;
   if (costo < 0.1 * I) {
@@ -293,10 +296,10 @@ export function isrEnajenacion(p: Parametros, d: DatosEnajenacion, venta: string
     G = exc > 0 ? exc - D * (exc / I) : 0;
     pasos.push(`Casa habitación exenta hasta ${p.tope_udis.toLocaleString("en-US")} UDIS ($${m(tope)}); excedente gravado $${m(exc)}.`);
   }
-  pasos.push(`Ingreso $${m(I)} − deducciones $${m(D)} → ganancia gravable $${m(Math.max(G, 0))}.`);
+  pasos.push(`Ingreso $${m(I)} − deducciones ${m(D)} = ganancia gravable ${m(Math.max(G, 0))}.`);
   if (G <= 0) return { ganancia: 0, isr126: 0, estatal: 0, federal: 0, pasos: [...pasos, "Sin ganancia: no hay pago provisional."], deducciones: D, ingreso: I, n: n20 };
   const g1 = G / n20, [i1, [li, cf, pct]] = tarifa126(p, g1), isr = i1 * n20;
-  pasos.push(`Ganancia / ${n20} años = $${m(g1)} → cuota fija $${m(cf)} + ($${m(g1)} − $${m(li)}) × ${pct} % = $${m(i1)} × ${n20} = $${m(isr)}.`);
+  pasos.push(`Ganancia / ${n20} años = ${m(g1)}; cuota fija ${m(cf)} + ($${m(g1)} − $${m(li)}) × ${pct} % = $${m(i1)} × ${n20} = $${m(isr)}.`);
   const est = Math.min(0.05 * G, isr), fed = isr - est;
   pasos.push(`Pago al Estado (art. 127): 5 % × ganancia = $${m(est)}; pago federal = $${m(fed)}.`);
   return { ganancia: G, isr126: isr, estatal: est, federal: fed, pasos, deducciones: D, ingreso: I, n: n20 };
@@ -377,7 +380,7 @@ function istdExtemporaneo(p: Parametros, x0: Extemporaneo, fechaPago: string, va
   if (!x.valor) {
     const { v, f, mo, md } = valorReferido(p, valorActual, x.fecha_operacion);
     x = { ...x, valor: Math.round(v * 100) / 100 };
-    pre.push(`Valor referido estimado a ${mo}: $${m(valorActual)} ÷ factor INPC ${md}/${mo} = ${f.toFixed(4)} → $${m(v)} (LH art. 69; el definitivo lo da el avalúo referido).`);
+    pre.push(`Valor referido estimado a ${mo}: $${m(valorActual)} ÷ factor INPC ${md}/${mo} = ${f.toFixed(4)}; valor referido ${m(v)} (LH art. 69; el definitivo lo da el avalúo referido).`);
   }
   let imp = (Number(x.valor) * Number(x.tasa_pct)) / 100;
   const pasos = [...pre, `ISTD original: ${x.tasa_pct} % × $${m(Number(x.valor))} = $${m(imp)} (tasa vigente a la fecha de la operación).`];
@@ -395,14 +398,14 @@ function istdExtemporaneo(p: Parametros, x0: Extemporaneo, fechaPago: string, va
     const md = Object.keys(p.inpc).filter((k) => k <= ant(fp)).sort().at(-1)!, mo = ant(fo);
     const f = Math.floor((p.inpc[md] / p.inpc[mo]) * 10000) / 10000;
     act = imp * (f - 1);
-    pasos.push(`Actualización INPC ${md} / ${mo} = ${f.toFixed(4)} → $${m(act)}.`);
+    pasos.push(`Actualización INPC ${md} / ${mo} = ${f.toFixed(4)}; actualización ${m(act)}.`);
   }
   const meses = (fp.getUTCFullYear() - venc.getUTCFullYear()) * 12 + fp.getUTCMonth() - venc.getUTCMonth();
   const tope = Number(x.tope_meses || 60);
   const fr = factorRecargos(p, venc.getUTCFullYear(), venc.getUTCMonth() + 1, meses, tope);
   const rec = ((imp + act) * fr) / 100;
   const mmVenc = `${String(venc.getUTCMonth() + 1).padStart(2, "0")}/${venc.getUTCFullYear()}`;
-  pasos.push(`Recargos: suma de tasas de mora desde ${mmVenc} por ${Math.min(meses, tope)} meses (tope ${tope}) = ${fr.toFixed(2)} % → $${m(rec)}.`);
+  pasos.push(`Recargos: suma de tasas de mora desde ${mmVenc} por ${Math.min(meses, tope)} meses (tope ${tope}) = ${fr.toFixed(2)} %; recargos ${m(rec)}.`);
   return { imp, act, rec, pasos };
 }
 
@@ -486,8 +489,8 @@ export function calcular(c: Caso, p: Parametros): Resultado {
         SV.push(`<b>Valor referido a la fecha de adquisición</b> (${x.fecha_adq}) que dejaría el ISR en cero: <b>$${m(cref)}</b> `
           + `(costo capturado $${m(Number(x.costo_adq || 0))}). Solo procede cuando el costo no se puede comprobar con escritura (herencia o donación sin costo conocido, prescripción); si la escritura consigna el costo, ese es el que se deduce.`);
         det.push(["Mejoras y valor referido para no causar ISR", [
-          `Mejoras comprobables (CFDI o aviso) ≈ $${m(mej)} con fecha ${fm}; con avalúo referido (80 %) ≈ $${m(conAvaluo)}.`,
-          `Costo de adquisición referido ≈ $${m(cref)} a ${x.fecha_adq} (misma proporción de terreno).`,
+          `Mejoras comprobables (CFDI o aviso) de aprox. $${m(mej)} con fecha ${fm}; con avalúo referido (80 %), aprox. $${m(conAvaluo)}.`,
+          `Costo de adquisición referido de aprox. $${m(cref)} a ${x.fecha_adq} (misma proporción de terreno).`,
           "Las mejoras deben ser inversiones reales en construcción, mejoras o ampliaciones (no conservación).",
         ]]);
       }
