@@ -2,8 +2,6 @@ import Link from "next/link";
 import { AvisoCsf } from "@/components/aviso-csf";
 import { MiPerfilFormulario } from "@/components/mi-perfil";
 import { leerPerfil } from "@/lib/perfil";
-import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { urlDelSitio } from "@/lib/altas";
 import { Encabezado } from "@/components/encabezado";
 import { fechaCorta } from "@/lib/formato";
 import { exigirRol } from "@/lib/sesion";
@@ -41,7 +39,7 @@ export default async function MisDatos() {
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
         <div className="mx-auto w-full max-w-md">
-          <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">← Inicio</Link>
+          <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">← Portada</Link>
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Mis datos</h1>
 
           <dl className="mt-4">
@@ -59,7 +57,6 @@ export default async function MisDatos() {
 
           <ClabeCobro actual={yo?.clabe_cobro ?? null} />
 
-          {yo ? <TarjetaInvitar liga={`${await urlDelSitio()}/alta/${persona.organizacion.slug}?ref=${yo.codigo_referido}`} /> : null}
 
           <AvisoCsf carpeta={`${persona.organizacion.id}/${persona.id}`} reemplazar={Boolean(yo?.csf_ruta)} />
 

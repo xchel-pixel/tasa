@@ -1,14 +1,10 @@
 import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
-import { Lanzador } from "@/components/lanzador";
 import { comisionesPorPagar, type PorPagar } from "@/lib/comisiones";
 import { mesTitulo, pesos } from "@/lib/formato";
 import { SeccionesDeInicio } from "@/components/secciones-de-inicio";
-import { TarjetaClientes } from "@/components/tarjeta-clientes";
-import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { bonoDeEquipo, codigoDeEquipo, ligaDeClientes, ligaDeEquipo } from "@/lib/invitar";
 import { pendientesDelPanel } from "@/lib/panel";
-import { esStaff, NOMBRE_DEL_ROL, type Persona } from "@/lib/sesion";
+import { esStaff, type Persona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 /**
@@ -20,7 +16,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
 export async function InicioStaff({ persona }: { persona: Persona }) {
   const staff = esStaff(persona);
   const supabase = await crearClienteServidor();
-  const [p, porPagar, conector, liga, bono, codigo] = await Promise.all([
+  const [p, porPagar, conector] = await Promise.all([
     pendientesDelPanel(),
     staff ? comisionesPorPagar() : Promise.resolve([] as PorPagar[]),
     supabase
@@ -29,11 +25,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
       .eq("activo", true)
       .maybeSingle()
       .returns<{ tipo: string; estado: string; ultimo_error: string | null } | null>(),
-    ligaDeEquipo(persona),
-    bonoDeEquipo(persona),
-    codigoDeEquipo(persona),
   ]);
-  const ligaClientes = codigo ? await ligaDeClientes(persona, codigo) : null;
 
   const cierre = {
     sin_preparar: { texto: "Por preparar", tono: "proceso" as const },
@@ -48,9 +40,6 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
 
   return (
     <>
-      <h1 className="text-[1.5rem] font-bold tracking-tight">Hola, {persona.nombre.split(" ")[0]}</h1>
-      <p className="mt-1 text-[0.9375rem] text-secundario">{NOMBRE_DEL_ROL[persona.rol]}</p>
-      <Lanzador persona={persona} />
 
       {conectorConError ? (
         <Link
@@ -123,9 +112,6 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         {persona.rol === "admin_org" ? <Enlace href="/ajustes">Ajustes</Enlace> : null}
         {persona.superPlataforma ? <Enlace href="/plataforma">Plataforma</Enlace> : null}
       </nav>
-
-      {ligaClientes ? <TarjetaClientes liga={ligaClientes} /> : null}
-      {liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null}
     </>
   );
 }

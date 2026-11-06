@@ -26,14 +26,8 @@ export default async function ResultadoCalculo({ params }: { params: Promise<{ i
     ...(r.avisos ?? []).filter((a) => !a.includes("INPC") || c.entrada.extemporaneo || c.entrada.vendedor?.isr),
     ...(r.SC.concat(r.SV).some((s) => s.includes("referido")) ? ["El notario pedirá un avalúo referido (ver sugerencias)."] : []),
   ];
-  const notasSolicitud = [
-    `Desde la calculadora de traslado: ${r.lado === "C" ? "comprador" : r.lado === "V" ? "vendedor" : "comprador y vendedor"}`,
-    r.vo ? `valor de operación ${pesos(r.vo)}` : null,
-    r.va ? `avalúo ${pesos(r.va)}` : null,
-    `firma estimada ${r.fecha}`,
-  ].filter(Boolean).join(" · ");
-  const liga = (servicio: string) =>
-    `/solicitudes/nueva?${new URLSearchParams({ servicio, municipio: r.municipio, clave: c.entrada.clave_catastral ?? "", notas: notasSolicitud })}`;
+  // La solicitud lee el cálculo completo (lib/traslado/prellenado.ts): aquí solo va su id.
+  const liga = (servicio: string) => `/solicitudes/nueva?${new URLSearchParams({ calculo: c.id, servicio })}`;
 
   return (
     <>

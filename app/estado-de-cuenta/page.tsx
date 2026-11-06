@@ -22,7 +22,7 @@ export default async function EstadoDeCuenta({ searchParams }: PageProps<"/estad
       <main className="flex flex-1 flex-col px-6 py-6">
         <div className="mx-auto w-full max-w-md">
           <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
-            ← Mis trabajos
+            ← Portada
           </Link>
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Estado de cuenta</h1>
 

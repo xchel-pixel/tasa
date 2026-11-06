@@ -1,20 +1,15 @@
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
-import { InicioComisionista } from "@/components/inicio-comisionista";
-import { InicioStaff } from "@/components/inicio-staff";
-import { PortadaPublica } from "@/components/portada-publica";
+import { FranjaPendientes } from "@/components/franja-pendientes";
 import { Lanzador } from "@/components/lanzador";
-import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { SeccionesDeInicio } from "@/components/secciones-de-inicio";
-import { TarjetaClientes } from "@/components/tarjeta-clientes";
-import { bonoDeEquipo, codigoDeEquipo, ligaDeClientes, ligaDeEquipo } from "@/lib/invitar";
+import { PortadaPublica } from "@/components/portada-publica";
 import { obtenerContacto } from "@/lib/contacto";
-import { obtenerSesion } from "@/lib/sesion";
+import { NOMBRE_DEL_ROL, obtenerSesion } from "@/lib/sesion";
 
 /**
- * El inicio decide por rol: el comisionista ve sus trabajos y su mes;
- * el staff, lo que le toca hacer hoy. Sin organización elegida, primero
- * se elige.
+ * La portada: saludo, cuadrícula de herramientas (cada una abre su pantalla), "Próximamente" y la franja de
+ * pendientes si hay algo. Nada más: el panel de cada quien vive en su propia ruta. Sin sesión, la portada
+ * pública; sin organización elegida, primero se elige.
  */
 export default async function Inicio() {
   const sesion = await obtenerSesion();
@@ -30,7 +25,7 @@ export default async function Inicio() {
       <Encabezado />
 
       <main className="flex flex-1 flex-col px-6 py-8">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-2xl">
           {!persona ? (
             <>
               <h1 className="text-[1.5rem] font-bold tracking-tight">
@@ -43,32 +38,18 @@ export default async function Inicio() {
                 {contacto ? <> Contacto: {contacto}.</> : null}
               </p>
             </>
-          ) : persona.rol === "comisionista" ? (
-            <InicioComisionista persona={persona} />
-          ) : persona.rol === "equipo" ? (
+          ) : (
             <>
               <h1 className="text-[1.5rem] font-bold tracking-tight">Hola, {persona.nombre.split(" ")[0]}</h1>
-              <p className="mt-1 text-[0.9375rem] text-secundario">Equipo de {persona.organizacion.nombre}</p>
+              {persona.rol !== "comisionista" ? (
+                <p className="mt-1 text-[0.9375rem] text-secundario">{NOMBRE_DEL_ROL[persona.rol]} · {persona.organizacion.nombre}</p>
+              ) : null}
               <Lanzador persona={persona} />
-              <SeccionesDeInicio persona={persona} opera={false} />
-              <LigasEquipo persona={persona} />
+              <FranjaPendientes persona={persona} />
             </>
-          ) : (
-            <InicioStaff persona={persona} />
           )}
         </div>
       </main>
-    </>
-  );
-}
-
-/** "Para tus clientes" e "Invita a un comisionista" del equipo (con su bono, si admin_org se lo dio). */
-async function LigasEquipo({ persona }: { persona: Parameters<typeof ligaDeEquipo>[0] }) {
-  const [liga, bono, codigo] = await Promise.all([ligaDeEquipo(persona), bonoDeEquipo(persona), codigoDeEquipo(persona)]);
-  return (
-    <>
-      {codigo ? <TarjetaClientes liga={await ligaDeClientes(persona, codigo)} /> : null}
-      {liga ? <TarjetaInvitar liga={liga} equipo bono={bono} /> : null}
     </>
   );
 }

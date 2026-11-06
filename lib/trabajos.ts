@@ -38,6 +38,8 @@ export type Trabajo = {
   inmueble_municipio: string | null;
   inmueble_clave_catastral: string | null;
   inmueble_descripcion: string | null;
+  /** Si se encargó desde la calculadora de traslado (0056): su cálculo, mientras exista (90 días). */
+  calculo_traslado_id: string | null;
   cliente_nombre: string;
   cliente_telefono: string | null;
   cliente_correo: string | null;
@@ -132,7 +134,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
       .from("solicitudes")
       .select(
         `id, folio, tipo, estado, estatus_publico, inmueble_direccion, inmueble_municipio,
-         inmueble_clave_catastral, inmueble_descripcion, cliente_nombre, cliente_telefono,
+         inmueble_clave_catastral, inmueble_descripcion, calculo_traslado_id, cliente_nombre, cliente_telefono,
          cliente_correo, requiere_factura, monto_honorarios, monto_iva, monto_terceros,
          monto_total, pagado_en, mes_cierre, motivo_cancelacion, creado_en,
          origen, comisionista_id, comision_regla, sin_comision_motivo,

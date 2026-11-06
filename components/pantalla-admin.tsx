@@ -4,7 +4,7 @@ import { Encabezado } from "@/components/encabezado";
 /** El marco de toda pantalla del panel: encabezado, regreso y título. */
 export function PantallaAdmin({
   titulo,
-  volver = { href: "/", texto: "Panel" },
+  volver = { href: "/", texto: "Portada" },
   children,
 }: {
   titulo: string;

@@ -40,7 +40,7 @@ export default async function Terminos() {
         <div className="mx-auto w-full max-w-md">
           {!persona.debeAceptarTerminos ? (
             <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
-              ← Inicio
+              ← Portada
             </Link>
           ) : null}
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Términos de {persona.organizacion.nombre}</h1>

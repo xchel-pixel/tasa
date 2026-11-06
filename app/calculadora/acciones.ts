@@ -1,13 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { municipioPorClave, type Caso, type DatosIsr, type Mejora } from "@/lib/traslado/calculo";
+import { limpiarClave, municipioPorClave, type Caso, type DatosIsr, type Mejora } from "@/lib/traslado/calculo";
 import { calcularYGuardar, type Modo } from "@/lib/traslado/servidor";
 import { tengoHerramienta } from "@/lib/herramientas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
-export type EstadoCalculo = { error: string | null };
+/** `valores`: lo capturado, para no vaciar el formulario cuando hay un error. */
+export type EstadoCalculo = { error: string | null; valores?: Record<string, string> };
 
 const texto = (f: FormData, n: string) => String(f.get(n) ?? "").trim();
 const numero = (f: FormData, n: string) => {
@@ -20,7 +21,8 @@ const fecha = (f: FormData, n: string) => (/^\d{4}-\d{2}-\d{2}$/.test(texto(f, n
 function casoDelFormulario(f: FormData, modo: Modo): Caso | string {
   const lado = texto(f, "lado") as Caso["lado"];
   if (!["C", "V", "ambos"].includes(lado)) return "Elige para quién es el cálculo.";
-  const clave = texto(f, "clave_catastral").replace(/[^d-]/g, "").slice(0, 40);
+  // De la clave sale el municipio (si no lo eligieron) y llega a la solicitud del avalúo.
+  const clave = limpiarClave(texto(f, "clave_catastral"));
   const municipio = texto(f, "municipio") || (clave ? municipioPorClave(clave) ?? "" : "");
   if (!municipio) return "Elige el municipio o escribe la clave catastral.";
   const operacion = texto(f, "operacion") as Caso["operacion"];
@@ -85,13 +87,14 @@ export async function calcularTraslado(_previo: EstadoCalculo, f: FormData): Pro
   if (!(await tengoHerramienta(modo === "completa" ? "calculadora_traslado_completa" : "calculadora_traslado"))) {
     return { error: "Ese modo de la calculadora no está disponible para tu nivel." };
   }
+  const valores = Object.fromEntries([...f.entries()].filter(([, v]) => typeof v === "string")) as Record<string, string>;
   const caso = casoDelFormulario(f, modo);
-  if (typeof caso === "string") return { error: caso };
+  if (typeof caso === "string") return { error: caso, valores };
   let id: string;
   try {
     ({ id } = await calcularYGuardar(caso, modo));
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "No se pudo calcular. Inténtalo otra vez." };
+    return { error: e instanceof Error ? e.message : "No se pudo calcular. Inténtalo otra vez.", valores };
   }
   redirect(`/calculadora/${id}`);
 }

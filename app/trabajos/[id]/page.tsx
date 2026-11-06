@@ -287,6 +287,17 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
               <Dato etiqueta="Dirección" valor={[t.inmueble_direccion, t.inmueble_municipio].filter(Boolean).join(", ")} />
               {t.inmueble_clave_catastral ? <Dato etiqueta="Clave catastral" valor={t.inmueble_clave_catastral} /> : null}
               {t.inmueble_descripcion ? <Dato etiqueta="Descripción" valor={t.inmueble_descripcion} /> : null}
+              {t.calculo_traslado_id ? (
+                <div>
+                  <dt className="text-secundario">Origen</dt>
+                  <dd>
+                    Calculadora de traslado
+                    {persona.rol === "comisionista" ? (
+                      <> · <Link href={`/calculadora/${t.calculo_traslado_id}`} className="font-semibold text-acento underline underline-offset-4">ver el cálculo</Link></>
+                    ) : null}
+                  </dd>
+                </div>
+              ) : null}
               <Dato etiqueta="Cliente" valor={t.cliente_nombre} />
               {t.cliente_telefono ? <Dato etiqueta="Teléfono" valor={t.cliente_telefono} /> : null}
               {t.cliente_correo ? <Dato etiqueta="Correo" valor={t.cliente_correo} /> : null}
@@ -423,7 +434,7 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
     <div>
       <dt className="text-secundario">{etiqueta}</dt>
-      <dd>{valor}</dd>
+      <dd className="whitespace-pre-line">{valor}</dd>
     </div>
   );
 }

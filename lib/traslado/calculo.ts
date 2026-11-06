@@ -134,6 +134,11 @@ const POR_CLAVE: Record<string, string> = {
   "11": "El Marqués", "12": "Pedro Escobedo", "13": "Peñamiller", "14": "Querétaro", "15": "San Joaquín",
   "16": "San Juan del Río", "17": "Tequisquiapan", "18": "Tolimán",
 };
+/** La clave como se guarda: solo dígitos y guiones ("14 01 001…" → "14010010…"), hasta 40. */
+export function limpiarClave(clave: string): string {
+  return clave.replace(/[^\d-]/g, "").slice(0, 40);
+}
+
 export function municipioPorClave(clave: string): string | null {
   return POR_CLAVE[clave.replace(/\D/g, "").slice(0, 2)] ?? null;
 }

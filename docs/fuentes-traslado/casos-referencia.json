@@ -1031,5 +1031,1025 @@
    ],
    "SV": []
   }
+ },
+ {
+  "entrada": {
+   "fecha_firma": "2026-11-20",
+   "referencia": "09_herencia",
+   "operacion": "herencia",
+   "donacion_exenta": false,
+   "valor_catastral": 0,
+   "comprador": {
+    "vivienda_primera": null,
+    "incluir_avaluo": true,
+    "certificados_gravamen": 1
+   },
+   "vendedor": {
+    "isr": null,
+    "cancelar_hipoteca": 0
+   },
+   "extemporaneo": null,
+   "detalle": true,
+   "lado": "C",
+   "municipio": "Querétaro",
+   "valor_operacion": 0,
+   "avaluo": 2200000
+  },
+  "resultado": {
+   "lado": "C",
+   "municipio": "Querétaro",
+   "fecha": "2026-11-20",
+   "vo": 0.0,
+   "va": 2200000.0,
+   "vk": 0.0,
+   "C": [
+    [
+     "Impuestos",
+     "Impuesto sobre traslado de dominio (ISTD)",
+     123052.31
+    ],
+    [
+     "Impuestos",
+     "ISR por adquisición",
+     440000.0
+    ],
+    [
+     "Honorarios notariales",
+     "Honorarios por la escritura",
+     19211.7
+    ],
+    [
+     "Honorarios notariales",
+     "Trámite de inscripción en el Registro Público",
+     469.24
+    ],
+    [
+     "Honorarios notariales",
+     "IVA de honorarios (16 %)",
+     3148.95
+    ],
+    [
+     "Derechos y trámites",
+     "Inscripción en el Registro Público",
+     16500.0
+    ],
+    [
+     "Derechos y trámites",
+     "Avisos preventivo y definitivo",
+     703.86
+    ],
+    [
+     "Derechos y trámites",
+     "Certificado de libertad de gravamen",
+     586.55
+    ],
+    [
+     "Derechos y trámites",
+     "Avalúo hacendario (incluye folio)",
+     10600
+    ],
+    [
+     "Derechos y trámites",
+     "IVA del avalúo (16 %)",
+     1696.0
+    ]
+   ],
+   "V": [],
+   "totC": 615968.61,
+   "totV": 0,
+   "det": [
+    [
+     "ISTD · Querétaro (Art. 15)",
+     [
+      "Base: el mayor entre operación 0.00, comercial 2,200,000.00 → comercial.",
+      "Cálculo: cuota fija 74,616.95 + (2,200,000.00 − 1,379,992.90) × 0.059067 = $123,052.31."
+     ]
+    ],
+    [
+     "ISR por adquisición",
+     [
+      "Avalúo excede en más de 10 % el precio: 20 % × diferencia $2,200,000.00 (arts. 125 y 132)."
+     ]
+    ],
+    [
+     "Honorarios notariales (Ley del Notariado, arts. 147 y 171-V)",
+     [
+      "Base: el mayor entre operación, comercial y fiscal = $2,200,000.00.",
+      "36 UMA fijas + 127.77 UMA progresivas sobre 18,753.7 UMA = $19,211.70.",
+      "Trámite de inscripción 4 UMA = $469.24."
+     ]
+    ],
+    [
+     "Registro Público de la Propiedad (LHEQ)",
+     [
+      "7.5 al millar sobre 2,200,000.00 (LHEQ arts. 90, 97 y 110) = $16,500.00.",
+      "Avisos preventivo (4 UMA) y definitivo (2 UMA) = $703.86.",
+      "Certificado de libertad de gravamen 5 UMA × 1 = $586.55."
+     ]
+    ],
+    [
+     "Avalúo hacendario",
+     [
+      "Arancel del Consejo de Valuadores sobre $2,200,000.00 = $10,600.00 + IVA (incluye derechos de folio)."
+     ]
+    ]
+   ],
+   "notas": [
+    "La ley excluye las deducciones de vivienda de interés social y popular.",
+    "Herencias y donaciones entre cónyuges y línea recta: estímulo del programa municipal (PEF-TP, de 40 % a 100 %), no incluido."
+   ],
+   "mejora": null,
+   "ley_istd": "Ley de Ingresos 2026 (P.O. No. 103, 25-XII-2025, pág. 50252)",
+   "SC": [
+    "En adjudicación por herencia, el avalúo hacendario debe estar <b>referido a la fecha de adjudicación</b>."
+   ],
+   "SV": []
+  }
+ },
+ {
+  "entrada": {
+   "fecha_firma": "2026-11-20",
+   "referencia": "10_vivienda_popular",
+   "operacion": "compraventa",
+   "donacion_exenta": false,
+   "valor_catastral": 0,
+   "comprador": {
+    "vivienda_primera": "popular",
+    "incluir_avaluo": true,
+    "certificados_gravamen": 1
+   },
+   "vendedor": {
+    "isr": null,
+    "cancelar_hipoteca": 0
+   },
+   "extemporaneo": null,
+   "detalle": true,
+   "lado": "C",
+   "municipio": "Querétaro",
+   "valor_operacion": 1100000,
+   "avaluo": 1100000
+  },
+  "resultado": {
+   "lado": "C",
+   "municipio": "Querétaro",
+   "fecha": "2026-11-20",
+   "vo": 1100000.0,
+   "va": 1100000.0,
+   "vk": 0.0,
+   "C": [
+    [
+     "Impuestos",
+     "Impuesto sobre traslado de dominio (ISTD)",
+     58939.69
+    ],
+    [
+     "Honorarios notariales",
+     "Honorarios por la escritura",
+     13711.7
+    ],
+    [
+     "Honorarios notariales",
+     "Trámite de inscripción en el Registro Público",
+     469.24
+    ],
+    [
+     "Honorarios notariales",
+     "IVA de honorarios (16 %)",
+     2268.95
+    ],
+    [
+     "Derechos y trámites",
+     "Inscripción en el Registro Público",
+     586.55
+    ],
+    [
+     "Derechos y trámites",
+     "Avisos preventivo y definitivo",
+     703.86
+    ],
+    [
+     "Derechos y trámites",
+     "Certificado de libertad de gravamen",
+     586.55
+    ],
+    [
+     "Derechos y trámites",
+     "Avalúo hacendario (incluye folio)",
+     6300
+    ],
+    [
+     "Derechos y trámites",
+     "IVA del avalúo (16 %)",
+     1008.0
+    ]
+   ],
+   "V": [],
+   "totC": 84574.54,
+   "totV": 0,
+   "det": [
+    [
+     "ISTD · Querétaro (Art. 15)",
+     [
+      "Base: el mayor entre operación 1,100,000.00, comercial 1,100,000.00 → operación.",
+      "Cálculo: cuota fija 28,679.95 + (1,100,000.00 − 559,560.67) × 0.055991 = $58,939.69."
+     ]
+    ],
+    [
+     "ISR por adquisición",
+     [
+      "Avalúo no excede en más de 10 % el precio: no hay ISR por adquisición."
+     ]
+    ],
+    [
+     "Honorarios notariales (Ley del Notariado, arts. 147 y 171-V)",
+     [
+      "Base: el mayor entre operación, comercial y fiscal = $1,100,000.00.",
+      "36 UMA fijas + 80.88 UMA progresivas sobre 9,376.9 UMA = $13,711.70.",
+      "Trámite de inscripción 4 UMA = $469.24."
+     ]
+    ],
+    [
+     "Registro Público de la Propiedad (LHEQ)",
+     [
+      "Vivienda de interés social o popular: cuota fija 5 UMA (LHEQ, transitorio 2026) = $586.55.",
+      "Avisos preventivo (4 UMA) y definitivo (2 UMA) = $703.86.",
+      "Certificado de libertad de gravamen 5 UMA × 1 = $586.55."
+     ]
+    ],
+    [
+     "Avalúo hacendario",
+     [
+      "Arancel del Consejo de Valuadores sobre $1,100,000.00 = $6,300.00 + IVA (incluye derechos de folio)."
+     ]
+    ]
+   ],
+   "notas": [
+    "La ley excluye las deducciones de vivienda de interés social y popular.",
+    "Herencias y donaciones entre cónyuges y línea recta: estímulo del programa municipal (PEF-TP, de 40 % a 100 %), no incluido."
+   ],
+   "mejora": null,
+   "ley_istd": "Ley de Ingresos 2026 (P.O. No. 103, 25-XII-2025, pág. 50252)",
+   "SC": [],
+   "SV": []
+  }
+ },
+ {
+  "entrada": {
+   "fecha_firma": "2026-11-20",
+   "referencia": "11_donacion_exenta",
+   "operacion": "donacion",
+   "donacion_exenta": true,
+   "valor_catastral": 0,
+   "comprador": {
+    "vivienda_primera": null,
+    "incluir_avaluo": true,
+    "certificados_gravamen": 1
+   },
+   "vendedor": {
+    "isr": null,
+    "cancelar_hipoteca": 0
+   },
+   "extemporaneo": null,
+   "detalle": true,
+   "lado": "C",
+   "municipio": "Querétaro",
+   "valor_operacion": 0,
+   "avaluo": 1800000
+  },
+  "resultado": {
+   "lado": "C",
+   "municipio": "Querétaro",
+   "fecha": "2026-11-20",
+   "vo": 0.0,
+   "va": 1800000.0,
+   "vk": 0.0,
+   "C": [
+    [
+     "Impuestos",
+     "Impuesto sobre traslado de dominio (ISTD)",
+     99425.51
+    ],
+    [
+     "Honorarios notariales",
+     "Honorarios por la escritura",
+     17211.7
+    ],
+    [
+     "Honorarios notariales",
+     "Trámite de inscripción en el Registro Público",
+     469.24
+    ],
+    [
+     "Honorarios notariales",
+     "IVA de honorarios (16 %)",
+     2828.95
+    ],
+    [
+     "Derechos y trámites",
+     "Inscripción en el Registro Público",
+     13500.0
+    ],
+    [
+     "Derechos y trámites",
+     "Avisos preventivo y definitivo",
+     703.86
+    ],
+    [
+     "Derechos y trámites",
+     "Certificado de libertad de gravamen",
+     586.55
+    ],
+    [
+     "Derechos y trámites",
+     "Avalúo hacendario (incluye folio)",
+     9100
+    ],
+    [
+     "Derechos y trámites",
+     "IVA del avalúo (16 %)",
+     1456.0
+    ]
+   ],
+   "V": [],
+   "totC": 145281.81,
+   "totV": 0,
+   "det": [
+    [
+     "ISTD · Querétaro (Art. 15)",
+     [
+      "Base: el mayor entre operación 0.00, comercial 1,800,000.00 → comercial.",
+      "Cálculo: cuota fija 74,616.95 + (1,800,000.00 − 1,379,992.90) × 0.059067 = $99,425.51."
+     ]
+    ],
+    [
+     "ISR por adquisición",
+     [
+      "Donación exenta (art. 93 fr. XXIII: cónyuges o línea recta)."
+     ]
+    ],
+    [
+     "Honorarios notariales (Ley del Notariado, arts. 147 y 171-V)",
+     [
+      "Base: el mayor entre operación, comercial y fiscal = $1,800,000.00.",
+      "36 UMA fijas + 110.72 UMA progresivas sobre 15,344.0 UMA = $17,211.70.",
+      "Trámite de inscripción 4 UMA = $469.24."
+     ]
+    ],
+    [
+     "Registro Público de la Propiedad (LHEQ)",
+     [
+      "7.5 al millar sobre 1,800,000.00 (LHEQ arts. 90, 97 y 110) = $13,500.00.",
+      "Avisos preventivo (4 UMA) y definitivo (2 UMA) = $703.86.",
+      "Certificado de libertad de gravamen 5 UMA × 1 = $586.55."
+     ]
+    ],
+    [
+     "Avalúo hacendario",
+     [
+      "Arancel del Consejo de Valuadores sobre $1,800,000.00 = $9,100.00 + IVA (incluye derechos de folio)."
+     ]
+    ]
+   ],
+   "notas": [
+    "La ley excluye las deducciones de vivienda de interés social y popular.",
+    "Herencias y donaciones entre cónyuges y línea recta: estímulo del programa municipal (PEF-TP, de 40 % a 100 %), no incluido."
+   ],
+   "mejora": null,
+   "ley_istd": "Ley de Ingresos 2026 (P.O. No. 103, 25-XII-2025, pág. 50252)",
+   "SC": [],
+   "SV": []
+  }
+ },
+ {
+  "entrada": {
+   "fecha_firma": "2026-11-20",
+   "referencia": "12_isr_sin_costo_piso_10",
+   "operacion": "compraventa",
+   "donacion_exenta": false,
+   "valor_catastral": 0,
+   "comprador": {
+    "vivienda_primera": null,
+    "incluir_avaluo": true,
+    "certificados_gravamen": 1
+   },
+   "vendedor": {
+    "isr": {
+     "fecha_adq": "2010-01-15",
+     "costo_adq": 0,
+     "costo_terreno": null,
+     "pct_terreno": null,
+     "mejoras": [],
+     "gastos": [],
+     "casa_habitacion": false,
+     "fecha_mejora_cero": null
+    },
+    "cancelar_hipoteca": 0
+   },
+   "extemporaneo": null,
+   "detalle": true,
+   "lado": "V",
+   "municipio": "Querétaro",
+   "valor_operacion": 2600000,
+   "avaluo": 2600000
+  },
+  "resultado": {
+   "lado": "V",
+   "municipio": "Querétaro",
+   "fecha": "2026-11-20",
+   "vo": 2600000.0,
+   "va": 2600000.0,
+   "vk": 0.0,
+   "C": [],
+   "V": [
+    [
+     "Impuestos",
+     "ISR por enajenación · pago federal",
+     68666.61
+    ],
+    [
+     "Impuestos",
+     "ISR por enajenación · pago al Estado (5 %)",
+     117000.0
+    ],
+    [
+     "Honorarios notariales",
+     "Liquidaciones fiscales del vendedor",
+     351.93
+    ],
+    [
+     "Honorarios notariales",
+     "IVA de honorarios (16 %)",
+     56.31
+    ],
+    [
+     "Derechos y trámites",
+     "Constancia de no adeudo de predial",
+     146.64
+    ]
+   ],
+   "totC": 0,
+   "totV": 186221.49,
+   "det": [
+    [
+     "ISR por enajenación (LISR arts. 119-127)",
+     [
+      "Adquisición 2010-01-15 · enajenación 2026-11-20 · 16 año(s) (se usan 16).",
+      "Factor de actualización INPC 2026-09 / 2010-01 = 2.0133.",
+      "Terreno $0.00 × 2.0133 = $0.00.",
+      "Costo actualizado menor al 10 % del precio: se toma $260,000.00 (art. 121 fr. I).",
+      "Ingreso $2,600,000.00 − deducciones $260,000.00 → ganancia gravable $2,340,000.00.",
+      "Ganancia / 16 años = $146,250.00 → cuota fija $5,051.37 + ($146,250.00 − $86,022.12) × 10.88 % = $11,604.16 × 16 = $185,666.61.",
+      "Pago al Estado (art. 127): 5 % × ganancia = $117,000.00; pago federal = $68,666.61."
+     ]
+    ],
+    [
+     "Mejoras y valor referido para no causar ISR",
+     [
+      "Mejoras comprobables (CFDI o aviso) ≈ $2,235,200.00 con fecha 2010-01-15; con avalúo referido (80 %) ≈ $2,794,000.00.",
+      "Costo de adquisición referido ≈ $2,097,000.00 a 2010-01-15 (misma proporción de terreno).",
+      "Las mejoras deben ser inversiones reales en construcción, mejoras o ampliaciones (no conservación)."
+     ]
+    ]
+   ],
+   "notas": [
+    "Constancia de no adeudo de agua: costo no incluido."
+   ],
+   "mejora": [
+    2235200,
+    "2010-01-15"
+   ],
+   "ley_istd": "Ley de Ingresos 2026 (P.O. No. 103, 25-XII-2025, pág. 50252)",
+   "SC": [],
+   "SV": [
+    "<b>Mejoras para no causar ISR</b> (ISR estimado $185,666.61): con CFDI o aviso de terminación de obra por <b>$2,235,200.00</b> (fecha 2010-01-15); si se comprueban con avalúo referido a la terminación de la obra, el valor de construcciones del avalúo debe ser de <b>$2,794,000.00</b> (se reconoce el 80 %, RLISR art. 205).",
+    "<b>Valor referido a la fecha de adquisición</b> (2010-01-15) que dejaría el ISR en cero: <b>$2,097,000.00</b> (costo capturado $0.00). Solo procede cuando el costo no se puede comprobar con escritura (herencia o donación sin costo conocido, prescripción); si la escritura consigna el costo, ese es el que se deduce.",
+    "No hay costo de adquisición comprobado: se requiere <b>avalúo referido a la fecha de adquisición</b> (2010-01-15); sin él, la ley solo reconoce como costo el 10 % del precio.",
+    "La escritura no separa terreno y construcción: se tomó 20 % terreno. Un avalúo referido a la fecha de adquisición o los valores catastrales de esa fecha pueden dar otra proporción (RLISR art. 209)."
+   ]
+  }
+ },
+ {
+  "entrada": {
+   "fecha_firma": "2026-11-20",
+   "referencia": "13_isr_mejoras_avaluo_80",
+   "operacion": "compraventa",
+   "donacion_exenta": false,
+   "valor_catastral": 0,
+   "comprador": {
+    "vivienda_primera": null,
+    "incluir_avaluo": true,
+    "certificados_gravamen": 1
+   },
+   "vendedor": {
+    "isr": {
+     "fecha_adq": "2013-04-10",
+     "costo_adq": 1500000,
+     "costo_terreno": null,
+     "pct_terreno": null,
+     "mejoras": [
+      {
+       "monto": 500000,
+       "fecha": "2019-09-01",
+       "comprobante": "avaluo"
+      }
+     ],
+     "gastos": [],
+     "casa_habitacion": false,
+     "fecha_mejora_cero": null
+    },
+    "cancelar_hipoteca": 0
+   },
+   "extemporaneo": null,
+   "detalle": true,
+   "lado": "V",
+   "municipio": "El Marqués",
+   "valor_operacion": 3800000,
+   "avaluo": 3800000
+  },
+  "resultado": {
+   "lado": "V",
+   "municipio": "El Marqués",
+   "fecha": "2026-11-20",
+   "vo": 3800000.0,
+   "va": 3800000.0,
+   "vk": 0.0,
+   "C": [],
+   "V": [
+    [
+     "Impuestos",
+     "ISR por enajenación · pago federal",
+     33155.51
+    ],
+    [
+     "Impuestos",
+     "ISR por enajenación · pago al Estado (5 %)",
+     75814.1
+    ],
+    [
+     "Honorarios notariales",
+     "Liquidaciones fiscales del vendedor",
+     351.93
+    ],
+    [
+     "Honorarios notariales",
+     "IVA de honorarios (16 %)",
+     56.31
+    ],
+    [
+     "Derechos y trámites",
+     "Constancia de no adeudo de predial",
+     351.93
+    ]
+   ],
+   "totC": 0,
+   "totV": 109729.78,
+   "det": [
+    [
+     "ISR por enajenación (LISR arts. 119-127)",
+     [
+      "Adquisición 2013-04-10 · enajenación 2026-11-20 · 13 año(s) (se usan 13).",
+      "Factor de actualización INPC 2026-09 / 2013-04 = 1.7826.",
+      "Terreno $300,000.00 × 1.7826 = $534,780.00.",
+      "Construcción $1,200,000.00 − depreciación 39 % = $732,000.00 × 1.7826 = $1,304,863.20.",
+      "Mejora 2019-09-01 (avalúo referido, 80 %) $500,000.00 → depreciada y actualizada = $444,074.80.",
+      "Ingreso $3,800,000.00 − deducciones $2,283,718.00 → ganancia gravable $1,516,282.00.",
+      "Ganancia / 13 años = $116,637.08 → cuota fija $5,051.37 + ($116,637.08 − $86,022.12) × 10.88 % = $8,382.28 × 13 = $108,969.61.",
+      "Pago al Estado (art. 127): 5 % × ganancia = $75,814.10; pago federal = $33,155.51."
+     ]
+    ],
+    [
+     "Mejoras y valor referido para no causar ISR",
+     [
+      "Mejoras comprobables (CFDI o aviso) ≈ $1,394,500.00 con fecha 2013-04-10; con avalúo referido (80 %) ≈ $1,743,200.00.",
+      "Costo de adquisición referido ≈ $2,737,000.00 a 2013-04-10 (misma proporción de terreno).",
+      "Las mejoras deben ser inversiones reales en construcción, mejoras o ampliaciones (no conservación)."
+     ]
+    ]
+   ],
+   "notas": [
+    "Constancia de no adeudo de agua: costo no incluido.",
+    "Tarifa de ISTD de El Marqués marcada como parcial; confirmar con Tesorería."
+   ],
+   "mejora": [
+    1394500,
+    "2013-04-10"
+   ],
+   "ley_istd": "Ley de Ingresos 2026 (P.O. No. 102, 24-XII-2025, pág. 49557; leída del dictamen, Gaceta 034 T-II)",
+   "SC": [],
+   "SV": [
+    "<b>Mejoras para no causar ISR</b> (ISR estimado $108,969.61): con CFDI o aviso de terminación de obra por <b>$1,394,500.00</b> (fecha 2013-04-10); si se comprueban con avalúo referido a la terminación de la obra, el valor de construcciones del avalúo debe ser de <b>$1,743,200.00</b> (se reconoce el 80 %, RLISR art. 205).",
+    "<b>Valor referido a la fecha de adquisición</b> (2013-04-10) que dejaría el ISR en cero: <b>$2,737,000.00</b> (costo capturado $1,500,000.00). Solo procede cuando el costo no se puede comprobar con escritura (herencia o donación sin costo conocido, prescripción); si la escritura consigna el costo, ese es el que se deduce.",
+    "La escritura no separa terreno y construcción: se tomó 20 % terreno. Un avalúo referido a la fecha de adquisición o los valores catastrales de esa fecha pueden dar otra proporción (RLISR art. 209).",
+    "Mejoras comprobadas con avalúo referido a la fecha de terminación: se reconoce el 80 % del valor de las construcciones."
+   ]
+  }
+ },
+ {
+  "entrada": {
+   "fecha_firma": "2026-11-20",
+   "referencia": "14_extemporaneo_adicional25_tope12",
+   "operacion": "compraventa",
+   "donacion_exenta": false,
+   "valor_catastral": 0,
+   "comprador": {
+    "vivienda_primera": null,
+    "incluir_avaluo": true,
+    "certificados_gravamen": 1
+   },
+   "vendedor": {
+    "isr": null,
+    "cancelar_hipoteca": 0
+   },
+   "extemporaneo": {
+    "fecha_operacion": "2014-02-20",
+    "valor": 0,
+    "tasa_pct": 2.0,
+    "adicional_25": true,
+    "actualizar": true,
+    "tope_meses": 12
+   },
+   "detalle": true,
+   "lado": "C",
+   "municipio": "Querétaro",
+   "valor_operacion": 700000,
+   "avaluo": 1400000
+  },
+  "resultado": {
+   "lado": "C",
+   "municipio": "Querétaro",
+   "fecha": "2026-11-20",
+   "vo": 700000.0,
+   "va": 1400000.0,
+   "vk": 0.0,
+   "C": [
+    [
+     "Impuestos",
+     "Impuesto sobre traslado de dominio (ISTD)",
+     20302.31
+    ],
+    [
+     "Impuestos",
+     "Actualización del ISTD",
+     14786.18
+    ],
+    [
+     "Impuestos",
+     "Recargos del ISTD",
+     4758.0
+    ],
+    [
+     "Impuestos",
+     "ISR por adquisición",
+     140000.0
+    ],
+    [
+     "Honorarios notariales",
+     "Honorarios por la escritura",
+     15211.7
+    ],
+    [
+     "Honorarios notariales",
+     "Trámite de inscripción en el Registro Público",
+     469.24
+    ],
+    [
+     "Honorarios notariales",
+     "IVA de honorarios (16 %)",
+     2508.95
+    ],
+    [
+     "Derechos y trámites",
+     "Inscripción en el Registro Público",
+     10500.0
+    ],
+    [
+     "Derechos y trámites",
+     "Avisos preventivo y definitivo",
+     703.86
+    ],
+    [
+     "Derechos y trámites",
+     "Certificado de libertad de gravamen",
+     586.55
+    ],
+    [
+     "Derechos y trámites",
+     "Avalúo hacendario (incluye folio)",
+     7500
+    ],
+    [
+     "Derechos y trámites",
+     "IVA del avalúo (16 %)",
+     1200.0
+    ]
+   ],
+   "V": [],
+   "totC": 218526.79,
+   "totV": 0,
+   "det": [
+    [
+     "ISTD extemporáneo",
+     [
+      "Valor referido estimado a 2014-02: $1,400,000.00 ÷ factor INPC 2026-09/2014-02 = 1.7239 → $812,092.55 (LH art. 69; el definitivo lo da el avalúo referido).",
+      "ISTD original: 2.0 % × $812,092.55 = $16,241.85 (tasa vigente a la fecha de la operación).",
+      "Impuesto adicional para educación y obras públicas 25 % = $4,060.46.",
+      "Actualización INPC 2026-09 / 2014-01 = 1.7283 → $14,786.18.",
+      "Recargos: suma de tasas de mora desde 03/2014 por 12 meses (tope 12) = 13.56 % → $4,758.00."
+     ]
+    ],
+    [
+     "ISR por adquisición",
+     [
+      "Avalúo excede en más de 10 % el precio: 20 % × diferencia $700,000.00 (arts. 125 y 132)."
+     ]
+    ],
+    [
+     "Honorarios notariales (Ley del Notariado, arts. 147 y 171-V)",
+     [
+      "Base: el mayor entre operación, comercial y fiscal = $1,400,000.00.",
+      "36 UMA fijas + 93.67 UMA progresivas sobre 11,934.2 UMA = $15,211.70.",
+      "Trámite de inscripción 4 UMA = $469.24."
+     ]
+    ],
+    [
+     "Registro Público de la Propiedad (LHEQ)",
+     [
+      "7.5 al millar sobre 1,400,000.00 (LHEQ arts. 90, 97 y 110) = $10,500.00.",
+      "Avisos preventivo (4 UMA) y definitivo (2 UMA) = $703.86.",
+      "Certificado de libertad de gravamen 5 UMA × 1 = $586.55."
+     ]
+    ],
+    [
+     "Avalúo hacendario",
+     [
+      "Arancel del Consejo de Valuadores sobre $1,400,000.00 = $7,500.00 + IVA (incluye derechos de folio)."
+     ]
+    ]
+   ],
+   "notas": [],
+   "mejora": null,
+   "ley_istd": "Ley de Ingresos 2026 (P.O. No. 103, 25-XII-2025, pág. 50252)",
+   "SC": [
+    "Comparativo: ISTD extemporáneo con valor referido, actualización y recargos $39,846.49 frente a ISTD calculado a valor actual $75,798.71. La fecha de causación la determinan los documentos (contrato privado, resolución); el notario decide con base en ellos.",
+    "Se requiere <b>avalúo hacendario referido a la fecha de la operación</b> (2014-02-20): el ISTD se causa con el valor de esa fecha (LH arts. 65 y 69).",
+    "El avalúo excede en más de 10 % el precio y genera ISR por adquisición de $140,000.00. Con un avalúo de hasta <b>$770,000.00</b> (110 % del precio) no se causa."
+   ],
+   "SV": []
+  }
+ },
+ {
+  "entrada": {
+   "fecha_firma": "2026-11-20",
+   "referencia": "15_istd_san_juan_del_rio",
+   "operacion": "compraventa",
+   "donacion_exenta": false,
+   "valor_catastral": 0,
+   "comprador": {
+    "vivienda_primera": null,
+    "incluir_avaluo": true,
+    "certificados_gravamen": 1
+   },
+   "vendedor": {
+    "isr": null,
+    "cancelar_hipoteca": 0
+   },
+   "extemporaneo": null,
+   "detalle": true,
+   "lado": "C",
+   "municipio": "San Juan del Río",
+   "valor_operacion": 1900000,
+   "avaluo": 1950000
+  },
+  "resultado": {
+   "lado": "C",
+   "municipio": "San Juan del Río",
+   "fecha": "2026-11-20",
+   "vo": 1900000.0,
+   "va": 1950000.0,
+   "vk": 0.0,
+   "C": [
+    [
+     "Impuestos",
+     "Impuesto sobre traslado de dominio (ISTD)",
+     103743.38
+    ],
+    [
+     "Honorarios notariales",
+     "Honorarios por la escritura",
+     17961.7
+    ],
+    [
+     "Honorarios notariales",
+     "Trámite de inscripción en el Registro Público",
+     469.24
+    ],
+    [
+     "Honorarios notariales",
+     "IVA de honorarios (16 %)",
+     2948.95
+    ],
+    [
+     "Derechos y trámites",
+     "Inscripción en el Registro Público",
+     14625.0
+    ],
+    [
+     "Derechos y trámites",
+     "Avisos preventivo y definitivo",
+     703.86
+    ],
+    [
+     "Derechos y trámites",
+     "Certificado de libertad de gravamen",
+     586.55
+    ],
+    [
+     "Derechos y trámites",
+     "Avalúo hacendario (incluye folio)",
+     9700
+    ],
+    [
+     "Derechos y trámites",
+     "IVA del avalúo (16 %)",
+     1552.0
+    ]
+   ],
+   "V": [],
+   "totC": 152290.68,
+   "totV": 0,
+   "det": [
+    [
+     "ISTD · San Juan del Río (Art. 15)",
+     [
+      "Base: el mayor entre operación 1,900,000.00, comercial 1,950,000.00 → comercial.",
+      "Cálculo: cuota fija 69,979.08 + (1,950,000.00 − 1,362,538.95) × 0.05747495829 = $103,743.38."
+     ]
+    ],
+    [
+     "ISR por adquisición",
+     [
+      "Avalúo no excede en más de 10 % el precio: no hay ISR por adquisición."
+     ]
+    ],
+    [
+     "Honorarios notariales (Ley del Notariado, arts. 147 y 171-V)",
+     [
+      "Base: el mayor entre operación, comercial y fiscal = $1,950,000.00.",
+      "36 UMA fijas + 117.11 UMA progresivas sobre 16,622.6 UMA = $17,961.70.",
+      "Trámite de inscripción 4 UMA = $469.24."
+     ]
+    ],
+    [
+     "Registro Público de la Propiedad (LHEQ)",
+     [
+      "7.5 al millar sobre 1,950,000.00 (LHEQ arts. 90, 97 y 110) = $14,625.00.",
+      "Avisos preventivo (4 UMA) y definitivo (2 UMA) = $703.86.",
+      "Certificado de libertad de gravamen 5 UMA × 1 = $586.55."
+     ]
+    ],
+    [
+     "Avalúo hacendario",
+     [
+      "Arancel del Consejo de Valuadores sobre $1,950,000.00 = $9,700.00 + IVA (incluye derechos de folio)."
+     ]
+    ]
+   ],
+   "notas": [
+    "Tabla tomada del dictamen aprobado; cotejar con La Sombra de Arteaga.",
+    "Tarifa de ISTD de San Juan del Río marcada como parcial; confirmar con Tesorería."
+   ],
+   "mejora": null,
+   "ley_istd": "Ley de Ingresos 2026 (leída del dictamen aprobado, Gaceta 034 T-II)",
+   "SC": [
+    "El ISTD y los derechos se calculan sobre el avalúo ($1,950,000.00), mayor al precio. Un avalúo igual al precio ($1,900,000.00) los reduciría; el avalúo debe reflejar el valor real."
+   ],
+   "SV": []
+  }
+ },
+ {
+  "entrada": {
+   "fecha_firma": "2026-11-20",
+   "referencia": "16_istd_tequisquiapan",
+   "operacion": "compraventa",
+   "donacion_exenta": false,
+   "valor_catastral": 0,
+   "comprador": {
+    "vivienda_primera": null,
+    "incluir_avaluo": true,
+    "certificados_gravamen": 1
+   },
+   "vendedor": {
+    "isr": null,
+    "cancelar_hipoteca": 0
+   },
+   "extemporaneo": null,
+   "detalle": true,
+   "lado": "C",
+   "municipio": "Tequisquiapan",
+   "valor_operacion": 2300000,
+   "avaluo": 2300000
+  },
+  "resultado": {
+   "lado": "C",
+   "municipio": "Tequisquiapan",
+   "fecha": "2026-11-20",
+   "vo": 2300000.0,
+   "va": 2300000.0,
+   "vk": 0.0,
+   "C": [
+    [
+     "Impuestos",
+     "Impuesto sobre traslado de dominio (ISTD)",
+     89314.95
+    ],
+    [
+     "Honorarios notariales",
+     "Honorarios por la escritura",
+     19711.7
+    ],
+    [
+     "Honorarios notariales",
+     "Trámite de inscripción en el Registro Público",
+     469.24
+    ],
+    [
+     "Honorarios notariales",
+     "IVA de honorarios (16 %)",
+     3228.95
+    ],
+    [
+     "Derechos y trámites",
+     "Inscripción en el Registro Público",
+     17250.0
+    ],
+    [
+     "Derechos y trámites",
+     "Avisos preventivo y definitivo",
+     703.86
+    ],
+    [
+     "Derechos y trámites",
+     "Certificado de libertad de gravamen",
+     586.55
+    ],
+    [
+     "Derechos y trámites",
+     "Avalúo hacendario (incluye folio)",
+     11000
+    ],
+    [
+     "Derechos y trámites",
+     "IVA del avalúo (16 %)",
+     1760.0
+    ]
+   ],
+   "V": [],
+   "totC": 144025.25,
+   "totV": 0,
+   "det": [
+    [
+     "ISTD · Tequisquiapan (Art. 15)",
+     [
+      "Base: el mayor entre operación 2,300,000.00, comercial 2,300,000.00 → operación.",
+      "Cálculo: cuota fija 52,577.85 + (2,300,000.00 − 1,365,142.34) × 0.039297 = $89,314.95."
+     ]
+    ],
+    [
+     "ISR por adquisición",
+     [
+      "Avalúo no excede en más de 10 % el precio: no hay ISR por adquisición."
+     ]
+    ],
+    [
+     "Honorarios notariales (Ley del Notariado, arts. 147 y 171-V)",
+     [
+      "Base: el mayor entre operación, comercial y fiscal = $2,300,000.00.",
+      "36 UMA fijas + 132.03 UMA progresivas sobre 19,606.2 UMA = $19,711.70.",
+      "Trámite de inscripción 4 UMA = $469.24."
+     ]
+    ],
+    [
+     "Registro Público de la Propiedad (LHEQ)",
+     [
+      "7.5 al millar sobre 2,300,000.00 (LHEQ arts. 90, 97 y 110) = $17,250.00.",
+      "Avisos preventivo (4 UMA) y definitivo (2 UMA) = $703.86.",
+      "Certificado de libertad de gravamen 5 UMA × 1 = $586.55."
+     ]
+    ],
+    [
+     "Avalúo hacendario",
+     [
+      "Arancel del Consejo de Valuadores sobre $2,300,000.00 = $11,000.00 + IVA (incluye derechos de folio)."
+     ]
+    ]
+   ],
+   "notas": [
+    "La ley excluye las deducciones de vivienda de interés social y popular."
+   ],
+   "mejora": null,
+   "ley_istd": "Ley de Ingresos 2026 (P.O. No. 103, 25-XII-2025, pág. 50583)",
+   "SC": [],
+   "SV": []
+  }
  }
 ]

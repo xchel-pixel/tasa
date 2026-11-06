@@ -1,35 +1,23 @@
 import Link from "next/link";
-import { AvisoCsf } from "@/components/aviso-csf";
 import { BloqueNivel } from "@/components/bloque-nivel";
 import { ListaTramites } from "@/components/lista-tramites";
 import { MisReferidos } from "@/components/mis-referidos";
-import { CompartirTarjeta } from "@/components/compartir-tarjeta";
-import { Lanzador } from "@/components/lanzador";
-import { TarjetaClientes } from "@/components/tarjeta-clientes";
-import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { urlDelSitio } from "@/lib/altas";
 import { fechaCorta, pesos } from "@/lib/formato";
-import { tengoHerramienta } from "@/lib/herramientas";
 import type { Persona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { miNivel } from "@/lib/trabajos";
 import { leerTramites } from "@/lib/tramites";
 
 /**
- * Lo primero que ve el comisionista: cuánto lleva este mes y cómo van
- * sus trabajos, agrupados por estatus (lo que llegó por su liga de
- * cliente, junto con lo demás). Entregados y cancelados, cerrados.
+ * "Panel de comisiones" (su propia pantalla desde 0056): cuánto lleva este mes, sus pagos por entregar y
+ * cómo van sus trabajos, agrupados por estatus (lo que llegó por su liga de cliente, junto con lo demás), y sus
+ * referidos. Entregados y cancelados, cerrados.
  */
-export async function InicioComisionista({ persona }: { persona: Persona }) {
-  // "Mi tarjeta" es una herramienta del catálogo (0053): si la organización la apaga, no se ofrece.
-  const conTarjeta = await tengoHerramienta("mi_tarjeta");
+export async function PanelComisionista({ persona }: { persona: Persona }) {
   const supabase = await crearClienteServidor();
-  const [trabajos, nivel, { data: yo }, { data: tarjeta }, { data: porEntregar }] = await Promise.all([
+  const [trabajos, nivel, { data: porEntregar }] = await Promise.all([
     leerTramites(),
     miNivel(persona.id, persona.organizacion.id),
-    supabase.from("comisionistas").select("csf_ruta, codigo_referido, slug").eq("persona_id", persona.id).maybeSingle()
-      .returns<{ csf_ruta: string | null; codigo_referido: string; slug: string } | null>(),
-    supabase.from("tarjetas").select("estado").eq("comisionista_id", persona.id).maybeSingle().returns<{ estado: string } | null>(),
     // Pagos que le hicieron a él y todavía no entrega a la cuenta.
     supabase.from("pagos").select("id, monto, entregar_antes, solicitud_id, solicitudes(cliente_nombre)")
       .eq("recibio_asesor", true).eq("estado", "reportado").is("entregado_en", null).eq("reportado_por", persona.id)
@@ -37,16 +25,10 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
       .returns<{ id: string; monto: string | number; entregar_antes: string; solicitud_id: string; solicitudes: { cliente_nombre: string } | null }[]>(),
   ]);
   const hoyMx = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
-  const sitio = await urlDelSitio();
 
   return (
     <>
-      <h1 className="text-[1.5rem] font-bold tracking-tight">
-        Hola, {persona.nombre.split(" ")[0]}
-      </h1>
-
-      {/* Portada tipo lanzador: herramientas, luego la franja de pendientes y lo del mes. */}
-      <Lanzador persona={persona} />
+      <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Panel de comisiones</h1>
 
       {(porEntregar ?? []).length > 0 ? (
         <div className="mt-4 rounded-xl bg-proceso-fondo px-4 py-3 text-proceso">
@@ -65,7 +47,6 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
         </div>
       ) : null}
 
-      {yo && !yo.csf_ruta ? <AvisoCsf carpeta={`${persona.organizacion.id}/${persona.id}`} /> : null}
 
       <div className="mt-6">
         <BloqueNivel nivel={nivel} />
@@ -82,10 +63,7 @@ export async function InicioComisionista({ persona }: { persona: Persona }) {
 
       <MisReferidos usuario={persona.id} />
 
-      {yo && conTarjeta ? <CompartirTarjeta liga={`${sitio}/t/${persona.organizacion.slug}/${yo.slug}`} publicada={tarjeta?.estado === "publicada"} /> : null}
 
-      {yo ? <TarjetaClientes liga={`${sitio}/s/${persona.organizacion.slug}/${yo.codigo_referido}`} /> : null}
-      {yo ? <TarjetaInvitar liga={`${sitio}/alta/${persona.organizacion.slug}?ref=${yo.codigo_referido}`} /> : null}
     </>
   );
 }

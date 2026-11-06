@@ -3,17 +3,22 @@ import { misHerramientas, type ClaveHerramienta } from "@/lib/herramientas";
 import type { Persona } from "@/lib/sesion";
 
 /**
- * La cuadrícula de herramientas de la portada. Lo activo sale del catálogo (0053), por rol y nivel;
- * "Nueva solicitud" es del comisionista. Lo que viene después se ve apagado con "Próximamente".
+ * La cuadrícula de la portada: cada tarjeta abre su propia pantalla. Primero lo de su rol (el
+ * comisionista, "Nueva solicitud" y su panel; administración, sus pantallas de operación), después las
+ * herramientas activas del catálogo (0053/0056) y al final lo que viene, apagado con "Próximamente".
  */
 
 const RUTA: Partial<Record<ClaveHerramienta, string>> = {
   mi_tarjeta: "/tarjeta",
+  para_tus_clientes: "/para-tus-clientes",
+  invitar: "/invitar",
   calculadora_traslado: "/calculadora",
 };
 
 const DETALLE: Partial<Record<ClaveHerramienta, string>> = {
   mi_tarjeta: "Tu tarjeta digital para compartir",
+  para_tus_clientes: "Tu liga y QR para que te pidan cotización",
+  invitar: "Tu liga para invitar a otros aliados",
   calculadora_traslado: "Gastos de escrituración en Querétaro",
 };
 
@@ -23,31 +28,48 @@ const PROXIMAMENTE = [
   { titulo: "OV express", detalle: "Opinión de valor revisada" },
 ];
 
+type Mosaico = { href: string; titulo: string; detalle: string };
+
+function delRol(persona: Persona): Mosaico[] {
+  if (persona.rol === "comisionista") {
+    return [
+      { href: "/solicitudes/nueva", titulo: "Nueva solicitud", detalle: "Cotización o trámite para tu cliente" },
+      { href: "/panel", titulo: "Panel de comisiones", detalle: "Tus trabajos, tu nivel y tus referidos" },
+    ];
+  }
+  if (persona.rol === "equipo") return [{ href: "/panel", titulo: "Mi panel", detalle: "Los trámites de tu liga" }];
+  const staff = persona.rol === "admin_org" || persona.rol === "finanzas";
+  return [
+    { href: "/admin", titulo: "Panel de administración", detalle: "Pagos, solicitudes, alertas y comisiones" },
+    { href: "/admin/tramites", titulo: "Trámites", detalle: "Todos los trabajos" },
+    { href: "/admin/comisionistas", titulo: "Comisionistas", detalle: "Fichas, niveles y estado de cuenta" },
+    ...(staff ? [{ href: "/admin/cierres", titulo: "Cierres", detalle: "Cierre mensual de comisiones" }] : []),
+    ...(persona.rol === "admin_org" ? [{ href: "/admin/configuracion", titulo: "Catálogos y ajustes", detalle: "Configuración de la organización" }] : []),
+  ];
+}
+
 export async function Lanzador({ persona }: { persona: Persona }) {
-  const activas = (await misHerramientas())
+  const herramientas = (await misHerramientas())
     .filter((h) => RUTA[h.clave])
     .map((h) => ({ href: RUTA[h.clave]!, titulo: h.nombre, detalle: DETALLE[h.clave] ?? "" }));
-  const mosaicos = [
-    ...(persona.rol === "comisionista" ? [{ href: "/solicitudes/nueva", titulo: "Nueva solicitud", detalle: "Cotización o trámite para tu cliente" }] : []),
-    ...activas,
-  ];
+  const mosaicos = [...delRol(persona), ...herramientas];
+  const principal = persona.rol === "comisionista" ? "/solicitudes/nueva" : "/admin";
 
   return (
     <section aria-label="Herramientas" className="mt-5">
-      <ul className="grid grid-cols-2 gap-3">
-        {mosaicos.map((m, i) => (
+      <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        {mosaicos.map((m) => (
           <li key={m.href}>
             <Link href={m.href}
               className={`flex h-full min-h-24 flex-col justify-between rounded-xl px-4 py-3 ${
-                i === 0 && persona.rol === "comisionista" ? "bg-primario text-sobre-primario" : "border border-linea bg-alterno"}`}>
+                m.href === principal ? "bg-primario text-sobre-primario" : "border border-linea bg-alterno"}`}>
               <span className="font-bold leading-tight">{m.titulo}</span>
-              <span className={`mt-2 text-[0.8125rem] leading-5 ${i === 0 && persona.rol === "comisionista" ? "opacity-90" : "text-secundario"}`}>{m.detalle}</span>
+              <span className={`mt-2 text-[0.8125rem] leading-5 ${m.href === principal ? "opacity-90" : "text-secundario"}`}>{m.detalle}</span>
             </Link>
           </li>
         ))}
         {PROXIMAMENTE.map((p) => (
-          <li key={p.titulo}
-            className="flex min-h-24 flex-col justify-between rounded-xl border border-dashed border-linea px-4 py-3 text-secundario">
+          <li key={p.titulo} className="flex min-h-24 flex-col justify-between rounded-xl border border-dashed border-linea px-4 py-3 text-secundario">
             <span className="font-bold leading-tight">{p.titulo}</span>
             <span className="mt-2 text-[0.8125rem] leading-5">
               {p.detalle}

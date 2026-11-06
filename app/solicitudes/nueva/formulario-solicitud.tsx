@@ -7,7 +7,7 @@ import { crearSolicitud, type EstadoSolicitud } from "./acciones";
 const ENTRADA =
   "mt-2 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
-export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string };
+export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string; calculo?: string };
 
 /** `inicial`: lo que trae la liga de la calculadora de traslado (servicio, municipio, clave y notas). */
 export default function FormularioSolicitud({ servicios, inicial = {} }: { servicios: { id: string; nombre: string }[]; inicial?: InicialSolicitud }) {
@@ -15,6 +15,7 @@ export default function FormularioSolicitud({ servicios, inicial = {} }: { servi
 
   return (
     <form action={enviar} className="mt-6 flex flex-col gap-6">
+      {inicial.calculo ? <input type="hidden" name="calculo_traslado_id" value={inicial.calculo} /> : null}
       <fieldset>
         <legend className="font-semibold">Qué necesitas</legend>
         <div className="mt-2 flex flex-col gap-2">
@@ -54,7 +55,7 @@ export default function FormularioSolicitud({ servicios, inicial = {} }: { servi
           <textarea
             id="inmueble_descripcion"
             name="inmueble_descripcion"
-            rows={3}
+            rows={inicial.descripcion ? 8 : 3}
             placeholder="Casa, terreno, nave… lo que ayude a cotizar"
             defaultValue={inicial.descripcion}
             className={ENTRADA}

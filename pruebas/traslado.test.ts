@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import casos from "@/docs/fuentes-traslado/casos-referencia.json";
-import { calcular, factorRecargos, municipio, municipioPorClave, type Caso, type Parametros, type Resultado } from "@/lib/traslado/calculo";
+import { calcular, factorRecargos, limpiarClave, municipio, municipioPorClave, type Caso, type Parametros, type Resultado } from "@/lib/traslado/calculo";
 import datos from "@/lib/traslado/parametros-2026.json";
+import { prellenadoDesdeCalculo } from "@/lib/traslado/prellenado";
 
 /**
  * La calculadora de traslado contra los scripts Python originales: cada caso de
@@ -51,5 +52,45 @@ describe("piezas sueltas", () => {
     expect(municipioPorClave("14-01-001-01-001-001")).toBe("Querétaro");
     expect(municipioPorClave("160101")).toBe("San Juan del Río");
     expect(() => municipio(p, "Guadalajara")).toThrow();
+    // Como la captura la gente: con espacios o puntos; se guarda y deduce el municipio igual.
+    expect(limpiarClave("14 01 001 01 001 001")).toBe("140100101001001");
+    expect(limpiarClave("06.01.002-03")).toBe("0601002-03");
+    expect(municipioPorClave(limpiarClave("16 01 001"))).toBe("San Juan del Río");
+  });
+});
+
+describe("solicitud del avalúo desde la calculadora (prellenado)", () => {
+  const casoRef = (ref: string) => (casos as unknown as CasoRef[]).find((x) => x.entrada.referencia === ref)!;
+  test("no se pierde nada: municipio, clave, referencia, operación, valores, extemporáneo, firma y total", () => {
+    const { entrada } = casoRef("08_extemporaneo");
+    const e = { ...entrada, clave_catastral: "14-01-001-01-001-001", valor_catastral: 750000 };
+    const resultado = calcular(e, p);
+    const pre = prellenadoDesdeCalculo({ referencia: "Casa Juriquilla", entrada: e, resultado }, "hacendario");
+    expect(pre.servicio).toBe("hacendario");
+    expect(pre.municipio).toBe("Querétaro");
+    expect(pre.clave).toBe("14-01-001-01-001-001");
+    const total = resultado.totC.toLocaleString("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 });
+    expect(pre.descripcion.split("\n")).toEqual([
+      `Desde calculadora de traslado: comprador, total estimado ${total}`,
+      "Referencia: Casa Juriquilla",
+      "Operación: compraventa",
+      "Valor de operación: $900,000.00",
+      "Avalúo o valor de referencia: $1,600,000.00",
+      "Valor catastral: $750,000.00",
+      "Extemporáneo: operación original del 10/08/2015 (se necesita avalúo referido a esa fecha)",
+      "Firma estimada: 20/11/2026",
+    ]);
+  });
+  test("ambos lados, donación exenta y avalúo comercial", () => {
+    const ambos = casoRef("06_ambos_qro");
+    const r = calcular(ambos.entrada, p);
+    const pre = prellenadoDesdeCalculo({ referencia: null, entrada: ambos.entrada, resultado: r }, "comercial");
+    expect(pre.servicio).toBe("comercial");
+    expect(pre.clave).toBe("");
+    expect(pre.descripcion.split("\n")[0]).toMatch(/^Desde calculadora de traslado: comprador y vendedor, total estimado .* \(comprador .* · vendedor .*\)$/);
+    const don = casoRef("11_donacion_exenta");
+    const pd = prellenadoDesdeCalculo({ referencia: null, entrada: don.entrada, resultado: calcular(don.entrada, p) }, "hacendario");
+    expect(pd.descripcion).toContain("Operación: donación entre cónyuges o línea recta");
+    expect(pd.descripcion).not.toContain("Valor de operación");
   });
 });

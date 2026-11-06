@@ -51,5 +51,12 @@ export async function crearSolicitud(
     return { error: "No se pudo enviar la solicitud. Inténtalo otra vez." };
   }
 
+  // Desde la calculadora de traslado: la solicitud queda ligada a su cálculo (la base revisa que ambos sean suyos).
+  const calculo = texto(formData, "calculo_traslado_id");
+  if (/^[0-9a-f-]{36}$/.test(calculo)) {
+    const { error: e2 } = await supabase.rpc("ligar_calculo_a_solicitud", { p_solicitud: data.id, p_calculo: calculo });
+    if (e2) console.error(`[tasa] No se pudo ligar el cálculo a la solicitud: ${e2.message}`);
+  }
+
   redirect(`/trabajos/${data.id}`);
 }

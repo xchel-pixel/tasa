@@ -18,9 +18,11 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
   const [conIsr, setConIsr] = useState(false);
   const [extemporaneo, setExtemporaneo] = useState(false);
   const vendedor = lado !== "C", comprador = lado !== "V";
+  // Si el cálculo marca un error, el formulario vuelve con lo capturado (el form se remonta con estos valores).
+  const v = (nombre: string, porOmision = "") => estado.valores?.[nombre] ?? porOmision;
 
   return (
-    <form action={enviar} className="mt-5 flex flex-col gap-5">
+    <form key={JSON.stringify(estado.valores ?? {})} action={enviar} className="mt-5 flex flex-col gap-5">
       <input type="hidden" name="modo" value={modo} />
       {completa ? (
         <div role="radiogroup" aria-label="Modo" className="grid grid-cols-2 gap-2 rounded-xl bg-alterno p-1">
@@ -47,13 +49,13 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block font-semibold">Municipio
-          <select name="municipio" defaultValue="" className={ENTRADA}>
+          <select name="municipio" defaultValue={v("municipio")} className={ENTRADA}>
             <option value="">— Por clave catastral —</option>
             {municipios.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
         <label className="block font-semibold">Clave catastral <span className="font-normal text-secundario">(opcional)</span>
-          <input name="clave_catastral" inputMode="numeric" maxLength={40} className={ENTRADA} placeholder="14 01 001 …" />
+          <input name="clave_catastral" inputMode="numeric" maxLength={40} defaultValue={v("clave_catastral")} className={ENTRADA} placeholder="14 01 001 …" />
         </label>
       </div>
 
@@ -66,7 +68,7 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
           </select>
         </label>
         <label className="block font-semibold">Fecha estimada de firma
-          <input type="date" name="fecha_firma" defaultValue={hoy} className={ENTRADA} />
+          <input type="date" name="fecha_firma" defaultValue={v("fecha_firma", hoy)} className={ENTRADA} />
         </label>
       </div>
       {operacion === "donacion" ? (
@@ -78,21 +80,21 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block font-semibold">Valor de operación
-          <input name="valor_operacion" inputMode="decimal" className={ENTRADA} placeholder="$" required={operacion !== "donacion"} />
+          <input name="valor_operacion" inputMode="decimal" defaultValue={v("valor_operacion")} className={ENTRADA} placeholder="$" required={operacion !== "donacion"} />
         </label>
         <label className="block font-semibold">Avalúo hacendario <span className="font-normal text-secundario">(si lo hay)</span>
-          <input name="avaluo" inputMode="decimal" className={ENTRADA} placeholder="$" required={operacion === "donacion"} />
+          <input name="avaluo" inputMode="decimal" defaultValue={v("avaluo")} className={ENTRADA} placeholder="$" required={operacion === "donacion"} />
         </label>
       </div>
       <label className="block font-semibold">Valor catastral <span className="font-normal text-secundario">(opcional; Arroyo Seco lo usa)</span>
-        <input name="valor_catastral" inputMode="decimal" className={ENTRADA} placeholder="$" />
+        <input name="valor_catastral" inputMode="decimal" defaultValue={v("valor_catastral")} className={ENTRADA} placeholder="$" />
       </label>
 
       {comprador ? (
         <fieldset className="flex flex-col gap-2 rounded-xl border border-linea px-4 py-3">
           <legend className="px-1 font-semibold">Comprador</legend>
           <label className="block text-[0.9375rem]">Primera vivienda de interés social o popular
-            <select name="vivienda_primera" defaultValue="" className={ENTRADA}>
+            <select name="vivienda_primera" defaultValue={v("vivienda_primera")} className={ENTRADA}>
               <option value="">No</option>
               <option value="social">Sí, interés social</option>
               <option value="popular">Sí, popular</option>
@@ -109,7 +111,7 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
         <fieldset className="flex flex-col gap-3 rounded-xl border border-linea px-4 py-3">
           <legend className="px-1 font-semibold">Vendedor</legend>
           <label className="block text-[0.9375rem]">Hipoteca por cancelar <span className="text-secundario">(monto, si hay)</span>
-            <input name="cancelar_hipoteca" inputMode="decimal" className={ENTRADA} placeholder="$" />
+            <input name="cancelar_hipoteca" inputMode="decimal" defaultValue={v("cancelar_hipoteca")} className={ENTRADA} placeholder="$" />
           </label>
           {modo === "completa" ? (
             <>
@@ -119,12 +121,12 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
               </label>
               {conIsr ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label className="block text-[0.9375rem]">Fecha de adquisición<input type="date" name="fecha_adq" required className={ENTRADA} /></label>
-                  <label className="block text-[0.9375rem]">Costo de adquisición (escritura)<input name="costo_adq" inputMode="decimal" className={ENTRADA} placeholder="$ (0 si no hay)" /></label>
-                  <label className="block text-[0.9375rem]">Terreno en la escritura ($)<input name="costo_terreno" inputMode="decimal" className={ENTRADA} placeholder="vacío: 20 %" /></label>
-                  <label className="block text-[0.9375rem]">o % de terreno<input name="pct_terreno" inputMode="decimal" className={ENTRADA} placeholder="20" /></label>
-                  <label className="block text-[0.9375rem]">Mejoras ($)<input name="mejora_monto" inputMode="decimal" className={ENTRADA} placeholder="$" /></label>
-                  <label className="block text-[0.9375rem]">Fecha de las mejoras<input type="date" name="mejora_fecha" className={ENTRADA} /></label>
+                  <label className="block text-[0.9375rem]">Fecha de adquisición<input type="date" name="fecha_adq" defaultValue={v("fecha_adq")} required className={ENTRADA} /></label>
+                  <label className="block text-[0.9375rem]">Costo de adquisición (escritura)<input name="costo_adq" inputMode="decimal" defaultValue={v("costo_adq")} className={ENTRADA} placeholder="$ (0 si no hay)" /></label>
+                  <label className="block text-[0.9375rem]">Terreno en la escritura ($)<input name="costo_terreno" inputMode="decimal" defaultValue={v("costo_terreno")} className={ENTRADA} placeholder="vacío: 20 %" /></label>
+                  <label className="block text-[0.9375rem]">o % de terreno<input name="pct_terreno" inputMode="decimal" defaultValue={v("pct_terreno")} className={ENTRADA} placeholder="20" /></label>
+                  <label className="block text-[0.9375rem]">Mejoras ($)<input name="mejora_monto" inputMode="decimal" defaultValue={v("mejora_monto")} className={ENTRADA} placeholder="$" /></label>
+                  <label className="block text-[0.9375rem]">Fecha de las mejoras<input type="date" name="mejora_fecha" defaultValue={v("mejora_fecha")} className={ENTRADA} /></label>
                   <label className="block text-[0.9375rem]">Cómo se comprueban
                     <select name="mejora_comprobante" defaultValue="cfdi" className={ENTRADA}>
                       <option value="cfdi">CFDI (facturas)</option>
@@ -132,7 +134,7 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
                       <option value="avaluo">Avalúo referido (se reconoce el 80 %)</option>
                     </select>
                   </label>
-                  <label className="block text-[0.9375rem]">Gastos de la adquisición ($)<input name="gastos_monto" inputMode="decimal" className={ENTRADA} placeholder="escritura, impuestos, avalúo" /></label>
+                  <label className="block text-[0.9375rem]">Gastos de la adquisición ($)<input name="gastos_monto" inputMode="decimal" defaultValue={v("gastos_monto")} className={ENTRADA} placeholder="escritura, impuestos, avalúo" /></label>
                   <label className="flex items-center gap-2 text-[0.9375rem] sm:col-span-2">
                     <input type="checkbox" name="casa_habitacion" className="h-5 w-5 accent-primario" />
                     Es su casa habitación (sin otra venta exenta en 3 años)
@@ -153,9 +155,9 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
           </label>
           {extemporaneo ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block text-[0.9375rem]">Fecha de la operación original<input type="date" name="ext_fecha" required className={ENTRADA} /></label>
-              <label className="block text-[0.9375rem]">Valor referido a esa fecha ($)<input name="ext_valor" inputMode="decimal" className={ENTRADA} placeholder="vacío: se estima con INPC" /></label>
-              <label className="block text-[0.9375rem]">Tasa del ISTD en esa fecha (%)<input name="ext_tasa" inputMode="decimal" required className={ENTRADA} placeholder="2" /></label>
+              <label className="block text-[0.9375rem]">Fecha de la operación original<input type="date" name="ext_fecha" defaultValue={v("ext_fecha")} required className={ENTRADA} /></label>
+              <label className="block text-[0.9375rem]">Valor referido a esa fecha ($)<input name="ext_valor" inputMode="decimal" defaultValue={v("ext_valor")} className={ENTRADA} placeholder="vacío: se estima con INPC" /></label>
+              <label className="block text-[0.9375rem]">Tasa del ISTD en esa fecha (%)<input name="ext_tasa" inputMode="decimal" defaultValue={v("ext_tasa")} required className={ENTRADA} placeholder="2" /></label>
               <label className="block text-[0.9375rem]">Tope de meses de recargos
                 <select name="ext_tope" defaultValue="60" className={ENTRADA}><option value="60">60 (ley)</option><option value="12">12</option></select>
               </label>
@@ -171,7 +173,7 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
       ) : null}
 
       <label className="block font-semibold">Referencia <span className="font-normal text-secundario">(opcional, solo para ti: “Casa Juriquilla”)</span>
-        <input name="referencia" maxLength={80} className={ENTRADA} />
+        <input name="referencia" maxLength={80} defaultValue={v("referencia")} className={ENTRADA} />
       </label>
       <p className="text-[0.8125rem] leading-5 text-secundario">No escribas datos del cliente: el cálculo se guarda 90 días en &quot;Mis cálculos&quot;.</p>
 

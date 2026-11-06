@@ -3566,14 +3566,14 @@ declare
   nv  uuid;
 begin
   perform pg_temp.sistema();
-  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 3::bigint, 'Cada organización nace con sus herramientas');
-  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from herramientas where organizacion_id = xg and activa), 'mi_tarjeta',
-    'Hoy solo está activa Mi tarjeta (la calculadora aún no)');
+  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 5::bigint, 'Cada organización nace con sus herramientas');
+  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from herramientas where organizacion_id = xg and activa), 'mi_tarjeta,para_tus_clientes,invitar',
+    'Activas: Mi tarjeta, Para tus clientes e Invita (la calculadora aún no)');
 
   perform pg_temp.como('xchel+ana@arqosuv.com');
-  perform pg_temp.igual((select string_agg(clave, ',') from mis_herramientas()), 'mi_tarjeta', 'El comisionista ve Mi tarjeta');
+  perform pg_temp.igual((select string_agg(clave, ',') from mis_herramientas()), 'mi_tarjeta,para_tus_clientes,invitar', 'El comisionista ve sus tres herramientas');
   perform pg_temp.como('gaby@tasa.test');
-  perform pg_temp.igual((select count(*) from mis_herramientas()), 0::bigint, 'Finanzas no ve Mi tarjeta (es de comisionistas)');
+  perform pg_temp.igual((select string_agg(clave, ',') from mis_herramientas()), 'para_tus_clientes,invitar', 'Finanzas no ve Mi tarjeta (es de comisionistas)');
   update herramientas set activa = true where clave = 'calculadora_traslado';  -- RLS: no cambia nada
   perform pg_temp.sistema();
   perform pg_temp.igual((select activa from herramientas where organizacion_id = xg and clave = 'calculadora_traslado'), false, 'Y nada cambió');
@@ -3583,7 +3583,7 @@ begin
   update herramientas set activa = true where clave in ('calculadora_traslado', 'calculadora_traslado_completa');
   perform pg_temp.sistema();
   perform pg_temp.como('gaby@tasa.test');
-  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from mis_herramientas()), 'calculadora_traslado,calculadora_traslado_completa',
+  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from mis_herramientas()), 'para_tus_clientes,invitar,calculadora_traslado,calculadora_traslado_completa',
     'El equipo ve la calculadora y su modo completo');
   perform pg_temp.sistema();
   nv := coalesce((select nivel_id from niveles_mensuales where comisionista_id = ana and mes = mes_de(hoy_mx())),
@@ -3591,7 +3591,7 @@ begin
   update herramientas set niveles = array_remove((select array_agg(id) from niveles where organizacion_id = xg), nv)
    where organizacion_id = xg and clave = 'calculadora_traslado_completa';
   perform pg_temp.como('xchel+ana@arqosuv.com');
-  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from mis_herramientas()), 'mi_tarjeta,calculadora_traslado',
+  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from mis_herramientas()), 'mi_tarjeta,para_tus_clientes,invitar,calculadora_traslado',
     'Un comisionista fuera de los niveles del modo completo solo ve la rápida');
   perform pg_temp.sistema();
   update herramientas set niveles = array[nv] where organizacion_id = xg and clave = 'calculadora_traslado_completa';
@@ -3628,6 +3628,7 @@ declare
   ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
   p    jsonb;
   c    uuid;
+  s    uuid;
 begin
   perform pg_temp.sistema();
   perform pg_temp.igual((select count(distinct clave) from parametros_fiscales where organizacion_id = xg), 12::bigint, 'Cada organización nace con sus 12 parámetros');
@@ -3650,6 +3651,17 @@ begin
   c := guardar_calculo_traslado('rapida', '  Casa Juriquilla  ', 'Querétaro', 'C', '{"x": 1}', '{"totC": 100}');
   perform pg_temp.debe_fallar($q$select guardar_calculo_traslado('completa', null, 'Querétaro', 'V', '{}', '{}')$q$, 'no está disponible', 'La completa, solo con su nivel');
   perform pg_temp.igual((select referencia from calculos_traslado where id = c), 'Casa Juriquilla', 'Mis cálculos guarda la referencia limpia');
+
+  -- Encargar el avalúo desde el cálculo: la solicitud queda ligada (las dos tienen que ser suyas).
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre, creado_por)
+  values (ana, 'cotizacion', 'portal', (select id from servicios where organizacion_id = xg and activo order by orden limit 1),
+          'Calle Calculadora 1', 'Querétaro', 'Cliente de la calculadora', ana)
+  returning id into s;
+  perform ligar_calculo_a_solicitud(s, c);
+  perform pg_temp.igual((select calculo_traslado_id from solicitudes where id = s), c, 'La solicitud queda ligada a su cálculo');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select ligar_calculo_a_solicitud(%L, %L)', s, c), 'no es tuyo', 'Nadie liga un cálculo ajeno');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.como('xchel+beto@arqosuv.com');
   perform pg_temp.igual((select count(*) from calculos_traslado where id = c), 0::bigint, 'Nadie más ve mis cálculos');
   perform pg_temp.como('xchel@arqosuv.com');

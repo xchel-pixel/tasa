@@ -113,6 +113,11 @@ const PANTALLAS: Record<string, Pantalla> = {
   "/ajustes/parametros": { rutas: () => ["/ajustes/parametros"], espera: SOLO_ADMIN },
   // Calculadora de traslado (0055): activa en XG y DEMO para todos; un cálculo guardado es de quien lo hizo (no se abre aquí).
   "/calculadora": { rutas: () => ["/calculadora"], espera: TODOS },
+  // Portada solo con herramientas (0056): cada tarjeta abre su pantalla.
+  "/panel": { rutas: () => ["/panel"], espera: { admin_org: "inicio", finanzas: "inicio", equipo: "abre", comisionista: "abre" } },
+  "/admin": { rutas: () => ["/admin"], espera: OPERACION },
+  "/para-tus-clientes": { rutas: () => ["/para-tus-clientes"], espera: TODOS },
+  "/invitar": { rutas: () => ["/invitar"], espera: TODOS },
   "/calculadora/mis-calculos": { rutas: () => ["/calculadora/mis-calculos"], espera: TODOS },
   "/calculadora/[id]": { rutas: (d) => [d.calculo && `/calculadora/${d.calculo}`], espera: TODOS },
   "/alta/[org]": { rutas: (d) => [`/alta/${d.org}`], espera: TODOS, publica: true },

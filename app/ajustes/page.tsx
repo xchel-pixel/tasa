@@ -72,7 +72,7 @@ export default async function Ajustes() {
       <main className="flex flex-1 flex-col px-6 py-8">
         <div className="mx-auto w-full max-w-md">
           <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
-            ← Inicio
+            ← Portada
           </Link>
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Ajustes</h1>
           <p className="mt-1 text-[0.9375rem] text-secundario">De {persona.organizacion.nombre}.</p>
