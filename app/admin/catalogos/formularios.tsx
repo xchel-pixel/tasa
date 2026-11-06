@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { Aviso } from "@/components/aviso";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { eliminar, guardarCuenta, guardarCuentaPago, guardarHerramienta, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
+import { eliminar, guardarCuenta, guardarCuentaPago, guardarCupos, guardarHerramienta, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
 
 const INICIAL: EstadoCatalogo = { error: null, mensaje: null };
 const ENTRADA =
@@ -51,6 +51,27 @@ const ROLES: { valor: string; texto: string }[] = [
   { valor: "admin_marca", texto: "Admin de marca" },
   { valor: "admin_org", texto: "Administración" },
 ];
+
+/** Cupo mensual por nivel (vacío = sin límite); solo herramientas que consumen. */
+export function FormularioCupos({ herramienta, niveles, cupos }: { herramienta: string; niveles: { id: string; nombre: string }[]; cupos: Record<string, number | null> }) {
+  const [estado, enviar] = useActionState(guardarCupos, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-2 border-t border-linea pt-3">
+      <input type="hidden" name="herramienta" value={herramienta} />
+      <p className="text-[0.9375rem] font-semibold">Cupo mensual por nivel</p>
+      <p className="text-[0.875rem] leading-5 text-secundario">Vacío: sin límite. Equipo y administración, siempre sin límite. Se reinicia el día 1 de cada mes.</p>
+      <div className="grid grid-cols-2 gap-2">
+        {niveles.map((n) => (
+          <label key={n.id} className="block text-[0.9375rem]">{n.nombre}
+            <input name={`cupo_${n.id}`} inputMode="numeric" defaultValue={cupos[n.id] ?? ""} placeholder="sin límite" className={ENTRADA} />
+          </label>
+        ))}
+      </div>
+      <BotonEnviar variante="secundario">Guardar cupos</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
 
 export function FormularioHerramienta({ herramienta, niveles }: { herramienta: HerramientaCatalogo; niveles: { id: string; nombre: string }[] }) {
   const [estado, enviar] = useActionState(guardarHerramienta, INICIAL);

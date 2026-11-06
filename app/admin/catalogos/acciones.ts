@@ -178,6 +178,26 @@ export async function guardarHerramienta(_previo: EstadoCatalogo, f: FormData): 
   return listo("Herramienta guardada.");
 }
 
+/**
+ * Cupo mensual por nivel de una herramienta que consume (0057). Vacío = sin límite. Equipo y administración
+ * nunca tienen límite. Cuenta desde el día 1 del mes (hora de México).
+ */
+export async function guardarCupos(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  await exigirRol("admin_org");
+  const herramienta = campo(f, "herramienta");
+  const filas: { herramienta: string; nivel_id: string; cantidad: number | null }[] = [];
+  for (const [k, v] of f.entries()) {
+    if (!k.startsWith("cupo_")) continue;
+    const t = String(v).trim();
+    if (t !== "" && !/^\d{1,5}$/.test(t)) return falla("Cada cupo es un número entero; vacío es sin límite.");
+    filas.push({ herramienta, nivel_id: k.slice(5), cantidad: t === "" ? null : Number(t) });
+  }
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("cupos_herramienta").upsert(filas, { onConflict: "organizacion_id,herramienta,nivel_id" });
+  if (error) return traducir(error, "un cupo");
+  return listo("Cupos guardados.");
+}
+
 /** Un perfil del catálogo (lo eligen los comisionistas y sale en su tarjeta). */
 export async function guardarPerfil(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
   await exigirRol("admin_org");

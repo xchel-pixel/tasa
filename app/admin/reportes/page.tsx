@@ -4,6 +4,7 @@ import { mesActual, mesTitulo, mesSiguiente, pesos } from "@/lib/formato";
 import { conversionSinCosto, DIAS_SIN_LIGAR, type Conversion } from "@/lib/conversion-sin-costo";
 import { mesAnterior } from "@/lib/panel";
 import { exigirRol } from "@/lib/sesion";
+import { UsoHerramientas } from "@/components/uso-herramientas";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 
 export const metadata = { title: "Reportes — Tasa" };
@@ -221,6 +222,7 @@ export default async function Reportes({ searchParams }: PageProps<"/admin/repor
           />
         </>
       ) : null}
+      <UsoHerramientas mes={mes} siguiente={mesSiguiente(mes)} />
     </PantallaAdmin>
   );
 }

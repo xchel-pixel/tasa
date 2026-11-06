@@ -3697,6 +3697,76 @@ begin
 end;
 $$;
 
+-- @@ Cupos de herramientas
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  nv   uuid;
+  c    record;
+  calc uuid;
+begin
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from cupos_herramienta where organizacion_id = xg), 10::bigint, 'Cupos iniciales: 5 niveles × Rápida y Completa');
+  perform pg_temp.igual((select cu.cantidad from cupos_herramienta cu join niveles n on n.id = cu.nivel_id
+                          where cu.organizacion_id = xg and cu.herramienta = 'calculadora_traslado_completa' and n.nombre = 'Aliado'), 5, 'Completa Aliado: 5');
+  perform pg_temp.igual((select niveles from herramientas where organizacion_id = xg and clave = 'calculadora_traslado_completa'), null::uuid[],
+    'La Completa queda abierta a todos los niveles');
+  update herramientas set activa = true where organizacion_id = xg and clave in ('calculadora_traslado', 'calculadora_traslado_completa');
+  nv := nivel_del_mes(xg, ana, mes_mx(now()));
+  update cupos_herramienta set cantidad = 2 where organizacion_id = xg and herramienta = 'calculadora_traslado' and nivel_id = nv;
+  delete from usos_herramienta where persona_id = ana;
+
+  -- Cada cálculo nuevo consume; al llegar al límite, no deja.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  select * into c from mi_cupo('calculadora_traslado');
+  perform pg_temp.igual(c.limite || '/' || c.disponibles, '2/2', 'Te quedan 2 de 2');
+  calc := guardar_calculo_traslado('rapida', null, 'Querétaro', 'C', '{}', '{}');
+  perform guardar_calculo_traslado('rapida', null, 'Querétaro', 'C', '{}', '{}');
+  perform pg_temp.igual((select disponibles from mi_cupo('calculadora_traslado')), 0, 'Usó los dos');
+  perform pg_temp.debe_fallar($q$select guardar_calculo_traslado('rapida', null, 'Querétaro', 'C', '{}', '{}')$q$, 'Llegaste a tu límite del mes', 'Al límite no deja calcular');
+  perform pg_temp.igual((select disponibles from mi_cupo('calculadora_traslado_completa')) > 0, true, 'La Completa lleva su propio cupo');
+  perform pg_temp.debe_fallar($q$select liberar_cupo(mi_persona_id(), 'calculadora_traslado', 5, 'yo mismo')$q$, 'Solo admin_org', 'El comisionista no se libera solo');
+
+  -- Pedir más: una alerta por mes; liberar la cierra y suma al cupo del mes.
+  perform pedir_mas_cupo('calculadora_traslado');
+  perform pedir_mas_cupo('calculadora_traslado');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where organizacion_id = xg and tipo = 'cupo_agotado' and codigo like ana || ':calculadora_traslado:%' and resuelta_en is null),
+    1::bigint, 'Pedir más: una sola alerta abierta');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select liberar_cupo(%L, 'calculadora_traslado', 3, '  ')$q$, ana), 'motivo', 'Liberar pide motivo');
+  perform liberar_cupo(ana, 'calculadora_traslado', 3, 'Cierre de varias operaciones');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'cupo_agotado' and codigo like ana || ':%' and resuelta_en is null), 0::bigint, 'Liberar cierra la alerta');
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'extras_herramienta' and motivo like 'Cálculos extra: Cierre%'), 1::bigint, 'Con bitácora');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  select * into c from mi_cupo('calculadora_traslado');
+  perform pg_temp.igual(c.extras || ' · ' || c.disponibles, '3 · 3', 'Se le liberaron 3 más este mes');
+
+  -- Encargar el avalúo convierte el uso (para el reporte).
+  perform pg_temp.sistema();
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, creado_por)
+  values (ana, 'cotizacion', 'portal', (select id from servicios where organizacion_id = xg and activo order by orden limit 1), 'Calle Cupos 1', 'Cliente cupos', ana);
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform ligar_calculo_a_solicitud((select id from solicitudes where cliente_nombre = 'Cliente cupos'), calc);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select solicitud_id is not null from usos_herramienta where calculo_id = calc), true, 'El uso queda convertido en solicitud');
+
+  -- Mes nuevo: lo del mes pasado no cuenta.
+  update usos_herramienta set creado_en = creado_en - interval '40 days' where persona_id = ana;
+  update extras_herramienta set mes = mes_de((mes - interval '1 month')::date) where persona_id = ana;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select disponibles from mi_cupo('calculadora_traslado')), 2, 'El día 1 se reinicia');
+
+  -- Equipo y administración: sin límite.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select limite from mi_cupo('calculadora_traslado')), null::integer, 'Finanzas: sin límite');
+  perform pg_temp.sistema();
+  update herramientas set activa = false where organizacion_id = xg and clave like 'calculadora%';
+end;
+$$;
+
 -- @@ Dos admin_org
 -- Alguien del equipo pasa a admin_org sobre su misma membresía (como Alex en XG):
 -- conserva su código, pierde el bono, y los dos administradores ven y deciden lo mismo.

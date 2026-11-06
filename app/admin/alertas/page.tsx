@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
+import { LiberarCupo } from "@/components/formularios-cupo";
 import { fechaCorta } from "@/lib/formato";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
@@ -12,7 +13,7 @@ export const metadata = { title: "Alertas — Tasa" };
 type Fila = {
   id: string;
   tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector"
-    | "externo_comision" | "notion_sin_pagina" | "notion_pago" | "parametros_fiscales";
+    | "externo_comision" | "notion_sin_pagina" | "notion_pago" | "parametros_fiscales" | "cupo_agotado";
   codigo: string | null;
   mensaje: string;
   creada_en: string;
@@ -94,6 +95,13 @@ export default async function Alertas() {
                   <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>
                   {" "}(Página en Notion). Se cierra sola al ligarlo; lo ya escrito se corrige a mano en Notion.
                 </p>
+              ) : a.tipo === "cupo_agotado" ? (
+                persona.rol === "admin_org" ? (
+                  <>
+                    <Link href={`/admin/comisionistas/${a.codigo?.split(":")[0]}`} className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Ver su ficha</Link>
+                    <LiberarCupo personaId={a.codigo?.split(":")[0] ?? ""} herramienta={a.codigo?.split(":")[1]} opciones={[]} />
+                  </>
+                ) : <p className="mt-2 text-[0.9375rem] text-secundario">La resuelve Administración.</p>
               ) : a.tipo === "parametros_fiscales" ? (
                 persona.rol === "admin_org" ? (
                   <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">

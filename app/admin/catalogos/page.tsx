@@ -5,7 +5,8 @@ import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { FormularioConvenio, type Convenio } from "./convenios";
 import { textoComision } from "./textos";
-import { FormularioCuenta, FormularioCuentaPago, FormularioHerramienta, FormularioMarca, FormularioPerfil, FormularioServicio, type Cuenta, type CuentaPago, type HerramientaCatalogo, type Marca, type Perfil, type Servicio } from "./formularios";
+import { HERRAMIENTAS_CON_CUPO } from "@/lib/cupos";
+import { FormularioCuenta, FormularioCuentaPago, FormularioCupos, FormularioHerramienta, FormularioMarca, FormularioPerfil, FormularioServicio, type Cuenta, type CuentaPago, type HerramientaCatalogo, type Marca, type Perfil, type Servicio } from "./formularios";
 
 type FilaConvenio = Omit<Convenio, "precios" | "comision_pct"> & {
   comision_pct: string | number | null;
@@ -22,7 +23,7 @@ export const metadata = { title: "Catálogos — Tasa" };
 export default async function Catalogos() {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
-  const [marcas, cuentas, servicios, convenios, perfiles, cuentasPago, herramientas, niveles] = await Promise.all([
+  const [marcas, cuentas, servicios, convenios, perfiles, cuentasPago, herramientas, niveles, cupos] = await Promise.all([
     supabase
       .from("marcas")
       .select(
@@ -50,7 +51,9 @@ export default async function Catalogos() {
     supabase.from("origenes_pago").select("id, nombre, notion_cuenta, activo").order("orden").order("nombre").returns<CuentaPago[]>(),
     supabase.from("herramientas").select("id, clave, nombre, activa, roles, niveles, en_menu").order("orden").returns<HerramientaCatalogo[]>(),
     supabase.from("niveles").select("id, nombre").order("orden").returns<{ id: string; nombre: string }[]>(),
+    supabase.from("cupos_herramienta").select("herramienta, nivel_id, cantidad").returns<{ herramienta: string; nivel_id: string; cantidad: number | null }[]>(),
   ]);
+  const cuposDe = (h: string) => Object.fromEntries((oExplota(cupos, "los cupos") ?? []).filter((c) => c.herramienta === h).map((c) => [c.nivel_id, c.cantidad]));
   const conLogo = oExplota(marcas, "las marcas") ?? [];
   // Vista previa del logo: URL firmada por una hora (el bucket es privado).
   const rutas = conLogo.flatMap((m) => (m.logo_ruta ? [m.logo_ruta] : []));
@@ -111,6 +114,9 @@ export default async function Catalogos() {
         {(oExplota(herramientas, "las herramientas") ?? []).map((h) => (
           <Elemento key={h.id} titulo={h.nombre} inactivo={!h.activa}>
             <FormularioHerramienta herramienta={h} niveles={oExplota(niveles, "los niveles") ?? []} />
+            {(HERRAMIENTAS_CON_CUPO as readonly string[]).includes(h.clave) ? (
+              <FormularioCupos herramienta={h.clave} niveles={oExplota(niveles, "los niveles") ?? []} cupos={cuposDe(h.clave)} />
+            ) : null}
           </Elemento>
         ))}
       </Seccion>

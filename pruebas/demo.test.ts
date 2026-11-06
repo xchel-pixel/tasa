@@ -17,7 +17,7 @@ const TABLAS_CON_ORG = [
   "aceptaciones_terminos", "ajustes", "alertas", "aplicaciones_pago_comision", "cierres", "comisiones", "comisionistas",
   "conectores", "convenio_precios", "convenios", "cotizaciones", "csf_reemplazadas", "cuentas_receptoras", "eventos_trabajo",
   "folios_contador", "historial_estatus", "mapeo_estatus", "marcas", "membresia_marcas", "membresias", "niveles",
-  "niveles_mensuales", "origenes_pago", "pagos", "pagos_comision", "pendientes_comision", "perfiles", "herramientas", "parametros_fiscales", "calculos_traslado", "usos_herramienta", "servicios", "solicitudes",
+  "niveles_mensuales", "origenes_pago", "pagos", "pagos_comision", "pendientes_comision", "perfiles", "herramientas", "parametros_fiscales", "calculos_traslado", "usos_herramienta", "cupos_herramienta", "extras_herramienta", "servicios", "solicitudes",
   "solicitudes_alta", "tarjeta_servicios", "tarjeta_inmuebles", "tarjeta_clics",
 ];
 

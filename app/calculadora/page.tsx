@@ -6,6 +6,7 @@ import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import datos from "@/lib/traslado/parametros-2026.json";
 import { FormularioCalculadora } from "./formulario";
+import { miCupo, textoCupo } from "@/lib/cupos";
 
 export const metadata = { title: "Calculadora de traslado — Tasa" };
 
@@ -14,6 +15,12 @@ export default async function Calculadora() {
   await exigirRol(...TODOS_LOS_ROLES);
   if (!(await tengoHerramienta("calculadora_traslado"))) redirect("/");
   const completa = await tengoHerramienta("calculadora_traslado_completa");
+  // Cupo del mes (0057): Rápida y Completa por separado; equipo y administración, sin límite.
+  const [cupoR, cupoC] = await Promise.all([miCupo("calculadora_traslado"), completa ? miCupo("calculadora_traslado_completa") : Promise.resolve(null)]);
+  const cupos = {
+    rapida: { texto: textoCupo(cupoR), agotado: cupoR.disponibles === 0, extras: cupoR.extras },
+    completa: cupoC ? { texto: textoCupo(cupoC), agotado: cupoC.disponibles === 0, extras: cupoC.extras } : null,
+  };
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const municipios = Object.keys(datos.istd).sort((a, b) => a.localeCompare(b, "es"));
 
@@ -31,7 +38,12 @@ export default async function Calculadora() {
             Gastos de escrituración en Querétaro para comprador, vendedor o ambos: ISTD, honorarios notariales, Registro Público y avalúo
             {completa ? "; en la completa, también ISR por enajenación y operaciones extemporáneas" : ""}.
           </p>
-          <FormularioCalculadora municipios={municipios} completa={completa} hoy={hoy} />
+          {cupos.rapida.extras || cupos.completa?.extras ? (
+            <p className="mt-3 rounded-xl bg-exito-fondo px-4 py-3 text-[0.9375rem] leading-6 text-exito">
+              Se te liberaron {cupos.rapida.extras + (cupos.completa?.extras ?? 0)} cálculos más este mes.
+            </p>
+          ) : null}
+          <FormularioCalculadora municipios={municipios} completa={completa} hoy={hoy} cupos={cupos} />
         </div>
       </main>
     </>

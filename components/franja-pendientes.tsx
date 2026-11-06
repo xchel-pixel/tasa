@@ -33,11 +33,13 @@ export async function FranjaPendientes({ persona }: { persona: Persona }) {
 
 async function delComisionista(persona: Persona): Promise<Pendiente[]> {
   const supabase = await crearClienteServidor();
-  const [{ data: yo }, { data: porEntregar }] = await Promise.all([
+  const mes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date()).slice(0, 7) + "-01";
+  const [{ data: yo }, { data: porEntregar }, { data: extras }] = await Promise.all([
     supabase.from("comisionistas").select("csf_ruta").eq("persona_id", persona.id).maybeSingle<{ csf_ruta: string | null }>(),
     supabase.from("pagos").select("id, monto, entregar_antes, solicitud_id, solicitudes(cliente_nombre)")
       .eq("recibio_asesor", true).eq("estado", "reportado").is("entregado_en", null).eq("reportado_por", persona.id).order("entregar_antes")
       .returns<{ id: string; monto: string | number; entregar_antes: string; solicitud_id: string; solicitudes: { cliente_nombre: string } | null }[]>(),
+    supabase.from("extras_herramienta").select("cantidad").eq("persona_id", persona.id).eq("mes", mes).returns<{ cantidad: number }[]>(),
   ]);
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const lista: Pendiente[] = (porEntregar ?? []).map((p) => ({
@@ -46,6 +48,8 @@ async function delComisionista(persona: Persona): Promise<Pendiente[]> {
     urgente: p.entregar_antes < hoy,
   }));
   if (yo && !yo.csf_ruta) lista.push({ href: "/perfil", texto: "Sube tu Constancia de Situación Fiscal para cobrar tus comisiones" });
+  const liberados = (extras ?? []).reduce((s, e) => s + e.cantidad, 0);
+  if (liberados) lista.push({ href: "/calculadora", texto: `Se te liberaron ${liberados} cálculos más este mes` });
   return lista;
 }
 

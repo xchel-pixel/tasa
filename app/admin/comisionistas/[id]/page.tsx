@@ -12,6 +12,8 @@ import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
 import { leerPerfil } from "@/lib/perfil";
+import { cupoDe, textoCupo } from "@/lib/cupos";
+import { LiberarCupo } from "@/components/formularios-cupo";
 import { AgregarMovimiento, CambiarActivo, CambiarVinculo, DecidirPerfil, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, PaginaNotion, PonerPerfil, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
@@ -120,6 +122,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   ]);
   const tratos = await tratosDeLaOrg(yo.organizacion.id);
   const perfil = await leerPerfil(supabase, id);
+  const [cupoR, cupoC] = staff ? await Promise.all([cupoDe(id, "calculadora_traslado"), cupoDe(id, "calculadora_traslado_completa")]) : [null, null];
   const nivelDelTrato = f.trato_nivel_id
     ? (await supabase.from("niveles").select("nombre, porcentaje").eq("id", f.trato_nivel_id).maybeSingle()).data
     : null;
@@ -212,6 +215,16 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
         ) : null}
         {superAdmin && perfil.solicitado ? <DecidirPerfil personaId={id} solicitado={perfil.solicitado} /> : null}
         {superAdmin ? <PonerPerfil personaId={id} actual={perfil.otro ? null : perfil.perfilId} opciones={perfil.opciones} /> : null}
+        {cupoR && cupoC ? (
+          <details className="mt-3 rounded-xl border border-linea px-4 py-3">
+            <summary className="toque cursor-pointer font-semibold text-acento">Cupos del mes: calculadora</summary>
+            <p className="mt-2 text-[0.9375rem] leading-6">Rápida: {cupoR.usados} usados · {textoCupo(cupoR).replace("Te quedan", "le quedan")}</p>
+            <p className="text-[0.9375rem] leading-6">Completa: {cupoC.usados} usados · {textoCupo(cupoC).replace("Te quedan", "le quedan")}</p>
+            {superAdmin ? (
+              <LiberarCupo personaId={id} opciones={[{ clave: "calculadora_traslado", nombre: "Calculadora rápida" }, { clave: "calculadora_traslado_completa", nombre: "Calculadora completa" }]} />
+            ) : null}
+          </details>
+        ) : null}
         {superAdmin ? (
           <PaginaNotion personaId={id} nombre={f.personas.nombre} ligada={f.notion_pagina ? (f.notion_nombre ?? "ligada") : null} />
         ) : null}

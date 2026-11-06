@@ -2,7 +2,10 @@
 
 import { useActionState, useState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
+import { PedirMas } from "@/components/formularios-cupo";
 import { calcularTraslado, type EstadoCalculo } from "./acciones";
+
+type CupoVista = { texto: string; agotado: boolean; extras: number };
 
 const ENTRADA = "mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento";
 
@@ -10,7 +13,7 @@ const ENTRADA = "mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 
  * Rápida: municipio o clave, lado, operación, valores, vivienda social e hipoteca. Completa (Socio en
  * adelante y equipo): además ISR por enajenación y extemporáneo. Los montos se calculan en el servidor.
  */
-export function FormularioCalculadora({ municipios, completa, hoy }: { municipios: string[]; completa: boolean; hoy: string }) {
+export function FormularioCalculadora({ municipios, completa, hoy, cupos }: { municipios: string[]; completa: boolean; hoy: string; cupos: { rapida: CupoVista; completa: CupoVista | null } }) {
   const [estado, enviar] = useActionState<EstadoCalculo, FormData>(calcularTraslado, { error: null });
   const [modo, setModo] = useState<"rapida" | "completa">("rapida");
   const [lado, setLado] = useState("C");
@@ -20,8 +23,10 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
   const vendedor = lado !== "C", comprador = lado !== "V";
   // Si el cálculo marca un error, el formulario vuelve con lo capturado (el form se remonta con estos valores).
   const v = (nombre: string, porOmision = "") => estado.valores?.[nombre] ?? porOmision;
+  const cupo = modo === "completa" && cupos.completa ? cupos.completa : cupos.rapida;
 
   return (
+    <>
     <form key={JSON.stringify(estado.valores ?? {})} action={enviar} className="mt-5 flex flex-col gap-5">
       <input type="hidden" name="modo" value={modo} />
       {completa ? (
@@ -178,7 +183,16 @@ export function FormularioCalculadora({ municipios, completa, hoy }: { municipio
       <p className="text-[0.8125rem] leading-5 text-secundario">No escribas datos del cliente: el cálculo se guarda 90 días en &quot;Mis cálculos&quot;.</p>
 
       {estado.error ? <p className="text-[0.9375rem] leading-6 text-error">{estado.error}</p> : null}
-      <BotonEnviar>Calcular</BotonEnviar>
+      <p className="text-[0.9375rem] font-semibold text-secundario">{modo === "completa" ? "Completa" : "Rápida"}: {cupo.texto}</p>
+      {cupo.agotado ? (
+        <div className="rounded-xl bg-proceso-fondo px-4 py-3 text-proceso">
+          <p className="font-semibold">Llegaste a tu límite del mes. Sube de nivel o pide más cálculos.</p>
+        </div>
+      ) : (
+        <BotonEnviar>Calcular</BotonEnviar>
+      )}
     </form>
+    {cupo.agotado ? <PedirMas herramienta={modo === "completa" ? "calculadora_traslado_completa" : "calculadora_traslado"} /> : null}
+    </>
   );
 }
