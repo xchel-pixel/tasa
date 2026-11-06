@@ -3,7 +3,7 @@ import { Encabezado } from "@/components/encabezado";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
 import { VolverPortada } from "@/components/volver-portada";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
-import { ligasDe } from "@/lib/ligas";
+import { ligasDe, mensajesDeInvitacion } from "@/lib/ligas";
 import { exigirRol } from "@/lib/sesion";
 
 export const metadata = { title: "Invita a un comisionista — Tasa" };
@@ -12,7 +12,9 @@ export const metadata = { title: "Invita a un comisionista — Tasa" };
 export default async function Invitar() {
   const persona = await exigirRol(...TODOS_LOS_ROLES);
   if (!(await tengoHerramienta("invitar"))) redirect("/");
-  const { invitar, bono, equipo } = await ligasDe(persona);
+  const ligas = await ligasDe(persona);
+  const { invitar, bono, equipo } = ligas;
+  const mensajes = await mensajesDeInvitacion(ligas);
   return (
     <>
       <Encabezado />
@@ -21,7 +23,7 @@ export default async function Invitar() {
           <VolverPortada />
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Invita a un comisionista</h1>
           {invitar ? (
-            <TarjetaInvitar liga={invitar} equipo={equipo} bono={bono} />
+            <TarjetaInvitar liga={invitar} mensaje={mensajes.invitar} equipo={equipo} bono={bono} />
           ) : (
             <p className="mt-4 rounded-xl bg-alterno px-4 py-3 text-secundario">Todavía no tienes liga para invitar; pídela a Administración.</p>
           )}

@@ -36,7 +36,7 @@ export default async function SolicitudDeAlta({
         <Marca alto={56} prioridad />
         <h1 className="mt-6 text-[1.5rem] font-bold tracking-tight">Solicitud de alta</h1>
         <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
-          Para comisionistas de {datos.organizacion}. Revisamos tu solicitud y te escribimos a tu correo.
+          Para aliados comerciales de {datos.organizacion}. Revisamos tu solicitud y te escribimos a tu correo.
         </p>
 
         {invito ? (

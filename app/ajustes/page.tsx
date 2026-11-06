@@ -28,7 +28,7 @@ export default async function Ajustes() {
   const [ajustes, organizacion, conector] = await Promise.all([
     supabase
       .from("ajustes")
-      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo, referido_vigencia_meses, liga_max_por_telefono, liga_max_por_conexion, nota_tarjeta, nota_liga, nota_pdf, nota_version, nota_actualizada_en, finanzas_asigna")
+      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo, referido_vigencia_meses, liga_max_por_telefono, liga_max_por_conexion, nota_tarjeta, nota_liga, nota_pdf, nota_version, nota_actualizada_en, texto_invitar, texto_clientes, textos_version, textos_actualizados_en, finanzas_asigna")
       .maybeSingle()
       .returns<{
         contacto_soporte: string | null;
@@ -46,6 +46,10 @@ export default async function Ajustes() {
         nota_pdf: string;
         nota_version: number;
         nota_actualizada_en: string | null;
+        texto_invitar: string;
+        texto_clientes: string;
+        textos_version: number;
+        textos_actualizados_en: string | null;
         finanzas_asigna: boolean;
       } | null>(),
     supabase
@@ -96,6 +100,14 @@ export default async function Ajustes() {
               version: a?.nota_version ?? 1,
               actualizada: a?.nota_actualizada_en
                 ? new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long" }).format(new Date(a.nota_actualizada_en))
+                : null,
+            }}
+            textos={{
+              invitar: a?.texto_invitar ?? "",
+              clientes: a?.texto_clientes ?? "",
+              version: a?.textos_version ?? 1,
+              actualizada: a?.textos_actualizados_en
+                ? new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long" }).format(new Date(a.textos_actualizados_en))
                 : null,
             }}
             finanzasAsigna={Boolean(a?.finanzas_asigna)}

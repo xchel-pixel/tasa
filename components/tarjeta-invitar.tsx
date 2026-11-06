@@ -6,9 +6,8 @@ import { useState } from "react";
  * "Invita a otro comisionista" (o "a un comisionista", para el equipo): su liga
  * de alta con su código, para copiar o mandar por WhatsApp.
  */
-export function TarjetaInvitar({ liga, equipo = false, bono = null }: { liga: string; equipo?: boolean; bono?: string | null }) {
+export function TarjetaInvitar({ liga, mensaje, equipo = false, bono = null }: { liga: string; mensaje: string; equipo?: boolean; bono?: string | null }) {
   const [copiada, setCopiada] = useState(false);
-  const mensaje = `Te invito a Tasa para encargar cotizaciones y avalúos y ganar comisiones. Pide tu alta aquí: ${liga}`;
 
   async function copiar() {
     try {

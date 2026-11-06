@@ -9,10 +9,9 @@ import { useEffect, useState } from "react";
  * teléfono, sin mandar la liga a ningún servicio). A propósito se ve distinta de "Invita a un
  * comisionista": esta es para clientes, aquella para colegas.
  */
-export function TarjetaClientes({ liga }: { liga: string }) {
+export function TarjetaClientes({ liga, mensaje }: { liga: string; mensaje: string }) {
   const [copiada, setCopiada] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
-  const mensaje = `Hola. Para pedir tu cotización o tu trámite de avalúo, llena esta solicitud: ${liga}`;
 
   useEffect(() => {
     QRCode.toDataURL(liga, { width: 640, margin: 2, errorCorrectionLevel: "M" }).then(setQr, () => setQr(null));

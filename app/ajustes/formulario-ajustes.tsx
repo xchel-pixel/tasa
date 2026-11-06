@@ -22,6 +22,7 @@ export default function FormularioAjustes({
   ligaPorTelefono,
   ligaPorConexion,
   nota,
+  textos,
   finanzasAsigna,
 }: {
   contacto: string;
@@ -36,6 +37,7 @@ export default function FormularioAjustes({
   ligaPorTelefono: number;
   ligaPorConexion: number;
   nota: { tarjeta: string; liga: string; pdf: string; version: number; actualizada: string | null };
+  textos: { invitar: string; clientes: string; version: number; actualizada: string | null };
   finanzasAsigna: boolean;
 }) {
   const [estado, enviar] = useActionState(guardarAjustes, INICIAL);
@@ -161,6 +163,23 @@ export default function FormularioAjustes({
         <label className="mt-3 block text-[0.9375rem]">
           Pie del PDF de la cotización
           <input name="nota_pdf" required maxLength={160} defaultValue={nota.pdf} className={ENTRADA} />
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend className="font-semibold">Mensajes de WhatsApp</legend>
+        <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
+          El texto que se manda con &quot;Enviar por WhatsApp&quot;. {"{liga}"} se cambia por la liga de quien lo comparte y es
+          obligatoria. Versión {textos.version}
+          {textos.actualizada ? `, cambiada el ${textos.actualizada}` : ""}; cada cambio queda en bitácora.
+        </p>
+        <label className="mt-3 block text-[0.9375rem]">
+          Invita a un comisionista
+          <textarea name="texto_invitar" rows={4} required maxLength={500} defaultValue={textos.invitar} className={ENTRADA} />
+        </label>
+        <label className="mt-3 block text-[0.9375rem]">
+          Para tus clientes
+          <textarea name="texto_clientes" rows={3} required maxLength={500} defaultValue={textos.clientes} className={ENTRADA} />
         </label>
       </fieldset>
 

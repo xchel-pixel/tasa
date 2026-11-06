@@ -24,6 +24,11 @@ export async function guardarAjustes(
   const notaTarjeta = String(formData.get("nota_tarjeta") ?? "").trim();
   const notaLiga = String(formData.get("nota_liga") ?? "").trim();
   const notaPdf = String(formData.get("nota_pdf") ?? "").trim();
+  const textoInvitar = String(formData.get("texto_invitar") ?? "").trim();
+  const textoClientes = String(formData.get("texto_clientes") ?? "").trim();
+  if (!textoInvitar.includes("{liga}") || !textoClientes.includes("{liga}") || textoInvitar.length > 500 || textoClientes.length > 500) {
+    return { mensaje: null, error: "Los mensajes de WhatsApp deben llevar {liga} y van hasta 500 caracteres." };
+  }
   if (!notaTarjeta || !notaLiga || !notaPdf || notaTarjeta.length > 600 || notaLiga.length > 2000 || notaPdf.length > 160) {
     return { mensaje: null, error: "La nota de independencia no puede quedar vacía (tarjeta hasta 600, liga hasta 2,000 y PDF hasta 160 caracteres)." };
   }
@@ -64,6 +69,8 @@ export async function guardarAjustes(
         nota_tarjeta: notaTarjeta,
         nota_liga: notaLiga,
         nota_pdf: notaPdf,
+        texto_invitar: textoInvitar,
+        texto_clientes: textoClientes,
         finanzas_asigna: formData.get("finanzas_asigna") === "on",
         actualizado_en: new Date().toISOString(),
       },

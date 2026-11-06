@@ -15,7 +15,7 @@ export async function PortadaPublica() {
   const pasos = [
     { titulo: "Refieres", texto: "Compartes tu liga o pides la cotización para tu cliente desde tu celular." },
     { titulo: "Se cotiza y se atiende", texto: "El despacho aliado cotiza, hace el trabajo y lo entrega a tu cliente." },
-    { titulo: "Ganas tu comisión", texto: "Cuando el cliente paga, tu comisión queda en tu estado de cuenta; se paga cada mes." },
+    { titulo: "Das seguimiento", texto: "Ves en qué va cada trámite de tus clientes y tu estado de cuenta, desde tu celular." },
   ];
   const herramientas = [
     { titulo: "Tu tarjeta digital", texto: "Una página para compartir con tus servicios y tus inmuebles." },
@@ -29,8 +29,8 @@ export async function PortadaPublica() {
         <Marca alto={56} prioridad />
         <h1 className="mt-8 text-[1.75rem] font-bold leading-tight tracking-tight">Programa de aliados comerciales</h1>
         <p className="mt-3 leading-7 text-secundario">
-          Si tienes clientes que compran, venden o heredan un inmueble, recomiéndales un despacho de valuación serio y gana una
-          comisión por cada trabajo pagado. Tú refieres; el despacho cotiza, hace el trabajo y responde por él.
+          Si tienes clientes que compran, venden o heredan un inmueble, recomiéndales un despacho de valuación serio y usa las
+          herramientas que Tasa tiene para ti. Tú refieres; el despacho cotiza, hace el trabajo y responde por él.
         </p>
 
         <div className="mt-6 flex flex-col gap-3">

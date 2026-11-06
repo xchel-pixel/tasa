@@ -3822,6 +3822,35 @@ begin
 end;
 $$;
 
+-- @@ Textos de invitación
+-- Los mensajes de WhatsApp se editan en Ajustes: llevan {liga}, suben de versión y quedan en bitácora.
+do $$
+declare
+  v integer;
+begin
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select position('aliados comerciales' in texto_invitar) > 0 from ajustes), true,
+    'El comisionista lee el texto de invitación por omisión');
+  perform pg_temp.igual((select position('comision' in texto_invitar) = 0 from ajustes), true,
+    'La invitación ya no habla de comisiones');
+  update ajustes set texto_invitar = 'intruso {liga}';
+  perform pg_temp.igual((select texto_invitar <> 'intruso {liga}' from ajustes), true, 'El comisionista no cambia el texto');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  v := (select textos_version from ajustes);
+  update ajustes set contacto_soporte = contacto_soporte;
+  perform pg_temp.igual((select textos_version from ajustes), v, 'Guardar otra cosa no sube la versión de los textos');
+  update ajustes set texto_invitar = 'Únete a Tasa: {liga}';
+  perform pg_temp.igual((select textos_version from ajustes), v + 1, 'Cambiar el texto sube la versión');
+  perform pg_temp.igual((select textos_actualizados_en is not null from ajustes), true, 'Y anota cuándo');
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'ajustes' and despues->>'texto_invitar' = 'Únete a Tasa: {liga}'),
+    1::bigint, 'El cambio queda en bitácora');
+  perform pg_temp.debe_fallar($q$update ajustes set texto_clientes = 'Sin liga'$q$, 'check', 'Sin {liga} no se guarda');
+  perform pg_temp.debe_fallar(format('update ajustes set texto_invitar = %L', repeat('a', 495) || '{liga}'), 'check',
+    'Más de 500 caracteres no se guarda');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

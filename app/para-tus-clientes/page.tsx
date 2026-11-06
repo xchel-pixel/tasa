@@ -3,7 +3,7 @@ import { Encabezado } from "@/components/encabezado";
 import { TarjetaClientes } from "@/components/tarjeta-clientes";
 import { VolverPortada } from "@/components/volver-portada";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
-import { ligasDe } from "@/lib/ligas";
+import { ligasDe, mensajesDeInvitacion } from "@/lib/ligas";
 import { exigirRol } from "@/lib/sesion";
 
 export const metadata = { title: "Para tus clientes — Tasa" };
@@ -12,7 +12,9 @@ export const metadata = { title: "Para tus clientes — Tasa" };
 export default async function ParaTusClientes() {
   const persona = await exigirRol(...TODOS_LOS_ROLES);
   if (!(await tengoHerramienta("para_tus_clientes"))) redirect("/");
-  const { clientes } = await ligasDe(persona);
+  const ligas = await ligasDe(persona);
+  const { clientes } = ligas;
+  const mensajes = await mensajesDeInvitacion(ligas);
   return (
     <>
       <Encabezado />
@@ -21,7 +23,7 @@ export default async function ParaTusClientes() {
           <VolverPortada />
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Para tus clientes</h1>
           {clientes ? (
-            <TarjetaClientes liga={clientes} />
+            <TarjetaClientes liga={clientes} mensaje={mensajes.clientes} />
           ) : (
             <p className="mt-4 rounded-xl bg-alterno px-4 py-3 text-secundario">Todavía no tienes código de referido; pídelo a Administración.</p>
           )}
