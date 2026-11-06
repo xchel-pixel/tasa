@@ -11,7 +11,7 @@ import { miCupo, textoCupo } from "@/lib/cupos";
 export const metadata = { title: "Calculadora de traslado — Tasa" };
 
 /** Calculadora de gastos de traslado de dominio (Querétaro). Rápida para todos; Completa según el catálogo. */
-export default async function Calculadora() {
+export default async function Calculadora({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   await exigirRol(...TODOS_LOS_ROLES);
   if (!(await tengoHerramienta("calculadora_traslado"))) redirect("/");
   const completa = await tengoHerramienta("calculadora_traslado_completa");
@@ -23,6 +23,12 @@ export default async function Calculadora() {
   };
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const municipios = Object.keys(datos.istd).sort((a, b) => a.localeCompare(b, "es"));
+  // Desde el Mapa catastral (0059): ?clave=&municipio=&valor_catastral=.
+  const q = await searchParams;
+  const inicial: Record<string, string> = {};
+  if (q.municipio && municipios.includes(q.municipio)) inicial.municipio = q.municipio;
+  if (q.clave) inicial.clave_catastral = q.clave.replace(/[^d-]/g, "").slice(0, 40);
+  if (q.valor_catastral && /^d{1,12}(.d{1,2})?$/.test(q.valor_catastral)) inicial.valor_catastral = q.valor_catastral;
 
   return (
     <>
@@ -43,7 +49,7 @@ export default async function Calculadora() {
               Se te liberaron {cupos.rapida.extras + (cupos.completa?.extras ?? 0)} cálculos más este mes.
             </p>
           ) : null}
-          <FormularioCalculadora municipios={municipios} completa={completa} hoy={hoy} cupos={cupos} />
+          <FormularioCalculadora municipios={municipios} completa={completa} hoy={hoy} cupos={cupos} inicial={inicial} />
         </div>
       </main>
     </>

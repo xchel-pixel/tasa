@@ -502,6 +502,44 @@ begin
   select v_demo, p.id, 'calculadora_traslado_completa', mes_mx(now()), 2, 'Ejemplo DEMO: varias operaciones este mes'
     from personas p where p.correo = 'xchel+demo-ana@arqosuv.com';
 
+  -- 10. Mapa catastral (0059): encendido en DEMO. Tres predios INVENTADOS (claves que no existen en catastro,
+  --     marcados demo: solo los ven organizaciones demo) junto al Jardín Zenea: uno normal con kardex, un
+  --     condominio con MultiPolygon y uno con el expediente pendiente. Sin datos personales reales.
+  update herramientas set activa = true where organizacion_id = v_demo and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  perform sembrar_campos_catastro(v_demo);
+  delete from catastro_propietarios where organizacion_id = v_demo;
+  delete from catastro_fallas where organizacion_id = v_demo;
+  delete from catastro_predios where demo;
+  insert into catastro_predios (clave, municipio, geometria, latitud, longitud, lat_min, lat_max, lon_min, lon_max, colonia, codigo_postal,
+                                ubicacion, sup_terreno, sup_construccion, extra, expediente, consultado_en, demo)
+  values
+    ('149999990000001', '14',
+     '{"type":"Polygon","coordinates":[[[-100.39230,20.59280],[-100.39210,20.59280],[-100.39210,20.59295],[-100.39230,20.59295],[-100.39230,20.59280]]]}',
+     20.592875, -100.392200, 20.592800, 20.592950, -100.392300, -100.392100, 'Centro (ejemplo DEMO)', '76000',
+     'Calle Ejemplo 10, Colonia Centro (ejemplo DEMO), CP 76000, Querétaro', 350.5, 280,
+     '{"tipo_predio":"URBANO","clasificacion":"HABITACIONAL","valor_terreno":1850000,"valor_construccion":1420000,"capa_area":350.48,"capa_folio":"DEMO-1","rppc_lote":"7","rppc_medid_colind":"Al norte 20.00 m con lote 6 (ejemplo DEMO)"}',
+     'completo', now() - interval '10 days', true),
+    ('149999990000002', '14',
+     '{"type":"MultiPolygon","coordinates":[[[[-100.39200,20.59280],[-100.39185,20.59280],[-100.39185,20.59292],[-100.39200,20.59292],[-100.39200,20.59280]]],[[[-100.39180,20.59280],[-100.39172,20.59280],[-100.39172,20.59286],[-100.39180,20.59286],[-100.39180,20.59280]]]]}',
+     20.592858, -100.391900, 20.592800, 20.592920, -100.392000, -100.391720, 'Centro (ejemplo DEMO)', '76000',
+     'Calle Ejemplo 12 int. 3, Colonia Centro (ejemplo DEMO), CP 76000, Querétaro', 95.2, 88.7,
+     '{"tipo_predio":"CONDOMINIO","regimen":"CONDOMINIO","tipo_condominio":"VERTICAL","nombre_condominio":"Condominio Ejemplo DEMO","indiviso":12.5,"sup_terreno_privativa":60.1,"sup_terreno_comun":35.1,"sup_construccion_privativa":72.4,"sup_construccion_comun":16.3,"valor_terreno_privativo":410000,"valor_construccion_privativa":520000,"cacoct":1,"vacopt":0,"clave_original":"149999990000000"}',
+     'completo', now() - interval '20 days', true),
+    ('149999990000003', '14',
+     '{"type":"Polygon","coordinates":[[[-100.39230,20.59300],[-100.39210,20.59300],[-100.39210,20.59312],[-100.39230,20.59312],[-100.39230,20.59300]]]}',
+     20.593060, -100.392200, 20.593000, 20.593120, -100.392300, -100.392100, null, null, null, null, null,
+     '{"capa_area":266.9,"capa_folio":"DEMO-3"}', 'pendiente', now() - interval '1 day', true);
+  insert into catastro_versiones (clave, consultado_en, reemplazada_en, cambios, antes)
+  values ('149999990000001', now() - interval '200 days', now() - interval '10 days', '{valor_construccion,valor_terreno}',
+          '{"valor_terreno":1700000,"valor_construccion":1380000,"sup_terreno":350.5}');
+  insert into catastro_propietarios (organizacion_id, clave, propietarios, valor_operacion, escritura, notario, numero_contrato)
+  values (v_demo, '149999990000001', '[{"nombre":"Inmobiliaria Ejemplo DEMO","porcentaje":100,"origen":"catastro"},{"nombre":"Inmobiliaria Ejemplo DEMO","porcentaje":100,"origen":"rppc","tipo_adquisicion":"COMPRAVENTA"}]',
+          2900000, '12345', 'Notaría 99 (ejemplo DEMO)', 'DEMO-0001');
+  -- Ana lleva 5 consultas del mes.
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo)
+  select v_demo, p.id, 'mapa_catastral', 'consulta' from personas p, generate_series(1, 5)
+   where p.correo = 'xchel+demo-ana@arqosuv.com';
+
   perform set_config('tasa.motivo', '', true);
 end;
 $$;

@@ -221,7 +221,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
             <p className="mt-2 text-[0.9375rem] leading-6">Rápida: {cupoR.usados} usados · {textoCupo(cupoR).replace("Te quedan", "le quedan")}</p>
             <p className="text-[0.9375rem] leading-6">Completa: {cupoC.usados} usados · {textoCupo(cupoC).replace("Te quedan", "le quedan")}</p>
             {superAdmin ? (
-              <LiberarCupo personaId={id} opciones={[{ clave: "calculadora_traslado", nombre: "Calculadora rápida" }, { clave: "calculadora_traslado_completa", nombre: "Calculadora completa" }]} />
+              <LiberarCupo personaId={id} opciones={[{ clave: "calculadora_traslado", nombre: "Calculadora rápida" }, { clave: "calculadora_traslado_completa", nombre: "Calculadora completa" }, { clave: "mapa_catastral", nombre: "Mapa catastral (consultas)" }, { clave: "mapa_catastral_pdf", nombre: "PDF del mapa catastral" }]} />
             ) : null}
           </details>
         ) : null}

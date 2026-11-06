@@ -13,6 +13,7 @@ const RUTA: Partial<Record<ClaveHerramienta, string>> = {
   para_tus_clientes: "/para-tus-clientes",
   invitar: "/invitar",
   calculadora_traslado: "/calculadora",
+  mapa_catastral: "/mapa-catastral",
 };
 
 const DETALLE: Partial<Record<ClaveHerramienta, string>> = {
@@ -20,10 +21,10 @@ const DETALLE: Partial<Record<ClaveHerramienta, string>> = {
   para_tus_clientes: "Tu liga y QR para que te pidan cotización",
   invitar: "Tu liga para invitar a otros aliados",
   calculadora_traslado: "Gastos de escrituración en Querétaro",
+  mapa_catastral: "Pica un terreno y ve su clave y su ficha",
 };
 
 const PROXIMAMENTE = [
-  { titulo: "Consulta catastral", detalle: "Ficha del predio por clave" },
   { titulo: "Estimación rápida", detalle: "Valor aproximado en minutos" },
   { titulo: "OV express", detalle: "Opinión de valor revisada" },
 ];

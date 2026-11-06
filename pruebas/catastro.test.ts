@@ -1,0 +1,334 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { aLonLat, aUtm, caja, centroide, contiene, geometriaValida, utmAGeografica, type Geometria } from "@/lib/catastro/geo";
+import { CAMPOS, centroideDelExpediente, datosDeCapa, limpiarExpediente, tieneLlaveProhibida } from "@/lib/catastro/limpiar";
+import { ETIQUETAS } from "@/lib/catastro/etiquetas";
+import type { Ficha } from "@/lib/catastro/servicio";
+
+/**
+ * Mapa catastral (0059). Respuestas de IDECATQ INVENTADAS con la misma forma que las reales (nombres de campos
+ * vistos en la Fase 0), con datos personales falsos para comprobar que nunca pasan la lista blanca.
+ */
+
+const PERSONALES = ["XAXX010101000", "XEXX900101HQTXXX09", "4421234567", "Calle del Dueño 99", "Fulana Ejemplo"];
+
+const propietario = {
+  nombre: "Fulana", paterno: "Ejemplo", materno: "Prueba", razonSocial: "", nombreComercial: "", rfc: "XAXX010101000", rfcAlfa: "XAXX",
+  rfcFecha: "010101", rfcFechaLetra: "", rfcHomo: "000", curp: "XEXX900101HQTXXX09", telefono: "4421234567", sexo: "F",
+  fechaDefuncion: "", isFisica: true, noPersonaFis: 123, noPersonaMor: 0, porcentaje: "100", estatus: "A", fechaCierra: "",
+  origenDatos: "x", direccion: { calle: "Calle del Dueño 99", colonia: "Otra", codigoPostal: "76000", municipio: "Querétaro" },
+};
+
+const normal = {
+  cantidad: 1, ok: true,
+  predio: {
+    claveCatastral: "060102801101026", claveAnterior: "06-01", claveEstandar: "220060102801101026", estatus: "ACTIVO", tipoPredio: "URBANO",
+    desClasificacion: "HABITACIONAL", manzana: "011", fechaAlta: "2001-01-01", fechaMantenimiento: "2025-03-01", fechaValidez: "2026",
+    codigoValor: "A1", valorActTer: "1,234,567.50", valorActCon: 800000, valorAntTer: 1000000, valorAntCon: 700000,
+    areaTotalTerreno: "160.00", areaTotalConstruccion: 211.02, superficie: 160, tiposConstruccion: ["H2", "H3"],
+    numeroEscritura: "4567", fedatario: "Notaría 5", numeroContrato: "C-77", numeroTitulo: "", dependencia: "", origenDatos: "x",
+    folioReal: ["00123456"], usosPredio: { clave: "H", des: "HABITACIONAL" },
+    movimientos: [{ descripcion: "ALTA", clave: "01", curp: "NO DEBE PASAR" }],
+    seriesValor: [{ area: 100, tipo: "H2", areaCons: 100, serie: 1, areaT: 160, factor: 1, nivel: 1, rfc: "XAXX010101000" }],
+    centroide: { x: 352000.5, y: 2271000.25 },
+    ubicacion: { calle: "Hidalgo", exterior: "10", interior: "", letra: "", tipoCalle: "CALLE", colonia: "El Pueblito", tipoColonia: "COL",
+      codigoPostal: "76900", municipio: "Corregidora", localidad: "El Pueblito", manzana: "", lote: "", frente: "", micro: "", referencia: "", estado: "QRO" },
+    propietarios: [propietario],
+    datosRPPC: {
+      ubicacion_especifica: "Hidalgo 10", clave_catastral: "060102801101026", folio_real: "00123456", tipo: "URBANO", area_terreno: "160",
+      medidas: "10 x 16", medid_colind: "Al norte 10 m con calle Hidalgo", estatus: "VIGENTE", valor_oper: "1,500,000.00", lote: "7",
+      nom_col_bar_otro: "El Pueblito", identificador: "", ok: true,
+      propietariosR: [{ nombre_completo: "Fulana Ejemplo Prueba", tipo_adquisicion: "COMPRAVENTA", porcentaje_copropiedad: "100", rfc: "XAXX010101000" }],
+    },
+  },
+};
+
+const condominio = {
+  cantidad: 1, ok: true,
+  predio: {
+    claveCatastral: "060100113059119", tipoPredio: "CONDOMINIO", claCondominio: "CONDOMINIO", tipoCondominio: "VERTICAL",
+    nombreCondominio: "Torre Ejemplo", claveOriginal: "060100113059001", indiviso: "1.2345", areaTerrPri: "0", areaTerrCom: "45.5",
+    areaConsPri: "85.2", areaConsCom: "12.1", valorTerPri: 0, valorTerCom: 300000, valorConsPri: 900000, valorConsCom: 100000,
+    cacoct: "1", vacopt: "0", vatrct: "3", vatrpt: "4", areaTotalTerreno: 45.5, areaTotalConstruccion: 97.3,
+    ubicacion: { calle: "Constituyentes", exterior: "200", interior: "301", colonia: "Centro", municipio: "Corregidora" },
+    propietarios: [{ ...propietario, razonSocial: "Ejemplo SA de CV" }],
+    datosRPPC: { ok: true, propietariosR: [] },
+  },
+};
+
+describe("Lista blanca", () => {
+  test("los campos son los mismos que catastro_campos() de la base", () => {
+    // La definición vigente: la de la última migración que la reescribe.
+    const dir = join(import.meta.dirname, "..", "supabase", "migrations");
+    const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().map((f) => readFileSync(join(dir, f), "utf8"))
+      .filter((t) => /function catastro_campos\(\)/.test(t)).at(-1)!;
+    const cuerpo = /function catastro_campos\(\)[\s\S]*?array\[([\s\S]*?)\]::text\[\]/.exec(sql)![1];
+    const enBase = [...cuerpo.replace(/--.*$/gm, "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    expect(enBase).toEqual([...CAMPOS]);
+    expect(Object.keys(ETIQUETAS).sort()).toEqual([...CAMPOS].sort());
+  });
+
+  test("ningún dato personal pasa, a ninguna profundidad", () => {
+    for (const r of [normal, condominio]) {
+      const l = limpiarExpediente(r)!;
+      expect(tieneLlaveProhibida(l.datos)).toBe(false);
+      // "propietarios" es la columna de la tabla privada; lo que va dentro, sin llaves personales.
+      expect(tieneLlaveProhibida(l.privados.propietarios)).toBe(false);
+      const texto = JSON.stringify(l.datos);
+      for (const p of PERSONALES) expect(texto).not.toContain(p);
+      expect(Object.keys(l.datos).every((k) => (CAMPOS as readonly string[]).includes(k))).toBe(true);
+      for (const p of l.privados.propietarios) {
+        expect(Object.keys(p).every((k) => ["nombre", "porcentaje", "origen", "tipo_adquisicion"].includes(k))).toBe(true);
+        const t = JSON.stringify(p);
+        for (const x of ["XAXX010101000", "XEXX900101HQTXXX09", "4421234567", "Calle del Dueño"]) expect(t).not.toContain(x);
+      }
+    }
+  });
+
+  test("predio normal: superficies, valores, Registro Público y lo privado aparte", () => {
+    const { datos, privados } = limpiarExpediente(normal)!;
+    expect(datos).toMatchObject({
+      colonia: "El Pueblito", sup_terreno: 160, sup_construccion: 211.02, valor_terreno: 1234567.5, valor_catastral_total: 2034567.5, folio_real: "00123456",
+      uso: "HABITACIONAL", rppc_lote: "7", rppc_medid_colind: "Al norte 10 m con calle Hidalgo", rppc_nom_col_bar_otro: "El Pueblito",
+      ubicacion: "CALLE Hidalgo 10, COL El Pueblito, CP 76900, El Pueblito, Corregidora",
+    });
+    expect(datos.series_valor).toEqual([{ nivel: 1, tipo: "H2", serie: 1, area: 100, areaCons: 100, areaT: 160, factor: 1 }]);
+    expect(privados).toEqual({
+      propietarios: [
+        { nombre: "Fulana Ejemplo Prueba", porcentaje: 100, origen: "catastro" },
+        { nombre: "Fulana Ejemplo Prueba", porcentaje: 100, origen: "rppc", tipo_adquisicion: "COMPRAVENTA" },
+      ],
+      valor_operacion: 1500000, escritura: "4567", notario: "Notaría 5", numero_contrato: "C-77",
+    });
+    expect(centroideDelExpediente(normal)).toEqual([352000.5, 2271000.25]);
+  });
+
+  test("condominio: privativas, comunes, indiviso y los cuatro sin etiqueta con su nombre", () => {
+    const { datos, privados } = limpiarExpediente(condominio)!;
+    expect(datos).toMatchObject({
+      regimen: "CONDOMINIO", tipo_condominio: "VERTICAL", nombre_condominio: "Torre Ejemplo", clave_original: "060100113059001",
+      indiviso: 1.2345, sup_terreno_privativa: 0, sup_terreno_comun: 45.5, sup_construccion_privativa: 85.2, sup_construccion_comun: 12.1,
+      valor_terreno_comun: 300000, valor_construccion_privativa: 900000, cacoct: 1, vacopt: 0, vatrct: 3, vatrpt: 4,
+    });
+    expect(privados.propietarios).toEqual([{ nombre: "Ejemplo SA de CV", porcentaje: 100, origen: "catastro" }]);
+  });
+
+  test("la capa del mapa: COOR_X/COOR_Y si vienen, sin depender de ellos", () => {
+    expect(datosDeCapa({ DGR_CVECAT: "x", FOLIOINMB: "F1", SHAPE_AREA: 160.2, SHAPE_LEN: 52, CVE_MUN: null })).toEqual({
+      capa_folio: "F1", capa_area: 160.2, capa_perimetro: 52,
+    });
+    expect(datosDeCapa({ COOR_X: "352000.1", COOR_Y: 2271000 })).toEqual({ capa_coor_x: 352000.1, capa_coor_y: 2271000 });
+  });
+
+  test("una respuesta sin predio (como el mensaje que regresó desde Vercel) no es un expediente", () => {
+    expect(limpiarExpediente({ mensaje: "Sin resultados", ok: false })).toBeNull();
+  });
+});
+
+describe("Geometría", () => {
+  const cuadro = (x: number, y: number, l: number): [number, number][] => [[x, y], [x + l, y], [x + l, y + l], [x, y + l], [x, y]];
+
+  test("UTM 14N ida y vuelta (centro de Querétaro)", () => {
+    const [x, y] = aUtm(20.5926, -100.392);
+    expect(x).toBeCloseTo(354931.4, 0);
+    expect(y).toBeCloseTo(2277680.5, 0);
+    const [lon, lat] = aLonLat(x, y);
+    expect(lat).toBeCloseTo(20.5926, 6);
+    expect(lon).toBeCloseTo(-100.392, 6);
+  });
+
+  test("Polygon y MultiPolygon: centroide, caja y si contiene un punto", () => {
+    const pol: Geometria = { type: "Polygon", coordinates: [cuadro(0, 0, 10)] };
+    expect(centroide(pol)).toEqual([5, 5]);
+    const multi: Geometria = { type: "MultiPolygon", coordinates: [[cuadro(0, 0, 10)], [cuadro(20, 0, 10)]] };
+    expect(centroide(multi)).toEqual([15, 5]);
+    expect(contiene(multi, [25, 5])).toBe(true);
+    expect(contiene(multi, [15, 5])).toBe(false);
+    // Con hueco
+    const conHueco: Geometria = { type: "Polygon", coordinates: [cuadro(0, 0, 10), cuadro(4, 4, 2)] };
+    expect(contiene(conHueco, [5, 5])).toBe(false);
+    expect(contiene(conHueco, [1, 1])).toBe(true);
+    expect(caja(multi)).toEqual([0, 10, 0, 30]);
+  });
+
+  test("solo acepta Polygon o MultiPolygon y los pasa a latitud/longitud", () => {
+    expect(geometriaValida({ type: "Point", coordinates: [1, 2] })).toBeNull();
+    expect(geometriaValida({ type: "Polygon", coordinates: [[[1, 2], [3, "x"]]] })).toBeNull();
+    const [x, y] = aUtm(20.5926, -100.392);
+    const g = geometriaValida({ type: "MultiPolygon", coordinates: [[cuadro(x, y, 20)]] })!;
+    const geo = utmAGeografica(g);
+    expect(geo.type).toBe("MultiPolygon");
+    const [lon, lat] = (geo as { coordinates: [number, number][][][] }).coordinates[0][0][0];
+    expect(lat).toBeCloseTo(20.5926, 5);
+    expect(lon).toBeCloseTo(-100.392, 5);
+  });
+});
+
+// ------------------------------------------------------------- el servidor, con IDECATQ y la base simulados
+
+const llamadas: { fn: string; args: Record<string, unknown> }[] = [];
+let fichaGuardada: Record<string, unknown> | null = null;
+
+// La sesión del usuario (leer) y la llave de servicio (escribir) comparten esta base simulada.
+const { rpc } = vi.hoisted(() => ({ rpc: { fn: null as null | ((fn: string, args?: Record<string, unknown>) => Promise<unknown>) } }));
+vi.mock("@/lib/supabase/servicio", () => ({ clienteDeServicio: () => ({ rpc: (fn: string, args?: Record<string, unknown>) => rpc.fn!(fn, args) }) }));
+vi.mock("@/lib/supabase/server", () => ({
+  crearClienteServidor: async () => ({
+    rpc: async (fn: string, args: Record<string, unknown> = {}) => {
+      if (["catastro_guardar", "catastro_registrar_falla"].includes(fn)) throw new Error(`${fn} con la sesión del usuario: solo con la llave de servicio`);
+      return rpc.fn!(fn, args);
+    },
+  }),
+}));
+rpc.fn = async (fn: string, args: Record<string, unknown> = {}) => {
+      llamadas.push({ fn, args });
+      if (fn === "catastro_candidatos") return { data: [], error: null };
+      if (fn === "catastro_impedimento") return { data: null, error: null };
+      if (fn === "catastro_guardar") {
+        fichaGuardada = { clave: args.p_clave, municipio: String(args.p_clave).slice(0, 2), geometria: args.p_geometria, latitud: args.p_latitud,
+          longitud: args.p_longitud, consultado_en: new Date().toISOString(), expediente: args.p_expediente, campos: args.p_datos };
+        return { data: null, error: null };
+      }
+      if (fn === "catastro_ficha") return { data: fichaGuardada, error: null };
+      return { data: null, error: null };
+};
+const QUIEN = { persona: "11111111-1111-4111-8111-111111111111", organizacion: "22222222-2222-4222-8222-222222222222" };
+
+describe("Si BuscaDatos falla", () => {
+  const [x, y] = aUtm(20.5351159, -100.4049751);
+  const gfi = {
+    features: [{
+      id: "M06_PA.123",
+      geometry: { type: "Polygon", coordinates: [[[x - 10, y - 10], [x + 10, y - 10], [x + 10, y + 10], [x - 10, y + 10], [x - 10, y - 10]]] },
+      properties: { DGR_CVECAT: "060102801101026", CVE_MUN: null, SHAPE_AREA: 400, FOLIOINMB: "F9" },
+    }],
+  };
+
+  beforeEach(() => {
+    llamadas.length = 0;
+    fichaGuardada = null;
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  test("se muestra lo de la capa con aviso, se guarda pendiente (no cuenta) y se anota la falla", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      String(url).includes("BuscaDatos")
+        ? new Response(JSON.stringify({ mensaje: "error", ok: false }), { status: 200 })
+        : new Response(JSON.stringify(gfi), { status: 200 }));
+    const { consultarPunto } = await import("@/lib/catastro/servicio");
+    const r = await consultarPunto(QUIEN, 20.5351159, -100.4049751);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.aviso).toMatch(/No se pudo traer el expediente completo/);
+    expect(r.aviso).not.toMatch(/IDECATQ|visor|gobierno/i);
+    expect(r.ficha.clave).toBe("060102801101026");
+    expect(r.ficha.municipio).toBe("06");
+    expect(r.ficha.geometria?.type).toBe("Polygon");
+    const guardado = llamadas.find((l) => l.fn === "catastro_guardar")!;
+    expect(guardado.args.p_expediente).toBe("pendiente");
+    expect([guardado.args.p_persona, guardado.args.p_org]).toEqual([QUIEN.persona, QUIEN.organizacion]);
+    expect(guardado.args.p_privados).toBeNull();
+    expect(guardado.args.p_datos).toEqual({ capa_folio: "F9", capa_area: 400 });
+    expect(llamadas.find((l) => l.fn === "catastro_registrar_falla")?.args).toEqual({ p_org: QUIEN.organizacion, p_persona: QUIEN.persona, p_servicio: "expediente" });
+  });
+
+  test("si tampoco responde el mapa: un error claro, sin guardar nada", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(Object.assign(new Error("timeout"), { name: "TimeoutError" }));
+    const { consultarPunto } = await import("@/lib/catastro/servicio");
+    const r = await consultarPunto(QUIEN, 20.5351159, -100.4049751);
+    expect(r).toEqual({ ok: false, error: expect.stringMatching(/^No se pudo consultar la fuente externa en este momento/) });
+    expect(llamadas.some((l) => l.fn === "catastro_guardar")).toBe(false);
+    expect(llamadas.find((l) => l.fn === "catastro_registrar_falla")?.args).toEqual({ p_org: QUIEN.organizacion, p_persona: QUIEN.persona, p_servicio: "mapa" });
+  });
+
+  test("con el expediente: se guarda completo, con lo privado aparte y sin datos personales", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      String(url).includes("BuscaDatos") ? new Response(JSON.stringify(normal), { status: 200 }) : new Response(JSON.stringify(gfi), { status: 200 }));
+    const { consultarPunto } = await import("@/lib/catastro/servicio");
+    const r = await consultarPunto(QUIEN, 20.5351159, -100.4049751);
+    expect(r.ok && r.aviso).toBe(null);
+    const guardado = llamadas.find((l) => l.fn === "catastro_guardar")!;
+    expect(guardado.args.p_expediente).toBe("completo");
+    expect(tieneLlaveProhibida(guardado.args.p_datos)).toBe(false);
+    const todo = JSON.stringify(guardado.args);
+    for (const p of ["XAXX010101000", "XEXX900101HQTXXX09", "4421234567", "Calle del Dueño 99"]) expect(todo).not.toContain(p);
+  });
+});
+
+describe("La llave de servicio no llega al navegador", () => {
+  test("ningún archivo \"use client\" importa el cliente de servicio ni el código que lo usa (solo tipos)", async () => {
+    const { readdirSync, statSync } = await import("node:fs");
+    const raiz = join(import.meta.dirname, "..");
+    const archivos = (dir: string): string[] =>
+      readdirSync(dir).flatMap((n) => { const r = join(dir, n); return statSync(r).isDirectory() ? archivos(r) : /\.(ts|tsx)$/.test(n) ? [r] : []; });
+    const malos = ["app", "components", "lib"].flatMap((c) => archivos(join(raiz, c))).filter((f) => {
+      const t = readFileSync(f, "utf8");
+      return /^\s*["']use client["']/.test(t)
+        && /^import (?!type )[^;]*from "@\/lib\/(supabase\/servicio|catastro\/servicio|catastro\/idecatq)"/m.test(t);
+    });
+    expect(malos).toEqual([]);
+  });
+});
+
+describe("Fuente sin nombrar y PDF", () => {
+  const fichaCompleta = (privados: boolean): Ficha => ({
+    clave: "060100113059119", municipio: "06", consultado_en: "2026-11-06T18:00:00Z", expediente: "completo" as const,
+    latitud: 20.5362814, longitud: -100.3865429,
+    geometria: { type: "MultiPolygon" as const, coordinates: [[[[-100.3866, 20.5362], [-100.3864, 20.5362], [-100.3864, 20.5364], [-100.3866, 20.5364], [-100.3866, 20.5362]]],
+      [[[-100.3863, 20.5362], [-100.38625, 20.5362], [-100.38625, 20.53625], [-100.3863, 20.53625], [-100.3863, 20.5362]]]] },
+    campos: {
+      ...Object.fromEntries((CAMPOS as readonly string[]).map((c) => [c, ETIQUETAS[c as keyof typeof ETIQUETAS][1] === "texto" ? "Texto de ejemplo ñ á é" : 123.45])),
+      series_valor: [{ nivel: 1, tipo: "H2", area: 100 }], movimientos: [{ clave: "01", descripcion: "ALTA" }],
+      // Llaves fuera del catálogo: nunca se imprimen.
+      curp: "XEXX900101HQTXXX09", telefono: "4421234567",
+    },
+    privados: privados ? { propietarios: [{ nombre: "Propietaria Ejemplo", porcentaje: 100, origen: "rppc" as const, tipo_adquisicion: "COMPRAVENTA" }],
+      valor_operacion: 2900000, escritura: "123", notario: "Notaría 1", numero_contrato: "C-1", actualizado_en: "2026-11-06T18:00:00Z" } : undefined,
+  }) as unknown as Ficha;
+
+  test("el texto del PDF y de la pantalla no nombra la fuente", async () => {
+    const { contenidoPdf } = await import("@/lib/catastro/pdf");
+    const { NOTA_FUENTE } = await import("@/lib/catastro/textos");
+    expect(NOTA_FUENTE).toBe("La información proviene de una fuente pública externa a Tasa, puede cambiar o no estar disponible, y no tiene validez oficial. Para trámites, verifica con la autoridad correspondiente.");
+    const todo = JSON.stringify(contenidoPdf(fichaCompleta(true)));
+    expect(todo).not.toMatch(/IDECATQ|catastroedo|visor|gobierno/i);
+    const pantalla = readFileSync(join(import.meta.dirname, "..", "app", "mapa-catastral", "mapa.tsx"), "utf8")
+      .split("\n").filter((l) => !/^\s*(\/\/|\*|const WMS|\+ `&layers)/.test(l)).join("\n");
+    expect(pantalla).not.toMatch(/IDECATQ|gobierno/i);
+  });
+
+  test("el PDF del comisionista: sin propietario ni operación y sin llaves fuera del catálogo", async () => {
+    const { contenidoPdf } = await import("@/lib/catastro/pdf");
+    const c = contenidoPdf(fichaCompleta(false));
+    expect(c.privados).toEqual([]);
+    const texto = JSON.stringify(c);
+    for (const x of ["Propietari", "XEXX900101HQTXXX09", "4421234567", "Notaría", "2,900,000"]) expect(texto).not.toContain(x);
+    expect(contenidoPdf(fichaCompleta(true)).privados[0]).toEqual(["Propietario (Registro Público)", "Propietaria Ejemplo · 100 % · COMPRAVENTA"]);
+  });
+
+  test("ningún texto del PDF usa un símbolo que la tipografía no tenga, y el PDF se arma (croquis, QR)", async () => {
+    const fontkit = (await import("@pdf-lib/fontkit")).default;
+    const { PDFDocument } = await import("pdf-lib");
+    const { contenidoPdf, pdfPredio } = await import("@/lib/catastro/pdf");
+    const { fuentesDe } = await import("@/lib/fuentes-pdf");
+    const f = fontkit.create(readFileSync(join(import.meta.dirname, "..", "assets", "fuentes", "manrope-400.ttf"))) as unknown as { hasGlyphForCodePoint: (c: number) => boolean };
+    const c = contenidoPdf(fichaCompleta(true));
+    const textos = [c.titulo, c.subtitulo, c.croquis, c.sinPoligono, c.ligaTitulo, c.liga ?? "", c.nota, "Datos del predio", "Propietario y operación",
+      "Hoja 1 de 2", "N", "0", "10 m", ...c.campos.flat(), ...c.privados.flat(), ...Object.values(ETIQUETAS).map(([e]) => e)];
+    const faltan = textos.flatMap((t) => [...t].filter((ch) => !f.hasGlyphForCodePoint(ch.codePointAt(0)!)).map((ch) => `${ch} en "${t.slice(0, 50)}"`));
+    expect(faltan).toEqual([]);
+    const pdf = await PDFDocument.load(await pdfPredio(fichaCompleta(true), await fuentesDe("manrope")));
+    expect(pdf.getPageCount()).toBeGreaterThanOrEqual(1);
+    const sinPoligono = await PDFDocument.load(await pdfPredio({ ...fichaCompleta(false), geometria: null, latitud: null, longitud: null,
+      campos: { colonia: "Centro", ubicacion: "Calle 1, Centro", sup_terreno: 160, sup_construccion: 211.02, indiviso: 1.2345 } }, await fuentesDe("manrope")));
+    // Lo del comisionista (lo básico) cabe en una hoja.
+    expect(sinPoligono.getPageCount()).toBe(1);
+  });
+
+  test("escala gráfica con números redondos", async () => {
+    const { escalaRedonda } = await import("@/lib/catastro/pdf");
+    expect([escalaRedonda(7), escalaRedonda(13), escalaRedonda(38), escalaRedonda(160)]).toEqual([5, 10, 50, 200]);
+  });
+});

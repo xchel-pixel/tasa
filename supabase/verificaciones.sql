@@ -323,7 +323,9 @@ begin
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public' and c.relkind = 'r'
      and not has_table_privilege('authenticated', c.oid, 'select');
-  perform pg_temp.igual(v, null::text, 'authenticated puede leer todas las tablas (el RLS filtra las filas)');
+  -- Excepción a propósito (0059): los datos catastrales solo se leen por función (catastro_ficha), nunca directo.
+  perform pg_temp.igual(v, 'catastro_fallas, catastro_predios, catastro_propietarios, catastro_versiones'::text,
+    'authenticated puede leer todas las tablas (el RLS filtra las filas), salvo las catastrales');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -3566,7 +3568,7 @@ declare
   nv  uuid;
 begin
   perform pg_temp.sistema();
-  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 5::bigint, 'Cada organización nace con sus herramientas');
+  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 7::bigint, 'Cada organización nace con sus herramientas');
   perform pg_temp.igual((select string_agg(clave, ',' order by orden) from herramientas where organizacion_id = xg and activa), 'mi_tarjeta,para_tus_clientes,invitar',
     'Activas: Mi tarjeta, Para tus clientes e Invita (la calculadora aún no)');
 
@@ -3707,7 +3709,7 @@ declare
   calc uuid;
 begin
   perform pg_temp.sistema();
-  perform pg_temp.igual((select count(*) from cupos_herramienta where organizacion_id = xg), 10::bigint, 'Cupos iniciales: 5 niveles × Rápida y Completa');
+  perform pg_temp.igual((select count(*) from cupos_herramienta where organizacion_id = xg), 20::bigint, 'Cupos iniciales: 5 niveles × Rápida, Completa, Mapa catastral y su PDF');
   perform pg_temp.igual((select cu.cantidad from cupos_herramienta cu join niveles n on n.id = cu.nivel_id
                           where cu.organizacion_id = xg and cu.herramienta = 'calculadora_traslado_completa' and n.nombre = 'Aliado'), 5, 'Completa Aliado: 5');
   perform pg_temp.igual((select niveles from herramientas where organizacion_id = xg and clave = 'calculadora_traslado_completa'), null::uuid[],
@@ -3848,6 +3850,261 @@ begin
   perform pg_temp.debe_fallar($q$update ajustes set texto_clientes = 'Sin liga'$q$, 'check', 'Sin {liga} no se guarda');
   perform pg_temp.debe_fallar(format('update ajustes set texto_invitar = %L', repeat('a', 495) || '{liga}'), 'check',
     'Más de 500 caracteres no se guarda');
+end;
+$$;
+
+-- @@ Mapa catastral
+-- 0059: el comisionista no lee propietarios ni por la API (sin GRANT), la ficha solo trae los campos de su
+-- rol, ningún campo personal entra a ninguna tabla ni jsonb, kardex de cambios, cupos y fallas.
+-- Lo que hace el servidor: escribir a nombre de quien tiene la sesión, con la llave de servicio (service_role).
+create function pg_temp.cg(p_correo text, p_clave text, p_geo jsonb, p_lat numeric, p_lon numeric, p_caja numeric[],
+                           p_datos jsonb, p_exp text, p_priv jsonb, p_modo text) returns void language plpgsql as $f$
+declare
+  v_org uuid;
+  v_persona uuid;
+begin
+  perform set_config('role', 'postgres', true);
+  v_org := pg_temp.xg();
+  v_persona := (select id from personas where correo = p_correo);
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('role', 'service_role', true);
+  begin
+    perform catastro_guardar(v_org, v_persona, p_clave, p_geo, p_lat, p_lon, p_caja, p_datos, p_exp, p_priv, p_modo);
+  exception when others then
+    perform pg_temp.como(p_correo);
+    raise;
+  end;
+  perform pg_temp.como(p_correo);
+end;
+$f$;
+
+create function pg_temp.falla(p_correo text, p_servicio text) returns void language plpgsql as $f$
+declare
+  v_org uuid;
+  v_persona uuid;
+begin
+  perform set_config('role', 'postgres', true);
+  v_org := pg_temp.xg();
+  v_persona := (select id from personas where correo = p_correo);
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('role', 'service_role', true);
+  perform catastro_registrar_falla(v_org, v_persona, p_servicio);
+  perform pg_temp.como(p_correo);
+end;
+$f$;
+
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  nv    uuid;
+  f     jsonb;
+  geo   jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.59295],[-100.3923,20.5928]]]}';
+  multi jsonb := '{"type":"MultiPolygon","coordinates":[[[[-100.3920,20.5928],[-100.39185,20.5928],[-100.39185,20.59292],[-100.3920,20.59292],[-100.3920,20.5928]]],[[[-100.3918,20.5928],[-100.39172,20.5928],[-100.39172,20.59286],[-100.3918,20.59286],[-100.3918,20.5928]]]]}';
+  datos jsonb := '{"colonia":"Centro","ubicacion":"Calle 1, Centro","sup_terreno":350.5,"sup_construccion":280,"valor_terreno":1850000,"capa_area":350.4,"rppc_medid_colind":"Al norte 20 m"}';
+  priv  jsonb := '{"propietarios":[{"nombre":"Propietaria Secreta","porcentaje":100,"origen":"catastro"}],"valor_operacion":2900000,"escritura":"123","notario":"Notaría 1","numero_contrato":"C-1"}';
+  caja  numeric[] := array[20.5928, 20.59295, -100.3923, -100.3921];
+begin
+  -- Apagado: nadie lo usa.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select catastro_ficha('140100000000001')$q$, 'no está disponible', 'Apagado, el comisionista no consulta');
+  perform pg_temp.sistema();
+  update herramientas set activa = true where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  nv := nivel_del_mes(xg, ana, mes_mx(now()));
+  update cupos_herramienta set cantidad = 2 where organizacion_id = xg and herramienta = 'mapa_catastral' and nivel_id = nv;
+  perform pg_temp.igual((select cu.cantidad from cupos_herramienta cu join niveles n on n.id = cu.nivel_id
+                          where cu.organizacion_id = xg and cu.herramienta = 'mapa_catastral' and n.nombre = 'Socio Plus'), null::integer,
+    'Socio Plus: consultas sin límite');
+
+  -- 0061: lo que el comisionista ve por omisión, igual en pantalla y en PDF.
+  perform pg_temp.igual((select string_agg(campo, ',' order by campo) from catastro_campos_visibles
+                          where organizacion_id = xg and rol = 'comisionista' and en_pantalla and en_pdf),
+    'capa_area,indiviso,rppc_medid_colind,sup_construccion,sup_construccion_comun,sup_construccion_privativa,sup_terreno,sup_terreno_comun,sup_terreno_privativa,ubicacion,valor_catastral_total,valor_construccion,valor_terreno',
+    'Comisionista por omisión: dirección, superficies, valores (terreno, construcción y total), medidas y colindancias, condominio y área del polígono');
+  perform pg_temp.igual((select count(*) from catastro_campos_visibles where organizacion_id = xg and rol = 'comisionista' and en_pantalla <> en_pdf),
+    0::bigint, 'Pantalla y PDF igual por omisión');
+  perform pg_temp.igual((select count(*) from catastro_campos_visibles where organizacion_id = xg and rol = 'finanzas' and en_pantalla and en_pdf),
+    (select cardinality(catastro_campos()))::bigint, 'Finanzas ve todos los campos, también el valor catastral total');
+
+  -- Ana consulta un predio: se guarda, consume una consulta, y su ficha trae solo lo básico.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_impedimento(), null::text, 'Con cupo puede ir a IDECATQ');
+  perform pg_temp.cg('xchel+ana@arqosuv.com', '140100000000001', geo, 20.592875, -100.3922, caja, datos, 'completo', priv, 'consulta');
+  perform pg_temp.igual((select usados from mi_cupo('mapa_catastral')), 1, 'Una consulta completa cuenta en el cupo');
+  f := catastro_ficha('140100000000001');
+  perform pg_temp.igual(f->>'clave', '140100000000001', 'Ve la clave');
+  perform pg_temp.igual(f->'geometria'->>'type', 'Polygon', 'Ve el polígono');
+  perform pg_temp.igual((select string_agg(k, ',' order by k) from jsonb_object_keys(f->'campos') k), 'capa_area,rppc_medid_colind,sup_construccion,sup_terreno,ubicacion,valor_terreno',
+    'El comisionista ve dirección, superficies, valores, medidas y colindancias y el área del polígono; no la colonia suelta');
+  perform pg_temp.igual(f ? 'privados', false, 'El comisionista no recibe propietarios');
+  perform pg_temp.igual(f::text like '%Propietaria Secreta%', false, 'El nombre del propietario no aparece en su ficha');
+
+  -- Ni por la API directa: sin GRANT, ni select.
+  perform pg_temp.debe_fallar($q$select * from catastro_propietarios$q$, 'permission denied', 'El comisionista no lee propietarios directo');
+  perform pg_temp.debe_fallar($q$select * from catastro_predios$q$, 'permission denied', 'Nadie lee los predios directo (todo pasa por la ficha)');
+  perform pg_temp.debe_fallar($q$select * from catastro_versiones$q$, 'permission denied', 'Ni el kardex');
+  perform pg_temp.igual((select count(*) from catastro_campos_visibles), 0::bigint, 'El comisionista no ve la configuración de campos');
+  -- Las tablas compartidas solo las escribe el servidor: por la API, ni guardar ni anotar fallas.
+  perform pg_temp.debe_fallar(format($q$select catastro_guardar(%L, %L, '140100000000007', null, null, null, null, '{}', 'pendiente', null, 'consulta')$q$, xg, ana),
+    'permission denied', 'El comisionista no llama catastro_guardar por la API');
+  perform pg_temp.debe_fallar(format($q$select catastro_registrar_falla(%L, %L, 'mapa')$q$, xg, ana),
+    'permission denied', 'Ni catastro_registrar_falla');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar(format($q$select catastro_guardar(%L, %L, '140100000000007', null, null, null, null, '{}', 'pendiente', null, 'consulta')$q$, xg, ana),
+    'permission denied', 'Ni sin sesión');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+
+  -- Aunque admin_org le abra todos los campos por error, lo personal no está en los predios.
+  perform pg_temp.como('xchel@arqosuv.com');
+  update catastro_campos_visibles set en_pantalla = true where rol = 'comisionista';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  f := catastro_ficha('140100000000001');
+  perform pg_temp.igual((f->'campos') ? 'colonia', true, 'Con la configuración abierta ve más campos…');
+  perform pg_temp.igual(f ? 'privados' or f::text like '%Propietaria Secreta%' or f::text like '%2900000%', false,
+    '…pero nunca propietarios ni operación');
+  perform pg_temp.como('xchel@arqosuv.com');
+  update catastro_campos_visibles set en_pantalla = (campo = any (catastro_campos_basicos())) where rol = 'comisionista';
+
+  -- admin_org y finanzas ven todo, con propietario, operación y kardex.
+  f := catastro_ficha('140100000000001');
+  perform pg_temp.igual(f->'privados'->'propietarios'->0->>'nombre', 'Propietaria Secreta', 'admin_org ve al propietario');
+  perform pg_temp.igual((f->'campos'->>'valor_terreno')::numeric, 1850000::numeric, 'admin_org ve los valores catastrales');
+  perform pg_temp.igual((f->'campos') ? 'rppc_medid_colind', true, 'y las medidas y colindancias');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(catastro_ficha('140100000000001')->'privados'->>'valor_operacion', '2900000', 'Finanzas ve la operación');
+
+  -- Lista blanca en la base: llaves fuera del catálogo o personales se rechazan, a cualquier profundidad.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select pg_temp.cg('xchel+ana@arqosuv.com', '140100000000009', null, null, null, null, %L, 'pendiente', null, 'consulta')$q$,
+    '{"curp":"XXXX000000HQTXXX00"}'), 'lista blanca', 'CURP no entra');
+  perform pg_temp.debe_fallar(format($q$select pg_temp.cg('xchel+ana@arqosuv.com', '140100000000009', null, null, null, null, %L, 'pendiente', null, 'consulta')$q$,
+    '{"series_valor":[{"nivel":1,"rfc":"XAXX010101000"}]}'), 'lista blanca', 'RFC escondido en una lista no entra');
+  perform pg_temp.debe_fallar(format($q$select pg_temp.cg('xchel+ana@arqosuv.com', '140100000000009', null, null, null, null, %L, 'pendiente', null, 'consulta')$q$,
+    '{"inventado":"x"}'), 'lista blanca', 'Un campo que no está en el catálogo no entra');
+  perform pg_temp.debe_fallar(format($q$select pg_temp.cg('xchel+ana@arqosuv.com', '140100000000009', null, null, null, null, '{}', 'completo', %L, 'consulta')$q$,
+    '{"propietarios":[{"nombre":"X","telefono":"4420000000"}]}'), 'catastro_propietarios', 'Teléfono del propietario no entra');
+  perform pg_temp.sistema();
+  perform pg_temp.debe_fallar($q$insert into catastro_predios (clave, municipio, extra) values ('140100000000008', '14', '{"domicilio":"x"}')$q$,
+    'check', 'Ni escribiendo directo en la tabla');
+  perform pg_temp.debe_fallar($q$insert into catastro_versiones (clave, consultado_en, cambios, antes) values ('140100000000001', now(), '{}', '{"x":{"sexo":"M"}}')$q$,
+    'check', 'Ni en el kardex');
+  perform pg_temp.debe_fallar($q$insert into catastro_predios (clave, municipio, geometria) values ('140100000000008', '14', '{"type":"Point","coordinates":[1,2]}')$q$,
+    'check', 'Solo Polygon o MultiPolygon');
+  perform pg_temp.debe_fallar($q$insert into catastro_predios (clave, municipio) values ('140100000000008', '06')$q$,
+    'check', 'El municipio son los dos primeros dígitos de la clave');
+  -- Las tablas compartidas no tienen columnas de datos personales (la del propietario es aparte, por organización),
+  -- y nada guardado trae llaves prohibidas.
+  perform pg_temp.igual((select string_agg(table_name || '.' || column_name, ', ') from information_schema.columns
+                          where table_schema = 'public' and table_name in ('catastro_predios', 'catastro_versiones')
+                            and catastro_llave_prohibida(column_name)), null::text,
+    'Ninguna columna de predios ni del kardex es de datos personales');
+  perform pg_temp.igual((select count(*) from catastro_predios where not catastro_jsonb_limpio(extra) or not catastro_jsonb_limpio(geometria))
+                        + (select count(*) from catastro_versiones where not catastro_jsonb_limpio(antes))
+                        + (select count(*) from catastro_propietarios where not catastro_propietarios_validos(propietarios)), 0::bigint,
+    'Nada guardado trae llaves prohibidas');
+
+  -- Kardex: si cambia algo al actualizar, la versión anterior queda con su fecha; si no, nada.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.cg('xchel@arqosuv.com', '140100000000001', geo, 20.592875, -100.3922, caja, datos, 'completo', priv, 'actualizar');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from catastro_versiones where clave = '140100000000001'), 0::bigint, 'Sin cambios no hay versión');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.cg('xchel@arqosuv.com', '140100000000001', geo, 20.592875, -100.3922, caja, datos || '{"valor_terreno":1900000}', 'completo', priv, 'actualizar');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select cambios::text || ' ' || (antes->>'valor_terreno') from catastro_versiones where clave = '140100000000001'),
+    '{valor_terreno} 1850000', 'La versión anterior guarda qué cambió y su valor');
+
+  -- Expediente que falla: se guarda lo de la capa, pendiente, sin consumir; y no tapa uno completo.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.cg('xchel+ana@arqosuv.com', '140100000000002', multi, 20.59286, -100.3919, array[20.5928, 20.59292, -100.392, -100.39172], '{"capa_area":95.2}', 'pendiente', null, 'consulta');
+  perform pg_temp.igual((select usados from mi_cupo('mapa_catastral')), 1, 'Una consulta fallida no cuenta');
+  f := catastro_ficha('140100000000002');
+  perform pg_temp.igual(f->>'expediente' || ' ' || (f->'geometria'->>'type') || ' ' || (f->'campos'->>'capa_area'), 'pendiente MultiPolygon 95.2',
+    'Pendiente, con el MultiPolygon y el área de la capa');
+  perform pg_temp.cg('xchel+ana@arqosuv.com', '140100000000001', geo, 20.592875, -100.3922, caja, '{"capa_area":351}', 'pendiente', null, 'consulta');
+  f := catastro_ficha('140100000000001');
+  perform pg_temp.igual(f->>'expediente' || ' ' || (f->'campos'->>'ubicacion') || ' ' || (f->'campos'->>'capa_area'), 'completo Calle 1, Centro 351',
+    'Si el expediente falla, lo completo se conserva y solo se actualiza la capa');
+  -- Condominio: el comisionista ve privativas e indiviso, no los valores.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.cg('xchel@arqosuv.com', '140100000000003', multi, 20.59286, -100.3919, array[20.5928, 20.59292, -100.392, -100.39172],
+    '{"regimen":"CONDOMINIO","indiviso":12.5,"sup_terreno_privativa":60.1,"sup_construccion_comun":16.3,"valor_terreno_privativo":410000,"vatrct":3}',
+    'completo', '{"propietarios":[]}', 'consulta');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select string_agg(k, ',' order by k) from jsonb_object_keys(catastro_ficha('140100000000003')->'campos') k),
+    'indiviso,sup_construccion_comun,sup_terreno_privativa', 'Condominio: privativas, comunes e indiviso; valores privativos solo el equipo');
+
+  -- Por punto: los guardados cuya caja contiene el punto.
+  perform pg_temp.igual((select string_agg(clave, ',' order by clave) from catastro_candidatos(20.59285, -100.3922)), '140100000000001',
+    'Por punto halla el predio guardado sin ir a IDECATQ');
+
+  -- Cupo: con 2, a la segunda completa ya no deja ir a IDECATQ.
+  perform pg_temp.cg('xchel+ana@arqosuv.com', '140100000000004', geo, null, null, null, '{"colonia":"X"}', 'completo', null, 'consulta');
+  perform pg_temp.igual(catastro_impedimento(), 'Llegaste a tu límite de consultas del mes. Sube de nivel o pide más.', 'Sin cupo, no consulta');
+  perform pg_temp.debe_fallar($q$select pg_temp.cg('xchel+ana@arqosuv.com', '140100000000005', null, null, null, null, '{}', 'completo', null, 'consulta')$q$,
+    'límite', 'Ni guardando directo');
+  perform pg_temp.igual(catastro_ficha('140100000000001') is not null, true, 'Lo guardado se sigue viendo sin cupo');
+
+  -- Equipo y administración: sin límite, pero con tope de 200 al día.
+  perform pg_temp.sistema();
+  -- Hoy según hoy_mx() (las pruebas lo fijan), al mediodía de México.
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo, creado_en)
+  select xg, (select id from personas where correo = 'gaby@tasa.test'), 'mapa_catastral', 'consulta',
+         (hoy_mx() + time '12:00') at time zone 'America/Mexico_City' from generate_series(1, 200);
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select limite from mi_cupo('mapa_catastral')), null::integer, 'Finanzas: sin límite mensual');
+  perform pg_temp.igual(catastro_impedimento(), 'Llegaste al tope de seguridad de 200 consultas al día. Mañana se reinicia.', 'Tope de 200 al día');
+
+  -- Fallas: 3 en una hora → una sola alerta para admin_org.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.falla('xchel+ana@arqosuv.com', 'mapa');
+  perform pg_temp.falla('xchel+ana@arqosuv.com', 'expediente');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where organizacion_id = xg and tipo = 'catastro'), 0::bigint, 'Dos fallas no alertan');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.falla('xchel+ana@arqosuv.com', 'expediente');
+  perform pg_temp.falla('xchel+ana@arqosuv.com', 'mapa');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where organizacion_id = xg and tipo = 'catastro' and resuelta_en is null), 1::bigint,
+    'Tres o más en una hora: una sola alerta');
+
+  -- Los predios de ejemplo de DEMO no los ve otra organización, y nadie los pisa.
+  insert into catastro_predios (clave, municipio, demo) values ('149999990000009', '14', true);
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_ficha('149999990000009'), null::jsonb, 'XG no ve los predios de ejemplo');
+  perform pg_temp.debe_fallar($q$select pg_temp.cg('xchel@arqosuv.com', '149999990000009', null, null, null, null, '{}', 'pendiente', null, 'consulta')$q$,
+    'de ejemplo', 'Ni los sobrescribe');
+
+  -- PDF (0060): los campos de PDF del rol; nunca propietario al comisionista; cupo por predio y mes; sin consultar la fuente.
+  perform pg_temp.sistema();
+  update cupos_herramienta set cantidad = 1 where organizacion_id = xg and herramienta = 'mapa_catastral_pdf' and nivel_id = nv;
+  update catastro_campos_visibles set en_pdf = true where organizacion_id = xg and rol = 'comisionista';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  f := catastro_pdf('140100000000001');
+  perform pg_temp.igual(f ? 'privados' or f::text like '%Propietaria Secreta%' or f::text like '%2900000%', false,
+    'El PDF del comisionista nunca trae propietario ni operación, aunque se active por error');
+  perform pg_temp.igual((f->'campos') ? 'colonia', true, 'El PDF sigue la columna PDF de la configuración');
+  perform catastro_pdf('140100000000001');
+  perform pg_temp.igual((select usados from mi_cupo('mapa_catastral_pdf')), 1, 'Bajar otra vez el PDF del mismo predio en el mes no cuenta');
+  perform pg_temp.debe_fallar($q$select catastro_pdf('140100000000003')$q$, 'límite de PDF', 'Con el cupo de PDF agotado no baja otro');
+  perform pg_temp.debe_fallar($q$select catastro_pdf('140100000000099')$q$, 'no está guardado', 'Sin predio guardado no hay PDF (no consulta la fuente)');
+  perform pg_temp.sistema();
+  update catastro_campos_visibles set en_pdf = (campo = any (catastro_campos_basicos())) and campo <> 'ubicacion'
+   where organizacion_id = xg and rol = 'comisionista';
+  delete from usos_herramienta where herramienta = 'mapa_catastral_pdf';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(((catastro_pdf('140100000000001')->'campos') ? 'ubicacion') || '/' || ((catastro_ficha('140100000000001')->'campos') ? 'ubicacion'),
+    'false/true', 'Pantalla y PDF se configuran por separado');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_pdf('140100000000001')->'privados'->'propietarios'->0->>'nombre', 'Propietaria Secreta', 'El PDF de admin_org sí lleva al propietario');
+  perform pg_temp.igual((select limite from mi_cupo('mapa_catastral_pdf')), null::integer, 'Administración: PDF sin límite');
+
+  perform pg_temp.sistema();
+  update catastro_campos_visibles set en_pdf = (campo = any (catastro_campos_basicos())) where organizacion_id = xg and rol = 'comisionista';
+  delete from catastro_predios where clave like '1401000000000%' or clave = '149999990000009';
+  delete from usos_herramienta where herramienta = 'mapa_catastral';
+  delete from alertas where tipo = 'catastro';
+  update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
 end;
 $$;
 

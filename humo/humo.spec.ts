@@ -63,6 +63,8 @@ type Pantalla = {
   publica?: boolean;
   /** Abre solo para super_plataforma (el admin_org de XG); a todos los demás los regresa al inicio. */
   soloSuperPlataforma?: boolean;
+  /** Herramienta del catálogo: si no está activa para quien entra (p. ej. apagada en XG), lo regresa al inicio. */
+  herramienta?: string;
 };
 
 const TODOS: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "abre", comisionista: "abre" };
@@ -113,6 +115,8 @@ const PANTALLAS: Record<string, Pantalla> = {
   "/ajustes/parametros": { rutas: () => ["/ajustes/parametros"], espera: SOLO_ADMIN },
   // Calculadora de traslado (0055): activa en XG y DEMO para todos; un cálculo guardado es de quien lo hizo (no se abre aquí).
   "/calculadora": { rutas: () => ["/calculadora"], espera: TODOS },
+  // Mapa catastral (0059): nace apagado; en DEMO, encendido para todos. Abrir la pantalla no consulta IDECATQ.
+  "/mapa-catastral": { rutas: () => ["/mapa-catastral"], espera: TODOS, herramienta: "mapa_catastral" },
   // Portada solo con herramientas (0056): cada tarjeta abre su pantalla.
   "/panel": { rutas: () => ["/panel"], espera: { admin_org: "inicio", finanzas: "inicio", equipo: "abre", comisionista: "abre" } },
   "/admin": { rutas: () => ["/admin"], espera: OPERACION },
@@ -368,6 +372,7 @@ for (const q of QUIENES) {
     }
     // Su propio cálculo de traslado (RLS: solo de quien calculó; DEMO trae uno por persona).
     datos.calculo = (await sesion.from("calculos_traslado").select("id").limit(1)).data?.[0]?.id ?? null;
+    const misHerramientas = (((await sesion.rpc("mis_herramientas")).data ?? []) as { clave: string }[]).map((h) => h.clave);
     const problemas: string[] = [];
     let abiertas = 0;
     try {
@@ -384,7 +389,7 @@ for (const q of QUIENES) {
             test.info().annotations.push({ type: "sin datos", description: patron });
             continue;
           }
-          const espera = p.soloSuperPlataforma && q.org !== "XG" ? "inicio" : p.espera[q.rol];
+          const espera = (p.soloSuperPlataforma && q.org !== "XG") || (p.herramienta && !misHerramientas.includes(p.herramienta)) ? "inicio" : p.espera[q.rol];
           const problema = await revisar(pagina, ruta, espera);
           abiertas++;
           if (problema) problemas.push(problema);

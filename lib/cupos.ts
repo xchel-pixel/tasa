@@ -5,7 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/server";
  * listan aquí; una herramienta nueva (consulta catastral, OV express) solo se agrega a esta lista y llama a
  * `consumir_cupo` en la base al hacer algo nuevo.
  */
-export const HERRAMIENTAS_CON_CUPO = ["calculadora_traslado", "calculadora_traslado_completa"] as const;
+export const HERRAMIENTAS_CON_CUPO = ["calculadora_traslado", "calculadora_traslado_completa", "mapa_catastral", "mapa_catastral_pdf"] as const;
 export type HerramientaConCupo = (typeof HERRAMIENTAS_CON_CUPO)[number];
 
 export type Cupo = { limite: number | null; extras: number; usados: number; disponibles: number | null };

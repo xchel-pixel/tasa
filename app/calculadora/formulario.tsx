@@ -13,7 +13,7 @@ const ENTRADA = "mt-1 w-full rounded-lg border border-borde-campo bg-fondo px-3 
  * Rápida: municipio o clave, lado, operación, valores, vivienda social e hipoteca. Completa (Socio en
  * adelante y equipo): además ISR por enajenación y extemporáneo. Los montos se calculan en el servidor.
  */
-export function FormularioCalculadora({ municipios, completa, hoy, cupos }: { municipios: string[]; completa: boolean; hoy: string; cupos: { rapida: CupoVista; completa: CupoVista | null } }) {
+export function FormularioCalculadora({ municipios, completa, hoy, cupos, inicial = {} }: { municipios: string[]; completa: boolean; hoy: string; cupos: { rapida: CupoVista; completa: CupoVista | null }; inicial?: Record<string, string> }) {
   const [estado, enviar] = useActionState<EstadoCalculo, FormData>(calcularTraslado, { error: null });
   const [modo, setModo] = useState<"rapida" | "completa">("rapida");
   const [lado, setLado] = useState("C");
@@ -22,7 +22,7 @@ export function FormularioCalculadora({ municipios, completa, hoy, cupos }: { mu
   const [extemporaneo, setExtemporaneo] = useState(false);
   const vendedor = lado !== "C", comprador = lado !== "V";
   // Si el cálculo marca un error, el formulario vuelve con lo capturado (el form se remonta con estos valores).
-  const v = (nombre: string, porOmision = "") => estado.valores?.[nombre] ?? porOmision;
+  const v = (nombre: string, porOmision = "") => estado.valores?.[nombre] ?? inicial[nombre] ?? porOmision;
   const cupo = modo === "completa" && cupos.completa ? cupos.completa : cupos.rapida;
 
   return (

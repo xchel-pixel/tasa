@@ -17,7 +17,7 @@ const TABLAS_CON_ORG = [
   "aceptaciones_terminos", "ajustes", "alertas", "aplicaciones_pago_comision", "cierres", "comisiones", "comisionistas",
   "conectores", "convenio_precios", "convenios", "cotizaciones", "csf_reemplazadas", "cuentas_receptoras", "eventos_trabajo",
   "folios_contador", "historial_estatus", "mapeo_estatus", "marcas", "membresia_marcas", "membresias", "niveles",
-  "niveles_mensuales", "origenes_pago", "pagos", "pagos_comision", "pendientes_comision", "perfiles", "herramientas", "parametros_fiscales", "calculos_traslado", "usos_herramienta", "cupos_herramienta", "extras_herramienta", "servicios", "solicitudes",
+  "niveles_mensuales", "origenes_pago", "pagos", "pagos_comision", "pendientes_comision", "perfiles", "herramientas", "parametros_fiscales", "calculos_traslado", "usos_herramienta", "cupos_herramienta", "extras_herramienta", "catastro_propietarios", "catastro_campos_visibles", "catastro_fallas", "servicios", "solicitudes",
   "solicitudes_alta", "tarjeta_servicios", "tarjeta_inmuebles", "tarjeta_clics",
 ];
 
@@ -32,6 +32,10 @@ async function huellaDeOtras(): Promise<Record<string, number>> {
   }
   const personas = await db.query<{ n: number }>(`select count(*)::int as n from personas p where exists (select 1 from membresias m join organizaciones o on o.id = m.organizacion_id where m.persona_id = p.id and o.slug <> 'demo')`);
   huella.personas = personas.rows[0].n;
+  // El mapa catastral es compartido: DEMO solo toca sus predios inventados (demo = true).
+  const predios = await db.query<{ n: number; v: number }>(`select count(*)::int as n, count(distinct v.id)::int as v from catastro_predios p left join catastro_versiones v on v.clave = p.clave where not p.demo`);
+  huella.catastro_predios = predios.rows[0].n;
+  huella.catastro_versiones = predios.rows[0].v;
   return huella;
 }
 
@@ -42,6 +46,9 @@ beforeAll(async () => {
     await db.exec(leer("supabase", "migrations", archivo));
   }
   await db.exec(leer("supabase", "semilla_prueba.sql"));
+  // Un predio "real" (de otra organización) con su kardex: el DEMO no debe tocarlo.
+  await db.exec(`insert into catastro_predios (clave, municipio, extra) values ('140100000000001', '14', '{"capa_area": 100}');
+    insert into catastro_versiones (clave, consultado_en, cambios, antes) values ('140100000000001', now(), '{capa_area}', '{"capa_area": 90}');`);
   // La semilla de pruebas trae su propia "Demo Valuadores" (slug demo): aquí hace de DEMO.
   await db.exec("update organizaciones set demo = true where slug = 'demo'");
   // La DEMO de producción nace con la escala estándar (Enlace…Socio Plus, Élite); la de la semilla trae otra.

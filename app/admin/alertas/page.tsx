@@ -13,7 +13,7 @@ export const metadata = { title: "Alertas — Tasa" };
 type Fila = {
   id: string;
   tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector"
-    | "externo_comision" | "notion_sin_pagina" | "notion_pago" | "parametros_fiscales" | "cupo_agotado";
+    | "externo_comision" | "notion_sin_pagina" | "notion_pago" | "parametros_fiscales" | "cupo_agotado" | "catastro";
   codigo: string | null;
   mensaje: string;
   creada_en: string;
@@ -107,6 +107,15 @@ export default async function Alertas() {
                   <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
                     Actualízalos en <Link href="/ajustes/parametros" className="font-semibold text-acento underline underline-offset-4">Parámetros fiscales</Link>; la del INPC se cierra sola al agregar el mes.
                   </p>
+                ) : <p className="mt-2 text-[0.9375rem] text-secundario">La resuelve Administración.</p>
+              ) : a.tipo === "catastro" ? (
+                persona.rol === "admin_org" ? (
+                  <>
+                    <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
+                      Revisa que el <a href="https://catastroedo.queretaro.gob.mx/Qsig/" target="_blank" rel="noopener noreferrer" className="font-semibold text-acento underline underline-offset-4">visor oficial</a> responda; ciérrala cuando vuelva.
+                    </p>
+                    <CerrarAlerta alertaId={a.id} />
+                  </>
                 ) : <p className="mt-2 text-[0.9375rem] text-secundario">La resuelve Administración.</p>
               ) : a.tipo === "notion_pago" ? (
                 persona.rol === "admin_org" ? <CerrarAlerta alertaId={a.id} /> : null

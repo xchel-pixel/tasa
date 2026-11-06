@@ -7,7 +7,7 @@ import { crearSolicitud, type EstadoSolicitud } from "./acciones";
 const ENTRADA =
   "mt-2 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
-export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string; calculo?: string };
+export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string; calculo?: string; direccion?: string };
 
 /** `inicial`: lo que trae la liga de la calculadora de traslado (servicio, municipio, clave y notas). */
 export default function FormularioSolicitud({ servicios, inicial = {} }: { servicios: { id: string; nombre: string }[]; inicial?: InicialSolicitud }) {
@@ -45,7 +45,7 @@ export default function FormularioSolicitud({ servicios, inicial = {} }: { servi
 
       <fieldset className="flex flex-col gap-4">
         <legend className="text-[1.125rem] font-bold">Inmueble</legend>
-        <Campo id="inmueble_direccion" etiqueta="Dirección" requerido autoComplete="street-address" />
+        <Campo id="inmueble_direccion" etiqueta="Dirección" requerido autoComplete="street-address" inicial={inicial.direccion} />
         <Campo id="inmueble_municipio" etiqueta="Municipio" opcional inicial={inicial.municipio} />
         <Campo id="inmueble_clave_catastral" etiqueta="Clave catastral" opcional inicial={inicial.clave} />
         <div>

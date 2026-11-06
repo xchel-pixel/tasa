@@ -17,6 +17,8 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
   const q = await searchParams;
   const calculo = q.calculo && /^[0-9a-f-]{36}$/.test(q.calculo) ? await leerCalculo(q.calculo) : null;
   const pre = calculo ? prellenadoDesdeCalculo(calculo, q.servicio ?? "hacendario") : null;
+  // Desde el Mapa catastral (0059): ?clave=&municipio=&nota= (sin datos del cliente).
+  const delMapa = !pre && q.clave ? { municipio: (q.municipio ?? "").slice(0, 60), clave: q.clave.replace(/[^d-]/g, "").slice(0, 40), descripcion: (q.nota ?? "").slice(0, 800), direccion: (q.direccion ?? "").slice(0, 300) } : null;
   await exigirRol("comisionista");
   const supabase = await crearClienteServidor();
   const servicios =
@@ -46,14 +48,18 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
             <p className="mt-3 rounded-xl bg-tinte px-4 py-3 text-[0.9375rem] leading-6">
               Viene de tu cálculo de traslado: ya llenamos el inmueble y los valores. Agrega la dirección y al cliente.
             </p>
+          ) : delMapa ? (
+            <p className="mt-3 rounded-xl bg-tinte px-4 py-3 text-[0.9375rem] leading-6">
+              Viene del Mapa catastral: ya llenamos la clave, el municipio y la ubicación. Revisa la dirección y agrega el servicio y al cliente.
+            </p>
           ) : null}
-          <FormularioSolicitud servicios={servicios} inicial={pre ? {
+          <FormularioSolicitud servicios={servicios} inicial={delMapa ?? (pre ? {
             servicio_id: servicios.find((s) => s.nombre.toLowerCase().includes(pre.servicio))?.id,
             municipio: pre.municipio,
             clave: pre.clave,
             descripcion: pre.descripcion,
             calculo: calculo!.id,
-          } : {}} />
+          } : {})} />
         </div>
       </main>
     </>
