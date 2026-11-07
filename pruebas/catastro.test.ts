@@ -413,3 +413,38 @@ describe("Fuente sin nombrar y PDF", () => {
     expect([escalaRedonda(7), escalaRedonda(13), escalaRedonda(38), escalaRedonda(160)]).toEqual([5, 10, 50, 200]);
   });
 });
+
+describe("Capa de predios solo para el equipo", () => {
+  const base = { token: "tok", origen: "https://tasa.xgplataform.com", contorno: "#006db3", relleno: "#5aa9e6" };
+
+  test("comisionista y admin_marca: el estilo del mapa no tiene la capa, así que el navegador nunca pide sus mosaicos", async () => {
+    const { estiloMapa } = await import("@/lib/catastro/estilo");
+    const e = estiloMapa({ ...base, lineas: false });
+    expect(Object.keys(e.sources)).toEqual(["satelite", "seleccion"]);
+    expect(e.layers.map((l) => l.id)).toEqual(["satelite", "seleccion-relleno", "seleccion-borde"]);
+    const texto = JSON.stringify(e);
+    for (const x of ["/mapa-catastral/predios", "catastroedo", "IDECATQ", "attribution"]) expect(texto).not.toContain(x);
+  });
+
+  test("equipo: con la capa (por Tasa); el predio elegido con los colores de Tasa", async () => {
+    const { estiloMapa } = await import("@/lib/catastro/estilo");
+    const e = estiloMapa({ ...base, lineas: true });
+    expect(JSON.stringify(e.sources)).toContain("https://tasa.xgplataform.com/mapa-catastral/predios/{z}/{x}/{y}");
+    expect(JSON.stringify(e)).not.toContain("catastroedo");
+    const relleno = e.layers.find((l) => l.id === "seleccion-relleno") as { paint: Record<string, unknown> };
+    const borde = e.layers.find((l) => l.id === "seleccion-borde") as { paint: Record<string, unknown> };
+    expect([relleno.paint["fill-color"], borde.paint["line-color"]]).toEqual(["#5aa9e6", "#006db3"]);
+    // Y en el tema: el contorno es --acento y el relleno --mapa-relleno.
+    const css = readFileSync(join(import.meta.dirname, "..", "app", "globals.css"), "utf8");
+    expect(css).toMatch(/--acento:\s*#006db3/i);
+    expect(css).toMatch(/--mapa-relleno:\s*#5aa9e6/i);
+  });
+
+  test("la pantalla del mapa no nombra la fuente ni usa el control de atribución de MapLibre", () => {
+    const pantalla = readFileSync(join(import.meta.dirname, "..", "app", "mapa-catastral", "mapa.tsx"), "utf8");
+    expect(pantalla).not.toMatch(/catastroedo|IDECATQ|AttributionControl/);
+    expect(pantalla).toContain("© Mapbox © Maxar");
+    const pagina = readFileSync(join(import.meta.dirname, "..", "app", "mapa-catastral", "page.tsx"), "utf8");
+    expect(pagina).not.toMatch(/IDECATQ|catastroedo|Consultas a catastro/);
+  });
+});

@@ -396,6 +396,20 @@ for (const q of QUIENES) {
         }
       }
       test.info().annotations.push({ type: "pantallas", description: String(abiertas) });
+
+      // Mosaicos de líneas de predios (pasan por Tasa): solo el equipo con el mapa; a los demás, 403 desde el servidor.
+      // Mosaico del centro de Querétaro, zoom 18. Nunca en la caché compartida: private.
+      const mosaico = await pagina.request.get("/mapa-catastral/predios/18/57968/115743");
+      const conLineas = ["admin_org", "finanzas", "equipo"].includes(q.rol) && misHerramientas.includes("mapa_catastral");
+      if (conLineas) {
+        if (![200, 204].includes(mosaico.status())) problemas.push(`mosaico de predios: respondió ${mosaico.status()} (debía 200)`);
+        if (!/private/.test(mosaico.headers()["cache-control"] ?? "")) problemas.push(`mosaico de predios: Cache-Control "${mosaico.headers()["cache-control"]}" (debía ser private)`);
+        const otra = await pagina.request.get("/mapa-catastral/predios/18/57968/115743");
+        if (/HIT|STALE/.test(otra.headers()["x-vercel-cache"] ?? "")) problemas.push(`mosaico de predios: la CDN lo sirvió de su caché (${otra.headers()["x-vercel-cache"]})`);
+        test.info().annotations.push({ type: "mosaico", description: `${mosaico.status()} · ${mosaico.headers()["cache-control"]} · x-vercel-cache=${otra.headers()["x-vercel-cache"] ?? "—"}` });
+      } else if (mosaico.status() !== 403) {
+        problemas.push(`mosaico de predios: respondió ${mosaico.status()} a ${q.rol} (debía 403)`);
+      }
     } finally {
       // Se le deja la organización activa que tenía.
       if (cambiada && original) await sesion.rpc("elegir_organizacion", { p_org: original });

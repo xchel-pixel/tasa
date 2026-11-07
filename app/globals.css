@@ -27,6 +27,7 @@
   --sobre-primario: #ffffff;
   --acento: #006db3; /* azul: enlaces, cifras destacadas, foco */
   --tinte: #e7f0f8; /* fondos de totales y resaltados */
+  --mapa-relleno: #5aa9e6; /* relleno del predio elegido en el Mapa catastral (el contorno es --acento) */
   --alterno: #f3f6fa; /* filas alternas, tarjetas */
   --texto: #10202f;
   --secundario: #5a6573;

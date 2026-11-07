@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Map as MapaGL, GeoJSONSource, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { fechaLegible, seccionesDeFicha } from "@/lib/catastro/etiquetas";
+import { estiloMapa, ZOOM_PREDIOS } from "@/lib/catastro/estilo";
 import { caja, ligaMaps, ligaVisor, type Geometria } from "@/lib/catastro/geo";
 import { NOTA_FUENTE } from "@/lib/catastro/textos";
 import type { Ficha, Resultado } from "@/lib/catastro/servicio";
@@ -12,9 +13,6 @@ import { municipioPorClave } from "@/lib/traslado/calculo";
 import { buscarClave, picarMapa } from "./acciones";
 
 const CENTRO: [number, number] = [-100.3899, 20.5888]; // Querétaro
-const ZOOM_PREDIOS = 17;
-// La capa de predios pasa por Tasa (la fuente no deja que el navegador la lea directo).
-const PREDIOS = "/mapa-catastral/predios/{z}/{x}/{y}";
 const ENTRADA = "w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento";
 const BOTON = "flex min-h-11 items-center justify-center rounded-lg border border-linea bg-fondo px-3 text-center text-[0.9375rem] font-semibold";
 
@@ -25,11 +23,14 @@ function token(nombre: string): string {
 
 const vacio = { type: "FeatureCollection" as const, features: [] };
 
-export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, calculadora, veVisor }: {
+export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, calculadora, veVisor, lineas }: {
   token: string; claveInicial: string | null; puedeCotizar: boolean; calculadora: boolean;
   /** El visor de la fuente: solo admin_org, finanzas y equipo. */
   veVisor: boolean;
+  /** Líneas y claves de los predios: solo admin_org, finanzas y equipo (la ruta de mosaicos también lo revisa). */
+  lineas: boolean;
 }) {
+  const [verLineas, setVerLineas] = useState(true);
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaGL | null>(null);
   const marcador = useRef<Marker | null>(null);
@@ -91,32 +92,10 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
         center: CENTRO,
         zoom: 13,
         maxZoom: 21,
+        // La atribución la pone la pantalla (solo © Mapbox © Maxar), sin el control de MapLibre.
         attributionControl: false,
-        style: {
-          version: 8,
-          sources: {
-            satelite: {
-              type: "raster",
-              tiles: [`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=${tokenMapbox}`],
-              tileSize: 512,
-              maxzoom: 19,
-              attribution: "© Mapbox © Maxar",
-            },
-            // La capa de predios de la fuente, directo del navegador y solo a nivel de calle (no cargar su servidor).
-            // Sin atribución con su nombre: el comisionista no ve de dónde viene.
-            predios: { type: "raster", tiles: [location.origin + PREDIOS], tileSize: 512, minzoom: ZOOM_PREDIOS, maxzoom: 20 },
-            seleccion: { type: "geojson", data: vacio },
-          },
-          layers: [
-            // Sin fundido: cada mosaico se ve en cuanto llega (la capa de predios tarda el doble que el satélite).
-            { id: "satelite", type: "raster", source: "satelite", paint: { "raster-fade-duration": 0 } },
-            { id: "predios", type: "raster", source: "predios", minzoom: ZOOM_PREDIOS, paint: { "raster-fade-duration": 0 } },
-            { id: "seleccion-relleno", type: "fill", source: "seleccion", paint: { "fill-color": token("--acento"), "fill-opacity": 0.25 } },
-            { id: "seleccion-borde", type: "line", source: "seleccion", paint: { "line-color": token("--acento"), "line-width": 3 } },
-          ],
-        },
+        style: estiloMapa({ token: tokenMapbox, lineas, origen: location.origin, contorno: token("--acento"), relleno: token("--mapa-relleno") }),
       });
-      m.addControl(new maplibregl.AttributionControl({ compact: false }), "bottom-right");
       m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
       m.on("zoomend", () => setZoom(m.getZoom()));
       m.on("click", (e) => {
@@ -141,6 +120,11 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
     // El mapa se crea una vez.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Interruptor "Líneas de predios" (solo el equipo la tiene en el estilo).
+  useEffect(() => {
+    if (listo && lineas) mapa.current?.setLayoutProperty("predios", "visibility", verLineas ? "visible" : "none");
+  }, [listo, lineas, verLineas]);
 
   // ?clave= en la liga: se busca al abrir.
   const yaBuscada = useRef(false);
@@ -194,11 +178,20 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
       <div className="mt-2 flex items-center justify-between gap-2 px-2">
         <button type="button" onClick={miUbicacion} className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mi ubicación</button>
         <span className="text-[0.8125rem] text-secundario">
-          {ocupado ? "Consultando…" : zoom < ZOOM_PREDIOS ? "Acércate para ver los predios" : "Pica un predio"}
+          {ocupado ? "Consultando…" : lineas && verLineas && zoom < ZOOM_PREDIOS ? "Acércate para ver las líneas" : zoom < 16 ? "Acércate y pica un terreno" : "Pica un terreno"}
         </span>
       </div>
+      {lineas ? (
+        <label className="mt-1 flex items-center gap-2 px-2 text-[0.9375rem]">
+          <input type="checkbox" checked={verLineas} onChange={(e) => setVerLineas(e.target.checked)} className="h-5 w-5 accent-primario" />
+          Líneas de predios
+        </label>
+      ) : null}
 
-      <div ref={contenedor} className="mt-2 h-[60vh] min-h-80 w-full overflow-hidden rounded-xl border border-linea bg-alterno" aria-label="Mapa satelital" />
+      <div className="relative mt-2">
+        <div ref={contenedor} className="h-[60vh] min-h-80 w-full overflow-hidden rounded-xl border border-linea bg-alterno" aria-label="Mapa satelital" />
+        <span className="pointer-events-none absolute bottom-1 right-2 rounded bg-fondo/80 px-1.5 text-[0.6875rem] text-secundario">© Mapbox © Maxar</span>
+      </div>
       {!tokenMapbox ? <p className="mt-2 px-2 text-[0.875rem] text-error">Falta configurar el mapa satelital.</p> : null}
       <p className="mt-2 rounded-lg bg-tinte px-3 py-2 text-[0.875rem] font-semibold leading-5">{NOTA_FUENTE}</p>
 
