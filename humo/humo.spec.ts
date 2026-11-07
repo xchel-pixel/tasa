@@ -2,6 +2,7 @@ import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { textoDePdf } from "./texto-pdf";
 
 /**
  * Humo contra producción, solo lectura: entra con cada usuario y abre TODAS las pantallas. Cada una
@@ -473,6 +474,55 @@ test("humo: mapa catastral → calculadora con los datos del predio", async ({ b
     expect(Number(llenos.valor), "valor catastral total en la calculadora").toBeGreaterThan(0);
   } finally {
     if (original && original !== xg?.id) await sesion.rpc("elegir_organizacion", { p_org: original });
+    await contexto.close();
+  }
+});
+
+/**
+ * El Mapa catastral como lo ve un comisionista (DEMO, Ana): abre, no pide ni recibe mosaicos de líneas de predios
+ * (403), la ficha de un predio de ejemplo no trae propietario, operación, datos del condominio 1-4, datos del registro
+ * ni visor oficial, sí "Cotizar avalúo", y el PDF no trae nada de eso ni el nombre de la fuente. Predios de ejemplo
+ * (demo.sql): no consulta la fuente. Bajar el PDF anota un uso de PDF de Ana en DEMO (datos sintéticos).
+ */
+test("humo: DEMO comisionista en el Mapa catastral", async ({ browser, baseURL }) => {
+  test.setTimeout(150_000);
+  const q = QUIENES.find((x) => x.org === "DEMO" && x.rol === "comisionista")!;
+  const db = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
+  const contexto = await browser.newContext();
+  const sesion = await entrar(contexto, q.correo, baseURL!);
+  const { data: demo } = await db.from("organizaciones").select("id").eq("slug", "demo").single();
+  const original = await organizacionActiva(q.correo);
+  if (original !== demo?.id) await sesion.rpc("elegir_organizacion", { p_org: demo?.id });
+  const PROHIBIDO = /Propietari|Valor de operación|Escritura|Notari|Contrato|Dato del condominio|Datos del registro|Historial de cambios|Visor oficial|IDECATQ|catastroedo|gobierno|Inmobiliaria Ejemplo/i;
+  try {
+    const pagina = await contexto.newPage();
+    const mosaicosPedidos: string[] = [];
+    pagina.on("request", (r) => { if (r.url().includes("/mapa-catastral/predios/")) mosaicosPedidos.push(r.url()); });
+
+    await pagina.goto("/mapa-catastral?clave=149999990000002");
+    expect(new URL(pagina.url()).pathname, "abre la pantalla").toBe("/mapa-catastral");
+    await expect(pagina.getByRole("heading", { name: "Clave 149999990000002" })).toBeVisible({ timeout: 45_000 });
+    // Al nivel de calle (la ficha centra el predio): ahí el equipo pediría las líneas.
+    await pagina.waitForTimeout(3000);
+    expect(mosaicosPedidos, "la pantalla del comisionista no pide mosaicos de predios").toEqual([]);
+    expect((await pagina.request.get("/mapa-catastral/predios/18/57968/115743")).status(), "la ruta de mosaicos").toBe(403);
+
+    const ficha = await pagina.locator("main article").innerText();
+    test.info().annotations.push({ type: "ficha", description: ficha.replace(/\s+/g, " ").slice(0, 400) });
+    expect(ficha).not.toMatch(PROHIBIDO);
+    expect(ficha).toContain("Indiviso");
+    await expect(pagina.locator("main article").getByRole("link", { name: "Cotizar avalúo" })).toBeVisible();
+    expect(await pagina.locator("main").innerText(), "nada en la pantalla nombra la fuente").not.toMatch(/IDECATQ|catastroedo|gobierno|visor/i);
+
+    const r = await pagina.request.get("/mapa-catastral/pdf?clave=149999990000002");
+    expect(r.status(), "PDF").toBe(200);
+    expect(r.headers()["content-type"]).toBe("application/pdf");
+    const texto = await textoDePdf(new Uint8Array(await r.body()));
+    test.info().annotations.push({ type: "pdf", description: texto.replace(/\s+/g, " ").slice(0, 400) });
+    expect(texto, "el PDF se leyó").toContain("149999990000002");
+    expect(texto).not.toMatch(PROHIBIDO);
+  } finally {
+    if (original && original !== demo?.id) await sesion.rpc("elegir_organizacion", { p_org: original });
     await contexto.close();
   }
 });
