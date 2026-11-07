@@ -406,7 +406,10 @@ for (const q of QUIENES) {
         if (!/private/.test(mosaico.headers()["cache-control"] ?? "")) problemas.push(`mosaico de predios: Cache-Control "${mosaico.headers()["cache-control"]}" (debía ser private)`);
         const otra = await pagina.request.get("/mapa-catastral/predios/18/57968/115743");
         if (/HIT|STALE/.test(otra.headers()["x-vercel-cache"] ?? "")) problemas.push(`mosaico de predios: la CDN lo sirvió de su caché (${otra.headers()["x-vercel-cache"]})`);
-        test.info().annotations.push({ type: "mosaico", description: `${mosaico.status()} · ${mosaico.headers()["cache-control"]} · x-vercel-cache=${otra.headers()["x-vercel-cache"] ?? "—"}` });
+        // No es un proxy abierto: cualquier parámetro del navegador, 400.
+        const abierto = await pagina.request.get("/mapa-catastral/predios/18/57968/115743?width=2048");
+        if (abierto.status() !== 400) problemas.push(`mosaico de predios con parámetro extra: respondió ${abierto.status()} (debía 400)`);
+        test.info().annotations.push({ type: "mosaico", description: `${mosaico.status()} · ${mosaico.headers()["cache-control"]} · x-vercel-cache=${otra.headers()["x-vercel-cache"] ?? "—"} · con parámetro extra ${abierto.status()}` });
       } else if (mosaico.status() !== 403) {
         problemas.push(`mosaico de predios: respondió ${mosaico.status()} a ${q.rol} (debía 403)`);
       }

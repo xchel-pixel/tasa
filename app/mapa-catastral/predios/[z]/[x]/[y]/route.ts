@@ -1,35 +1,31 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ROLES_CON_LINEAS } from "@/lib/catastro/estilo";
-import { tengoHerramienta } from "@/lib/herramientas";
-import { obtenerSesion } from "@/lib/sesion";
+import { crearClienteServidor } from "@/lib/supabase/server";
+import { peticionDeMosaico } from "@/lib/catastro/mosaicos";
 
 /**
- * La capa de predios del mapa, pasada por Tasa. El navegador no puede leerla directo: la fuente no autoriza a
- * otros sitios (CORS) y MapLibre pide cada mosaico con fetch. Solo admin_org, finanzas y equipo (403 a los demás), solo mosaicos de
- * nivel de calle (zoom 17 a 20) y sin parámetros libres: el servidor arma la petición. El navegador guarda cada
- * mosaico un día. Así, además, la liga de la fuente no aparece en el navegador.
+ * Las líneas de predios del mapa, pasadas por Tasa (la fuente no autoriza CORS y MapLibre pide cada mosaico con
+ * fetch). NO es un proxy abierto: el navegador solo manda el número de mosaico (zoom 17 a 20, x, y) dentro de
+ * Querétaro, sin ningún otro parámetro; el servidor arma la petición con host, capas, formato, proyección y tamaño
+ * fijos (lib/catastro/mosaicos.ts). Lo demás → 400.
+ * Quién: admin_org, finanzas y equipo con el mapa encendido (403 a los demás). Hasta 600 mosaicos por hora por
+ * persona (429). Todo eso lo decide catastro_permiso_mosaico() en la base, con la sesión.
+ * El navegador guarda cada mosaico un día (private: nunca en la caché compartida).
  */
 
-const FUENTE = "https://catastroedo.queretaro.gob.mx/geoserver/queretaro/wms";
-const CAPAS = Array.from({ length: 18 }, (_, i) => `queretaro:M${String(i + 1).padStart(2, "0")}_PA`).join(",");
-const R = 20037508.342789244; // medio mundo en EPSG:3857
+const NADA = { "Cache-Control": "private, no-store" };
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ z: string; x: string; y: string }> }) {
-  // Solo admin_org, finanzas y equipo, con el mapa en su catálogo. Comisionista y admin_marca: 403 (no basta ocultarla).
-  const sesion = await obtenerSesion();
-  const rol = sesion?.persona?.rol;
-  if (!rol || !(ROLES_CON_LINEAS as readonly string[]).includes(rol) || !(await tengoHerramienta("mapa_catastral"))) {
-    return new NextResponse(null, { status: 403, headers: { "Cache-Control": "private, no-store" } });
-  }
-  const { z: zt, x: xt, y: yt } = await params;
-  const [z, x, y] = [zt, xt, yt.replace(/\.png$/, "")].map((v) => (/^\d{1,7}$/.test(v) ? Number(v) : NaN));
-  const n = 2 ** z;
-  if (!(z >= 17 && z <= 20) || !(x >= 0 && x < n) || !(y >= 0 && y < n)) return new NextResponse(null, { status: 404 });
-  const lado = (2 * R) / n;
-  const bbox = [-R + x * lado, R - (y + 1) * lado, -R + (x + 1) * lado, R - y * lado].map((v) => v.toFixed(2)).join(",");
+export async function GET(request: NextRequest, { params }: { params: Promise<{ z: string; x: string; y: string }> }) {
+  const p = await params;
+  const url = peticionDeMosaico(p, request.nextUrl.searchParams);
+  if (!url) return new NextResponse(null, { status: 400, headers: NADA });
+
+  const supabase = await crearClienteServidor();
+  const { data: permiso } = await supabase.rpc("catastro_permiso_mosaico");
+  if (permiso === "limite") return new NextResponse(null, { status: 429, headers: { ...NADA, "Retry-After": "3600" } });
+  if (permiso !== "ok") return new NextResponse(null, { status: 403, headers: NADA });
+
   try {
-    const r = await fetch(`${FUENTE}?service=WMS&version=1.1.1&request=GetMap&layers=${CAPAS}&styles=&format=image/png&transparent=true`
-      + `&srs=EPSG:3857&bbox=${bbox}&width=512&height=512`, { signal: AbortSignal.timeout(12_000), cache: "no-store" });
+    const r = await fetch(url, { signal: AbortSignal.timeout(12_000), cache: "no-store" });
     if (!r.ok || !(r.headers.get("content-type") ?? "").startsWith("image/png")) throw new Error(`HTTP${r.status}`);
     return new NextResponse(await r.arrayBuffer(), {
       headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=86400" },
@@ -37,6 +33,6 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ z: str
   } catch (e) {
     console.warn(`Capa de predios: ${e instanceof Error ? e.name : "error"}`);
     // Sin mosaico: el mapa sigue con el satélite.
-    return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+    return new NextResponse(null, { status: 204, headers: NADA });
   }
 }

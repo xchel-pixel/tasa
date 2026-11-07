@@ -324,7 +324,7 @@ begin
    where n.nspname = 'public' and c.relkind = 'r'
      and not has_table_privilege('authenticated', c.oid, 'select');
   -- Excepción a propósito (0059): los datos catastrales solo se leen por función (catastro_ficha), nunca directo.
-  perform pg_temp.igual(v, 'catastro_fallas, catastro_predios, catastro_propietarios, catastro_versiones'::text,
+  perform pg_temp.igual(v, 'catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones'::text,
     'authenticated puede leer todas las tablas (el RLS filtra las filas), salvo las catastrales');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -4105,6 +4105,100 @@ begin
   delete from usos_herramienta where herramienta = 'mapa_catastral';
   delete from alertas where tipo = 'catastro';
   update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$$;
+
+-- @@ Mapa catastral: mosaicos y datos del condominio
+-- 0063: la ruta de mosaicos pregunta catastro_permiso_mosaico(). Con el mapa encendido para ellos, admin_org,
+-- finanzas y equipo sí; comisionista y admin_marca nunca (403). Apagado para su rol: 'sin_herramienta' (403).
+-- 600 por hora por persona (429). Los "Datos del condominio 1-4", solo el equipo aunque la configuración se abra.
+do $$
+declare
+  xg    uuid := pg_temp.xg();
+  eq    uuid;
+  mar   uuid;
+  f     jsonb;
+  geo   jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.59295],[-100.3923,20.5928]]]}';
+begin
+  perform pg_temp.sistema();
+  insert into personas (nombre, correo, organizacion_activa) values ('Equipo Mosaicos', 'xchel+equipo-mos@arqosuv.com', xg) returning id into eq;
+  insert into membresias (persona_id, organizacion_id, rol) values (eq, xg, 'equipo');
+  insert into auth.users (id, email) values (gen_random_uuid(), 'xchel+equipo-mos@arqosuv.com');
+  insert into personas (nombre, correo, organizacion_activa) values ('Marca Mosaicos', 'xchel+marca-mos@arqosuv.com', xg) returning id into mar;
+  insert into membresias (persona_id, organizacion_id, rol) values (mar, xg, 'admin_marca');
+  insert into auth.users (id, email) values (gen_random_uuid(), 'xchel+marca-mos@arqosuv.com');
+
+  -- Sin cupos de por medio (las secciones anteriores los dejaron bajos).
+  update cupos_herramienta set cantidad = null where organizacion_id = xg and herramienta like 'mapa_catastral%';
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+  -- Como hoy en producción: encendido solo para admin_org.
+  update herramientas set activa = true, roles = array['admin_org'] where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'ok', 'admin_org con el mapa: mosaicos sí');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'sin_herramienta', 'Finanzas sin el mapa encendido para su rol: 403 por la herramienta, no por el rol');
+
+  -- Encendido para todos los roles: el equipo sí; comisionista y admin_marca, nunca.
+  perform pg_temp.sistema();
+  update herramientas set roles = array['admin_org', 'finanzas', 'admin_marca', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'ok', 'Finanzas con el mapa encendido: mosaicos sí (200)');
+  perform pg_temp.como('xchel+equipo-mos@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'ok', 'Equipo con el mapa encendido: mosaicos sí (200)');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'rol', 'Comisionista con el mapa encendido: 403 por el rol');
+  perform pg_temp.como('xchel+marca-mos@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'rol', 'admin_marca con el mapa encendido: 403 por el rol');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar($q$select catastro_permiso_mosaico()$q$, 'permission denied', 'Sin sesión: ni la función');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select * from catastro_mosaicos$q$, 'permission denied', 'Nadie lee el conteo directo');
+
+  -- 600 por hora por persona; el de otra persona no cuenta.
+  perform pg_temp.sistema();
+  update catastro_mosaicos set cantidad = 599 where persona_id = (select id from personas where correo = 'xchel@arqosuv.com');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'ok', 'El mosaico 600 de la hora sí');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'limite', 'El 601: 429');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'ok', 'El límite es por persona');
+  perform pg_temp.sistema();
+  update catastro_mosaicos set hora = hora - interval '1 hour' where persona_id = (select id from personas where correo = 'xchel@arqosuv.com');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'ok', 'En la hora siguiente se reinicia');
+
+  -- Datos del condominio 1-4: solo el equipo, aunque la configuración se los abra a comisionista y admin_marca.
+  perform pg_temp.cg('xchel@arqosuv.com', '140100000000031', geo, 20.592875, -100.3922, array[20.5928, 20.59295, -100.3923, -100.3921],
+    '{"indiviso":12.5,"cacoct":1,"vacopt":0,"vatrct":3,"vatrpt":4}', 'completo', '{"propietarios":[]}', 'consulta');
+  perform pg_temp.sistema();
+  update catastro_campos_visibles set en_pantalla = true, en_pdf = true where organizacion_id = xg and rol in ('comisionista', 'admin_marca');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  f := catastro_ficha('140100000000031');
+  perform pg_temp.igual((f->'campos') ?| array['cacoct', 'vacopt', 'vatrct', 'vatrpt'], false, 'Comisionista: sin los datos del condominio 1-4, en pantalla…');
+  perform pg_temp.igual((f->'campos') ? 'indiviso', true, '…pero sí el indiviso');
+  perform pg_temp.igual((catastro_pdf('140100000000031')->'campos') ?| array['cacoct', 'vacopt', 'vatrct', 'vatrpt'], false, '…ni en PDF');
+  perform pg_temp.como('xchel+marca-mos@arqosuv.com');
+  perform pg_temp.igual((catastro_ficha('140100000000031')->'campos') ?| array['cacoct', 'vacopt', 'vatrct', 'vatrpt'], false, 'admin_marca tampoco');
+  perform pg_temp.como('xchel+equipo-mos@arqosuv.com');
+  perform pg_temp.igual((select count(*) from jsonb_object_keys(catastro_pdf('140100000000031')->'campos') k where k in ('cacoct', 'vacopt', 'vatrct', 'vatrpt')),
+    4::bigint, 'Equipo: los cuatro, también en PDF');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select count(*) from jsonb_object_keys(catastro_ficha('140100000000031')->'campos') k where k in ('cacoct', 'vacopt', 'vatrct', 'vatrpt')),
+    4::bigint, 'Finanzas: los cuatro');
+
+  perform pg_temp.sistema();
+  update catastro_campos_visibles set en_pantalla = (campo = any (catastro_campos_basicos())), en_pdf = (campo = any (catastro_campos_basicos()))
+   where organizacion_id = xg and rol in ('comisionista', 'admin_marca');
+  perform pg_temp.igual((select count(*) from catastro_campos_visibles where organizacion_id = xg and rol = 'comisionista'
+                          and campo in ('cacoct', 'vacopt', 'vatrct', 'vatrpt') and (en_pantalla or en_pdf)), 0::bigint,
+    'Por omisión, apagados para el comisionista');
+  delete from catastro_predios where clave = '140100000000031';
+  delete from catastro_mosaicos;
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+  delete from membresias where persona_id in (eq, mar);
+  update herramientas set activa = false, roles = array['admin_org', 'finanzas', 'admin_marca', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
 end;
 $$;
 

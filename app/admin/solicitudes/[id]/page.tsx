@@ -154,7 +154,7 @@ async function adjuntosDelCliente(
   if (rutas.length === 0) return [];
   const { data } = await storage.createSignedUrls(rutas, 600);
   return (data ?? []).flatMap((d) =>
-    d.signedUrl && d.path ? [{ nombre: d.path.split("/").pop()!.replace(/^d+-/, ""), url: d.signedUrl }] : []
+    d.signedUrl && d.path ? [{ nombre: d.path.split("/").pop()!.replace(/^\d+-/, ""), url: d.signedUrl }] : []
   );
 }
 
