@@ -23,6 +23,7 @@ export default async function SolicitudDeCliente({ params }: { params: Promise<{
   const supabase = await crearClienteServidor();
   const { data } = await supabase.rpc("datos_liga_cliente", { p_org: org, p_codigo: codigo });
   const datos = data as DatosLiga | null;
+  const simplificado = ((await supabase.rpc("aviso_privacidad_publico", { p_slug: org.toLowerCase() })).data as { simplificado?: string | null } | null)?.simplificado ?? null;
 
   return (
     <main className="flex flex-1 flex-col px-6 py-10">
@@ -48,6 +49,7 @@ export default async function SolicitudDeCliente({ params }: { params: Promise<{
                 avisoVersion={datos.aviso_version}
                 nota={datos.nota}
                 ligaAviso={`/privacidad?org=${encodeURIComponent(org.toLowerCase())}`}
+                avisoSimplificado={simplificado}
               />
             ) : (
               <p className="mt-8 rounded-lg border border-linea px-4 py-3 leading-7">

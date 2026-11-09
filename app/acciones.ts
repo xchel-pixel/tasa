@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { recordarAcceso, olvidarAcceso } from "@/lib/acceso";
@@ -202,4 +203,14 @@ export async function cerrarSesion() {
   const supabase = await crearClienteServidor();
   await supabase.auth.signOut();
   redirect("/entrar");
+}
+
+/** "Entendido" en "Actualizamos nuestro aviso de privacidad": guarda la versión vista y la fecha (0064). */
+export async function marcarAvisoVisto(formData: FormData) {
+  const version = Number(formData.get("version"));
+  if (!Number.isInteger(version) || version < 1) return;
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("marcar_aviso_visto", { p_version: version });
+  if (error) console.error(`[tasa] No se pudo marcar el aviso como visto: ${error.message}`);
+  revalidatePath("/", "layout");
 }

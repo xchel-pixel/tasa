@@ -1,4 +1,5 @@
 "use client";
+import { AvisoSimplificado } from "@/components/aviso-simplificado";
 
 import { useEffect, useRef, useState } from "react";
 import { useMontado } from "@/components/montado";
@@ -22,12 +23,14 @@ export default function FormularioSolicitud({
   referidor,
   avisoVersion,
   ligaAviso,
+  avisoSimplificado,
 }: {
   org: string;
   orgId: string;
   referidor: string;
   avisoVersion: number;
   ligaAviso: string;
+  avisoSimplificado?: string | null;
 }) {
   const [paso, setPaso] = useState<Paso>({ tipo: "llenando" });
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +132,7 @@ export default function FormularioSolicitud({
           className="mt-3 block w-full text-[0.9375rem] text-secundario file:mr-4 file:rounded-lg file:border file:border-borde-campo file:bg-fondo file:px-4 file:py-2 file:text-[0.9375rem] file:font-semibold file:text-primario"
         />
       </div>
+      <AvisoSimplificado texto={avisoSimplificado} liga={ligaAviso} />
       <label className="toque flex items-start gap-3 leading-6">
         <input type="checkbox" name="acepto" required className="mt-1 size-5 shrink-0" />
         <span>

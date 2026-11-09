@@ -29,6 +29,7 @@ export default async function SolicitudDeAlta({
   const invito = ref ? ((await supabase.rpc("invitado_por", { p_org_slug: org, p_codigo: ref })).data as string | null) : null;
 
   const ligaAviso = `/privacidad?org=${encodeURIComponent(datos.slug)}`;
+  const simplificado = ((await supabase.rpc("aviso_privacidad_publico", { p_slug: datos.slug })).data as { simplificado?: string | null } | null)?.simplificado ?? null;
 
   return (
     <main className="flex flex-1 flex-col px-6 py-10">
@@ -52,6 +53,7 @@ export default async function SolicitudDeAlta({
             referidor={invito ? (ref ?? "") : ""}
             avisoVersion={datos.aviso_version}
             ligaAviso={ligaAviso}
+            avisoSimplificado={simplificado}
           />
         ) : (
           <p className="mt-8 rounded-lg border border-linea px-4 py-3 leading-7">

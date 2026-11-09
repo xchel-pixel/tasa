@@ -4202,6 +4202,66 @@ begin
 end;
 $$;
 
+-- @@ Aviso de privacidad: actualizado y limpieza de IP
+-- 0064: quien ya era usuario no ve "Actualizamos…" hasta que se publique otra versión; al publicarla, sí, hasta que
+-- toque "Entendido" (se guarda versión y fecha). Quien la aceptó con los términos no la vuelve a ver. El resumen de IP
+-- se borra a los 30 días. El aviso simplificado sale sin sesión.
+do $$
+declare
+  xg  uuid := pg_temp.xg();
+  ana uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  v   integer;
+  v_slug text;
+begin
+  perform pg_temp.sistema();
+  -- Una versión publicada y todos al día (como quedan los usuarios de hoy con la migración).
+  update ajustes set aviso_privacidad = 'Aviso integral de prueba. Última actualización: [FECHA DE PUBLICACIÓN].' where organizacion_id = xg;
+  v := (select aviso_version from ajustes where organizacion_id = xg);
+  insert into avisos_vistos (organizacion_id, persona_id, aviso_version, origen)
+  select xg, m.persona_id, v, 'inicial' from membresias m where m.organizacion_id = xg and m.activa on conflict do nothing;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(aviso_por_ver(), null::jsonb, 'Con la versión vigente vista, no hay aviso');
+
+  -- Se publica una versión nueva: todos la ven hasta "Entendido".
+  perform pg_temp.sistema();
+  update ajustes set aviso_privacidad = 'Aviso integral de prueba, versión nueva. Última actualización: [FECHA DE PUBLICACIÓN].' where organizacion_id = xg;
+  perform pg_temp.igual((select aviso_version from ajustes where organizacion_id = xg), v + 1, 'Publicar el texto nuevo sube la versión');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((aviso_por_ver()->>'version')::integer, v + 1, 'Ana ve "Actualizamos nuestro aviso"');
+  perform pg_temp.debe_fallar(format($q$select marcar_aviso_visto(%s)$q$, v), 'no es la versión vigente', 'Solo se marca la versión vigente');
+  perform marcar_aviso_visto(v + 1);
+  perform marcar_aviso_visto(v + 1);
+  perform pg_temp.igual(aviso_por_ver(), null::jsonb, '"Entendido" lo quita');
+  perform pg_temp.igual((select count(*) from avisos_vistos where persona_id = ana and aviso_version = v + 1 and origen = 'entendido' and visto_en is not null),
+    1::bigint, 'Se guarda versión y fecha, una vez');
+  perform pg_temp.debe_fallar($q$insert into avisos_vistos (persona_id, aviso_version) values (mi_persona_id(), 99)$q$, 'permission denied',
+    'Nadie escribe directo en avisos_vistos');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((aviso_por_ver()->>'version')::integer, v + 1, 'Finanzas también lo ve, aparte de Ana');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar($q$select aviso_por_ver()$q$, 'permission denied', 'Sin sesión, no');
+
+  -- Aviso simplificado, sin sesión.
+  perform pg_temp.sistema();
+  update ajustes set aviso_simplificado = 'Aviso simplificado de prueba.' where organizacion_id = xg;
+  v_slug := (select o.slug from organizaciones o where o.id = xg);
+  perform pg_temp.como(null);
+  perform pg_temp.igual(aviso_privacidad_publico(v_slug)->>'simplificado', 'Aviso simplificado de prueba.',
+    'El aviso simplificado sale sin sesión');
+
+  -- Resumen de IP: a los 30 días se borra; el de hace 29, no.
+  perform pg_temp.sistema();
+  insert into solicitudes_alta (organizacion_id, nombre, correo, telefono, rfc, aviso_version, aviso_aceptado_en, ip_resumen, creada_en)
+  values (xg, 'Alta vieja IP', 'ipvieja@tasa.test', '4421112233', 'XAXX010101000', v, now(), 'ipvieja', now() - interval '31 days'),
+         (xg, 'Alta reciente IP', 'ipnueva@tasa.test', '4421112234', 'XAXX010101000', v, now(), 'ipnueva', now() - interval '29 days');
+  perform limpiar_datos_tecnicos();
+  perform pg_temp.igual((select string_agg(coalesce(ip_resumen, '—'), ',' order by creada_en) from solicitudes_alta where correo like 'ip%@tasa.test'),
+    '—,ipnueva', 'El resumen de IP de más de 30 días se borra; el reciente se queda');
+  perform pg_temp.igual(has_function_privilege('authenticated', 'limpiar_datos_tecnicos()', 'execute'), false, 'La limpieza solo la corre el cron');
+  delete from solicitudes_alta where correo like 'ip%@tasa.test';
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

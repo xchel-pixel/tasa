@@ -264,12 +264,21 @@ async function generarCodigo(correo: string) {
 }
 
 /** La sesión en las cookies que lee @supabase/ssr (en trozos si es larga). */
+/** Las sesiones que abre esta corrida: se cierran al terminar (no se acumulan en Supabase Auth). */
+const SESIONES_ABIERTAS: string[] = [];
+test.afterAll(async () => {
+  if (!SECRETA || !SESIONES_ABIERTAS.length) return;
+  const admin = createClient(URL_SUPABASE, SECRETA, { auth: { persistSession: false } });
+  for (const token of SESIONES_ABIERTAS.splice(0)) await admin.auth.admin.signOut(token, "local");
+});
+
 async function entrar(contexto: BrowserContext, correo: string, sitio: string): Promise<SupabaseClient> {
   const liga = await generarCodigo(correo);
 
   const anon = createClient(URL_SUPABASE, ANON, { auth: { persistSession: false } });
   const { data, error: e2 } = await anon.auth.verifyOtp({ email: correo, token: liga.email_otp, type: "email" });
   if (e2 || !data.session) throw new Error(`No se pudo entrar como ${correo}: ${e2?.message}`);
+  SESIONES_ABIERTAS.push(data.session.access_token);
 
   const ref = new URL(URL_SUPABASE).hostname.split(".")[0];
   const valor = "base64-" + Buffer.from(JSON.stringify(data.session)).toString("base64url");

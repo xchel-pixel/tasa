@@ -49,6 +49,9 @@ export async function POST(request: NextRequest) {
     // Calculadora de traslado: borra los cálculos de más de 90 días y avisa si el INPC o las tarifas quedaron viejos.
     const { error: errorCalc } = await supabase.rpc("mantener_calculadora");
     if (errorCalc) console.error(`[tasa] No se pudo mantener la calculadora: ${errorCalc.message}`);
+    // Privacidad: el resumen de la IP (límite de envíos) se borra a los 30 días.
+    const { error: errorIp } = await supabase.rpc("limpiar_datos_tecnicos");
+    if (errorIp) console.error(`[tasa] No se pudo limpiar el resumen de IP: ${errorIp.message}`);
     await limpiarAltas(supabase, Boolean(cuerpo.barrido_csf));
   }
 
