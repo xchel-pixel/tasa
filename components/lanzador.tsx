@@ -36,6 +36,7 @@ function delRol(persona: Persona): Mosaico[] {
     return [
       { href: "/solicitudes/nueva", titulo: "Nueva solicitud", detalle: "Cotización o trámite para tu cliente" },
       { href: "/panel", titulo: "Panel de comisiones", detalle: "Tus trabajos, tu nivel y tus referidos" },
+      { href: "/mi-uso", titulo: "Mi uso", detalle: "Tus cupos del mes y tus consultas" },
     ];
   }
   if (persona.rol === "equipo") return [{ href: "/panel", titulo: "Mi panel", detalle: "Los trámites de tu liga" }];
@@ -46,6 +47,7 @@ function delRol(persona: Persona): Mosaico[] {
     { href: "/admin/comisionistas", titulo: "Comisionistas", detalle: "Fichas, niveles y estado de cuenta" },
     ...(staff ? [{ href: "/admin/cierres", titulo: "Cierres", detalle: "Cierre mensual de comisiones" }] : []),
     ...(persona.rol === "admin_org" ? [{ href: "/admin/configuracion", titulo: "Catálogos y ajustes", detalle: "Configuración de la organización" }] : []),
+    ...(persona.rol === "admin_org" ? [{ href: "/admin/accesos", titulo: "Accesos", detalle: "Estatus, sesiones e historial de cada persona" }] : []),
   ];
 }
 

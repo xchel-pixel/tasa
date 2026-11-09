@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { PedirMas } from "@/components/formularios-cupo";
@@ -37,6 +38,9 @@ export default async function MapaCatastralPagina({ searchParams }: { searchPara
               Consultas del mes: {textoCupo(cupo).replace(/^Te quedan/, "te quedan").replace(/^Sin límite/, "sin límite")}. Un predio ya guardado no cuenta.
               {" "}PDF: {textoCupo(cupoPdf).replace(/^Te quedan/, "te quedan").replace(/^Sin límite/, "sin límite")}.
             </p>
+            {persona.rol === "comisionista" ? (
+              <Link href="/mi-uso" className="mt-1 inline-block text-[0.875rem] font-semibold text-acento underline underline-offset-4">Ver mi uso</Link>
+            ) : null}
             {cupo.disponibles === 0 && persona.rol === "comisionista" ? <PedirMas herramienta="mapa_catastral" /> : null}
             {cupoPdf.disponibles === 0 && persona.rol === "comisionista" ? <PedirMas herramienta="mapa_catastral_pdf" /> : null}
           </div>

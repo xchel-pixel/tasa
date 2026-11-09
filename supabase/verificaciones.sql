@@ -4711,6 +4711,65 @@ begin
 end;
 $$;
 
+-- @@ Accesos y conservación
+-- 0071: la pantalla de Accesos solo para admin_org; la IP sale recortada; el historial trae eventos y bitácora con
+-- motivo. eventos_uso y las fallas de la fuente se borran a los 12 meses; lo reciente se queda.
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  uana uuid := (select user_id from personas where correo = 'xchel+ana@arqosuv.com');
+  a    jsonb;
+begin
+  perform pg_temp.sistema();
+  delete from eventos_uso;
+  insert into auth.sessions (user_id, user_agent, ip) values (uana, 'Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile', '189.203.45.67');
+  perform registrar_evento(xg, ana, 'acceso', 'acceso', null, null, 'ok', null, null, false, null, 'Chrome en Android');
+  perform registrar_evento(xg, ana, 'mapa_catastral', 'denegado', null, '140100000000101', 'denegado', 'sin_cupo', 429::smallint);
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format($q$select accesos_persona(%L)$q$, ana), 'Solo admin_org', 'Finanzas no ve Accesos');
+  perform pg_temp.debe_fallar($q$select * from accesos_lista()$q$, 'Solo admin_org', 'Ni la lista');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select accesos_persona(%L)$q$, ana), 'Solo admin_org', 'El comisionista tampoco, ni la suya');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform suspender_persona(ana, 'Revisión de uso');
+  perform reactivar_persona(ana, 'Todo en orden');
+  perform pg_temp.sistema();
+  insert into auth.sessions (user_id, user_agent, ip) values (uana, 'Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile', '189.203.45.67');
+  perform pg_temp.como('xchel@arqosuv.com');
+  a := accesos_persona(ana);
+  perform pg_temp.igual(a->>'rol', 'comisionista', 'Accesos: rol');
+  perform pg_temp.igual(a->'sesiones'->0->>'ip', '189.203.x.x', 'La IP sale recortada');
+  perform pg_temp.igual(a::text like '%45.67%', false, 'La IP completa nunca sale de la base');
+  perform pg_temp.igual(a->>'ultimo_acceso' is not null, true, 'Último acceso');
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(a->'eventos') e where e->>'codigo' = 'sin_cupo'), 1::bigint, 'Historial: la denegación');
+  perform pg_temp.igual((select string_agg(b->>'motivo', ' / ' order by b->>'creado_en') from jsonb_array_elements(a->'bitacora') b
+                          where b->>'tabla' = 'membresias' and b->>'motivo' is not null) like '%Suspendida: Revisión de uso / Reactivada: Todo en orden',
+    true, 'Historial: suspensión y reactivación con motivo, en orden');
+  perform pg_temp.igual(a->'cupos' ? 'mapa_catastral', true, 'Cupos del mes');
+  perform pg_temp.igual((select count(*) from accesos_lista() where persona_id = ana and sesiones = 1), 1::bigint, 'Lista con sus sesiones abiertas');
+
+  -- Conservación: 12 meses.
+  perform pg_temp.sistema();
+  insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, resultado, creado_en)
+  values (xg, ana, 'acceso', 'acceso', 'ok', now() - interval '13 months'), (xg, ana, 'acceso', 'acceso', 'ok', now() - interval '11 months');
+  insert into catastro_fallas (organizacion_id, persona_id, servicio, ocurrida_en)
+  values (xg, ana, 'mapa', now() - interval '13 months'), (xg, ana, 'mapa', now() - interval '11 months');
+  perform limpiar_datos_tecnicos();
+  perform pg_temp.igual((select count(*) from eventos_uso where creado_en < now() - interval '12 months'), 0::bigint, 'Eventos de más de 12 meses: borrados');
+  perform pg_temp.igual((select count(*) from eventos_uso where creado_en between now() - interval '12 months' and now() - interval '10 months'), 1::bigint,
+    'Los de 11 meses se quedan');
+  perform pg_temp.igual((select count(*) from catastro_fallas where ocurrida_en < now() - interval '12 months'), 0::bigint, 'Fallas de más de 12 meses: borradas');
+  perform pg_temp.igual((select count(*) from catastro_fallas where ocurrida_en < now() - interval '10 months'), 1::bigint, 'Las de 11 meses se quedan');
+
+  delete from eventos_uso;
+  delete from catastro_fallas;
+  delete from auth.sessions where user_id = uana;
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
