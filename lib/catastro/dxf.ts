@@ -127,7 +127,8 @@ export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn }: Pr
   const fecha = new Date(consultadoEn).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Mexico_City" });
   [
     `Clave catastral: ${clave}`,
-    `Superficie del polígono: ${miles(superficieUtm(pols))} m²`,
+    // Exacta con la geometría UTM de la fuente; "aprox." si se calculó desde los grados.
+    `Superficie del polígono${geometriaUtm ? "" : " (aprox.)"}: ${miles(superficieUtm(pols))} m²`,
     `Fecha de consulta: ${fecha}`,
     "Información sin validez oficial",
   ].forEach((t, i) => texto("TEXTOS", x0, y0 - 2.5 * h - i * 1.7 * h, t));

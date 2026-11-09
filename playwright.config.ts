@@ -13,8 +13,11 @@ try {
 export default defineConfig({
   testDir: "humo",
   timeout: 60_000,
+  // Sin reintentos de prueba completa: solo se reintenta una página por error de red de la PC (ver ir() en humo.spec.ts).
   retries: 0,
-  reporter: "list",
+  // Con npm run humo (scripts/humo.mjs): reporte y contexto de cada falla en humo/salidas/<fecha>/, que no se borra.
+  reporter: process.env.HUMO_SALIDA ? [["list"], ["json", { outputFile: `${process.env.HUMO_SALIDA}/reporte.json` }]] : "list",
+  outputDir: process.env.HUMO_SALIDA ? `${process.env.HUMO_SALIDA}/resultados` : "test-results",
   use: {
     baseURL: process.env.HUMO_URL ?? "https://tasa.xgplataform.com",
     viewport: { width: 390, height: 844 },

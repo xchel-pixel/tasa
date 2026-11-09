@@ -1,5 +1,6 @@
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import type { Campo } from "./limpiar";
+import { superficieDelPoligono } from "./geo";
 import type { Ficha } from "./servicio";
 
 /**
@@ -14,7 +15,7 @@ export const ETIQUETAS: Record<Campo, [string, Formato]> = {
   colonia: ["Colonia", "texto"],
   codigo_postal: ["Código postal", "texto"],
   ubicacion: ["Dirección", "texto"],
-  sup_terreno: ["Terreno", "m2"],
+  sup_terreno: ["Superficie de terreno (catastro)", "m2"],
   sup_construccion: ["Construcción total", "m2"],
   calle: ["Calle", "texto"],
   num_ext: ["Número exterior", "texto"],
@@ -62,7 +63,8 @@ export const ETIQUETAS: Record<Campo, [string, Formato]> = {
   rppc_folio_real: ["Folio real (Registro Público)", "texto"],
   rppc_tipo: ["Tipo (Registro Público)", "texto"],
   rppc_estatus: ["Estatus (Registro Público)", "texto"],
-  rppc_area_terreno: ["Terreno (Registro Público)", "m2"],
+  // Solo para el equipo: la base no se la manda a otros roles (0068).
+  rppc_area_terreno: ["Superficie (Registro Público)", "m2"],
   rppc_ubicacion: ["Ubicación (Registro Público)", "texto"],
   rppc_lote: ["Lote", "texto"],
   rppc_nom_col_bar_otro: ["Colonia o barrio (Registro Público)", "texto"],
@@ -72,7 +74,8 @@ export const ETIQUETAS: Record<Campo, [string, Formato]> = {
   capa_no_oficial: ["Número oficial", "texto"],
   capa_localidad: ["Clave de localidad", "texto"],
   capa_curt: ["CURT", "texto"],
-  capa_area: ["Área del polígono (aprox.)", "m2"],
+  // La que reporta la capa del mapa; en Superficies va la que Tasa calcula del polígono.
+  capa_area: ["Área del polígono (capa)", "m2"],
   capa_perimetro: ["Perímetro del polígono (aprox.)", "texto"],
   capa_coor_x: ["Coordenada X", "texto"],
   capa_coor_y: ["Coordenada Y", "texto"],
@@ -141,8 +144,8 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
   { id: "identificacion", titulo: "Identificación", equipo: false, campos: [] },
   { id: "ubicacion", titulo: "Ubicación", equipo: false, campos: ["ubicacion"] },
   { id: "superficies", titulo: "Superficies", equipo: false,
-    campos: ["sup_terreno", "sup_construccion", "sup_terreno_privativa", "sup_terreno_comun", "sup_construccion_privativa",
-             "sup_construccion_comun", "indiviso", "capa_area"] },
+    campos: ["sup_terreno", "rppc_area_terreno", "sup_construccion", "sup_terreno_privativa", "sup_terreno_comun", "sup_construccion_privativa",
+             "sup_construccion_comun", "indiviso"] },
   { id: "valores", titulo: "Valores catastrales", equipo: false,
     campos: ["valor_terreno", "valor_construccion", "valor_catastral_total", "fecha_validez", "codigo_valor", "valor_terreno_privativo",
              "valor_terreno_comun", "valor_construccion_privativa", "valor_construccion_comun", "valor_terreno_anterior",
@@ -152,8 +155,8 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
     campos: ["folio_real", "uso", "clasificacion", "clave_anterior", "clave_estandar", "clave_original", "tipo_predio", "estatus",
              "regimen", "tipo_condominio", "nombre_condominio", "fecha_alta", "fecha_mantenimiento", "manzana", "localidad", "calle",
              "num_ext", "num_int", "colonia", "codigo_postal", "superficie", "tipos_construccion", "series_valor", "movimientos",
-             "rppc_folio_real", "rppc_tipo", "rppc_estatus", "rppc_area_terreno", "rppc_ubicacion", "rppc_lote", "rppc_nom_col_bar_otro",
-             "capa_folio", "capa_no_oficial", "capa_localidad", "capa_curt", "capa_perimetro", "capa_coor_x", "capa_coor_y",
+             "rppc_folio_real", "rppc_tipo", "rppc_estatus", "rppc_ubicacion", "rppc_lote", "rppc_nom_col_bar_otro",
+             "capa_folio", "capa_no_oficial", "capa_localidad", "capa_curt", "capa_area", "capa_perimetro", "capa_coor_x", "capa_coor_y",
              "cacoct", "vacopt", "vatrct", "vatrpt"] },
   { id: "propietario", titulo: "Propietario y operación", equipo: true, campos: [] },
   { id: "historial", titulo: "Historial de cambios", equipo: true, campos: [] },
@@ -219,6 +222,12 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
       for (const campo of s.campos) {
         const v = valorLegible(campo, c[campo]);
         if (v) filas.push([ETIQUETAS[campo][0], v]);
+      }
+      // La del polígono, después de la de catastro: exacta con la geometría UTM; "aprox." si salió de los grados.
+      const p = s.id === "superficies" ? superficieDelPoligono(f.geometria, f.geometria_utm) : null;
+      if (p && p.m2 > 0) {
+        const tras = filas.findIndex(([e]) => e === ETIQUETAS.sup_terreno[0]) + 1;
+        filas.splice(tras, 0, [p.aprox ? "Superficie del polígono (aprox.)" : "Superficie del polígono", `${n2(p.m2)} m²`]);
       }
     }
     if (filas.length || ajustes) salida.push({ id: s.id, titulo: s.titulo, equipo: s.equipo, filas, ...(s.id === "historial" ? { ajustes } : {}) });

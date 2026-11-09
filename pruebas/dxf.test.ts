@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { aLonLat, aUtm, utmAGeografica, type Geometria, type Punto } from "@/lib/catastro/geo";
+import { aLonLat, aUtm, superficieDelPoligono, utmAGeografica, type Geometria, type Punto } from "@/lib/catastro/geo";
 import { anillosDe, anillosUtm, bytesDxf, dxfDePredio, superficieUtm } from "@/lib/catastro/dxf";
 import { seccionesDeFicha } from "@/lib/catastro/etiquetas";
 import type { Ficha } from "@/lib/catastro/servicio";
@@ -99,7 +99,8 @@ describe("DXF del predio", () => {
     const t = textos("TEXTOS");
     expect(t[0]).toBe("Clave catastral: 149999990000001");
     // La del polígono guardado (≈ 600 m² del rectángulo original, con el margen del guardado).
-    expect(t[1]).toBe(`Superficie del polígono: ${superficieUtm(anillosUtm(POLIGONO)).toFixed(2)} m²`);
+    // Sin geometría UTM (predio guardado antes): calculada desde grados, con "aprox.".
+    expect(t[1]).toBe(`Superficie del polígono (aprox.): ${superficieUtm(anillosUtm(POLIGONO)).toFixed(2)} m²`);
     expect(Math.abs(superficieUtm(anillosUtm(POLIGONO)) / 600 - 1)).toBeLessThan(0.005);
     expect(t[2]).toBe("Fecha de consulta: 09/11/2026");
     expect(t[3]).toBe("Información sin validez oficial");
@@ -193,5 +194,35 @@ describe("Kardex: ajustes de lector (0067)", () => {
     const s = seccionesDeFicha(solo).find((x) => x.id === "historial")!;
     expect(s.filas).toEqual([]);
     expect(s.ajustes).toBe(1);
+  });
+});
+
+describe("Superficies en la ficha", () => {
+  const UTM: Geometria = { type: "Polygon", coordinates: [[[352000.137, 2280000.482], [352020.137, 2280000.482], [352020.137, 2280030.482],
+    [352000.137, 2280030.482], [352000.137, 2280000.482]]] };
+  const base = { clave: "140100000000091", municipio: "14", latitud: null, longitud: null, consultado_en: "2026-11-09T18:00:00Z",
+    expediente: "completo", campos: { sup_terreno: 159.04, sup_construccion: 120, rppc_area_terreno: 160 } };
+  const sup = (f: object) => seccionesDeFicha(f as Ficha).find((s) => s.id === "superficies")!.filas;
+
+  test("con geometría UTM: catastro, polígono exacto (sin aprox.) y Registro Público, en ese orden", () => {
+    expect(sup({ ...base, geometria: utmAGeografica(UTM), geometria_utm: UTM })).toEqual([
+      ["Superficie de terreno (catastro)", "159.04 m²"], ["Superficie del polígono", "600.00 m²"],
+      ["Superficie (Registro Público)", "160.00 m²"], ["Construcción total", "120.00 m²"]]);
+  });
+  test("sin geometría UTM: el polígono dice aprox.", () => {
+    const filas = sup({ ...base, geometria: utmAGeografica(UTM), geometria_utm: null });
+    expect(filas[1][0]).toBe("Superficie del polígono (aprox.)");
+    expect(Math.abs(Number(filas[1][1].replace(" m²", "").replaceAll(",", "")) - 600)).toBeLessThan(0.01);
+  });
+  test("sin polígono no hay superficie del polígono; sin Registro Público (otro rol) no sale", () => {
+    const filas = sup({ ...base, campos: { sup_terreno: 159.04 }, geometria: null });
+    expect(filas).toEqual([["Superficie de terreno (catastro)", "159.04 m²"]]);
+  });
+  test("superficieDelPoligono: exacta desde UTM, aprox. desde grados", () => {
+    const exacta = superficieDelPoligono(utmAGeografica(UTM), UTM)!;
+    expect(exacta.aprox).toBe(false);
+    expect(Math.abs(exacta.m2 - 600)).toBeLessThan(1e-6);
+    expect(superficieDelPoligono(utmAGeografica(UTM), null)!.aprox).toBe(true);
+    expect(superficieDelPoligono(null, null)).toBeNull();
   });
 });

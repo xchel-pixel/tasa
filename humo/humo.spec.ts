@@ -272,7 +272,42 @@ test.afterAll(async () => {
   for (const token of SESIONES_ABIERTAS.splice(0)) await admin.auth.admin.signOut(token, "local");
 });
 
+/** Un PNG transparente de 1×1: lo que reciben los mosaicos del mapa en humo. */
+const PNG_VACIO = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+
+/**
+ * Humo no depende de servicios de fuera: los mosaicos de la capa de predios (que nuestra ruta pide en vivo a la
+ * fuente) y los del satélite se contestan con un PNG vacío. Lo que se prueba es Tasa. La fuente se revisa aparte,
+ * cuando se pide, con `npm run humo:fuente`. Las pruebas que llaman la ruta de mosaicos directo (pagina.request)
+ * no pasan por aquí y siguen viendo la respuesta real de Tasa (p. ej. el 403 del comisionista).
+ */
+async function sinMosaicos(contexto: BrowserContext) {
+  const vacio = { status: 200, contentType: "image/png", body: PNG_VACIO };
+  await contexto.route("**/mapa-catastral/predios/**", (r) => r.fulfill(vacio));
+  await contexto.route("https://api.mapbox.com/**", (r) => r.fulfill(vacio));
+}
+
+/**
+ * Abre una página sin esperar imágenes (hasta que llega el HTML), con límite explícito. Si falla por la red de la
+ * PC (net::ERR_NETWORK_*: Windows suspendió la red, cambió de red…), se reintenta UNA vez y queda anotado en el
+ * reporte. Cualquier otra falla (de Tasa) no se reintenta.
+ */
+async function ir(pagina: Page, ruta: string) {
+  const abrir = () => pagina.goto(ruta, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  try {
+    return await abrir();
+  } catch (e) {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    if (!mensaje.includes("net::ERR_NETWORK_")) throw e;
+    const codigo = mensaje.slice(mensaje.indexOf("net::ERR_NETWORK_")).split(" ")[0];
+    test.info().annotations.push({ type: "reintento por red", description: `${ruta}: ${codigo}` });
+    await pagina.waitForTimeout(3000);
+    return await abrir();
+  }
+}
+
 async function entrar(contexto: BrowserContext, correo: string, sitio: string): Promise<SupabaseClient> {
+  await sinMosaicos(contexto);
   const liga = await generarCodigo(correo);
 
   const anon = createClient(URL_SUPABASE, ANON, { auth: { persistSession: false } });
@@ -314,7 +349,7 @@ async function organizacionActiva(correo: string): Promise<string | null> {
 
 /** Abre una ruta y devuelve el problema, o nulo si se comportó como se esperaba. */
 async function revisar(pagina: Page, ruta: string, espera: Espera): Promise<string | null> {
-  const r = await pagina.goto(ruta);
+  const r = await ir(pagina, ruta);
   const status = r?.status() ?? 0;
   if (status >= 400) return `${ruta}: respondió ${status}`;
   const donde = new URL(pagina.url()).pathname;
@@ -388,7 +423,7 @@ for (const q of QUIENES) {
     try {
       const pagina = await contexto.newPage();
       if (q.rol === "admin_org" || q.rol === "finanzas") {
-        await pagina.goto("/admin/altas?ver=todas");
+        await ir(pagina, "/admin/altas?ver=todas");
         const ligas = pagina.locator('main a[href^="/admin/altas/"]:not([href="/admin/altas/nueva"])');
         datos.alta = (await ligas.count()) > 0 ? ((await ligas.first().getAttribute("href"))?.split("/").pop() ?? null) : null;
       }
@@ -463,7 +498,7 @@ test("humo: mapa catastral → calculadora con los datos del predio", async ({ b
       return;
     }
     const pagina = await contexto.newPage();
-    await pagina.goto(`/mapa-catastral?clave=${predio.clave}`);
+    await ir(pagina, `/mapa-catastral?clave=${predio.clave}`);
     // El botón de la ficha (el menú de arriba también dice "Calculadora de traslado", sin datos).
     const liga = pagina.locator("main article").getByRole("link", { name: "Calculadora de traslado" });
     await expect(liga).toBeVisible({ timeout: 45_000 });
@@ -508,7 +543,7 @@ test("humo: DEMO comisionista en el Mapa catastral", async ({ browser, baseURL }
     const mosaicosPedidos: string[] = [];
     pagina.on("request", (r) => { if (r.url().includes("/mapa-catastral/predios/")) mosaicosPedidos.push(r.url()); });
 
-    await pagina.goto("/mapa-catastral?clave=149999990000002");
+    await ir(pagina, "/mapa-catastral?clave=149999990000002");
     expect(new URL(pagina.url()).pathname, "abre la pantalla").toBe("/mapa-catastral");
     await expect(pagina.getByRole("heading", { name: "Clave 149999990000002" })).toBeVisible({ timeout: 45_000 });
     // Al nivel de calle (la ficha centra el predio): ahí el equipo pediría las líneas.

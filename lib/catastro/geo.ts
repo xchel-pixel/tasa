@@ -150,6 +150,19 @@ export function puntoInterior(g: Geometria): Punto {
   return [ox + p[0], oy + p[1]];
 }
 
+/**
+ * Superficie del polígono en m²: cada parte, menos sus huecos. Con la geometría UTM de la fuente (0066) es exacta;
+ * sin ella (predios guardados antes) se calcula desde los grados y es aproximada (`aprox`).
+ */
+export function superficieDelPoligono(g: Geometria | null | undefined, utm?: Geometria | null): { m2: number; aprox: boolean } | null {
+  const base = utm ?? g;
+  if (!base) return null;
+  const pols = base.type === "Polygon" ? [base.coordinates] : base.coordinates;
+  const enMetros = utm ? pols : pols.map((pol) => pol.map((anillo) => anillo.map(([lon, lat]) => aUtm(lat, lon))));
+  const m2 = enMetros.reduce((t, pol) => t + pol.reduce((s, anillo, i) => s + Math.abs(areaAnillo(anillo)) * (i === 0 ? 1 : -1), 0), 0);
+  return { m2, aprox: !utm };
+}
+
 /** [latMin, latMax, lonMin, lonMax] de una geometría en longitud/latitud. */
 export function caja(g: Geometria): [number, number, number, number] {
   let lat0 = Infinity, lat1 = -Infinity, lon0 = Infinity, lon1 = -Infinity;

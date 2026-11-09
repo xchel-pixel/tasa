@@ -4487,6 +4487,36 @@ begin
 end;
 $$;
 
+-- @@ Superficie del Registro Público solo para el equipo
+-- 0068: aunque la configuración la abra para el comisionista, la base no le manda rppc_area_terreno; al equipo sí.
+do $$
+declare
+  xg  uuid := pg_temp.xg();
+  geo jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.5928]]]}';
+begin
+  perform pg_temp.sistema();
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  insert into catastro_predios (clave, municipio, geometria, sup_terreno, extra)
+  values ('140100000000095', '14', geo, 159.04, '{"rppc_area_terreno":160}');
+  update catastro_campos_visibles set en_pantalla = true, en_pdf = true
+   where organizacion_id = xg and campo = 'rppc_area_terreno' and rol in ('comisionista', 'finanzas');
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((catastro_ficha('140100000000095')->'campos') ? 'rppc_area_terreno', false,
+    'El comisionista no recibe la superficie del Registro Público aunque se abra por error');
+  perform pg_temp.igual((catastro_ficha('140100000000095')->'campos'->>'sup_terreno')::numeric, 159.04, 'La de catastro sí');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((catastro_ficha('140100000000095')->'campos'->>'rppc_area_terreno')::numeric, 160::numeric, 'El equipo sí la recibe');
+
+  perform pg_temp.sistema();
+  update catastro_campos_visibles set en_pantalla = (campo = any (catastro_campos_basicos())), en_pdf = (campo = any (catastro_campos_basicos()))
+   where organizacion_id = xg and campo = 'rppc_area_terreno' and rol = 'comisionista';
+  delete from catastro_predios where clave = '140100000000095';
+  update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

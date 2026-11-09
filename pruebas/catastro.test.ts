@@ -346,7 +346,7 @@ describe("Punto del predio, secciones y prellenado", () => {
     const s = seccionesDeFicha(f);
     expect(s.map((x) => x.id)).toEqual(["identificacion", "ubicacion", "superficies", "valores"]);
     expect(s[0].filas).toEqual([["Clave catastral", "060100113059119"], ["Municipio", "Corregidora"]]);
-    expect(s[2].filas.map(([e]) => e)).toEqual(["Terreno", "Construcción total", "Terreno privativo", "Indiviso"]);
+    expect(s[2].filas.map(([e]) => e)).toEqual(["Superficie de terreno (catastro)", "Construcción total", "Terreno privativo", "Indiviso"]);
     expect(s[3].filas).toEqual([["Terreno", "$300,000.00"], ["Construcción", "$900,000.00"], ["Total", "$1,200,000.00"]]);
   });
 

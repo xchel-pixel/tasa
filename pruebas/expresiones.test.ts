@@ -14,7 +14,7 @@ import { describe, expect, test } from "vitest";
  */
 
 const raiz = join(import.meta.dirname, "..");
-const CARPETAS = ["app", "components", "lib", "pruebas", "scripts", "humo"];
+const CARPETAS = ["app", "components", "lib", "pruebas", "scripts", "humo", "humo-fuente"];
 const CARPETAS_SQL = ["supabase/migrations", "supabase/produccion"];
 const SQL_SUELTOS = ["supabase/verificaciones.sql", "supabase/seed.sql"];
 

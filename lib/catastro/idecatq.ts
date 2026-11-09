@@ -8,7 +8,7 @@ import { datosDeCapa, type Datos } from "./limpiar";
  */
 
 const BASE = "https://catastroedo.queretaro.gob.mx";
-const LIMITE_MS = 12_000;
+export const LIMITE_MS = 12_000;
 const CAPAS = Array.from({ length: 18 }, (_, i) => `queretaro:M${String(i + 1).padStart(2, "0")}_PA`).join(",");
 
 export type PredioDeCapa = {
@@ -29,12 +29,31 @@ function falla(servicio: string, e: unknown) {
   console.warn(`IDECATQ ${servicio}: ${e instanceof Error ? e.name : "error"}`);
 }
 
+/** La dirección del GetFeatureInfo a las 18 capas en un punto (también la usa humo:fuente). */
+export function urlMapa(lat: number, lon: number): string {
+  const [x, y] = aUtm(lat, lon);
+  const bbox = [x - 5, y - 5, x + 5, y + 5].map((v) => v.toFixed(2)).join(",");
+  return `${BASE}/geoserver/queretaro/wms?service=WMS&version=1.1.1&request=GetFeatureInfo&layers=${CAPAS}&query_layers=${CAPAS}`
+    + `&srs=EPSG:32614&bbox=${bbox}&width=101&height=101&x=50&y=50&info_format=application/json&feature_count=5`;
+}
+
+/** El pedido de BuscaDatos de una clave (también lo usa humo:fuente). */
+export function pedidoExpediente(clave: string): { url: string; init: RequestInit } {
+  return {
+    url: `${BASE}/Qsig/BuscaDatos`,
+    init: {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+      body: new URLSearchParams({ cve: clave, op: "1" }),
+    },
+  };
+}
+
 /** GetFeatureInfo a las 18 capas de predios en un punto. Un solo viaje. */
 export async function consultarMapa(lat: number, lon: number): Promise<RespuestaMapa> {
   const [x, y] = aUtm(lat, lon);
-  const bbox = [x - 5, y - 5, x + 5, y + 5].map((v) => v.toFixed(2)).join(",");
-  const url = `${BASE}/geoserver/queretaro/wms?service=WMS&version=1.1.1&request=GetFeatureInfo&layers=${CAPAS}&query_layers=${CAPAS}`
-    + `&srs=EPSG:32614&bbox=${bbox}&width=101&height=101&x=50&y=50&info_format=application/json&feature_count=5`;
+  const url = urlMapa(lat, lon);
   try {
     const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(LIMITE_MS) });
     if (!r.ok) throw new Error(`HTTP${r.status}`);
@@ -67,13 +86,8 @@ export async function consultarMapa(lat: number, lon: number): Promise<Respuesta
 /** BuscaDatos: el expediente completo de una clave. Falla si no trae el predio. */
 export async function consultarExpediente(clave: string): Promise<RespuestaExpediente> {
   try {
-    const r = await fetch(`${BASE}/Qsig/BuscaDatos`, {
-      method: "POST",
-      cache: "no-store",
-      signal: AbortSignal.timeout(LIMITE_MS),
-      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-      body: new URLSearchParams({ cve: clave, op: "1" }),
-    });
+    const { url, init } = pedidoExpediente(clave);
+    const r = await fetch(url, { ...init, signal: AbortSignal.timeout(LIMITE_MS) });
     if (!r.ok) throw new Error(`HTTP${r.status}`);
     const json: unknown = await r.json();
     const predio = (json as { predio?: { claveCatastral?: unknown } } | null)?.predio;

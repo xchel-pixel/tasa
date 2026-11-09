@@ -6,6 +6,6 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL(".", import.meta.url)) },
   },
-  // humo/ es Playwright contra producción (npm run humo), no vitest.
-  test: { exclude: [...configDefaults.exclude, "humo/**"] },
+  // humo/ y humo-fuente/ son Playwright (npm run humo, npm run humo:fuente), no vitest.
+  test: { exclude: [...configDefaults.exclude, "humo/**", "humo-fuente/**"] },
 });
