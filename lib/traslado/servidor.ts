@@ -41,6 +41,13 @@ export async function calcularYGuardar(entrada: Caso, modo: Modo): Promise<{ id:
     p_resultado: resultado,
   });
   if (e2) throw new Error(e2.message);
+  // Sin el modo o sin cupo, la base registra la denegación y devuelve nulo (0070).
+  if (!id) {
+    const { data: cupo } = await supabase.rpc("mi_cupo", { p_herramienta: modo === "completa" ? "calculadora_traslado_completa" : "calculadora_traslado" })
+      .maybeSingle<{ disponibles: number | null }>();
+    throw new Error(cupo?.disponibles === 0 ? "Llegaste a tu límite del mes. Sube de nivel o pide más cálculos."
+      : "Ese modo de la calculadora no está disponible para ti.");
+  }
   return { id: id as string, resultado };
 }
 

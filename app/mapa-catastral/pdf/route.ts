@@ -17,7 +17,10 @@ export async function GET(request: NextRequest) {
   if (!clave) return mensaje("La clave catastral no es válida.", 400);
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("catastro_pdf", { p_clave: clave });
-  if (error) return mensaje(error.message, 403);
+  if (error) return mensaje(error.message, 400);
+  // Al negar, la base registra la denegación y devuelve el motivo y el estado (0070).
+  const negado = data as { error?: string; estado?: number } | null;
+  if (negado?.error) return mensaje(negado.error, negado.estado ?? 403);
   const bytes = await pdfPredio(conPunto(data as Ficha), await fuentesDe("manrope"));
   return new NextResponse(Buffer.from(bytes), {
     headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="Ficha_predio_${clave}.pdf"`, "Cache-Control": "private, no-store" },

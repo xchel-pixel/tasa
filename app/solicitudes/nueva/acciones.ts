@@ -58,5 +58,11 @@ export async function crearSolicitud(
     if (e2) console.error(`[tasa] No se pudo ligar el cálculo a la solicitud: ${e2.message}`);
   }
 
+  // Desde "Cotizar avalúo" del Mapa catastral: la solicitud queda marcada y ligada a la consulta de origen (0070).
+  if (texto(formData, "desde") === "mapa" && datos.inmueble_clave_catastral) {
+    const { error: e3 } = await supabase.rpc("ligar_solicitud_al_mapa", { p_solicitud: data.id, p_clave: datos.inmueble_clave_catastral });
+    if (e3) console.error(`[tasa] No se pudo ligar la solicitud al mapa: ${e3.message}`);
+  }
+
   redirect(`/trabajos/${data.id}`);
 }

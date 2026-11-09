@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { recordarAcceso, olvidarAcceso } from "@/lib/acceso";
 import { obtenerContacto } from "@/lib/contacto";
+import { resumenNavegador } from "@/lib/navegador";
 
 export type EstadoAcceso = {
   paso: "correo" | "codigo";
@@ -194,6 +196,9 @@ async function verificarCodigo(formData: FormData): Promise<EstadoAcceso> {
   }
 
   await olvidarAcceso();
+  // El acceso queda registrado (0070): fecha y un resumen del navegador; sin IP.
+  await supabase.rpc("vincular_mi_usuario");
+  await supabase.rpc("registrar_acceso", { p_navegador: resumenNavegador((await headers()).get("user-agent") ?? "") });
 
   // redirect() lanza para cortar la ejecución: va fuera de cualquier try.
   redirect("/");

@@ -282,7 +282,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
               </div>
             ) : null}
             {puedeCotizar ? (
-              <Link href={`/solicitudes/nueva?${new URLSearchParams({ clave: ficha.clave, municipio: municipio ?? "", direccion: ubicacionTexto, nota: descripcionSolicitud })}`} className={BOTON}>
+              <Link href={`/solicitudes/nueva?${new URLSearchParams({ clave: ficha.clave, municipio: municipio ?? "", direccion: ubicacionTexto, nota: descripcionSolicitud, desde: "mapa" })}`} className={BOTON}>
                 Cotizar avalúo
               </Link>
             ) : null}

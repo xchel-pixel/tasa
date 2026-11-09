@@ -28,5 +28,7 @@ export function inicialSolicitudDelMapa(q: Parametros) {
     clave,
     descripcion: (q.nota ?? "").slice(0, 800),
     direccion: (q.direccion ?? "").slice(0, 300),
+    // Vino del botón "Cotizar avalúo" de la ficha: la solicitud se liga a la consulta (0070).
+    desde: q.desde === "mapa" ? ("mapa" as const) : undefined,
   };
 }

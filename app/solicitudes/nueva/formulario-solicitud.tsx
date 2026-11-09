@@ -7,7 +7,7 @@ import { crearSolicitud, type EstadoSolicitud } from "./acciones";
 const ENTRADA =
   "mt-2 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
-export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string; calculo?: string; direccion?: string };
+export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string; calculo?: string; direccion?: string; desde?: "mapa" };
 
 /** `inicial`: lo que trae la liga de la calculadora de traslado (servicio, municipio, clave y notas). */
 export default function FormularioSolicitud({ servicios, inicial = {} }: { servicios: { id: string; nombre: string }[]; inicial?: InicialSolicitud }) {
@@ -16,6 +16,7 @@ export default function FormularioSolicitud({ servicios, inicial = {} }: { servi
   return (
     <form action={enviar} className="mt-6 flex flex-col gap-6">
       {inicial.calculo ? <input type="hidden" name="calculo_traslado_id" value={inicial.calculo} /> : null}
+      {inicial.desde ? <input type="hidden" name="desde" value={inicial.desde} /> : null}
       <fieldset>
         <legend className="font-semibold">Qué necesitas</legend>
         <div className="mt-2 flex flex-col gap-2">

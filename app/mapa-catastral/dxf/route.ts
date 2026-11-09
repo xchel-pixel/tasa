@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
   if (!clave) return mensaje("La clave catastral no es válida.", 400);
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("catastro_dxf", { p_clave: clave });
-  if (error) {
-    const status = error.code === "TA403" ? 403 : error.code === "TA429" ? 429 : error.code === "TA404" ? 404 : 400;
-    return mensaje(error.message, status);
-  }
+  if (error) return mensaje(error.message, 400);
+  // Al negar, la base registra la denegación y devuelve el motivo y el estado (0070): 403, 429 o 404.
+  const negado = data as { error?: string; estado?: number } | null;
+  if (negado?.error) return mensaje(negado.error, negado.estado ?? 403);
   const d = data as { clave: string; geometria: unknown; geometria_utm: unknown; consultado_en: string };
   const geometria = geometriaValida(d.geometria);
   if (!geometria) return mensaje("Ese predio no tiene polígono guardado.", 404);

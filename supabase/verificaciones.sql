@@ -3651,7 +3651,7 @@ begin
   perform pg_temp.igual(jsonb_array_length(p -> 'avisos'), 1, 'Avisa que el INPC del mes anterior aún no está (se usa el último)');
   perform pg_temp.igual((parametros_traslado('2027-03-10') -> 'avisos') ->> 0, 'Tarifas de 2026; las de 2027 aún no se cargan.', 'Fecha de un año sin tarifas: aviso');
   c := guardar_calculo_traslado('rapida', '  Casa Juriquilla  ', 'Querétaro', 'C', '{"x": 1}', '{"totC": 100}');
-  perform pg_temp.debe_fallar($q$select guardar_calculo_traslado('completa', null, 'Querétaro', 'V', '{}', '{}')$q$, 'no está disponible', 'La completa, solo con su nivel');
+  perform pg_temp.igual(guardar_calculo_traslado('completa', null, 'Querétaro', 'V', '{}', '{}'), null::uuid, 'La completa, solo con su nivel');
   perform pg_temp.igual((select referencia from calculos_traslado where id = c), 'Casa Juriquilla', 'Mis cálculos guarda la referencia limpia');
 
   -- Encargar el avalúo desde el cálculo: la solicitud queda ligada (las dos tienen que ser suyas).
@@ -3726,7 +3726,7 @@ begin
   calc := guardar_calculo_traslado('rapida', null, 'Querétaro', 'C', '{}', '{}');
   perform guardar_calculo_traslado('rapida', null, 'Querétaro', 'C', '{}', '{}');
   perform pg_temp.igual((select disponibles from mi_cupo('calculadora_traslado')), 0, 'Usó los dos');
-  perform pg_temp.debe_fallar($q$select guardar_calculo_traslado('rapida', null, 'Querétaro', 'C', '{}', '{}')$q$, 'Llegaste a tu límite del mes', 'Al límite no deja calcular');
+  perform pg_temp.igual(guardar_calculo_traslado('rapida', null, 'Querétaro', 'C', '{}', '{}'), null::uuid, 'Al límite no deja calcular');
   perform pg_temp.igual((select disponibles from mi_cupo('calculadora_traslado_completa')) > 0, true, 'La Completa lleva su propio cupo');
   perform pg_temp.debe_fallar($q$select liberar_cupo(mi_persona_id(), 'calculadora_traslado', 5, 'yo mismo')$q$, 'Solo admin_org', 'El comisionista no se libera solo');
 
@@ -4086,8 +4086,8 @@ begin
   perform pg_temp.igual((f->'campos') ? 'colonia', true, 'El PDF sigue la columna PDF de la configuración');
   perform catastro_pdf('140100000000001');
   perform pg_temp.igual((select usados from mi_cupo('mapa_catastral_pdf')), 1, 'Bajar otra vez el PDF del mismo predio en el mes no cuenta');
-  perform pg_temp.debe_fallar($q$select catastro_pdf('140100000000003')$q$, 'límite de PDF', 'Con el cupo de PDF agotado no baja otro');
-  perform pg_temp.debe_fallar($q$select catastro_pdf('140100000000099')$q$, 'no está guardado', 'Sin predio guardado no hay PDF (no consulta la fuente)');
+  perform pg_temp.igual(catastro_pdf('140100000000003')->>'estado', '429', 'Con el cupo de PDF agotado no baja otro');
+  perform pg_temp.igual(catastro_pdf('140100000000099')->>'estado', '404', 'Sin predio guardado no hay PDF (no consulta la fuente)');
   perform pg_temp.sistema();
   update catastro_campos_visibles set en_pdf = (campo = any (catastro_campos_basicos())) and campo <> 'ubicacion'
    where organizacion_id = xg and rol = 'comisionista';
@@ -4285,16 +4285,16 @@ begin
   -- Nadie por omisión.
   perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.igual(mi_dxf()->>'autorizado', 'false', 'Sin autorización, el comisionista no tiene DXF');
-  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000071')$q$, 'no está disponible', 'No autorizado: rechazado (403)');
+  perform pg_temp.igual(catastro_dxf('140100000000071')->>'estado', '403', 'No autorizado: rechazado (403)');
   perform pg_temp.como('xchel+equipo-mos@arqosuv.com');
-  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000071')$q$, 'no está disponible', 'Equipo tampoco por omisión');
+  perform pg_temp.igual(catastro_dxf('140100000000071')->>'estado', '403', 'Equipo tampoco por omisión');
   -- admin_org: siempre, sin límite, y queda en el registro.
   perform pg_temp.como('xchel@arqosuv.com');
   perform pg_temp.igual(mi_dxf()->>'sin_limite', 'true', 'admin_org: sin límite');
   d := catastro_dxf('140100000000071');
   perform pg_temp.igual(d->'geometria', geo, 'Regresa el polígono guardado');
   perform pg_temp.igual(d::text like '%Propietaria%' or d ? 'campos' or d ? 'privados', false, 'Nada de propietario ni de la ficha en el DXF');
-  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000099')$q$, 'no está guardado', 'Solo predios guardados (no consulta la fuente)');
+  perform pg_temp.igual(catastro_dxf('140100000000099')->>'estado', '404', 'Solo predios guardados (no consulta la fuente)');
 
   -- Solo admin_org autoriza.
   perform pg_temp.como('gaby@tasa.test');
@@ -4311,7 +4311,7 @@ begin
   perform pg_temp.debe_fallar($q$select pedir_mas_dxf()$q$, 'Todavía', 'Con saldo no pide más');
   perform pg_temp.igual((catastro_dxf('140100000000071')->>'saldo')::integer, 0, 'La descarga resta 1');
   perform pg_temp.igual((catastro_dxf('140100000000071')->>'saldo')::integer, 0, 'El mismo predio otra vez no resta');
-  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000072')$q$, 'Ya no te quedan DXF', 'Con saldo 0, otro predio: rechazado (429)');
+  perform pg_temp.igual(catastro_dxf('140100000000072')->>'estado', '429', 'Con saldo 0, otro predio: rechazado (429)');
   perform pg_temp.igual((select veces || '/' || saldo_despues from dxf_descargas where persona_id = ana and clave = '140100000000071'), '2/0',
     'Registro de uso: veces y saldo restante');
   perform pg_temp.igual((select count(*) from dxf_descargas where persona_id = ana), 1::bigint, 'El rechazado no deja registro');
@@ -4337,7 +4337,7 @@ begin
   perform pg_temp.como('xchel@arqosuv.com');
   perform dxf_quitar(ana, 'Ya no lo necesita');
   perform pg_temp.como('xchel+ana@arqosuv.com');
-  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000071')$q$, 'no está disponible', 'Sin autorización ya no baja, ni lo ya bajado');
+  perform pg_temp.igual(catastro_dxf('140100000000071')->>'estado', '403', 'Sin autorización ya no baja, ni lo ya bajado');
   perform pg_temp.igual((select count(*) from dxf_movimientos), 0::bigint, 'El comisionista no ve la bitácora');
   perform pg_temp.igual((select count(*) from dxf_descargas), 2::bigint, 'Ve solo su historial');
 
@@ -4590,6 +4590,124 @@ begin
   perform pg_temp.como('xchel@arqosuv.com');
   perform cambiar_activo_comisionista(ana, true);
   perform pg_temp.sistema();
+end;
+$$;
+
+-- @@ Eventos de uso y origen de la solicitud
+-- 0070: cada consulta (fuente o guardado), PDF, DXF, cálculo, acceso y cada denegación queda en eventos_uso; la
+-- denegación la registra la misma función que niega. Nadie escribe directo; cada quien lee lo suyo y el staff, todo.
+-- La solicitud de "Cotizar avalúo" queda marcada como del mapa y ligada a su consulta; la de la calculadora, también.
+create function pg_temp.consulta_servidor(p_persona uuid, p_clave text, p_origen text, p_resultado text, p_ms integer) returns bigint
+language plpgsql as $f$
+declare
+  v bigint;
+begin
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('role', 'service_role', true);
+  v := catastro_registrar_consulta(pg_temp.xg(), p_persona, p_clave, p_origen, p_resultado, p_ms);
+  perform pg_temp.sistema();
+  return v;
+end;
+$f$;
+
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  nv   uuid;
+  geo  jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.5928]]]}';
+  ev   bigint;
+  s    uuid;
+  r    jsonb;
+begin
+  perform pg_temp.sistema();
+  delete from eventos_uso;
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  insert into catastro_predios (clave, municipio, geometria) values ('140100000000101', '14', geo), ('140100000000102', '14', geo);
+  nv := nivel_del_mes(xg, ana, mes_mx(now()));
+  update cupos_herramienta set cantidad = 0 where organizacion_id = xg and herramienta = 'mapa_catastral' and nivel_id = nv;
+  update cupos_herramienta set cantidad = 1 where organizacion_id = xg and herramienta = 'mapa_catastral_pdf' and nivel_id = nv;
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+
+  -- Mapa: sin cupo, la base niega Y registra (403/429 con su motivo).
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_pedir_consulta('140100000000101') like '%límite%', true, 'Sin cupo no va a la fuente');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select codigo || ':' || estado_http || ':' || clave from eventos_uso where persona_id = ana and evento = 'denegado'),
+    'sin_cupo:429:140100000000101', 'La denegación queda registrada con motivo, estado y clave');
+
+  -- Lo que resuelve el servidor: fuente (con duración) y guardado (reuso). Solo el servidor lo registra.
+  perform pg_temp.consulta_servidor(ana, '140100000000101', 'fuente', 'ok', 1234);
+  perform pg_temp.consulta_servidor(ana, '140100000000101', 'guardado', 'ok', null);
+  perform pg_temp.igual((select string_agg(origen || ':' || resultado || ':' || coalesce(duracion_ms::text, '-') || ':' || consumio, ',' order by id)
+                           from eventos_uso where persona_id = ana and evento = 'consulta'),
+    'fuente:ok:1234:true,guardado:ok:-:false', 'Consulta de la fuente con duración y reuso de lo guardado');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select catastro_registrar_consulta(pg_temp.xg(), %L, '140100000000101', 'fuente', 'ok', 1)$q$, ana),
+    'permission denied', 'Nadie con sesión inventa consultas');
+  perform pg_temp.debe_fallar($q$insert into eventos_uso (organizacion_id, herramienta, evento, resultado) values (pg_temp.xg(), 'acceso', 'acceso', 'ok')$q$,
+    'permission denied', 'Nadie escribe directo en eventos_uso');
+
+  -- PDF: el primero gasta cupo, el mismo otra vez no; sin cupo, 429 registrado.
+  r := catastro_pdf('140100000000101');
+  perform catastro_pdf('140100000000101');
+  perform pg_temp.igual(catastro_pdf('140100000000102')->>'estado', '429', 'PDF sin cupo: 429');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select string_agg(evento || ':' || consumio || ':' || coalesce(codigo, '-'), ',' order by id) from eventos_uso
+                           where persona_id = ana and herramienta = 'mapa_catastral_pdf'),
+    'pdf:true:-,pdf:false:-,denegado:false:sin_cupo', 'PDF: gasta la primera vez, no la segunda; la denegación queda');
+
+  -- DXF: no autorizada, 403 registrado.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_dxf('140100000000101')->>'estado', '403', 'DXF sin autorización: 403');
+  -- Calculadora: sin el modo, nulo y registrado.
+  perform pg_temp.igual(guardar_calculo_traslado('completa', null, 'Querétaro', 'V', '{}', '{}'), null::uuid, 'Calculadora completa sin el modo');
+  -- Mosaicos: el comisionista no; se registra una vez por hora, no cada mosaico.
+  perform catastro_permiso_mosaico();
+  perform catastro_permiso_mosaico();
+  -- Acceso: fecha y navegador, sin IP.
+  perform registrar_acceso('Chrome en Android');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select string_agg(herramienta || ':' || codigo || ':' || estado_http, ',' order by id) from eventos_uso
+                           where persona_id = ana and evento = 'denegado' and herramienta <> 'mapa_catastral' and herramienta <> 'mapa_catastral_pdf'),
+    'mapa_catastral_dxf:no_autorizado:403,calculadora_traslado_completa:sin_herramienta:403,mapa_catastral_mosaicos:rol:403',
+    'DXF, calculadora y mosaicos registran su denegación (mosaicos, una vez)');
+  perform pg_temp.igual((select referencia from eventos_uso where persona_id = ana and evento = 'acceso'), 'Chrome en Android', 'El acceso queda con su navegador');
+
+  -- Quién lee qué.
+  perform registrar_evento(xg, (select id from personas where correo = 'gaby@tasa.test'), 'acceso', 'acceso', null, null, 'ok');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from eventos_uso where persona_id is distinct from ana), 0::bigint, 'El comisionista solo ve lo suyo');
+  perform pg_temp.igual((select count(*) from eventos_uso) > 0, true, 'Y sí ve lo suyo (Mi uso)');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select count(*) from eventos_uso where persona_id = ana) > 0, true, 'Finanzas ve el uso de la organización');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar($q$select count(*) from eventos_uso$q$, 'permission denied', 'Sin sesión, nada');
+
+  -- Origen de la solicitud: "Cotizar avalúo" desde el mapa queda ligada a la última consulta de esa clave.
+  perform pg_temp.sistema();
+  ev := pg_temp.consulta_servidor(ana, '140100000000102', 'fuente', 'ok', 900);
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, inmueble_clave_catastral, cliente_nombre, creado_por)
+  values (ana, 'cotizacion', 'portal', (select id from servicios where organizacion_id = xg and activo order by orden limit 1),
+          'Calle del Mapa 1', '140100000000102', 'Cliente del mapa', ana)
+  returning id into s;
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select ligar_solicitud_al_mapa(%L, '140100000000102')$q$, s), 'no es tuya', 'Nadie liga una solicitud ajena');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform ligar_solicitud_al_mapa(s, '140100000000102');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select origen_herramienta || ':' || (evento_origen_id = ev) from solicitudes where id = s), 'mapa_catastral:true',
+    'La solicitud vino del mapa, ligada a su consulta');
+  perform pg_temp.igual((select count(*) from solicitudes where calculo_traslado_id is not null and origen_herramienta is distinct from 'calculadora_traslado'),
+    0::bigint, 'Las de la calculadora quedan marcadas como de la calculadora');
+
+  delete from solicitudes where id = s;
+  delete from catastro_predios where clave like '1401000000001%';
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+  update cupos_herramienta set cantidad = null where organizacion_id = xg and herramienta like 'mapa_catastral%' and nivel_id = nv;
+  update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
 end;
 $$;
 

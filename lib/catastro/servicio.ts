@@ -80,11 +80,22 @@ async function ficha(clave: string): Promise<Ficha | null> {
   return conPunto((data as Ficha | null) ?? null);
 }
 
-async function impedimento(): Promise<string | null> {
+/** ¿Puede ir a la fuente? Nulo = sí. Si no, el motivo; la base registra la denegación (0070). */
+async function impedimento(clave: string | null = null): Promise<string | null> {
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.rpc("catastro_impedimento");
+  const { data, error } = await supabase.rpc("catastro_pedir_consulta", { p_clave: clave });
   if (error) throw new Error(error.message);
   return (data as string | null) ?? null;
+}
+
+/** El registro de la consulta (0070): de la fuente o de lo guardado, con su resultado y duración. Nunca detiene la consulta. */
+async function anotar(quien: Quien, clave: string | null, origen: "fuente" | "guardado", resultado: "ok" | "pendiente" | "sin_predio" | "falla",
+  desde: number | null = null) {
+  const { error } = await servicio().rpc("catastro_registrar_consulta", {
+    p_org: quien.organizacion, p_persona: quien.persona, p_clave: clave, p_origen: origen, p_resultado: resultado,
+    p_duracion: desde === null ? null : Math.round(performance.now() - desde),
+  });
+  if (error) console.warn(`Registro de consulta: ${error.message}`);
 }
 
 async function registrarFalla(quien: Quien, tipo: "mapa" | "expediente") {
@@ -122,11 +133,12 @@ export const SIN_FUENTE = "No se pudo consultar la fuente externa en este moment
 const SIN_EXPEDIENTE = "No se pudo traer el expediente completo. Se muestra lo que da el mapa; puedes intentar más tarde con \"Actualizar información\".";
 
 /** Trae el expediente de una clave ya ubicada en el mapa y lo guarda. */
-async function traerYGuardar(quien: Quien, capa: PredioDeCapa & { clave: string }, modo: "consulta" | "actualizar"): Promise<Resultado> {
+async function traerYGuardar(quien: Quien, capa: PredioDeCapa & { clave: string }, modo: "consulta" | "actualizar", desde: number): Promise<Resultado> {
   const exp = await consultarExpediente(capa.clave);
   const limpio = exp.ok ? limpiarExpediente(exp.json) : null;
   if (!limpio) {
     await registrarFalla(quien, "expediente");
+    await anotar(quien, capa.clave, "fuente", "pendiente", desde);
     const err = await guardar(quien, { clave: capa.clave, geometria: capa.geometria, geometriaUtm: capa.geometriaUtm, datos: capa.datos, expediente: "pendiente", privados: null, modo });
     if (err) return { ok: false, error: err, geometria: capa.geometria };
     const f = await ficha(capa.clave);
@@ -135,6 +147,7 @@ async function traerYGuardar(quien: Quien, capa: PredioDeCapa & { clave: string 
   }
   const err = await guardar(quien, { clave: capa.clave, geometria: capa.geometria, geometriaUtm: capa.geometriaUtm, datos: { ...limpio.datos, ...capa.datos }, expediente: "completo",
     privados: limpio.privados, modo });
+  await anotar(quien, capa.clave, "fuente", err ? "falla" : "ok", desde);
   if (err) return { ok: false, error: err, geometria: capa.geometria };
   const f = await ficha(capa.clave);
   return f ? { ok: true, ficha: f, aviso: null } : { ok: false, error: "No se pudo leer la ficha." };
@@ -149,24 +162,36 @@ export async function consultarPunto(quien: Quien, lat: number, lon: number): Pr
   const encontrado = ((candidatos ?? []) as { clave: string; geometria: unknown }[])
     .find((c) => { const g = geometriaValida(c.geometria); return g && contiene(g, [lon, lat]); });
   const previa = encontrado ? await ficha(encontrado.clave) : null;
-  if (previa && vigente(previa)) return { ok: true, ficha: previa, aviso: null };
+  if (previa && vigente(previa)) {
+    await anotar(quien, previa.clave, "guardado", "ok");
+    return { ok: true, ficha: previa, aviso: null };
+  }
 
-  const impide = await impedimento();
-  if (impide) return previa ? guardado(previa, impide) : { ok: false, error: impide };
+  const impide = await impedimento(previa?.clave ?? null);
+  if (impide) {
+    if (previa) await anotar(quien, previa.clave, "guardado", "ok");
+    return previa ? guardado(previa, impide) : { ok: false, error: impide };
+  }
 
+  const desde = performance.now();
   const mapa = await consultarMapa(lat, lon);
   if (!mapa.ok) {
     await registrarFalla(quien, "mapa");
+    await anotar(quien, previa?.clave ?? null, "fuente", "falla", desde);
     return previa ? guardado(previa, SIN_FUENTE) : { ok: false, error: `${SIN_FUENTE} Intenta en unos minutos.` };
   }
-  if (!mapa.predio) return { ok: false, error: "Ahí no hay un predio en el catastro." };
-  if (!mapa.predio.clave) {
+  if (!mapa.predio || !mapa.predio.clave) {
+    await anotar(quien, null, "fuente", "sin_predio", desde);
+    if (!mapa.predio) return { ok: false, error: "Ahí no hay un predio en el catastro." };
     return { ok: false, error: "Ese polígono no tiene clave catastral (puede ser una vialidad, plaza o área común).", geometria: mapa.predio.geometria };
   }
   // Puede estar guardado aunque su caja no se hallara (p. ej. guardado sin polígono).
   const porClave = previa?.clave === mapa.predio.clave ? previa : await ficha(mapa.predio.clave);
-  if (porClave && vigente(porClave) && porClave.geometria) return { ok: true, ficha: porClave, aviso: null };
-  return traerYGuardar(quien, { ...mapa.predio, clave: mapa.predio.clave }, "consulta");
+  if (porClave && vigente(porClave) && porClave.geometria) {
+    await anotar(quien, porClave.clave, "guardado", "ok", desde);
+    return { ok: true, ficha: porClave, aviso: null };
+  }
+  return traerYGuardar(quien, { ...mapa.predio, clave: mapa.predio.clave }, "consulta", desde);
 }
 
 /** Buscar por clave, o "Actualizar desde IDECATQ" (forzar). */
@@ -174,15 +199,23 @@ export async function consultarClave(quien: Quien, texto: string, forzar: boolea
   const clave = normalizarClave(texto);
   if (!clave) return { ok: false, error: "La clave catastral lleva 15 dígitos y empieza con el municipio (01 a 18)." };
   const previa = await ficha(clave);
-  if (previa && !forzar && vigente(previa)) return { ok: true, ficha: previa, aviso: null };
+  if (previa && !forzar && vigente(previa)) {
+    await anotar(quien, clave, "guardado", "ok");
+    return { ok: true, ficha: previa, aviso: null };
+  }
 
-  const impide = await impedimento();
-  if (impide) return previa ? guardado(previa, impide) : { ok: false, error: impide };
+  const impide = await impedimento(clave);
+  if (impide) {
+    if (previa) await anotar(quien, clave, "guardado", "ok");
+    return previa ? guardado(previa, impide) : { ok: false, error: impide };
+  }
 
+  const desde = performance.now();
   const exp = await consultarExpediente(clave);
   const limpio = exp.ok ? limpiarExpediente(exp.json) : null;
   if (!limpio) {
     await registrarFalla(quien, "expediente");
+    await anotar(quien, clave, "fuente", previa ? "pendiente" : "falla", desde);
     // Con el punto guardado se puede, al menos, refrescar la capa del mapa.
     if (previa?.latitud && previa.longitud) {
       const mapa = await consultarMapa(previa.latitud, previa.longitud);
@@ -212,6 +245,7 @@ export async function consultarClave(quien: Quien, texto: string, forzar: boolea
   }
   const err = await guardar(quien, { clave, geometria, geometriaUtm, datos: { ...limpio.datos, ...datosCapa }, expediente: "completo", privados: limpio.privados,
     modo: forzar ? "actualizar" : "consulta" });
+  await anotar(quien, clave, "fuente", err ? "falla" : "ok", desde);
   if (err) return previa ? guardado(previa, err) : { ok: false, error: err };
   const f = await ficha(clave);
   return f ? { ok: true, ficha: f, aviso: f.geometria ? null : "No llegó el polígono de esa clave; la liga de Maps no está disponible." }
