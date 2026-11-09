@@ -86,6 +86,15 @@ describe("Lista blanca", () => {
     }
   });
 
+  test("un apóstrofo suelto en vez de dato cuenta como vacío, igual que los guiones", () => {
+    for (const vacio of ["'", " ' ", "’", "---"]) {
+      const { datos } = limpiarExpediente({ ...normal, predio: { ...normal.predio, desClasificacion: vacio, claveClasificacion: "" } })!;
+      expect(datos.clasificacion, JSON.stringify(vacio)).toBeUndefined();
+    }
+    const { datos } = limpiarExpediente({ ...normal, predio: { ...normal.predio, desClasificacion: "D'Angelo" } })!;
+    expect(datos.clasificacion).toBe("D'Angelo");
+  });
+
   test("predio normal: superficies, valores, Registro Público y lo privado aparte", () => {
     const { datos, privados } = limpiarExpediente(normal)!;
     expect(datos).toMatchObject({

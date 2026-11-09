@@ -181,6 +181,13 @@ la app las muestra, la base las hace cumplir.
 - `npm test` corre migraciones, semilla y verificaciones en PGlite. Toda regla nueva de la base
   lleva su verificación en `supabase/verificaciones.sql` (sección `-- @@ Nombre`).
 - Fechas de corte en `America/Mexico_City`: usar `hoy_mx()` y `mes_de()`, nunca `current_date`.
+- **Código nuevo: nada de expresiones regulares con diagonales invertidas en literales** (`/\d+/`,
+  `/\(x\)/`). Al escribir código desde un script o un heredoc la diagonal se pierde sin que nada
+  truene (pasó tres veces en noviembre de 2026). Usar métodos de texto (`includes`, `startsWith`,
+  `endsWith`, `replaceAll`, `split`) o, si hace falta una expresión, `new RegExp(String.raw\`…\`)`.
+  En SQL vale lo mismo para los patrones de `~` y `regexp_*()`. `pruebas/expresiones.test.ts`
+  revisa las diagonales perdidas en app, components, lib, pruebas, scripts, humo, migraciones y
+  semillas (`supabase/produccion`, incluido `demo.sql`).
 
 ## Cómo trabajar con Xchel
 

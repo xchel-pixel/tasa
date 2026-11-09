@@ -19,10 +19,12 @@
 alter table catastro_versiones
   add column tipo text not null default 'cambio' check (tipo in ('cambio', 'ajuste_lector'));
 
--- Vacío para el kardex: sin valor, cadena vacía o el "---" con que la fuente marca lo que no tiene.
+-- Vacío para el kardex: sin valor, cadena vacía, guiones ("---", con que la fuente marca lo que no tiene) o un
+-- apóstrofo suelto ("'", que también llega en vez de nada; el lector ya los trata igual).
 create or replace function catastro_vacio(v jsonb)
 returns boolean language sql immutable set search_path = public as $$
-  select v is null or v = 'null'::jsonb or (jsonb_typeof(v) = 'string' and btrim(v #>> '{}') in ('', '---'));
+  select v is null or v = 'null'::jsonb
+      or (jsonb_typeof(v) = 'string' and (btrim(v #>> '{}') ~ '^-*$' or btrim(v #>> '{}') in ('''', '’')));
 $$;
 
 -- Un texto sin las piezas "---" (como la dirección que se arma con interior y CP vacíos).

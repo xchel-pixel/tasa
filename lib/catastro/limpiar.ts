@@ -58,8 +58,9 @@ function txt(x: unknown): string | null {
   if (typeof x === "number" && Number.isFinite(x)) return String(x);
   if (typeof x !== "string") return null;
   const t = x.replace(/\s+/g, " ").trim();
-  // "--" es como la fuente marca un dato vacío.
-  return t && t !== "null" && !/^-+$/.test(t) ? t.slice(0, 500) : null;
+  // "--" es como la fuente marca un dato vacío; un apóstrofo suelto ("'") también llega en vez de nada.
+  const sinComillas = t.replaceAll("'", "").replaceAll("’", "").trim();
+  return t && t !== "null" && !/^-+$/.test(t) && sinComillas ? t.slice(0, 500) : null;
 }
 
 /** Número (acepta "1,234.50"), o nulo. */

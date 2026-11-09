@@ -4466,6 +4466,11 @@ begin
     '{"colonia":"B","calle":"UNO","ubicacion":"CALLE UNO 10, COLONIA A, QUERETARO","localidad":"QRO"}', 'actualizar');
   perform pg_temp.igual((select tipo || ':' || array_to_string(cambios, ',') from catastro_versiones where clave = '140100000000091' order by id desc limit 1),
     'cambio:localidad,manzana', 'Un valor real que se pierde es cambio');
+  -- Un apóstrofo suelto es vacío: llenarlo o quitarlo es ajuste; cambiar un valor real por él, no.
+  perform pg_temp.igual(catastro_ajuste_lector('{"clasificacion":"''"}', '{"clasificacion":"CASA"}', '{clasificacion}')
+    and catastro_ajuste_lector('{"clasificacion":"''"}', '{}', '{clasificacion}'), true, 'Apóstrofo suelto: vacío, como "---"');
+  perform pg_temp.igual(catastro_ajuste_lector('{"clasificacion":"CASA"}', '{"clasificacion":"''"}', '{clasificacion}'), false,
+    'Un valor real que se vuelve apóstrofo es cambio');
   -- La dirección con otro número no es ajuste.
   perform pg_temp.igual(catastro_ajuste_lector('{"ubicacion":"CALLE UNO 10 int. --- ---"}', '{"ubicacion":"CALLE UNO 12"}', '{ubicacion}'), false,
     'Dirección distinta además de los "---": cambio');

@@ -7,14 +7,14 @@ import { describe, expect, test } from "vitest";
  * código desde un script, `/[^\d-]/g` quedó como `/[^d-]/g` (borraba los dígitos de la clave) y `/^\d{1,12}…/` como
  * `/^d{1,12}…/` (nunca aceptaba el valor). El código compila y no truena: solo deja de servir.
  *
- * Revisa toda expresión literal (/…/) del código de la app, de scripts/ y de las pruebas de humo; y, en SQL (las
+ * Revisa toda expresión literal (/…/) del código de la app, de las pruebas (pruebas/ y humo/) y de scripts/; y, en SQL (las
  * migraciones y la semilla: demo.sql y los demás de supabase/produccion), los patrones de ~, ~*, !~ y regexp_*().
  * Una d, s, w, D, S o W suelta seguida de +, *, ? o {, o sola dentro de una clase ([^d-], [s,]), casi siempre es
  * una \d, \s o \w a la que le falta la diagonal.
  */
 
 const raiz = join(import.meta.dirname, "..");
-const CARPETAS = ["app", "components", "lib", "scripts", "humo"];
+const CARPETAS = ["app", "components", "lib", "pruebas", "scripts", "humo"];
 const CARPETAS_SQL = ["supabase/migrations", "supabase/produccion"];
 const SQL_SUELTOS = ["supabase/verificaciones.sql", "supabase/seed.sql"];
 
@@ -64,7 +64,7 @@ describe("Expresiones regulares sin diagonales perdidas", () => {
     }
   });
 
-  test("ninguna en el código de la app, scripts/ ni humo", () => {
+  test("ninguna en el código de la app, pruebas, scripts ni humo", () => {
     const hallazgos: string[] = [];
     for (const f of CARPETAS.flatMap((c) => archivos(join(raiz, c), /\.(ts|tsx|mjs|js)$/))) {
       const texto = readFileSync(f, "utf8");
