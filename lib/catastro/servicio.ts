@@ -37,7 +37,8 @@ export type Ficha = {
   campos: Record<string, unknown>;
   /** Solo admin_org, finanzas y equipo. */
   privados?: (Omit<Privados, "propietarios"> & { propietarios: Privados["propietarios"]; actualizado_en: string }) | null;
-  historial?: { consultado_en: string; reemplazada_en: string; cambios: string[] }[];
+  /** tipo (0067): "ajuste_lector" = el lector de Tasa mejoró, sin cambio en la fuente. */
+  historial?: { consultado_en: string; reemplazada_en: string; cambios: string[]; tipo?: "cambio" | "ajuste_lector" }[];
 };
 
 export type Resultado =

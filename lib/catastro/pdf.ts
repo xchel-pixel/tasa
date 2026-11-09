@@ -27,7 +27,8 @@ export function contenidoPdf(f: Ficha) {
     titulo: "Ficha del predio",
     subtitulo: `Clave catastral ${f.clave} · ${municipio}, Qro. · Consultado el ${fechaLegible(f.consultado_en)}${f.expediente === "pendiente" ? " · expediente incompleto" : ""}`,
     // Las mismas secciones y el mismo orden que la pantalla.
-    secciones: seccionesDeFicha(f),
+    // Sin los ajustes de lector (0067): un historial que solo tiene eso no sale.
+    secciones: seccionesDeFicha(f).filter((s) => s.filas.length),
     croquis: "Croquis del polígono",
     sinPoligono: "Sin polígono disponible.",
     liga: punto ? ligaMaps(punto.lat, punto.lon) : null,

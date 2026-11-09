@@ -4427,6 +4427,61 @@ begin
 end;
 $$;
 
+-- @@ Kardex: ajuste de lector
+-- 0067: si una re-consulta solo agrega campos o cambia "---" (por vacío o por un valor), la versión es
+-- 'ajuste_lector' (sin cambio en la fuente); si un valor real cambia o se pierde, es 'cambio' como siempre.
+do $$
+declare
+  xg  uuid := pg_temp.xg();
+  yo  uuid := (select id from personas where correo = 'xchel@arqosuv.com');
+  geo jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.5928]]]}';
+  ult text;
+begin
+  perform pg_temp.sistema();
+  update herramientas set activa = true where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+
+  perform pg_temp.cgu(yo, '140100000000091', geo, null,
+    '{"colonia":"A","manzana":"---","ubicacion":"CALLE UNO 10 int. --- ---, COLONIA A, CP ---, QUERETARO"}', 'consulta');
+  -- Campo nuevo (calle), "---" que se llena (manzana) y la dirección sin sus "---": ajuste de lector.
+  perform pg_temp.cgu(yo, '140100000000091', geo, null,
+    '{"colonia":"A","manzana":"031","calle":"UNO","ubicacion":"CALLE UNO 10, COLONIA A, QUERETARO"}', 'mantenimiento');
+  select tipo || ':' || array_to_string(cambios, ',') into ult from catastro_versiones where clave = '140100000000091' order by id desc limit 1;
+  perform pg_temp.igual(ult, 'ajuste_lector:calle,manzana,ubicacion', 'Solo campos nuevos y "---" llenados: ajuste de lector');
+
+  -- "---" que queda vacío: también ajuste.
+  perform pg_temp.cgu(yo, '140100000000091', geo, null,
+    '{"colonia":"A","manzana":"031","calle":"UNO","ubicacion":"CALLE UNO 10, COLONIA A, QUERETARO","num_int":"---"}', 'mantenimiento');
+  perform pg_temp.cgu(yo, '140100000000091', geo, null,
+    '{"colonia":"A","manzana":"031","calle":"UNO","ubicacion":"CALLE UNO 10, COLONIA A, QUERETARO"}', 'mantenimiento');
+  perform pg_temp.igual((select tipo from catastro_versiones where clave = '140100000000091' order by id desc limit 1), 'ajuste_lector',
+    '"---" que queda vacío: ajuste de lector');
+
+  -- Un valor real que cambia: cambio.
+  perform pg_temp.cgu(yo, '140100000000091', geo, null,
+    '{"colonia":"B","manzana":"031","calle":"UNO","ubicacion":"CALLE UNO 10, COLONIA A, QUERETARO"}', 'actualizar');
+  perform pg_temp.igual((select tipo from catastro_versiones where clave = '140100000000091' order by id desc limit 1), 'cambio',
+    'Un valor real distinto es cambio');
+  -- Un valor real que se pierde: cambio, aunque venga junto con campos nuevos.
+  perform pg_temp.cgu(yo, '140100000000091', geo, null,
+    '{"colonia":"B","calle":"UNO","ubicacion":"CALLE UNO 10, COLONIA A, QUERETARO","localidad":"QRO"}', 'actualizar');
+  perform pg_temp.igual((select tipo || ':' || array_to_string(cambios, ',') from catastro_versiones where clave = '140100000000091' order by id desc limit 1),
+    'cambio:localidad,manzana', 'Un valor real que se pierde es cambio');
+  -- La dirección con otro número no es ajuste.
+  perform pg_temp.igual(catastro_ajuste_lector('{"ubicacion":"CALLE UNO 10 int. --- ---"}', '{"ubicacion":"CALLE UNO 12"}', '{ubicacion}'), false,
+    'Dirección distinta además de los "---": cambio');
+
+  -- La ficha lleva el tipo.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select string_agg(h->>'tipo', ',' order by h->>'reemplazada_en') from jsonb_array_elements(catastro_ficha('140100000000091')->'historial') h),
+    'ajuste_lector,ajuste_lector,ajuste_lector,cambio,cambio', 'La ficha lleva el tipo de cada versión');
+
+  perform pg_temp.sistema();
+  delete from catastro_predios where clave like '1401000000000%';
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+  update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

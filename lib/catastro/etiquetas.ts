@@ -159,7 +159,11 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
   { id: "historial", titulo: "Historial de cambios", equipo: true, campos: [] },
 ];
 
-export type SeccionLista = { id: IdSeccion; titulo: string; equipo: boolean; filas: [string, string][] };
+export type SeccionLista = {
+  id: IdSeccion; titulo: string; equipo: boolean; filas: [string, string][];
+  /** Historial: cuántos ajustes del lector hay (se ocultan si no se pidió verlos). */
+  ajustes?: number;
+};
 
 /** Dirección armada con las piezas, cuando el rol no tiene la dirección completa pero sí sus partes. */
 function direccionDePartes(c: Record<string, unknown>): string | null {
@@ -173,7 +177,7 @@ function direccionDePartes(c: Record<string, unknown>): string | null {
  * La ficha por secciones, con sus filas ya escritas. Sin campos vacíos ni secciones vacías. Solo lo que trae la
  * ficha (que ya viene filtrada por rol desde la base).
  */
-export function seccionesDeFicha(f: Ficha): SeccionLista[] {
+export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?: boolean } = {}): SeccionLista[] {
   const c: Record<string, unknown> = { ...(f.campos ?? {}) };
   // Predios guardados antes de que existiera el total: si el rol ve terreno y construcción, el total es su suma.
   if (c.valor_catastral_total == null && c.valor_terreno != null && c.valor_construccion != null) {
@@ -183,6 +187,7 @@ export function seccionesDeFicha(f: Ficha): SeccionLista[] {
   const salida: SeccionLista[] = [];
   for (const s of SECCIONES) {
     let filas: [string, string][] = [];
+    let ajustes = 0;
     if (s.id === "identificacion") {
       filas = [["Clave catastral", f.clave], ["Municipio", municipioPorClave(f.clave) ?? f.municipio]];
     } else if (s.id === "ubicacion") {
@@ -202,8 +207,13 @@ export function seccionesDeFicha(f: Ficha): SeccionLista[] {
         if (p.numero_contrato) filas.push(["Contrato", p.numero_contrato]);
       }
     } else if (s.id === "historial") {
+      // Los ajustes del lector (0067) no son cambios de la fuente: ocultos salvo que se pidan.
       for (const h of f.historial ?? []) {
-        filas.push([fechaLegible(h.reemplazada_en), `Cambió: ${h.cambios.map((k) => ETIQUETAS[k as Campo]?.[0] ?? (k === "geometria" ? "Polígono" : k)).join(", ")}`]);
+        const ajuste = h.tipo === "ajuste_lector";
+        if (ajuste) ajustes += 1;
+        if (ajuste && !verAjustes) continue;
+        const campos = h.cambios.map((k) => ETIQUETAS[k as Campo]?.[0] ?? (k === "geometria" ? "Polígono" : k)).join(", ");
+        filas.push([fechaLegible(h.reemplazada_en), ajuste ? `Ajuste de lector (sin cambio en la fuente): ${campos}` : `Cambió: ${campos}`]);
       }
     } else {
       for (const campo of s.campos) {
@@ -211,7 +221,7 @@ export function seccionesDeFicha(f: Ficha): SeccionLista[] {
         if (v) filas.push([ETIQUETAS[campo][0], v]);
       }
     }
-    if (filas.length) salida.push({ id: s.id, titulo: s.titulo, equipo: s.equipo, filas });
+    if (filas.length || ajustes) salida.push({ id: s.id, titulo: s.titulo, equipo: s.equipo, filas, ...(s.id === "historial" ? { ajustes } : {}) });
   }
   return salida;
 }

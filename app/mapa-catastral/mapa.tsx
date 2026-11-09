@@ -47,6 +47,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
   const [clave, setClave] = useState(claveInicial ?? "");
   const [ocupado, empezar] = useTransition();
   const router = useRouter();
+  const [verAjustes, setVerAjustes] = useState(false);
   const sinDxf = !dxf.sin_limite && (dxf.saldo ?? 0) <= 0;
   const textoDxf = dxf.sin_limite ? "DXF sin límite" : dxf.saldo === 1 ? "Te queda 1 DXF" : `Te quedan ${dxf.saldo ?? 0} DXF`;
   const [copiada, setCopiada] = useState(false);
@@ -215,7 +216,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
             </p>
           </header>
 
-          {seccionesDeFicha(ficha).map((s) => {
+          {seccionesDeFicha(ficha, { verAjustes }).map((s) => {
             const filas = (
               <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
                 {s.filas.map(([etiqueta, valor], i) => (
@@ -239,7 +240,12 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
             return s.equipo ? (
               <details key={s.id} className="rounded-xl border border-linea bg-fondo px-4 py-3">
                 <summary className="cursor-pointer font-semibold">{s.titulo} <span className="text-[0.8125rem] font-normal text-secundario">(solo el equipo)</span></summary>
-                {filas}
+                {s.filas.length ? filas : <p className="mt-2 text-[0.9375rem] text-secundario">Sin cambios de la fuente.</p>}
+                {s.ajustes ? (
+                  <button type="button" onClick={() => setVerAjustes((v) => !v)} className="mt-2 text-[0.875rem] font-semibold text-acento underline underline-offset-4">
+                    {verAjustes ? "Ocultar ajustes de lector" : `Mostrar ajustes de lector (${s.ajustes})`}
+                  </button>
+                ) : null}
               </details>
             ) : (
               <section key={s.id} className="rounded-xl border border-linea bg-fondo px-4 py-3">

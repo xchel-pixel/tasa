@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { aLonLat, aUtm, utmAGeografica, type Geometria, type Punto } from "@/lib/catastro/geo";
 import { anillosDe, anillosUtm, bytesDxf, dxfDePredio, superficieUtm } from "@/lib/catastro/dxf";
+import { seccionesDeFicha } from "@/lib/catastro/etiquetas";
+import type { Ficha } from "@/lib/catastro/servicio";
 
 /**
  * DXF del mapa catastral: coordenadas UTM 14N iguales al polígono guardado (Polygon, MultiPolygon y con hueco),
@@ -167,5 +169,29 @@ describe("Geometría UTM de la fuente (0066)", () => {
     const { anillos, textos } = leer(dxfDePredio({ clave: "149999990000002", geometria: utmAGeografica(multi), geometriaUtm: multi, consultadoEn: "2026-11-09" }));
     expect(anillos.length).toBe(3);
     expect(textos("TEXTOS")[1]).toBe("Superficie del polígono: 1,515.00 m²");
+  });
+});
+
+describe("Kardex: ajustes de lector (0067)", () => {
+  const ficha = { clave: "140100000000091", municipio: "14", geometria: null, latitud: null, longitud: null, consultado_en: "2026-11-09T18:00:00Z",
+    expediente: "completo", campos: {}, historial: [
+      { consultado_en: "2026-10-01T00:00:00Z", reemplazada_en: "2026-11-09T17:55:00Z", cambios: ["manzana", "calle"], tipo: "ajuste_lector" },
+      { consultado_en: "2026-09-01T00:00:00Z", reemplazada_en: "2026-10-01T00:00:00Z", cambios: ["valor_terreno"], tipo: "cambio" }] } as Ficha;
+  const historial = (ver: boolean) => seccionesDeFicha(ficha, { verAjustes: ver }).find((s) => s.id === "historial")!;
+
+  test("ocultos por omisión, con su cuenta para el botón", () => {
+    expect(historial(false).filas).toHaveLength(1);
+    expect(historial(false).filas[0][1]).toMatch(/^Cambió: /);
+    expect(historial(false).ajustes).toBe(1);
+  });
+  test("al pedirlos, salen marcados", () => {
+    expect(historial(true).filas).toHaveLength(2);
+    expect(historial(true).filas[0][1].startsWith("Ajuste de lector (sin cambio en la fuente): ")).toBe(true);
+  });
+  test("si solo hay ajustes, la sección sigue (para el botón) pero sin filas", () => {
+    const solo = { ...ficha, historial: ficha.historial!.slice(0, 1) } as Ficha;
+    const s = seccionesDeFicha(solo).find((x) => x.id === "historial")!;
+    expect(s.filas).toEqual([]);
+    expect(s.ajustes).toBe(1);
   });
 });
