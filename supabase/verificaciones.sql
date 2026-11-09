@@ -4517,6 +4517,82 @@ begin
 end;
 $$;
 
+-- @@ Suspender de verdad
+-- 0069: suspendida, con su token vigente, la persona no lee ni escribe NADA (tampoco lo suyo) y sus sesiones de
+-- Supabase Auth se cierran. Reactivar lo revierte. Solo admin_org, con motivo en la bitácora.
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  uana uuid := (select user_id from personas where correo = 'xchel+ana@arqosuv.com');
+  n    bigint;
+  v    integer := (select aviso_version from ajustes where organizacion_id = pg_temp.xg());
+begin
+  perform pg_temp.sistema();
+  insert into auth.sessions (user_id, user_agent) values (uana, 'Celular'), (uana, 'Computadora');
+  delete from avisos_vistos where persona_id = ana;
+
+  -- Antes: Ana ve lo suyo y puede escribir lo suyo.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from personas where id = ana), 1::bigint, 'Activa: lee su propia persona');
+  perform pg_temp.igual((select count(*) from comisionistas where persona_id = ana) > 0, true, 'Activa: lee su ficha de comisionista');
+  -- Lo suyo se escribe por funciones (no hay escritura directa en tablas): marcar el aviso visto.
+  perform marcar_aviso_visto(v);
+  perform pg_temp.igual((select count(*) from avisos_vistos where persona_id = ana), 1::bigint, 'Activa: puede escribir lo suyo');
+
+  -- Solo admin_org suspende, con motivo.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format($q$select suspender_persona(%L, 'prueba')$q$, ana), 'Solo admin_org', 'Finanzas no suspende');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select suspender_persona(%L, 'x')$q$, ana), 'motivo', 'Sin motivo no se suspende');
+  perform pg_temp.debe_fallar($q$select suspender_persona(mi_persona_id(), 'prueba')$q$, 'contigo', 'Nadie se suspende a sí mismo');
+  perform suspender_persona(ana, 'Uso indebido del mapa');
+
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from auth.sessions where user_id = uana), 0::bigint, 'Suspender cierra sus sesiones');
+  perform pg_temp.igual((select motivo from bitacora where tabla = 'membresias' and despues->>'persona_id' = ana::text order by id desc limit 1),
+    'Suspendida: Uso indebido del mapa', 'Queda en la bitácora con motivo');
+
+  -- Con su token vigente: nada.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(mi_persona_id(), null::uuid, 'Suspendida: la base no la reconoce');
+  perform pg_temp.igual(mi_sesion(), null::jsonb, 'Suspendida: no hay sesión');
+  perform pg_temp.igual((select count(*) from personas), 0::bigint, 'Suspendida: no lee ni su propia persona');
+  perform pg_temp.igual((select count(*) from comisionistas), 0::bigint, 'Suspendida: no lee su ficha');
+  perform pg_temp.igual((select count(*) from solicitudes), 0::bigint, 'Suspendida: no lee sus solicitudes');
+  perform pg_temp.igual((select count(*) from usos_herramienta) + (select count(*) from dxf_descargas) + (select count(*) from avisos_vistos),
+    0::bigint, 'Suspendida: no lee su uso, sus DXF ni sus avisos');
+  perform pg_temp.debe_fallar(format($q$select marcar_aviso_visto(%s)$q$, v), 'Sin sesión', 'Suspendida: no puede escribir lo suyo');
+  perform pg_temp.debe_fallar($q$update personas set telefono = telefono$q$, 'permission denied', 'Suspendida: ni directo en tablas');
+  perform pg_temp.debe_fallar($q$select pedir_mas_dxf()$q$, 'no está disponible', 'Suspendida: las funciones tampoco la dejan');
+
+  -- Reactivar lo revierte (sus sesiones no vuelven: entra de nuevo con su código).
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform reactivar_persona(ana, 'Aclarado');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(mi_persona_id(), ana, 'Reactivada: la base la reconoce');
+  perform pg_temp.igual((select count(*) from personas where id = ana), 1::bigint, 'Reactivada: lee lo suyo');
+
+  -- Cerrar sesiones sin suspender; y desactivar por otro camino también las cierra.
+  perform pg_temp.sistema();
+  insert into auth.sessions (user_id, user_agent) values (uana, 'Celular');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(cerrar_sesiones_persona(ana, 'Perdió el celular'), 1, 'Cerrar sesiones: cuántas');
+  perform pg_temp.igual(mi_persona_id() is not null, true, 'Quien cierra no se afecta');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'auth.sessions' and registro_id = ana::text and motivo = 'Cerrar sesiones: Perdió el celular'),
+    1::bigint, 'Cerrar sesiones queda en la bitácora');
+  insert into auth.sessions (user_id, user_agent) values (uana, 'Celular');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform cambiar_activo_comisionista(ana, false);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from auth.sessions where user_id = uana), 0::bigint, 'Desactivar desde su ficha también cierra sesiones');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform cambiar_activo_comisionista(ana, true);
+  perform pg_temp.sistema();
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

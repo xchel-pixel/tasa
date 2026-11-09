@@ -11,6 +11,10 @@ create role service_role nologin;
 
 create schema auth;
 create table auth.users (id uuid primary key default gen_random_uuid(), email text, last_sign_in_at timestamptz);
+-- Como en Supabase Auth: una fila por sesión abierta (borrarla impide renovar el token).
+create table auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz default now(), updated_at timestamptz default now(), refreshed_at timestamp, not_after timestamptz,
+  user_agent text, ip inet);
 create function auth.uid() returns uuid language sql stable as $$
   select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')::uuid
 $$;
