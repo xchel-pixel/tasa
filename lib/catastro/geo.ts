@@ -37,6 +37,7 @@ export function aLonLat(x: number, y: number): Punto {
 }
 
 const r6 = (n: number) => Math.round(n * 1e6) / 1e6;
+const r9 = (n: number) => Math.round(n * 1e9) / 1e9;
 
 /** Los anillos de cualquier geometría, como lista de polígonos (cada uno, su lista de anillos). */
 function poligonos(g: Geometria): Punto[][][] {
@@ -57,9 +58,12 @@ export function geometriaValida(g: unknown): Geometria | null {
   return null;
 }
 
-/** Pasa una geometría de UTM 14N a longitud/latitud (6 decimales, ~10 cm). */
+/**
+ * Pasa una geometría de UTM 14N a longitud/latitud con 9 decimales (~0.1 mm: de ida y vuelta, el mismo punto al
+ * milímetro). Antes eran 6 (~10 cm). La original en UTM se guarda aparte (geometria_utm, 0066).
+ */
 export function utmAGeografica(g: Geometria): Geometria {
-  const conv = (p: Punto[][]) => p.map((anillo) => anillo.map(([x, y]) => aLonLat(x, y).map(r6) as Punto));
+  const conv = (p: Punto[][]) => p.map((anillo) => anillo.map(([x, y]) => aLonLat(x, y).map(r9) as Punto));
   return g.type === "Polygon" ? { type: "Polygon", coordinates: conv(g.coordinates) } : { type: "MultiPolygon", coordinates: g.coordinates.map(conv) };
 }
 

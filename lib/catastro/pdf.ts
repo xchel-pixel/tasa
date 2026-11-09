@@ -5,7 +5,7 @@ import type { FuentesPdf } from "@/lib/pdf-cotizacion";
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import { sinSimbolosFaltantes } from "@/lib/traslado/pdf";
 import { fechaLegible, seccionesDeFicha } from "./etiquetas";
-import { aUtm, ligaMaps, type Geometria, type Punto } from "./geo";
+import { aUtm, geometriaValida, ligaMaps, type Geometria, type Punto } from "./geo";
 import type { Ficha } from "./servicio";
 import { NOTA_FUENTE } from "./textos";
 
@@ -103,10 +103,14 @@ export function escalaRedonda(x: number): number {
   return [1, 2, 5, 10].map((m) => m * p).reduce((a, b) => (Math.abs(b - x) < Math.abs(a - x) ? b : a));
 }
 
-/** Croquis: el polígono en metros (UTM), ajustado a la caja; norte arriba y escala gráfica. */
-function croquis(l: Lienzo, g: Geometria, x0: number, yArriba: number, ancho: number, alto: number) {
-  const pols: Punto[][][] = (g.type === "Polygon" ? [g.coordinates] : g.coordinates)
-    .map((pol) => pol.map((anillo) => anillo.map(([lon, lat]) => aUtm(lat, lon))));
+/**
+ * Croquis: el polígono en metros (UTM), ajustado a la caja; norte arriba y escala gráfica. Con la geometría UTM de
+ * la fuente (0066) si la hay; si no, convertida desde grados.
+ */
+function croquis(l: Lienzo, g: Geometria, utm: Geometria | null, x0: number, yArriba: number, ancho: number, alto: number) {
+  const pols: Punto[][][] = utm
+    ? (utm.type === "Polygon" ? [utm.coordinates] : utm.coordinates)
+    : (g.type === "Polygon" ? [g.coordinates] : g.coordinates).map((pol) => pol.map((anillo) => anillo.map(([lon, lat]) => aUtm(lat, lon))));
   const todos = pols.flat(2);
   const xs = todos.map((p) => p[0]), ys = todos.map((p) => p[1]);
   const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
@@ -162,7 +166,7 @@ export async function pdfPredio(f: Ficha, fuentes: FuentesPdf): Promise<Uint8Arr
   texto(l, c.croquis, { tam: 10, negrita: true });
   l.y -= 2;
   const arriba = l.y;
-  if (f.geometria) croquis(l, f.geometria, MARGEN, arriba, anchoCroquis, altoCroquis);
+  if (f.geometria) croquis(l, f.geometria, geometriaValida(f.geometria_utm), MARGEN, arriba, anchoCroquis, altoCroquis);
   else {
     l.pag.drawRectangle({ x: MARGEN, y: arriba - altoCroquis, width: anchoCroquis, height: altoCroquis, borderColor: LINEA, borderWidth: 0.6 });
     l.pag.drawText(limpio(c.sinPoligono), { x: MARGEN + 12, y: arriba - 24, size: 9, font: R, color: TENUE });

@@ -28,6 +28,8 @@ export type Ficha = {
   clave: string;
   municipio: string;
   geometria: Geometria | null;
+  /** El polígono en UTM 14N como lo entregó la fuente (0066); nulo en los guardados antes. */
+  geometria_utm?: Geometria | null;
   latitud: number | null;
   longitud: number | null;
   consultado_en: string;
@@ -89,7 +91,7 @@ async function registrarFalla(quien: Quien, tipo: "mapa" | "expediente") {
 }
 
 async function guardar(quien: Quien, p: {
-  clave: string; geometria: Geometria | null; datos: Datos; expediente: "completo" | "pendiente"; privados: Privados | null; modo: "consulta" | "actualizar";
+  clave: string; geometria: Geometria | null; geometriaUtm: Geometria | null; datos: Datos; expediente: "completo" | "pendiente"; privados: Privados | null; modo: "consulta" | "actualizar";
 }): Promise<string | null> {
   const [lon, lat] = p.geometria ? puntoInterior(p.geometria) : [null, null];
   const { error } = await servicio().rpc("catastro_guardar", {
@@ -104,6 +106,7 @@ async function guardar(quien: Quien, p: {
     p_expediente: p.expediente,
     p_privados: p.privados,
     p_modo: p.modo,
+    p_geometria_utm: p.geometria ? p.geometriaUtm : null,
   });
   return error ? error.message : null;
 }
@@ -123,13 +126,13 @@ async function traerYGuardar(quien: Quien, capa: PredioDeCapa & { clave: string 
   const limpio = exp.ok ? limpiarExpediente(exp.json) : null;
   if (!limpio) {
     await registrarFalla(quien, "expediente");
-    const err = await guardar(quien, { clave: capa.clave, geometria: capa.geometria, datos: capa.datos, expediente: "pendiente", privados: null, modo });
+    const err = await guardar(quien, { clave: capa.clave, geometria: capa.geometria, geometriaUtm: capa.geometriaUtm, datos: capa.datos, expediente: "pendiente", privados: null, modo });
     if (err) return { ok: false, error: err, geometria: capa.geometria };
     const f = await ficha(capa.clave);
     if (!f) return { ok: false, error: SIN_EXPEDIENTE, geometria: capa.geometria };
     return f.expediente === "completo" ? guardado(f, SIN_FUENTE) : { ok: true, ficha: f, aviso: SIN_EXPEDIENTE };
   }
-  const err = await guardar(quien, { clave: capa.clave, geometria: capa.geometria, datos: { ...limpio.datos, ...capa.datos }, expediente: "completo",
+  const err = await guardar(quien, { clave: capa.clave, geometria: capa.geometria, geometriaUtm: capa.geometriaUtm, datos: { ...limpio.datos, ...capa.datos }, expediente: "completo",
     privados: limpio.privados, modo });
   if (err) return { ok: false, error: err, geometria: capa.geometria };
   const f = await ficha(capa.clave);
@@ -183,7 +186,7 @@ export async function consultarClave(quien: Quien, texto: string, forzar: boolea
     if (previa?.latitud && previa.longitud) {
       const mapa = await consultarMapa(previa.latitud, previa.longitud);
       if (mapa.ok && mapa.predio?.clave === clave) {
-        await guardar(quien, { clave, geometria: mapa.predio.geometria, datos: mapa.predio.datos, expediente: "pendiente", privados: null, modo: forzar ? "actualizar" : "consulta" });
+        await guardar(quien, { clave, geometria: mapa.predio.geometria, geometriaUtm: mapa.predio.geometriaUtm, datos: mapa.predio.datos, expediente: "pendiente", privados: null, modo: forzar ? "actualizar" : "consulta" });
       }
       const f = (await ficha(clave)) ?? previa;
       return { ok: true, ficha: f, aviso: f.expediente === "pendiente" ? SIN_EXPEDIENTE : `${SIN_EXPEDIENTE} Lo demás es lo guardado del ${fechaCorta(f.consultado_en)}.` };
@@ -193,6 +196,7 @@ export async function consultarClave(quien: Quien, texto: string, forzar: boolea
 
   // El polígono: con el centroide del expediente se pregunta al mapa.
   let geometria: Geometria | null = null;
+  let geometriaUtm: Geometria | null = null;
   let datosCapa: Datos = {};
   const c = centroideDelExpediente(exp.ok ? exp.json : null);
   if (c) {
@@ -201,10 +205,11 @@ export async function consultarClave(quien: Quien, texto: string, forzar: boolea
     if (!mapa.ok) await registrarFalla(quien, "mapa");
     else if (mapa.predio?.clave === clave) {
       geometria = mapa.predio.geometria;
+      geometriaUtm = mapa.predio.geometriaUtm;
       datosCapa = mapa.predio.datos;
     }
   }
-  const err = await guardar(quien, { clave, geometria, datos: { ...limpio.datos, ...datosCapa }, expediente: "completo", privados: limpio.privados,
+  const err = await guardar(quien, { clave, geometria, geometriaUtm, datos: { ...limpio.datos, ...datosCapa }, expediente: "completo", privados: limpio.privados,
     modo: forzar ? "actualizar" : "consulta" });
   if (err) return previa ? guardado(previa, err) : { ok: false, error: err };
   const f = await ficha(clave);

@@ -2,6 +2,8 @@ import { aUtm, type Geometria, type Punto } from "./geo";
 
 /**
  * El DXF de un predio guardado: el polígono en UTM zona 14 norte (EPSG:32614), en metros, sin pasar a grados.
+ * Si el predio trae geometria_utm (0066), las coordenadas son exactamente las de la fuente; si no (guardados
+ * antes), se convierten desde los grados guardados (~10 cm de precisión).
  * Formato DXF ASCII de AutoCAD R12 (AC1009), sin dependencias. Cuatro capas:
  *   PREDIO    polilínea cerrada por anillo (en condominio, una por cada parte; los huecos, también cerrados)
  *   VERTICES  número de cada vértice
@@ -11,22 +13,32 @@ import { aUtm, type Geometria, type Punto } from "./geo";
  * comentarios o encabezado).
  */
 
-export type PredioDxf = { clave: string; geometria: Geometria; consultadoEn: string | Date };
+export type PredioDxf = { clave: string; geometria: Geometria; geometriaUtm?: Geometria | null; consultadoEn: string | Date };
 
 const CAPAS: [string, number][] = [["PREDIO", 7], ["VERTICES", 1], ["COTAS", 3], ["TEXTOS", 5]];
 
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 const num = (n: number) => r3(n).toFixed(3);
+/** Una coordenada tal cual (la de la fuente, sin redondear), en notación decimal. */
+const coord = (n: number) => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+
+const sinCierre = (puntos: Punto[]) => {
+  const [a, z] = [puntos[0], puntos[puntos.length - 1]];
+  return puntos.length > 1 && a[0] === z[0] && a[1] === z[1] ? puntos.slice(0, -1) : puntos;
+};
+
+/** Los anillos en UTM: los de la fuente tal cual, o convertidos desde grados. */
+export function anillosDe(p: Pick<PredioDxf, "geometria" | "geometriaUtm">): Punto[][][] {
+  if (!p.geometriaUtm) return anillosUtm(p.geometria);
+  const pols = p.geometriaUtm.type === "Polygon" ? [p.geometriaUtm.coordinates] : p.geometriaUtm.coordinates;
+  return pols.map((pol) => pol.map((anillo) => sinCierre(anillo.map(([x, y]) => [x, y] as Punto))));
+}
 
 /** Los anillos de la geometría en UTM (metros, al milímetro), sin repetir el vértice de cierre. */
 export function anillosUtm(g: Geometria): Punto[][][] {
   const pols = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
   return pols.map((pol) =>
-    pol.map((anillo) => {
-      const puntos = anillo.map(([lon, lat]) => aUtm(lat, lon).map(r3) as Punto);
-      const [a, z] = [puntos[0], puntos[puntos.length - 1]];
-      return puntos.length > 1 && a[0] === z[0] && a[1] === z[1] ? puntos.slice(0, -1) : puntos;
-    })
+    pol.map((anillo) => sinCierre(anillo.map(([lon, lat]) => aUtm(lat, lon).map(r3) as Punto)))
   );
 }
 
@@ -43,8 +55,8 @@ export function superficieUtm(pols: Punto[][][]): number {
 
 const miles = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function dxfDePredio({ clave, geometria, consultadoEn }: PredioDxf): string {
-  const pols = anillosUtm(geometria);
+export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn }: PredioDxf): string {
+  const pols = anillosDe({ geometria, geometriaUtm });
   const todos = pols.flat(2);
   const xs = todos.map((p) => p[0]), ys = todos.map((p) => p[1]);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
@@ -90,7 +102,7 @@ export function dxfDePredio({ clave, geometria, consultadoEn }: PredioDxf): stri
   for (const pol of pols) {
     for (const anillo of pol) {
       g(0, "POLYLINE"); g(8, "PREDIO"); g(66, 1); g(10, "0.0"); g(20, "0.0"); g(30, "0.0"); g(70, 1);
-      for (const [x, y] of anillo) { g(0, "VERTEX"); g(8, "PREDIO"); g(10, num(x)); g(20, num(y)); g(30, "0.0"); }
+      for (const [x, y] of anillo) { g(0, "VERTEX"); g(8, "PREDIO"); g(10, coord(x)); g(20, coord(y)); g(30, "0.0"); }
       g(0, "SEQEND"); g(8, "PREDIO");
 
       // Hacia afuera del anillo: depende de su sentido de giro.

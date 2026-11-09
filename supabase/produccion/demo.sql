@@ -504,29 +504,33 @@ begin
 
   -- 10. Mapa catastral (0059): encendido en DEMO. Tres predios INVENTADOS (claves que no existen en catastro,
   --     marcados demo: solo los ven organizaciones demo) junto al Jardín Zenea: uno normal con kardex, un
-  --     condominio con MultiPolygon y uno con el expediente pendiente. Sin datos personales reales.
+  --     condominio con MultiPolygon y uno con el expediente pendiente. Sin datos personales reales. Con su geometría
+  --     UTM "de la fuente" (0066) y la de grados con 9 decimales.
   update herramientas set activa = true where organizacion_id = v_demo and clave in ('mapa_catastral', 'mapa_catastral_pdf');
   perform sembrar_campos_catastro(v_demo);
   delete from catastro_propietarios where organizacion_id = v_demo;
   delete from catastro_fallas where organizacion_id = v_demo;
   delete from catastro_predios where demo;
-  insert into catastro_predios (clave, municipio, geometria, latitud, longitud, lat_min, lat_max, lon_min, lon_max, colonia, codigo_postal,
+  insert into catastro_predios (clave, municipio, geometria, geometria_utm, latitud, longitud, lat_min, lat_max, lon_min, lon_max, colonia, codigo_postal,
                                 ubicacion, sup_terreno, sup_construccion, extra, expediente, consultado_en, demo)
   values
     ('149999990000001', '14',
-     '{"type":"Polygon","coordinates":[[[-100.39230,20.59280],[-100.39210,20.59280],[-100.39210,20.59295],[-100.39230,20.59295],[-100.39230,20.59280]]]}',
+     '{"type":"Polygon","coordinates":[[[-100.392299953,20.592800034],[-100.392100013,20.592800017],[-100.392100031,20.592949982],[-100.392299971,20.592949999],[-100.392299953,20.592800034]]]}',
+     '{"type":"Polygon","coordinates":[[[354900.29,2277702.94],[354921.13,2277702.76],[354921.27,2277719.36],[354900.43,2277719.54],[354900.29,2277702.94]]]}',
      20.592875, -100.392200, 20.592800, 20.592950, -100.392300, -100.392100, 'Centro (ejemplo DEMO)', '76000',
      'Calle Ejemplo 10, Colonia Centro (ejemplo DEMO), CP 76000, Querétaro', 350.5, 280,
      '{"tipo_predio":"URBANO","clasificacion":"HABITACIONAL","valor_terreno":1850000,"valor_construccion":1420000,"capa_area":350.48,"capa_folio":"DEMO-1","rppc_lote":"7","rppc_medid_colind":"Al norte 20.00 m con lote 6 (ejemplo DEMO)"}',
      'completo', now() - interval '10 days', true),
     ('149999990000002', '14',
-     '{"type":"MultiPolygon","coordinates":[[[[-100.39200,20.59280],[-100.39185,20.59280],[-100.39185,20.59292],[-100.39200,20.59292],[-100.39200,20.59280]]],[[[-100.39180,20.59280],[-100.39172,20.59280],[-100.39172,20.59286],[-100.39180,20.59286],[-100.39180,20.59280]]]]}',
+     '{"type":"MultiPolygon","coordinates":[[[[-100.392000043,20.592800009],[-100.391849992,20.592800042],[-100.391850026,20.592920014],[-100.39199998,20.592919982],[-100.392000043,20.592800009]]],[[[-100.391800007,20.592799992],[-100.391719993,20.592800004],[-100.391719961,20.59285999],[-100.391799975,20.592859979],[-100.391800007,20.592799992]]]]}',
+     '{"type":"MultiPolygon","coordinates":[[[[354931.55,2277702.67],[354947.19,2277702.54],[354947.3,2277715.82],[354931.67,2277715.95],[354931.55,2277702.67]]],[[[354952.4,2277702.49],[354960.74,2277702.42],[354960.8,2277709.06],[354952.46,2277709.13],[354952.4,2277702.49]]]]}',
      20.592858, -100.391900, 20.592800, 20.592920, -100.392000, -100.391720, 'Centro (ejemplo DEMO)', '76000',
      'Calle Ejemplo 12 int. 3, Colonia Centro (ejemplo DEMO), CP 76000, Querétaro', 95.2, 88.7,
      '{"tipo_predio":"CONDOMINIO","regimen":"CONDOMINIO","tipo_condominio":"VERTICAL","nombre_condominio":"Condominio Ejemplo DEMO","indiviso":12.5,"sup_terreno_privativa":60.1,"sup_terreno_comun":35.1,"sup_construccion_privativa":72.4,"sup_construccion_comun":16.3,"valor_terreno_privativo":410000,"valor_construccion_privativa":520000,"cacoct":1,"vacopt":0,"clave_original":"149999990000000"}',
      'completo', now() - interval '20 days', true),
     ('149999990000003', '14',
-     '{"type":"Polygon","coordinates":[[[-100.39230,20.59300],[-100.39210,20.59300],[-100.39210,20.59312],[-100.39230,20.59312],[-100.39230,20.59300]]]}',
+     '{"type":"Polygon","coordinates":[[[-100.392300041,20.592999957],[-100.392100005,20.593000031],[-100.392100039,20.593120003],[-100.392299979,20.59312002],[-100.392300041,20.592999957]]]}',
+     '{"type":"Polygon","coordinates":[[[354900.47,2277725.07],[354921.32,2277724.9],[354921.43,2277738.18],[354900.59,2277738.36],[354900.47,2277725.07]]]}',
      20.593060, -100.392200, 20.593000, 20.593120, -100.392300, -100.392100, null, null, null, null, null,
      '{"capa_area":266.9,"capa_folio":"DEMO-3"}', 'pendiente', now() - interval '1 day', true);
   insert into catastro_versiones (clave, consultado_en, reemplazada_en, cambios, antes)

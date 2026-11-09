@@ -4357,6 +4357,76 @@ begin
 end;
 $$;
 
+-- @@ Geometría UTM y kardex
+-- 0066: se guarda la geometría UTM de la fuente (misma lista blanca); volver a consultar solo por más precisión
+-- no deja versión en el kardex, un dato distinto o un polígono que de verdad se movió sí; 'mantenimiento' no
+-- cuenta en el uso; la ficha y el DXF la llevan.
+create function pg_temp.cgu(p_persona uuid, p_clave text, p_geo jsonb, p_utm jsonb, p_datos jsonb, p_modo text) returns void language plpgsql as $f$
+begin
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('role', 'service_role', true);
+  perform catastro_guardar(pg_temp.xg(), p_persona, p_clave, p_geo, null, null, null, p_datos, 'completo', null, p_modo, p_utm);
+  perform pg_temp.sistema();
+end;
+$f$;
+
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  yo   uuid := (select id from personas where correo = 'xchel@arqosuv.com');
+  geo6 jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.5928]]]}';
+  -- Lo mismo con 9 decimales: difiere menos que el redondeo anterior.
+  geo9 jsonb := '{"type":"Polygon","coordinates":[[[-100.392300412,20.592799603],[-100.392099588,20.592800397],[-100.392100401,20.592950499],[-100.392300412,20.592799603]]]}';
+  -- Un vértice que de verdad se movió (~1 m).
+  geom jsonb := '{"type":"Polygon","coordinates":[[[-100.39231,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.39231,20.5928]]]}';
+  utm  jsonb := '{"type":"Polygon","coordinates":[[[352000.137,2280000.482],[352020.137,2280000.482],[352020.137,2280030.482],[352000.137,2280000.482]]]}';
+  v_usos bigint;
+begin
+  perform pg_temp.sistema();
+  update herramientas set activa = true where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+
+  perform pg_temp.cgu(yo, '140100000000081', geo6, null, '{"colonia":"A"}', 'consulta');
+  v_usos := (select count(*) from usos_herramienta where herramienta = 'mapa_catastral');
+  perform pg_temp.cgu(yo, '140100000000081', geo9, utm, '{"colonia":"A"}', 'mantenimiento');
+  perform pg_temp.igual((select count(*) from catastro_versiones where clave = '140100000000081'), 0::bigint,
+    'Re-consultar solo por precisión no deja versión en el kardex');
+  perform pg_temp.igual((select geometria_utm from catastro_predios where clave = '140100000000081'), utm, 'Se guarda la geometría UTM tal cual');
+  perform pg_temp.igual((select geometria from catastro_predios where clave = '140100000000081'), geo9, 'Y la de grados con 9 decimales');
+  perform pg_temp.igual((select count(*) from usos_herramienta where herramienta = 'mapa_catastral'), v_usos, 'Mantenimiento no cuenta en el uso');
+
+  perform pg_temp.cgu(yo, '140100000000081', geo9, utm, '{"colonia":"B"}', 'mantenimiento');
+  perform pg_temp.igual((select cambios from catastro_versiones where clave = '140100000000081'), '{colonia}'::text[],
+    'Otro dato que cambió sí se registra (y solo ese)');
+  perform pg_temp.cgu(yo, '140100000000081', geom, null, '{"colonia":"B"}', 'actualizar');
+  perform pg_temp.igual((select cambios from catastro_versiones where clave = '140100000000081' order by id desc limit 1), '{geometria}'::text[],
+    'Un polígono que de verdad se movió sí es cambio');
+  perform pg_temp.igual((select (antes->'geometria') = geo9 from catastro_versiones where clave = '140100000000081' order by id desc limit 1), true,
+    'El kardex guarda el polígono anterior');
+  perform pg_temp.igual((select geometria_utm from catastro_predios where clave = '140100000000081'), null::jsonb,
+    'Polígono nuevo sin UTM: no se queda la UTM del anterior');
+
+  perform pg_temp.debe_fallar(format($q$select pg_temp.cgu(%L, '140100000000082', %L, '{"type":"Polygon","coordinates":[],"propietario":"x"}', '{}', 'consulta')$q$, yo, geo6),
+    'geometria_utm', 'La geometría UTM pasa por la lista blanca');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select catastro_guardar(pg_temp.xg(), mi_persona_id(), '140100000000083', %L, null, null, null, '{}', 'completo', null, 'mantenimiento', null)$q$, geo6),
+    'permission denied', 'Solo el servidor guarda (ni admin_org con su sesión)');
+
+  perform pg_temp.sistema();
+  update catastro_predios set geometria = geo9, geometria_utm = utm where clave = '140100000000081';
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_ficha('140100000000081')->'geometria_utm', utm, 'La ficha lleva la geometría UTM');
+  perform pg_temp.igual(catastro_dxf('140100000000081')->'geometria_utm', utm, 'El DXF también');
+
+  perform pg_temp.sistema();
+  delete from dxf_descargas where clave = '140100000000081';
+  delete from catastro_predios where clave like '1401000000000%';
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+  update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

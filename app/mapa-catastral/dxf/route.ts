@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
     const status = error.code === "TA403" ? 403 : error.code === "TA429" ? 429 : error.code === "TA404" ? 404 : 400;
     return mensaje(error.message, status);
   }
-  const d = data as { clave: string; geometria: unknown; consultado_en: string };
+  const d = data as { clave: string; geometria: unknown; geometria_utm: unknown; consultado_en: string };
   const geometria = geometriaValida(d.geometria);
   if (!geometria) return mensaje("Ese predio no tiene polígono guardado.", 404);
-  const bytes = bytesDxf(dxfDePredio({ clave: d.clave, geometria, consultadoEn: d.consultado_en }));
+  const bytes = bytesDxf(dxfDePredio({ clave: d.clave, geometria, geometriaUtm: geometriaValida(d.geometria_utm), consultadoEn: d.consultado_en }));
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
       "Content-Type": "application/dxf",

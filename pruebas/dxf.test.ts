@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { aLonLat, aUtm, type Geometria, type Punto } from "@/lib/catastro/geo";
-import { anillosUtm, bytesDxf, dxfDePredio, superficieUtm } from "@/lib/catastro/dxf";
+import { aLonLat, aUtm, utmAGeografica, type Geometria, type Punto } from "@/lib/catastro/geo";
+import { anillosDe, anillosUtm, bytesDxf, dxfDePredio, superficieUtm } from "@/lib/catastro/dxf";
 
 /**
  * DXF del mapa catastral: coordenadas UTM 14N iguales al polígono guardado (Polygon, MultiPolygon y con hueco),
@@ -130,5 +130,42 @@ describe("DXF del predio", () => {
     expect(b.includes(Buffer.from([0xf3]))).toBe(true); // ó
     expect(b.includes(Buffer.from([0xb2]))).toBe(true); // ²
     expect(b.toString("latin1")).toContain("$DWGCODEPAGE\r\n  3\r\nANSI_1252");
+  });
+});
+
+describe("Geometría UTM de la fuente (0066)", () => {
+  // Como la entrega la fuente: UTM 14N con decimales sueltos.
+  const FUENTE: Geometria = { type: "Polygon", coordinates: [[[352000.137, 2280000.482], [352020.137, 2280000.482], [352020.137, 2280030.482],
+    [352000.137, 2280030.482], [352000.137, 2280000.482]]] };
+
+  test("UTM → grados (9 decimales) → UTM: el mismo punto al milímetro, en todo Querétaro", () => {
+    for (const [x, y] of [[352000.137, 2280000.482], [295000.5, 2235000.25], [470000.9, 2370000.1], [410123.456, 2301234.567]] as Punto[]) {
+      const g = utmAGeografica({ type: "Polygon", coordinates: [[[x, y], [x + 1, y], [x, y + 1], [x, y]]] });
+      const [lon, lat] = (g as { coordinates: Punto[][] }).coordinates[0][0];
+      const [x2, y2] = aUtm(lat, lon);
+      expect(Math.abs(x2 - x)).toBeLessThan(0.001);
+      expect(Math.abs(y2 - y)).toBeLessThan(0.001);
+    }
+  });
+
+  test("con geometria_utm, el DXF lleva exactamente las coordenadas de la fuente: 20.00 × 30.00 y 600.00 m²", () => {
+    const dxf = dxfDePredio({ clave: "149999990000001", geometria: utmAGeografica(FUENTE), geometriaUtm: FUENTE, consultadoEn: "2026-11-09T18:00:00Z" });
+    const { anillos, textos } = leer(dxf);
+    expect(anillos).toEqual([(FUENTE as { coordinates: Punto[][] }).coordinates[0].slice(0, -1)]);
+    expect(textos("COTAS")).toEqual(["20.00", "30.00", "20.00", "30.00"]);
+    expect(textos("TEXTOS")[1]).toBe("Superficie del polígono: 600.00 m²");
+  });
+
+  test("sin geometria_utm (guardados antes), se convierte desde grados como hasta hoy", () => {
+    expect(anillosDe({ geometria: POLIGONO, geometriaUtm: null })).toEqual(anillosUtm(POLIGONO));
+  });
+
+  test("condominio y hueco desde la fuente: partes y huecos tal cual", () => {
+    const multi: Geometria = { type: "MultiPolygon", coordinates: [
+      [[[0, 0], [40, 0], [40, 40], [0, 40], [0, 0]], [[10, 10], [10, 20], [20, 20], [20, 10], [10, 10]]],
+      [[[100, 0], [103, 0], [103, 5], [100, 5], [100, 0]]]].map((p) => p.map((a) => a.map(([x, y]) => [352000 + x, 2280000 + y] as Punto))) };
+    const { anillos, textos } = leer(dxfDePredio({ clave: "149999990000002", geometria: utmAGeografica(multi), geometriaUtm: multi, consultadoEn: "2026-11-09" }));
+    expect(anillos.length).toBe(3);
+    expect(textos("TEXTOS")[1]).toBe("Superficie del polígono: 1,515.00 m²");
   });
 });

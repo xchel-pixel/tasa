@@ -16,6 +16,8 @@ export type PredioDeCapa = {
   /** De la capa (`M06_PA` → "06"), nunca del campo CVE_MUN (en condominios viene vacío). */
   municipio: string;
   geometria: Geometria | null;
+  /** La misma, en UTM 14N tal como la entrega la fuente (sin redondear): para DXF y croquis. */
+  geometriaUtm: Geometria | null;
   datos: Datos;
 };
 
@@ -52,6 +54,7 @@ export async function consultarMapa(lat: number, lon: number): Promise<Respuesta
         clave: /^(0[1-9]|1[0-8])\d{13}$/.test(clave) ? clave : null,
         municipio: elegido.municipio,
         geometria: elegido.utm ? utmAGeografica(elegido.utm) : null,
+        geometriaUtm: elegido.utm,
         datos: datosDeCapa(elegido.f.properties),
       },
     };
