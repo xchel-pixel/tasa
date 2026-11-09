@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { LiberarCupo } from "@/components/formularios-cupo";
+import { AgregarDxf } from "@/components/formularios-dxf";
 import { fechaCorta } from "@/lib/formato";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
@@ -95,6 +96,15 @@ export default async function Alertas() {
                   <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>
                   {" "}(Página en Notion). Se cierra sola al ligarlo; lo ya escrito se corrige a mano en Notion.
                 </p>
+              ) : a.tipo === "cupo_agotado" && a.codigo?.split(":")[1] === "mapa_catastral_dxf" ? (
+                persona.rol === "admin_org" ? (
+                  <>
+                    <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
+                      Agrega descargas aquí o en su ficha (Comisionistas o Equipo → DXF del mapa catastral). Se cierra sola al darle saldo.
+                    </p>
+                    <AgregarDxf personaId={a.codigo?.split(":")[0] ?? ""} />
+                  </>
+                ) : <p className="mt-2 text-[0.9375rem] text-secundario">La resuelve Administración.</p>
               ) : a.tipo === "cupo_agotado" ? (
                 persona.rol === "admin_org" ? (
                   <>

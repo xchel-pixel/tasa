@@ -1,3 +1,4 @@
+import { DxfPersona } from "@/components/dxf-persona";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { exigirRol, NOMBRE_DEL_ROL, type Rol } from "@/lib/sesion";
@@ -67,6 +68,7 @@ export default async function Equipo() {
                   pct={m.bono_referido_pct === null ? null : Number(m.bono_referido_pct)} hasta={m.bono_referido_hasta} />
               )
             ) : null}
+            {m.rol !== "admin_org" && m.activa ? <DxfPersona personaId={m.persona_id} edita={edita} /> : null}
             {edita && m.persona_id !== yo.id ? <CambiarActiva membresiaId={m.id} activa={m.activa} /> : null}
           </li>
         ))}

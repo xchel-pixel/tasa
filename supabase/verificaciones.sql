@@ -4262,6 +4262,101 @@ begin
 end;
 $$;
 
+-- @@ DXF del mapa catastral
+-- 0065: nadie lo tiene por omisión (403); admin_org siempre y sin límite; admin_org autoriza con saldo o sin límite,
+-- agrega y quita, con bitácora y motivo. Cada predio nuevo resta 1; el mismo predio otra vez no; con saldo 0, 429 y
+-- "Pedir más" (alerta dentro de Tasa). Solo predios guardados; nada de propietario en lo que regresa.
+do $$
+declare
+  xg  uuid := pg_temp.xg();
+  ana uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  eq  uuid := (select id from personas where correo = 'xchel+equipo-mos@arqosuv.com');
+  d   jsonb;
+  geo jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.59295],[-100.3923,20.5928]]]}';
+begin
+  perform pg_temp.sistema();
+  insert into membresias (persona_id, organizacion_id, rol) values (eq, xg, 'equipo');
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  insert into catastro_predios (clave, municipio, geometria, consultado_en) values
+    ('140100000000071', '14', geo, now()), ('140100000000072', '14', geo, now()), ('140100000000073', '14', geo, now());
+  insert into catastro_propietarios (organizacion_id, clave, propietarios) values (xg, '140100000000071', '[{"nombre":"Propietaria DXF","porcentaje":100}]');
+
+  -- Nadie por omisión.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(mi_dxf()->>'autorizado', 'false', 'Sin autorización, el comisionista no tiene DXF');
+  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000071')$q$, 'no está disponible', 'No autorizado: rechazado (403)');
+  perform pg_temp.como('xchel+equipo-mos@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000071')$q$, 'no está disponible', 'Equipo tampoco por omisión');
+  -- admin_org: siempre, sin límite, y queda en el registro.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(mi_dxf()->>'sin_limite', 'true', 'admin_org: sin límite');
+  d := catastro_dxf('140100000000071');
+  perform pg_temp.igual(d->'geometria', geo, 'Regresa el polígono guardado');
+  perform pg_temp.igual(d::text like '%Propietaria%' or d ? 'campos' or d ? 'privados', false, 'Nada de propietario ni de la ficha en el DXF');
+  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000099')$q$, 'no está guardado', 'Solo predios guardados (no consulta la fuente)');
+
+  -- Solo admin_org autoriza.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format($q$select dxf_autorizar(%L, 3, 'prueba')$q$, ana), 'Solo admin_org', 'Finanzas no autoriza');
+  perform pg_temp.debe_fallar($q$insert into dxf_autorizaciones (organizacion_id, persona_id, saldo) values (pg_temp.xg(), mi_persona_id(), 99)$q$,
+    'permission denied', 'Nadie escribe directo el saldo');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select dxf_autorizar(%L, 3, 'x')$q$, ana), 'motivo', 'Sin motivo no se autoriza');
+  perform dxf_autorizar(ana, 1, 'Cliente con planos');
+
+  -- Saldo 1: el primer predio resta; el mismo otra vez no; otro predio, ya no (429) y botón para pedir más.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(mi_dxf()->>'saldo', '1', 'Autorizada con saldo 1');
+  perform pg_temp.debe_fallar($q$select pedir_mas_dxf()$q$, 'Todavía', 'Con saldo no pide más');
+  perform pg_temp.igual((catastro_dxf('140100000000071')->>'saldo')::integer, 0, 'La descarga resta 1');
+  perform pg_temp.igual((catastro_dxf('140100000000071')->>'saldo')::integer, 0, 'El mismo predio otra vez no resta');
+  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000072')$q$, 'Ya no te quedan DXF', 'Con saldo 0, otro predio: rechazado (429)');
+  perform pg_temp.igual((select veces || '/' || saldo_despues from dxf_descargas where persona_id = ana and clave = '140100000000071'), '2/0',
+    'Registro de uso: veces y saldo restante');
+  perform pg_temp.igual((select count(*) from dxf_descargas where persona_id = ana), 1::bigint, 'El rechazado no deja registro');
+  perform pedir_mas_dxf();
+  perform pedir_mas_dxf();
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where organizacion_id = xg and tipo = 'cupo_agotado' and resuelta_en is null
+                           and codigo = ana || ':mapa_catastral_dxf:saldo'), 1::bigint, '"Pedir más": una alerta para admin_org');
+
+  -- Agregar suma al saldo y cierra la alerta; sin límite; quitar.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform dxf_agregar(ana, 2, 'Pidió más');
+  perform pg_temp.igual((select saldo from dxf_autorizaciones where persona_id = ana), 2, 'Agregar suma al saldo');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'cupo_agotado' and resuelta_en is null and codigo like '%dxf%'), 0::bigint,
+    'Dar saldo cierra el pedido');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((catastro_dxf('140100000000072')->>'saldo')::integer, 1, 'Con saldo nuevo baja otro predio');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform dxf_autorizar(eq, null, 'Equipo de campo');
+  perform pg_temp.debe_fallar(format($q$select dxf_agregar(%L, 5, 'más')$q$, eq), 'sin límite', 'A quien no tiene límite no se le suma');
+  perform pg_temp.como('xchel+equipo-mos@arqosuv.com');
+  perform pg_temp.igual(catastro_dxf('140100000000073')->>'saldo', null, 'Equipo sin límite');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform dxf_quitar(ana, 'Ya no lo necesita');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select catastro_dxf('140100000000071')$q$, 'no está disponible', 'Sin autorización ya no baja, ni lo ya bajado');
+  perform pg_temp.igual((select count(*) from dxf_movimientos), 0::bigint, 'El comisionista no ve la bitácora');
+  perform pg_temp.igual((select count(*) from dxf_descargas), 2::bigint, 'Ve solo su historial');
+
+  -- Bitácora: quién, cuánto y motivo.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual((select string_agg(accion || ':' || coalesce(cantidad::text, '-') || ':' || motivo, ', ' order by id)
+                           from dxf_movimientos where persona_id = ana and hecho_por = (select id from personas where correo = 'xchel@arqosuv.com')),
+    'autorizar:1:Cliente con planos, agregar:2:Pidió más, quitar:-:Ya no lo necesita', 'Bitácora con quién, cuánto y motivo (finanzas la lee)');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar($q$select count(*) from dxf_descargas$q$, 'permission denied', 'Sin sesión, nada');
+
+  perform pg_temp.sistema();
+  delete from catastro_propietarios where clave = '140100000000071';
+  delete from catastro_predios where clave like '1401000000000%';
+  delete from membresias where persona_id = eq;
+  update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

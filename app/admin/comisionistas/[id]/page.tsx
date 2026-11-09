@@ -14,6 +14,7 @@ import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
 import { leerPerfil } from "@/lib/perfil";
 import { cupoDe, textoCupo } from "@/lib/cupos";
 import { LiberarCupo } from "@/components/formularios-cupo";
+import { DxfPersona } from "@/components/dxf-persona";
 import { AgregarMovimiento, CambiarActivo, CambiarVinculo, DecidirPerfil, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, PaginaNotion, PonerPerfil, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
@@ -225,6 +226,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
             ) : null}
           </details>
         ) : null}
+        {staff ? <DxfPersona personaId={id} edita={superAdmin} /> : null}
         {superAdmin ? (
           <PaginaNotion personaId={id} nombre={f.personas.nombre} ligada={f.notion_pagina ? (f.notion_nombre ?? "ligada") : null} />
         ) : null}

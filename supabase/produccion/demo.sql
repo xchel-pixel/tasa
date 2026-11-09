@@ -540,6 +540,14 @@ begin
   select v_demo, p.id, 'mapa_catastral', 'consulta' from personas p, generate_series(1, 5)
    where p.correo = 'xchel+demo-ana@arqosuv.com';
 
+  -- 11. DXF del mapa catastral (0065): Ana autorizada con 3 descargas para probar con los predios de ejemplo.
+  delete from dxf_descargas where organizacion_id = v_demo;
+  delete from dxf_movimientos where organizacion_id = v_demo;
+  delete from dxf_autorizaciones where organizacion_id = v_demo;
+  insert into dxf_autorizaciones (organizacion_id, persona_id, saldo) values (v_demo, v_ana, 3);
+  insert into dxf_movimientos (organizacion_id, persona_id, accion, cantidad, saldo_despues, motivo, hecho_por)
+  values (v_demo, v_ana, 'autorizar', 3, 3, 'DEMO: para probar el DXF con los predios de ejemplo', v_adm);
+
   perform set_config('tasa.motivo', '', true);
 end;
 $$;

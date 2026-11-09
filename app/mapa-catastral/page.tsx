@@ -3,6 +3,7 @@ import { Encabezado } from "@/components/encabezado";
 import { PedirMas } from "@/components/formularios-cupo";
 import { VolverPortada } from "@/components/volver-portada";
 import { miCupo, textoCupo } from "@/lib/cupos";
+import { miDxf } from "@/lib/dxf-saldo";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import { ROLES_CON_LINEAS } from "@/lib/catastro/estilo";
@@ -19,7 +20,7 @@ export default async function MapaCatastralPagina({ searchParams }: { searchPara
   const q = await searchParams;
   // Líneas de predios y visor de la fuente: solo admin_org, finanzas y equipo.
   const equipo = (ROLES_CON_LINEAS as readonly string[]).includes(persona.rol);
-  const [cupo, cupoPdf, calculadora] = await Promise.all([miCupo("mapa_catastral"), miCupo("mapa_catastral_pdf"), tengoHerramienta("calculadora_traslado")]);
+  const [cupo, cupoPdf, calculadora, dxf] = await Promise.all([miCupo("mapa_catastral"), miCupo("mapa_catastral_pdf"), tengoHerramienta("calculadora_traslado"), miDxf()]);
 
   return (
     <>
@@ -46,6 +47,7 @@ export default async function MapaCatastralPagina({ searchParams }: { searchPara
             calculadora={calculadora}
             veVisor={equipo}
             lineas={equipo}
+            dxf={dxf}
           />
         </div>
       </main>

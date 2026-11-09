@@ -521,6 +521,9 @@ test("humo: DEMO comisionista en el Mapa catastral", async ({ browser, baseURL }
     expect(ficha).not.toMatch(PROHIBIDO);
     expect(ficha).toContain("Indiviso");
     await expect(pagina.locator("main article").getByRole("link", { name: "Cotizar avalúo" })).toBeVisible();
+    // DXF (0065): Ana DEMO está autorizada; se ven el botón y su saldo. No se baja: humo no gasta saldo.
+    await expect(pagina.locator("main article").getByText("Descargar DXF")).toBeVisible();
+    await expect(pagina.locator("main article").getByText(/^(Te quedan? \d+ DXF|DXF sin límite)$/)).toBeVisible();
     expect(await pagina.locator("main").innerText(), "nada en la pantalla nombra la fuente").not.toMatch(/IDECATQ|catastroedo|gobierno|visor/i);
 
     const r = await pagina.request.get("/mapa-catastral/pdf?clave=149999990000002");

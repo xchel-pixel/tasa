@@ -2,6 +2,7 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Map as MapaGL, GeoJSONSource, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { fechaLegible, seccionesDeFicha } from "@/lib/catastro/etiquetas";
@@ -10,6 +11,7 @@ import { caja, ligaMaps, ligaVisor, type Geometria } from "@/lib/catastro/geo";
 import { NOTA_FUENTE } from "@/lib/catastro/textos";
 import type { Ficha, Resultado } from "@/lib/catastro/servicio";
 import { municipioPorClave } from "@/lib/traslado/calculo";
+import { PedirMasDxf } from "@/components/formularios-dxf";
 import { buscarClave, picarMapa } from "./acciones";
 
 const CENTRO: [number, number] = [-100.3899, 20.5888]; // Querétaro
@@ -23,8 +25,11 @@ function token(nombre: string): string {
 
 const vacio = { type: "FeatureCollection" as const, features: [] };
 
-export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, calculadora, veVisor, lineas }: {
-  token: string; claveInicial: string | null; puedeCotizar: boolean; calculadora: boolean;
+/** DXF (0065): si está autorizada y cuánto le queda; saldo nulo = sin límite. */
+type Dxf = { autorizado: boolean; sin_limite: boolean; saldo: number | null };
+
+export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, calculadora, veVisor, lineas, dxf }: {
+  token: string; claveInicial: string | null; puedeCotizar: boolean; calculadora: boolean; dxf: Dxf;
   /** El visor de la fuente: solo admin_org, finanzas y equipo. */
   veVisor: boolean;
   /** Líneas y claves de los predios: solo admin_org, finanzas y equipo (la ruta de mosaicos también lo revisa). */
@@ -41,6 +46,9 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
   const [error, setError] = useState<string | null>(null);
   const [clave, setClave] = useState(claveInicial ?? "");
   const [ocupado, empezar] = useTransition();
+  const router = useRouter();
+  const sinDxf = !dxf.sin_limite && (dxf.saldo ?? 0) <= 0;
+  const textoDxf = dxf.sin_limite ? "DXF sin límite" : dxf.saldo === 1 ? "Te queda 1 DXF" : `Te quedan ${dxf.saldo ?? 0} DXF`;
   const [copiada, setCopiada] = useState(false);
 
   function copiar(texto: string) {
@@ -252,6 +260,21 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
           <div className="grid grid-cols-2 gap-2">
             <a href={`https://wa.me/?text=${encodeURIComponent(textoCompartir)}`} target="_blank" rel="noopener noreferrer" className={BOTON}>Compartir por WhatsApp</a>
             <a href={`/mapa-catastral/pdf?clave=${ficha.clave}`} target="_blank" rel="noopener" className={BOTON}>Descargar PDF</a>
+            {dxf.autorizado ? (
+              <div className="col-span-2 flex flex-col gap-2">
+                <div className="grid grid-cols-2 items-center gap-2">
+                  {sinDxf ? (
+                    <button type="button" disabled className={`${BOTON} cursor-not-allowed text-secundario`}>Descargar DXF</button>
+                  ) : (
+                    // Al volver, el saldo se actualiza (el mismo predio otra vez no resta).
+                    <a href={`/mapa-catastral/dxf?clave=${ficha.clave}`} target="_blank" rel="noopener" onClick={() => setTimeout(() => router.refresh(), 2500)}
+                      className={BOTON}>Descargar DXF</a>
+                  )}
+                  <span className="text-[0.875rem] text-secundario">{textoDxf}</span>
+                </div>
+                {sinDxf ? <PedirMasDxf /> : null}
+              </div>
+            ) : null}
             {puedeCotizar ? (
               <Link href={`/solicitudes/nueva?${new URLSearchParams({ clave: ficha.clave, municipio: municipio ?? "", direccion: ubicacionTexto, nota: descripcionSolicitud })}`} className={BOTON}>
                 Cotizar avalúo
