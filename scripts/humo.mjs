@@ -10,9 +10,25 @@
  * · Guarda la salida completa en humo/salidas/<fecha>/salida.txt, el reporte en reporte.json y, de cada
  *   prueba que falle, su contexto en resultados/. Nada se borra en la siguiente corrida.
  * · Al final imprime las fallas con su error y los reintentos por red (anotados por humo.spec.ts).
+ * · Al empezar borra las corridas de humo/salidas/ con más de 30 días. La carpeta no se sube (.gitignore).
  */
 import { spawn } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+
+// Corridas de más de 30 días: fuera.
+const SALIDAS = "humo/salidas";
+const LIMITE = Date.now() - 30 * 86_400_000;
+let borradas = 0;
+if (existsSync(SALIDAS)) {
+  for (const nombre of readdirSync(SALIDAS)) {
+    const ruta = `${SALIDAS}/${nombre}`;
+    if (statSync(ruta).isDirectory() && statSync(ruta).mtimeMs < LIMITE) {
+      rmSync(ruta, { recursive: true, force: true });
+      borradas++;
+    }
+  }
+}
+if (borradas) console.log(`Se borraron ${borradas} corrida(s) de humo con más de 30 días.`);
 
 const sello = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
 const carpeta = `humo/salidas/${sello}`;
