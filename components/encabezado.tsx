@@ -4,7 +4,7 @@ import { Marca } from "@/components/marca";
 import { MenuFijo } from "@/components/menu-fijo";
 import { menuDe } from "@/lib/herramientas";
 import { obtenerSesion } from "@/lib/sesion";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
 
 /**
  * La barra de arriba de toda pantalla con sesión: la marca lleva al
@@ -23,7 +23,9 @@ export async function Encabezado() {
   // El aviso de la organización activa (sin ?org= sale el de la principal).
   const ligaPrivacidad = persona ? `/privacidad?org=${encodeURIComponent(persona.organizacion.slug)}` : "/privacidad";
   // Aviso de privacidad nuevo que esta persona no ha visto (0064): se avisa aquí, no por correo.
-  const porVer = persona
+  // "Ver como" (0080): ni aviso por marcar ni cerrar sesión; la barra de arriba tiene su propio Salir.
+  const verComo = Boolean(await verComoId());
+  const porVer = persona && !verComo
     ? ((await (await crearClienteServidor()).rpc("aviso_por_ver")).data as { version: number } | null)
     : null;
 
@@ -59,14 +61,16 @@ export async function Encabezado() {
             <Link href={ligaPrivacidad} className="toque text-[0.875rem] text-secundario underline underline-offset-4">
               Privacidad
             </Link>
-            <form action={cerrarSesion}>
-              <button
-                type="submit"
-                className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4"
-              >
-                Salir
-              </button>
-            </form>
+            {verComo ? null : (
+              <form action={cerrarSesion}>
+                <button
+                  type="submit"
+                  className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4"
+                >
+                  Salir
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </header>
