@@ -33,6 +33,7 @@ export async function crearSolicitud(
     cliente_telefono: texto(formData, "cliente_telefono") || null,
     cliente_correo: texto(formData, "cliente_correo").toLowerCase() || null,
     creado_por: persona.id,
+    pagar_con_credito: formData.get("pagar_con_credito") === "on",
   };
 
   if (tipo !== "cotizacion" && tipo !== "tramite_directo") return { error: "Elige el tipo de solicitud." };

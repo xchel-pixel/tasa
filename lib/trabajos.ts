@@ -52,6 +52,9 @@ export type Trabajo = {
   honorario: Honorario;
   cuenta: { titular: string; banco: string | null; clabe: string } | null;
   pagado_en: string | null;
+  /** Monedero (0077): honorarios pagados con crédito y si nació con entrega prioritaria. */
+  credito_honorarios: number;
+  entrega_prioritaria: boolean;
   /** Mes al que cayó la comisión al quedar pagado (para saber si ya cerró). */
   mes_cierre: string | null;
   motivo_cancelacion: string | null;
@@ -137,7 +140,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
          inmueble_clave_catastral, inmueble_descripcion, calculo_traslado_id, cliente_nombre, cliente_telefono,
          cliente_correo, requiere_factura, monto_honorarios, monto_iva, monto_terceros,
          monto_total, pagado_en, mes_cierre, motivo_cancelacion, creado_en,
-         origen, comisionista_id, comision_regla, sin_comision_motivo,
+         origen, comisionista_id, comision_regla, sin_comision_motivo, credito_honorarios, entrega_prioritaria,
          comisionistas(personas!comisionistas_persona_id_fkey(nombre:nombre_visible)),
          honorario_tipo, honorario_minimo, honorario_estimado, honorario_final_en,
          ligada:ligada_a(id, folio, cliente_nombre),
@@ -168,6 +171,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
     monto_iva: Number(f.monto_iva),
     monto_terceros: Number(f.monto_terceros),
     monto_total: Number(f.monto_total),
+    credito_honorarios: Number((f as unknown as { credito_honorarios: string | number }).credito_honorarios ?? 0),
     honorario: {
       tipo: f.honorario_tipo,
       minimo: f.honorario_minimo === null ? null : Number(f.honorario_minimo),

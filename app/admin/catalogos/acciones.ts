@@ -141,6 +141,38 @@ export async function guardarServicio(_previo: EstadoCatalogo, f: FormData): Pro
  * exacto en Cuentas MGP; sin él, el movimiento en Cobros y Gastos queda con Cuenta vacía y sale alerta.
  * No se borran: se apagan.
  */
+/** Un paquete de crédito (0077): precio IVA incluido, crédito, vigencia y beneficios. Queda en la bitácora. */
+export async function guardarPaquete(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  await exigirRol("admin_org");
+  const id = campo(f, "id");
+  const numero = (n: string) => Number(campo(f, n).split(",").join(""));
+  const datos = {
+    nombre: campo(f, "nombre"), precio: numero("precio"), credito: numero("credito"), meses: numero("meses"),
+    cupos: campo(f, "cupos") === "socio" ? "socio" : "sin_limite", dxf_extra: numero("dxf_extra") || 0,
+    entrega_prioritaria: f.get("entrega_prioritaria") === "on", insignia: campo(f, "insignia") || null,
+    beneficios: campo(f, "beneficios"), activo: f.get("activo") === "on",
+  };
+  if (datos.nombre.length < 3 || datos.nombre.length > 40) return falla("El nombre va de 3 a 40 caracteres.");
+  if (!(datos.precio > 0) || !(datos.credito > 0)) return falla("Precio y crédito tienen que ser mayores que cero.");
+  if (!Number.isInteger(datos.meses) || datos.meses < 1 || datos.meses > 24) return falla("La vigencia va de 1 a 24 meses.");
+  if (!Number.isInteger(datos.dxf_extra) || datos.dxf_extra < 0 || datos.dxf_extra > 500) return falla("Los DXF extra van de 0 a 500.");
+  if (datos.beneficios.length < 3 || datos.beneficios.length > 300) return falla("Describe los beneficios (hasta 300 caracteres).");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("paquetes").update(datos).eq("id", id);
+  if (error) return traducir(error, "un paquete");
+  return listo("Paquete guardado. Aplica a las compras nuevas; las ya hechas conservan su precio y su crédito.");
+}
+
+/** La cuenta a la que se transfiere la compra de un paquete (0077). */
+export async function guardarCuentaPaquetes(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
+  const persona = await exigirRol("admin_org");
+  const cuenta = campo(f, "cuenta") || null;
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.from("ajustes").update({ cuenta_paquetes: cuenta }).eq("organizacion_id", persona.organizacion.id);
+  if (error) return traducir(error, "una cuenta");
+  return listo("Cuenta para paquetes guardada.");
+}
+
 export async function guardarCuentaPago(_previo: EstadoCatalogo, f: FormData): Promise<EstadoCatalogo> {
   await exigirRol("admin_org");
   const id = campo(f, "id");

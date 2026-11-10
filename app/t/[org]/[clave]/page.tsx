@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TarjetaVista, urlImagenTarjeta } from "@/components/tarjeta-vista";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { Contador } from "./contador";
 import { leerTarjeta } from "./datos";
 
@@ -30,6 +31,8 @@ export default async function Tarjeta({ params }: Props) {
   const { org, clave } = await params;
   const t = await leerTarjeta(org, clave);
   if (!t) notFound();
+  const supabase = await crearClienteServidor();
+  const { data: insignia } = await supabase.rpc("insignia_tarjeta", { p_org: org, p_clave: clave });
 
   if (!t.disponible) {
     return (
@@ -63,6 +66,7 @@ export default async function Tarjeta({ params }: Props) {
             redes: t.redes ?? {},
             misServicios: t.mis_servicios ?? [],
             inmuebles: (t.inmuebles ?? []).map((i) => ({ ...i, precio: i.precio === null ? null : Number(i.precio), fotoUrl: urlImagenTarjeta(i.foto) })),
+            insignia: typeof insignia === "string" ? insignia : null,
           }}
           ligaSolicitud={`/s/${t.org}/${t.codigo}`}
           vcardHref={`/t/${t.org}/${t.slug}/vcard`}

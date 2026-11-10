@@ -43,6 +43,8 @@ export type DatosTarjeta = {
   redes: Redes;
   /** El bloque del despacho va arriba (por omisión) o abajo de "Mis servicios". */
   despachoArriba: boolean;
+  /** Insignia del paquete vigente (0077), p. ej. "Aliado anual". */
+  insignia?: string | null;
 };
 
 const NOMBRE_RED: Record<keyof Redes, string> = {
@@ -148,6 +150,11 @@ export function TarjetaVista({
         )}
         <h1 className="mt-3 text-[1.375rem] font-bold leading-tight">{d.nombre}</h1>
         <p className="mt-1 rounded-full bg-tinte px-3 py-1 text-[0.875rem] font-semibold text-primario">{d.perfil} · aliado comercial</p>
+        {d.insignia ? (
+          <p className="mt-2 inline-flex items-center gap-1 rounded-full border border-primario px-3 py-1 text-[0.8125rem] font-bold uppercase tracking-wide text-primario">
+            <span aria-hidden>★</span> {d.insignia}
+          </p>
+        ) : null}
         {d.frase ? <p className="mt-3 leading-6">{d.frase}</p> : null}
         {d.zona ? <p className="mt-1 text-[0.9375rem] text-secundario">{d.zona}</p> : null}
         {d.logoUrl ? (

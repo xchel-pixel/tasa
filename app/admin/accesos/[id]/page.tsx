@@ -10,6 +10,8 @@ import { exigirRol, NOMBRE_DEL_ROL, type Rol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import { fechaHora, NOMBRE_HERRAMIENTA, textoEvento, type EventoUso } from "@/lib/uso";
 import { AccionAcceso } from "../formularios";
+import { fechaCorta, pesos } from "@/lib/formato";
+import { detalleMovimiento, TIPO_MOVIMIENTO, type Movimiento } from "@/lib/paquetes";
 
 export const metadata = { title: "Accesos — Tasa" };
 
@@ -48,8 +50,9 @@ export default async function AccesoPersona({ params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const supabase = await crearClienteServidor();
-  const [{ data }, { data: inact }, { data: eq }] = await Promise.all([supabase.rpc("accesos_persona", { p_persona: id }), supabase.rpc("inactividad_org"),
-    supabase.rpc("equipos_org")]);
+  const [{ data }, { data: inact }, { data: eq }, { data: cred }] = await Promise.all([supabase.rpc("accesos_persona", { p_persona: id }), supabase.rpc("inactividad_org"),
+    supabase.rpc("equipos_org"), supabase.rpc("credito_de", { p_persona: id })]);
+  const credito = cred as { paquete: string | null; vence: string | null; saldo: number | string; movimientos: Movimiento[] } | null;
   const equipos = ((eq ?? []) as { persona_id: string; equipos: number; maximo: number | null; cierres_mes: number }[]).find((e) => e.persona_id === id) ?? null;
   const a = data as Acceso | null;
   if (!a) notFound();
@@ -124,6 +127,22 @@ export default async function AccesoPersona({ params }: { params: Promise<{ id: 
           </ul>
         ) : <p className="mt-1 text-[0.9375rem] text-secundario">Ninguna.</p>}
       </Bloque>
+
+      {a.rol === "comisionista" && credito ? (
+        <Bloque titulo="Paquete y crédito">
+          <p className="mt-1 text-[0.9375rem]">
+            {credito.paquete ? <>Paquete <span className="font-semibold">{credito.paquete}</span>, vence el {fechaCorta(credito.vence!)}</> : "Sin paquete vigente"}
+            {" · "}saldo <span className="font-semibold">{pesos(Number(credito.saldo))}</span>
+          </p>
+          {credito.movimientos.length ? (
+            <ul className="mt-2 flex flex-col gap-1 text-[0.9375rem]">
+              {credito.movimientos.slice(0, 5).map((m) => (
+                <li key={m.id}><span className="text-secundario">{fechaCorta(m.creado_en)}</span> · {TIPO_MOVIMIENTO[m.tipo]} · {detalleMovimiento(m)} · {pesos(Number(m.monto))}</li>
+              ))}
+            </ul>
+          ) : null}
+        </Bloque>
+      ) : null}
 
       <Bloque titulo="Cupos del mes">
         <ul className="mt-2 flex flex-col gap-1 text-[0.9375rem]">

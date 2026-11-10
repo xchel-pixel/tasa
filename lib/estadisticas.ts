@@ -83,6 +83,36 @@ export type ActividadComisionista = { persona_id: string; nombre: string; estado
 const fechaMx = (t: string | null) => (t ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date(t)) : "—");
 const ESTADO_ACTIVIDAD = { activa: "Al corriente", por_vencer: "Por inactivarse", inactiva: "Inactiva" } as const;
 
+export type EstadisticasCredito = {
+  ventas: { paquete: string; vendidos: number; cobrado: number | string; con_comision: number; credito: number | string }[];
+  consumo: { aplicado: number | string; devuelto: number | string; vencido: number | string; trabajos: number };
+  saldo_vigente: number | string;
+};
+
+const dinero = (x: number | string) => Number(x).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+
+/** Ventas de paquetes y consumo de crédito (0077), del periodo. */
+export function tablasCredito(c: EstadisticasCredito): { ventas: Tabla; credito: Tabla } {
+  return {
+    ventas: {
+      titulo: "Ventas de paquetes",
+      columnas: ["Paquete", "Vendidos", "Con comisión", "Cobrado (IVA incluido)", "Crédito otorgado"],
+      filas: c.ventas.map((v) => [v.paquete, v.vendidos, v.con_comision, dinero(v.cobrado), dinero(v.credito)]),
+    },
+    credito: {
+      titulo: "Consumo de crédito",
+      columnas: ["Concepto", "Monto"],
+      filas: [
+        ["Aplicado a trabajos", dinero(c.consumo.aplicado)],
+        ["Trabajos pagados con crédito", c.consumo.trabajos],
+        ["Devuelto por cancelación", dinero(c.consumo.devuelto)],
+        ["Vencido sin renovar", dinero(c.consumo.vencido)],
+        ["Saldo vigente hoy", dinero(c.saldo_vigente)],
+      ],
+    },
+  };
+}
+
 /** Actividad de comisionistas (0075): no depende del periodo, es la foto de hoy. */
 export function tablaActividad(a: ActividadComisionista[]): Tabla {
   return {

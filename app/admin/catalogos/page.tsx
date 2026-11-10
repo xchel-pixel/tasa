@@ -6,6 +6,7 @@ import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { FormularioConvenio, type Convenio } from "./convenios";
 import { textoComision } from "./textos";
 import { HERRAMIENTAS_CON_CUPO } from "@/lib/cupos";
+import { FormularioCuentaPaquetes, FormularioPaquete, type PaqueteCatalogo } from "./formularios";
 import { FormularioCuenta, FormularioCuentaPago, FormularioCupos, FormularioHerramienta, FormularioMarca, FormularioPerfil, FormularioServicio, type Cuenta, type CuentaPago, type HerramientaCatalogo, type Marca, type Perfil, type Servicio } from "./formularios";
 
 type FilaConvenio = Omit<Convenio, "precios" | "comision_pct"> & {
@@ -23,7 +24,7 @@ export const metadata = { title: "Catálogos — Tasa" };
 export default async function Catalogos() {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
-  const [marcas, cuentas, servicios, convenios, perfiles, cuentasPago, herramientas, niveles, cupos] = await Promise.all([
+  const [marcas, cuentas, servicios, convenios, perfiles, cuentasPago, herramientas, niveles, cupos, paquetes, ajustesPaq] = await Promise.all([
     supabase
       .from("marcas")
       .select(
@@ -52,6 +53,9 @@ export default async function Catalogos() {
     supabase.from("herramientas").select("id, clave, nombre, activa, roles, niveles, en_menu").order("orden").returns<HerramientaCatalogo[]>(),
     supabase.from("niveles").select("id, nombre").order("orden").returns<{ id: string; nombre: string }[]>(),
     supabase.from("cupos_herramienta").select("herramienta, nivel_id, cantidad").returns<{ herramienta: string; nivel_id: string; cantidad: number | null }[]>(),
+    supabase.from("paquetes").select("id, nombre, precio, credito, meses, cupos, dxf_extra, entrega_prioritaria, insignia, beneficios, activo")
+      .order("orden").returns<PaqueteCatalogo[]>(),
+    supabase.from("ajustes").select("cuenta_paquetes").maybeSingle<{ cuenta_paquetes: string | null }>(),
   ]);
   const cuposDe = (h: string) => Object.fromEntries((oExplota(cupos, "los cupos") ?? []).filter((c) => c.herramienta === h).map((c) => [c.nivel_id, c.cantidad]));
   const conLogo = oExplota(marcas, "las marcas") ?? [];
@@ -128,6 +132,18 @@ export default async function Catalogos() {
           </Elemento>
         ))}
         <Nuevo texto="Agregar cuenta"><FormularioCuentaPago /></Nuevo>
+      </Seccion>
+
+      <Seccion titulo="Paquetes de crédito" detalle="Lo que compra el comisionista en «Mis paquetes». El precio incluye IVA. Los cambios aplican a compras nuevas.">
+        <FormularioCuentaPaquetes cuentas={(oExplota(cuentas, "las cuentas") ?? []).map((c) => ({ id: c.id, alias: c.alias, activa: c.activa }))}
+          actual={ajustesPaq.data?.cuenta_paquetes ?? null} />
+        {(oExplota(paquetes, "los paquetes") ?? []).map((p) => (
+          <Elemento key={p.id} titulo={p.nombre}
+            subtitulo={`Paga ${Number(p.precio).toLocaleString("es-MX")} · crédito ${Number(p.credito).toLocaleString("es-MX")} · ${p.meses} mes${p.meses === 1 ? "" : "es"}`}
+            inactivo={!p.activo}>
+            <FormularioPaquete paquete={{ ...p, precio: Number(p.precio), credito: Number(p.credito) }} />
+          </Elemento>
+        ))}
       </Seccion>
 
       <Seccion titulo="Perfiles" detalle="Lo que eligen los comisionistas en «Mi perfil»; sale en su tarjeta como «… · aliado comercial». «Otro» lo escriben ellos y lo apruebas en su ficha.">

@@ -72,6 +72,8 @@ begin
   delete from tarjetas                   where organizacion_id = v_demo;
   delete from eventos_vinculo            where organizacion_id = v_demo;
   delete from vinculos_referido          where organizacion_id = v_demo;
+  delete from movimientos_credito        where organizacion_id = v_demo;
+  delete from compras_paquete            where organizacion_id = v_demo;
   delete from aplicaciones_pago_comision where organizacion_id = v_demo;
   delete from pagos_comision             where organizacion_id = v_demo;
   delete from pendientes_comision        where organizacion_id = v_demo;
@@ -649,3 +651,46 @@ $$;
 select estatus_publico, honorario_tipo, count(*)
   from solicitudes where organizacion_id = (select id from organizaciones where slug = 'demo')
  group by 1, 2 order by 1, 2;
+
+-- 13. Monedero (0077): Ana DEMO con un trimestral a medio usar. Lo compró hace 40 días (transferencia confirmada) y
+--     aplicó 6,000 a un trámite fijo sin pagos (el resto de ese trámite se paga normal). La cuenta para paquetes de
+--     DEMO es su cuenta sugerida. Solo si Ana todavía no tiene compras: no se duplica al volver a correr.
+do $$
+declare
+  v_demo  uuid := (select id from organizaciones where slug = 'demo');
+  v_ana   uuid := (select id from personas where correo = 'xchel+demo-ana@arqosuv.com');
+  v_paq   uuid;
+  v_cta   uuid;
+  v_comp  uuid;
+  v_sol   uuid;
+  v_fecha date := hoy_mx() - 40;
+begin
+  if v_demo is null or v_ana is null then return; end if;
+  if exists (select 1 from compras_paquete where organizacion_id = v_demo and persona_id = v_ana) then return; end if;
+  v_cta := coalesce((select cuenta_paquetes from ajustes where organizacion_id = v_demo),
+                    (select m.cuenta_sugerida_id from marcas m where m.organizacion_id = v_demo and m.cuenta_sugerida_id is not null order by m.clave limit 1),
+                    (select c.id from cuentas_receptoras c where c.organizacion_id = v_demo and c.activa order by c.alias limit 1));
+  update ajustes set cuenta_paquetes = v_cta where organizacion_id = v_demo and cuenta_paquetes is null;
+  v_paq := (select id from paquetes where organizacion_id = v_demo and clave = 'trimestral');
+  if v_paq is null or v_cta is null then return; end if;
+
+  insert into compras_paquete (organizacion_id, persona_id, paquete_id, tipo, precio, credito, terminos_version, terminos_aceptados_en,
+                               pago_monto, pago_fecha, cuenta_id, pago_referencia, folio_cfdi, creado_en)
+  values (v_demo, v_ana, v_paq, 'compra', 10000, 12000, (select max(version) from terminos_paquetes where organizacion_id = v_demo),
+          v_fecha::timestamp at time zone 'America/Mexico_City', 10000, v_fecha, v_cta, 'SPEI DEMO 0001', 'A-DEMO-1',
+          v_fecha::timestamp at time zone 'America/Mexico_City')
+  returning id into v_comp;
+  perform set_config('tasa.org', v_demo::text, true);
+  perform ejecutar_confirmar_compra(v_comp, v_fecha, (select id from personas where correo = 'xchel+demo-finanzas@arqosuv.com'));
+  update movimientos_credito set creado_en = v_fecha::timestamp at time zone 'America/Mexico_City' + interval '11 hours' where compra_id = v_comp;
+
+  v_sol := (select s.id from solicitudes s
+             where s.organizacion_id = v_demo and s.comisionista_id = v_ana and s.estado = 'tramite' and s.pagado_en is null
+               and s.honorario_tipo = 'fijo' and s.convenio_id is null and s.monto_honorarios >= 6000
+               and not exists (select 1 from pagos g where g.solicitud_id = s.id)
+             order by s.creado_en limit 1);
+  if v_sol is not null then
+    perform ejecutar_aplicar_credito(v_sol, 6000, v_ana);
+  end if;
+end;
+$$;

@@ -15,6 +15,7 @@ import AceptarCotizacion from "./aceptar-cotizacion";
 import { AsignarComisionista, EntregarPago, GeneraComision } from "./asignar";
 import CambiarEstatus from "./cambiar-estatus";
 import FijarHonorarioFinal from "./fijar-honorario-final";
+import { AplicarCredito } from "@/app/admin/paquetes/formularios";
 
 export const metadata = { title: "Trabajo — Tasa" };
 
@@ -76,6 +77,15 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
     cerrados.has(mesDeFecha(pago.fecha_pago)) ||
     (pago.estado === "confirmado" && Boolean(t.mes_cierre) && cerrados.has(mesDeFecha(t.mes_cierre!)));
   const confirmado = t.pagos.filter((p) => p.estado === "confirmado").reduce((s, p) => s + p.monto, 0);
+  // Monedero (0077): admin_org o finanzas aplican crédito del comisionista a un trámite sin pagar.
+  const finanzas = persona.rol === "admin_org" || persona.rol === "finanzas";
+  let credito: { monto: number; saldo: number; motivo: string | null } | null = null;
+  if (finanzas && t.estado === "tramite" && !t.pagado_en) {
+    const supabase = await crearClienteServidor();
+    const { data } = await supabase.rpc("credito_aplicable", { p_solicitud: t.id });
+    const c = data as { monto: number | string; saldo: number | string | null; motivo: string | null } | null;
+    if (c && Number(c.saldo ?? 0) > 0) credito = { monto: Number(c.monto), saldo: Number(c.saldo), motivo: c.motivo };
+  }
   const porConfirmar = t.pagos.filter((p) => p.estado === "reportado").reduce((s, p) => s + p.monto, 0);
 
   return (
@@ -98,6 +108,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
             </div>
             <Etiqueta tono={estatus.tono}>{estatus.texto}</Etiqueta>
           </div>
+          {t.entrega_prioritaria ? <p className="mt-2"><Etiqueta tono="proceso">Entrega prioritaria</Etiqueta></p> : null}
           {estatusAMano ? <CambiarEstatus solicitudId={t.id} actual={t.estatus_publico} /> : null}
 
           {t.estado === "tramite" && t.honorario.tipo !== "fijo" ? (
@@ -194,6 +205,19 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
                 {persona.rol === "comisionista" ? "Reportar pago" : "Registrar pago"}
               </Link>
             </Seccion>
+          ) : null}
+
+          {credito ? (
+            <Seccion titulo="Crédito del comisionista">
+              <p className="text-[0.9375rem] leading-6 text-secundario">
+                Saldo vigente {pesos(credito.saldo)}.{" "}
+                {credito.monto > 0 ? `Este trabajo admite hasta ${pesos(Math.min(credito.monto, credito.saldo))} (honorarios${t.requiere_factura ? " + IVA" : ""}; nunca terceros). La parte con crédito no genera comisión ni bono.` : credito.motivo ?? "Este trabajo no admite crédito."}
+              </p>
+              {credito.monto > 0 ? <AplicarCredito solicitud={t.id} maximo={Math.min(credito.monto, credito.saldo)} /> : null}
+            </Seccion>
+          ) : null}
+          {t.credito_honorarios > 0 ? (
+            <p className="mt-3 text-[0.9375rem] text-secundario">Honorarios pagados con crédito: {pesos(t.credito_honorarios)} (sin comisión ni bono por referido).</p>
           ) : null}
 
           {t.pagos.length > 0 ? (

@@ -316,7 +316,7 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, invitado_por, organizaciones_con_alta, pedir_alta, pedir_por_liga, registrar_clic_tarjeta, registrar_evento_tarjeta'::text,
+  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, insignia_tarjeta, invitado_por, organizaciones_con_alta, pedir_alta, pedir_por_liga, registrar_clic_tarjeta, registrar_evento_tarjeta'::text,
     'anon solo ejecuta lo de la pantalla de acceso, la solicitud de alta y el aviso de privacidad');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -4921,6 +4921,7 @@ declare
   ines  uuid;
   s     uuid;
   r     jsonb;
+  original text;
 begin
   perform pg_temp.sistema();
   ines := pg_temp.comisionista('Ines Inactiva');
@@ -4988,13 +4989,13 @@ begin
   -- Un paquete vigente cuenta como actividad: nunca queda inactiva (el monedero redefine paquete_vigente_de).
   update membresias set actividad_manual_en = null, creado_en = now() - interval '2 years', inactividad_avisada_en = now() - interval '20 days'
    where persona_id = ines;
+  original := pg_get_functiondef('paquete_vigente_de(uuid, uuid)'::regprocedure);
   execute format($f$create or replace function paquete_vigente_de(p_org uuid, p_persona uuid) returns boolean language sql stable
                     security definer set search_path = public as $b$ select p_persona = %L::uuid $b$ $f$, ines);
   perform revisar_inactividad();
   perform pg_temp.igual(inactividad_de(xg, ines)->>'estado', 'activa', 'Con paquete vigente nunca queda inactiva');
   perform pg_temp.igual((select inactividad_avisada_en from membresias where persona_id = ines), null::timestamptz, 'Y el paquete quita el aviso');
-  create or replace function paquete_vigente_de(p_org uuid, p_persona uuid) returns boolean language sql stable
-    security definer set search_path = public as $b$ select false $b$;
+  execute original;
 
   update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
   update membresias set activa = false where persona_id = ines;
@@ -5090,6 +5091,195 @@ begin
 
   update ajustes set limite_equipos = '{"comisionista": 3, "equipo": 3, "finanzas": 3, "admin_marca": 3}' where organizacion_id = pg_temp.xg();
   delete from auth.sessions where user_id in (ana_u, adm_u);
+end;
+$sec$;
+
+-- @@ Monedero de paquetes de crédito
+-- 0077: compra y confirmación; aplicación total y parcial (sin comisión ni bono en la parte con crédito); cancelación
+-- devuelve; subida; renovación suma saldo; vencimiento; convertir comisión; beneficios solo mientras está vigente.
+do $sec$
+declare
+  xg     uuid := pg_temp.xg();
+  ana    uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  b0     solicitudes%rowtype;
+  c1     uuid;
+  c2     uuid;
+  lote   uuid;
+  sa     uuid;
+  sb     uuid;
+  sc     uuid;
+  v_dxf  integer;
+  v_ter  integer;
+  v_cie  uuid;
+  pend   uuid;
+  rr     uuid;
+  qq     uuid;
+  sr     uuid;
+  m      date := mes_de(hoy_mx());
+begin
+  perform pg_temp.sistema();
+  select * into b0 from solicitudes where organizacion_id = xg and marca_id is not null and cuenta_receptora_id is not null limit 1;
+  perform pg_temp.igual((select count(*) from paquetes where organizacion_id = xg and activo), 4::bigint, 'La organización nace con los 4 paquetes');
+  update ajustes set cuenta_paquetes = b0.cuenta_receptora_id where organizacion_id = xg;
+  delete from dxf_autorizaciones where persona_id = ana;
+  v_ter := (select max(version) from terminos_paquetes where organizacion_id = xg);
+
+  -- Compra: el comisionista elige y acepta los términos; nace por pagar.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(jsonb_array_length(mis_paquetes()->'catalogo'), 4, 'Ana ve el catálogo');
+  perform pg_temp.igual((mis_paquetes()->'terminos'->>'texto') like '%al monto de honorarios de la cotización aceptada%', true, 'Términos con el texto nuevo');
+  perform pg_temp.debe_fallar(format('select pedir_paquete(%L, %L, 99)', (select id from paquetes where organizacion_id = xg and clave = 'trimestral'), 'compra'),
+    'términos vigentes', 'Sin aceptar los términos vigentes no compra');
+  c1 := pedir_paquete((select id from paquetes where organizacion_id = xg and clave = 'trimestral'), 'compra', v_ter);
+  perform pg_temp.igual((select estado || ' ' || precio || ' ' || credito || ' v' || terminos_version from compras_paquete where id = c1),
+    'por_pagar 10000.00 12000.00 v1', 'La compra nace por pagar, con versión de términos');
+  perform pg_temp.debe_fallar(format('select pedir_paquete(%L, %L, %s)', (select id from paquetes where organizacion_id = xg and clave = 'mensual'), 'compra', v_ter),
+    'compra por pagar', 'Una compra por pagar a la vez');
+  perform pg_temp.debe_fallar(format('select confirmar_compra_paquete(%L, 10000, %L, %L, %L, null)', c1, hoy_mx(), b0.cuenta_receptora_id, 'REF1'),
+    'Solo finanzas', 'El comisionista no se confirma su pago');
+  perform pg_temp.igual(mis_paquetes()->>'saldo', '0', 'Sin confirmar, sin saldo');
+
+  -- Finanzas confirma: crédito cargado, beneficios activos, DXF extra.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select confirmar_compra_paquete(%L, 9000, %L, %L, %L, null)', c1, hoy_mx(), b0.cuenta_receptora_id, 'REF1'),
+    'no es el precio', 'El monto tiene que ser el precio');
+  perform confirmar_compra_paquete(c1, 10000, hoy_mx(), b0.cuenta_receptora_id, 'REF1', 'A-123');
+  perform pg_temp.sistema();
+  perform pg_temp.igual(saldo_credito(xg, ana), 12000.00::numeric, 'Confirmado: 12,000 de crédito');
+  perform pg_temp.igual((select vence from compras_paquete where id = c1), (hoy_mx() + interval '3 months')::date - 1, 'Vigencia de 3 meses');
+  perform pg_temp.igual((select saldo from dxf_autorizaciones where persona_id = ana), 5, '+5 DXF al saldo');
+  perform pg_temp.igual(paquete_vigente_de(xg, ana), true, 'Con paquete vigente cuenta como actividad');
+  perform pg_temp.igual((select limite from cupo_de(xg, ana, 'calculadora_traslado_completa')), null::integer, 'Herramientas sin límite');
+  perform pg_temp.igual((select motivo from bitacora where tabla = 'compras_paquete' and registro_id = c1::text order by id desc limit 1),
+    'Pago de paquete confirmado', 'La confirmación queda en la bitácora');
+
+  -- Aplicación total al solicitar ("Pagar con mi crédito"): honorarios + IVA, sin comisión.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, pagar_con_credito)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Crédito 1', 'Cliente Crédito', b0.marca_id, b0.cuenta_receptora_id,
+          true, 5000, 'tramite', 'entregado', now(), true) returning id into sa;
+  perform pg_temp.igual((select pagado_en is not null from solicitudes where id = sa), true, 'Pagado completo con crédito');
+  perform pg_temp.igual((select credito_honorarios from solicitudes where id = sa), 5000.00::numeric, 'Los honorarios van con crédito');
+  perform pg_temp.igual(saldo_credito(xg, ana), 6200.00::numeric, 'Consume honorarios + IVA (5,800)');
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = sa), 0::bigint, 'Sin comisión en lo pagado con crédito');
+  perform pg_temp.igual((select via || ' ' || estado from pagos where solicitud_id = sa), 'credito confirmado', 'Queda como pago con crédito');
+  perform pg_temp.igual((select entrega_prioritaria from solicitudes where id = sa), false, 'El trimestral no da entrega prioritaria');
+
+  -- Aplicación parcial (finanzas, sin factura): la diferencia se paga normal y esa parte sí genera comisión.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Crédito 2', 'Cliente Parcial', b0.marca_id, b0.cuenta_receptora_id,
+          false, 8000, 'tramite', 'entregado', now()) returning id into sb;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select aplicar_credito(%L, 3000)', sb), 'Solo finanzas', 'El comisionista no aplica crédito desde el detalle');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(aplicar_credito(sb, 3000), 3000.00::numeric, 'Finanzas aplica 3,000');
+  perform pg_temp.sistema();
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia, reportado_por) values (sb, 'directo', 5000, hoy_mx(), 'REF-B', ana);
+  update pagos set estado = 'confirmado' where solicitud_id = sb and via = 'directo';
+  perform pg_temp.igual((select base || ' ' || tipo from comisiones where solicitud_id = sb), '5000.00 comision', 'Comisión solo sobre los 5,000 en dinero');
+  perform pg_temp.igual(saldo_credito(xg, ana), 3200.00::numeric, 'Saldo 3,200');
+
+  -- Bono por referido: también solo sobre la parte en dinero.
+  rr := pg_temp.comisionista('Rosa Credito');
+  perform pg_temp.pagado(rr, 5000, m);
+  qq := pg_temp.comisionista('Quique Credito', rr);
+  sr := pg_temp.pagado(qq, 10000, m);
+  perform set_config('session_replication_role', 'replica', true);
+  update solicitudes set credito_honorarios = 4000 where id = sr;
+  perform set_config('session_replication_role', 'origin', true);
+  perform pg_temp.igual((select base || ' ' || porcentaje from bonos_referido_calculados(xg, m) where solicitud = sr), '6000.00 2.00',
+    'El bono por referido no cuenta la parte con crédito');
+  perform set_config('session_replication_role', 'replica', true);
+  update solicitudes set credito_honorarios = 10000 where id = sr;
+  perform set_config('session_replication_role', 'origin', true);
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, m) where solicitud = sr), 0::bigint, 'Todo con crédito: sin bono');
+
+  -- Cancelación: el crédito regresa a su lote, con su vigencia original.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform cancelar_trabajo(sa, 'Prueba de devolución');
+  perform pg_temp.sistema();
+  perform pg_temp.igual(saldo_credito(xg, ana), 9000.00::numeric, 'Cancelar devuelve los 5,800');
+  perform pg_temp.igual((select count(*) from movimientos_credito where solicitud_id = sa and tipo = 'devolucion'), 1::bigint, 'Una sola devolución');
+
+  -- Subir de paquete en los primeros 30 días: paga la diferencia, recibe la diferencia de crédito; vigencia desde la compra original.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  c2 := pedir_paquete((select id from paquetes where organizacion_id = xg and clave = 'semestral'), 'subida', v_ter);
+  perform pg_temp.igual((select precio || ' ' || credito from compras_paquete where id = c2), '15000.00 19250.00', 'Diferencia de precio y de crédito');
+  perform pg_temp.como('gaby@tasa.test');
+  perform confirmar_compra_paquete(c2, 15000, hoy_mx(), b0.cuenta_receptora_id, 'REF2', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual(saldo_credito(xg, ana), 28250.00::numeric, 'Recibe el crédito del superior (31,250 − 3,000 usados)');
+  perform pg_temp.igual((select vence from compras_paquete where id = c1), (hoy_mx() + interval '6 months')::date - 1, 'Vigencia de 6 meses desde la compra original');
+  perform pg_temp.igual((paquete_vigente(xg, ana)).clave, 'semestral', 'Ahora es semestral');
+  perform pg_temp.igual((select saldo from dxf_autorizaciones where persona_id = ana), 15, 'DXF: +10 de diferencia');
+  perform pg_temp.igual(saldo_credito(xg, ana) > 0, true, 'Sigue con saldo');
+
+  -- Con semestral, un trámite nuevo nace con entrega prioritaria.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Crédito 3', 'Cliente Prioritario', b0.marca_id, b0.cuenta_receptora_id,
+          false, 1000, 'tramite', 'entregado', now()) returning id into sc;
+  perform pg_temp.igual((select entrega_prioritaria from solicitudes where id = sc), true, 'Entrega prioritaria mientras está vigente');
+
+  -- Renovar antes de vencer: el saldo vigente se suma al nuevo paquete.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  c2 := pedir_paquete((select id from paquetes where organizacion_id = xg and clave = 'mensual'), 'renovacion', v_ter);
+  perform pg_temp.como('gaby@tasa.test');
+  perform confirmar_compra_paquete(c2, 3500, hoy_mx(), b0.cuenta_receptora_id, 'REF3', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual(saldo_credito(xg, ana), 32100.00::numeric, 'Renovar suma: 28,250 + 3,850');
+  perform pg_temp.igual((select reemplazada_por from compras_paquete where id = c1), c2, 'El lote anterior queda renovado');
+  perform pg_temp.igual(saldo_lote(c1), 0::numeric, 'Su saldo pasó al nuevo');
+  perform pg_temp.igual((paquete_vigente(xg, ana)).clave, 'mensual', 'Beneficios del paquete nuevo');
+  perform pg_temp.igual(herramientas_sin_limite(xg, ana), false, 'El mensual da cupos de nivel Socio, no sin límite');
+  perform pg_temp.igual((select n.nombre from niveles n where n.id = nivel_herramientas(xg, ana, mes_mx(now()))) in ('Socio', 'Socio Plus', 'Élite'), true,
+    'Con mensual, las herramientas cuentan al menos como Socio');
+
+  -- Vencimiento: el saldo se pierde y queda registrado; se acaban los beneficios.
+  update compras_paquete set vence = hoy_mx() - 1 where id = c2;
+  perform pg_temp.igual(vencer_creditos(), 1, 'El cron vence el lote');
+  perform pg_temp.igual(saldo_lote(c2), 0::numeric, 'Saldo en cero');
+  perform pg_temp.igual((select -monto from movimientos_credito where compra_id = c2 and tipo = 'vencimiento'), 32100.00::numeric, 'Queda el movimiento de vencimiento');
+  perform pg_temp.igual(paquete_vigente_de(xg, ana), false, 'Sin paquete vigente');
+  perform pg_temp.igual(nivel_herramientas(xg, ana, mes_mx(now())), nivel_del_mes(xg, ana, mes_mx(now())), 'Beneficios solo mientras está vigente');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select aplicar_credito(%L, 100)', sc), 'sin saldo', 'Sin saldo vigente no se aplica');
+
+  -- Convertir la comisión del cierre en crédito.
+  perform pg_temp.sistema();
+  v_cie := (select id from cierres where organizacion_id = xg order by mes desc limit 1);
+  -- Lo que ya se le debía queda pagado; su último pendiente queda en 4,000 por cobrar.
+  perform set_config('session_replication_role', 'replica', true);
+  update pendientes_comision set pagado = monto, pagado_en = hoy_mx() where comisionista_id = ana;
+  pend := (select id from pendientes_comision where comisionista_id = ana order by mes desc limit 1);
+  if pend is null then
+    insert into pendientes_comision (organizacion_id, comisionista_id, cierre_id, mes, monto)
+    values (xg, ana, v_cie, (select mes from cierres where id = v_cie), 4000) returning id into pend;
+  else
+    update pendientes_comision set monto = 4000, pagado = 0, pagado_en = null where id = pend;
+  end if;
+  perform set_config('session_replication_role', 'origin', true);
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select comprar_paquete_con_comision(%L, %s)', (select id from paquetes where organizacion_id = xg and clave = 'trimestral'), v_ter),
+    'no alcanza', 'Si la comisión no alcanza, no');
+  c2 := comprar_paquete_con_comision((select id from paquetes where organizacion_id = xg and clave = 'mensual'), v_ter);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select estado || ' ' || forma_pago from compras_paquete where id = c2), 'confirmada comision', 'Comprado con su comisión, al instante');
+  perform pg_temp.igual((select pagado from pendientes_comision where id = pend), 3500.00::numeric, 'Se cobra 3,500 de la comisión; el resto se paga normal');
+  perform pg_temp.igual((select o.nombre || ' ' || g.externo_pendiente from pagos_comision g join origenes_pago o on o.id = g.origen_id
+                          where g.id = (select pago_comision_id from compras_paquete where id = c2)), 'Crédito Tasa false',
+    'Pago de comisión con origen Crédito Tasa, sin ir a Notion todavía');
+  perform pg_temp.igual(saldo_credito(xg, ana), 3850.00::numeric, 'Crédito del mensual cargado');
+
+  -- Nadie ve el monedero de otro.
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select count(*) from movimientos_credito where persona_id = ana), 0::bigint, 'Beto no ve movimientos de Ana');
+  perform pg_temp.debe_fallar('select paquetes_admin()', 'Solo administración', 'Ni la administración de paquetes');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(jsonb_array_length(paquetes_admin()->'lotes') >= 2, true, 'Finanzas ve los paquetes vendidos');
+
+  perform pg_temp.sistema();
 end;
 $sec$;
 

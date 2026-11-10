@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { Aviso } from "@/components/aviso";
 import { BotonEnviar } from "@/components/boton-enviar";
-import { eliminar, guardarCuenta, guardarCuentaPago, guardarCupos, guardarHerramienta, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
+import { guardarCuentaPaquetes, guardarPaquete, eliminar, guardarCuenta, guardarCuentaPago, guardarCupos, guardarHerramienta, guardarMarca, guardarPerfil, guardarServicio, subirLogo, type EstadoCatalogo } from "./acciones";
 
 const INICIAL: EstadoCatalogo = { error: null, mensaje: null };
 const ENTRADA =
@@ -129,6 +129,58 @@ export function FormularioCuentaPago({ cuenta }: { cuenta?: CuentaPago }) {
       </Campo>
       {cuenta ? <Activa nombre="activo" valor={cuenta.activo} texto="Activa (aparece al registrar un pago)" /> : null}
       <BotonEnviar variante="secundario">{cuenta ? "Guardar cuenta" : "Agregar cuenta"}</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
+
+export type PaqueteCatalogo = {
+  id: string; nombre: string; precio: number; credito: number; meses: number; cupos: "socio" | "sin_limite"; dxf_extra: number;
+  entrega_prioritaria: boolean; insignia: string | null; beneficios: string; activo: boolean;
+};
+
+/** Un paquete de crédito (0077). Los cambios aplican a compras nuevas. */
+export function FormularioPaquete({ paquete }: { paquete: PaqueteCatalogo }) {
+  const [estado, enviar] = useActionState(guardarPaquete, INICIAL);
+  return (
+    <form action={enviar} className="flex flex-col gap-3">
+      <input type="hidden" name="id" value={paquete.id} />
+      <Campo etiqueta="Nombre"><input name="nombre" required maxLength={40} defaultValue={paquete.nombre} className={ENTRADA} /></Campo>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo etiqueta="Paga (IVA incluido)"><input name="precio" inputMode="decimal" required defaultValue={paquete.precio} className={ENTRADA} /></Campo>
+        <Campo etiqueta="Crédito"><input name="credito" inputMode="decimal" required defaultValue={paquete.credito} className={ENTRADA} /></Campo>
+        <Campo etiqueta="Vigencia (meses)"><input name="meses" type="number" min={1} max={24} required defaultValue={paquete.meses} className={ENTRADA} /></Campo>
+        <Campo etiqueta="DXF extra"><input name="dxf_extra" type="number" min={0} max={500} defaultValue={paquete.dxf_extra} className={ENTRADA} /></Campo>
+      </div>
+      <Campo etiqueta="Herramientas">
+        <select name="cupos" defaultValue={paquete.cupos} className={ENTRADA}>
+          <option value="socio">Cupos de nivel Socio</option>
+          <option value="sin_limite">Sin límite</option>
+        </select>
+      </Campo>
+      <label className="flex items-center gap-2 text-[0.9375rem]">
+        <input type="checkbox" name="entrega_prioritaria" defaultChecked={paquete.entrega_prioritaria} className="h-5 w-5" /> Entrega prioritaria en sus trámites
+      </label>
+      <Campo etiqueta="Insignia en la tarjeta (vacío = sin insignia)"><input name="insignia" maxLength={30} defaultValue={paquete.insignia ?? ""} className={ENTRADA} /></Campo>
+      <Campo etiqueta="Beneficios (lo que lee el comisionista)"><textarea name="beneficios" required maxLength={300} rows={2} defaultValue={paquete.beneficios} className={ENTRADA} /></Campo>
+      <Activa nombre="activo" valor={paquete.activo} texto="Activo (se puede comprar)" />
+      <BotonEnviar variante="secundario">Guardar paquete</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
+
+export function FormularioCuentaPaquetes({ cuentas, actual }: { cuentas: { id: string; alias: string | null; activa: boolean }[]; actual: string | null }) {
+  const [estado, enviar] = useActionState(guardarCuentaPaquetes, INICIAL);
+  return (
+    <form action={enviar} className="flex flex-col gap-3 rounded-xl border border-linea px-4 py-3">
+      <Campo etiqueta="Cuenta para transferir la compra de un paquete">
+        <select name="cuenta" defaultValue={actual ?? ""} className={ENTRADA}>
+          <option value="">Sin definir</option>
+          {cuentas.filter((c) => c.activa || c.id === actual).map((c) => <option key={c.id} value={c.id}>{c.alias ?? c.id.slice(0, 8)}</option>)}
+        </select>
+      </Campo>
+      <BotonEnviar variante="secundario">Guardar cuenta</BotonEnviar>
       <Aviso estado={estado} />
     </form>
   );

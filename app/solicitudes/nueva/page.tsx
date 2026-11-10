@@ -33,6 +33,10 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
       "los servicios"
     ) ?? [];
 
+  // Monedero (0077): con saldo vigente puede pedir que el trámite se pague con su crédito.
+  const { data: paquetes } = await supabase.rpc("mis_paquetes");
+  const credito = Number((paquetes as { saldo?: number | string } | null)?.saldo ?? 0);
+
   return (
     <>
       <Encabezado />
@@ -54,7 +58,7 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
               Viene del Mapa catastral: ya llenamos la clave, el municipio y la ubicación. Revisa la dirección y agrega el servicio y al cliente.
             </p>
           ) : null}
-          <FormularioSolicitud servicios={servicios} inicial={delMapa ?? (pre ? {
+          <FormularioSolicitud servicios={servicios} credito={credito} inicial={delMapa ?? (pre ? {
             servicio_id: servicios.find((s) => s.nombre.toLowerCase().includes(pre.servicio))?.id,
             municipio: pre.municipio,
             clave: pre.clave,

@@ -1,5 +1,5 @@
 import { PantallaAdmin } from "@/components/pantalla-admin";
-import { filtrosDe, HERRAMIENTAS_FILTRO, parametros, queryDe, tablaActividad, tablas, type ActividadComisionista, type Estadisticas, type Tabla } from "@/lib/estadisticas";
+import { filtrosDe, HERRAMIENTAS_FILTRO, parametros, queryDe, tablaActividad, tablas, tablasCredito, type ActividadComisionista, type Estadisticas, type EstadisticasCredito, type Tabla } from "@/lib/estadisticas";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { NOMBRE_HERRAMIENTA } from "@/lib/uso";
@@ -47,6 +47,8 @@ export default async function EstadisticasPagina({ searchParams }: { searchParam
     supabase.from("niveles").select("id, nombre").order("orden").returns<{ id: string; nombre: string }[]>(),
     supabase.rpc("inactividad_org"),
   ]);
+  const credito = await supabase.rpc("estadisticas_credito", { p_desde: f.desde, p_hasta: f.hasta });
+  const tc = credito.data ? tablasCredito(credito.data as EstadisticasCredito) : null;
   if (datos.error) throw new Error(`No se pudieron calcular las estadísticas: ${datos.error.message}`);
   const t = tablas(datos.data as Estadisticas);
   const personas = (oExplota(gente, "las personas") ?? []).map((g) => ({ id: g.persona_id, nombre: g.personas?.nombre ?? "—" }))
@@ -87,6 +89,8 @@ export default async function EstadisticasPagina({ searchParams }: { searchParam
       <VerTabla t={t.embudo} csv={ligaCsv("embudo")} vacio="Sin consultas ni solicitudes desde el mapa o la calculadora." />
       <VerTabla t={t.zonas} csv={ligaCsv("zonas")} vacio="Sin consultas del mapa en el periodo." />
       <VerTabla t={t.salud} csv={ligaCsv("salud")} vacio="Sin consultas a la fuente en el periodo." />
+      {tc ? <VerTabla t={tc.ventas} csv={ligaCsv("ventas")} vacio="Sin paquetes vendidos en el periodo." /> : null}
+      {tc ? <VerTabla t={tc.credito} csv={ligaCsv("credito")} vacio="Sin movimientos de crédito." /> : null}
       <VerTabla t={tablaActividad((actividad.data ?? []) as ActividadComisionista[])} csv={ligaCsv("actividad")} vacio="Sin comisionistas activos." />
     </PantallaAdmin>
   );

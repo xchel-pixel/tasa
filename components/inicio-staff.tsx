@@ -107,6 +107,7 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         {staff ? <Enlace href="/admin/referidos">Referidos</Enlace> : null}
         {staff ? <Enlace href="/admin/reportes">Reportes</Enlace> : null}
         {staff ? <Enlace href="/admin/estadisticas">Estadísticas</Enlace> : null}
+        {staff ? <Enlace href="/admin/paquetes">Paquetes</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/admin/configuracion">Configuración</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/admin/catalogos">Catálogos</Enlace> : null}
         {staff ? <Enlace href="/admin/equipo">Equipo</Enlace> : null}

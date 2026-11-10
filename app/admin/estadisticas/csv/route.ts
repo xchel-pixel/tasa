@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { csv, filtrosDe, parametros, tablaActividad, tablas, type ActividadComisionista, type Estadisticas } from "@/lib/estadisticas";
+import { csv, filtrosDe, parametros, tablaActividad, tablas, tablasCredito, type ActividadComisionista, type Estadisticas, type EstadisticasCredito } from "@/lib/estadisticas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -11,6 +11,15 @@ export async function GET(request: NextRequest) {
   const tabla = q.tabla as keyof ReturnType<typeof tablas>;
   const f = filtrosDe(q);
   const supabase = await crearClienteServidor();
+  if (q.tabla === "ventas" || q.tabla === "credito") {
+    const { data: cred, error: errCred } = await supabase.rpc("estadisticas_credito", { p_desde: f.desde, p_hasta: f.hasta });
+    if (errCred) return new NextResponse(errCred.message, { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    const t = tablasCredito(cred as EstadisticasCredito)[q.tabla];
+    return new NextResponse(csv(t), {
+      headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="estadisticas-${q.tabla}-${f.desde}-a-${f.hasta}.csv"`,
+        "Cache-Control": "private, no-store" },
+    });
+  }
   if (q.tabla === "actividad") {
     const { data: act, error: errAct } = await supabase.rpc("inactividad_org");
     if (errAct) return new NextResponse(errAct.message, { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" } });

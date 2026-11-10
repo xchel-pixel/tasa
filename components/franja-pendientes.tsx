@@ -34,13 +34,14 @@ export async function FranjaPendientes({ persona }: { persona: Persona }) {
 async function delComisionista(persona: Persona): Promise<Pendiente[]> {
   const supabase = await crearClienteServidor();
   const mes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date()).slice(0, 7) + "-01";
-  const [{ data: yo }, { data: porEntregar }, { data: extras }, { data: inactividad }] = await Promise.all([
+  const [{ data: yo }, { data: porEntregar }, { data: extras }, { data: inactividad }, { data: paquetes }] = await Promise.all([
     supabase.from("comisionistas").select("csf_ruta").eq("persona_id", persona.id).maybeSingle<{ csf_ruta: string | null }>(),
     supabase.from("pagos").select("id, monto, entregar_antes, solicitud_id, solicitudes(cliente_nombre)")
       .eq("recibio_asesor", true).eq("estado", "reportado").is("entregado_en", null).eq("reportado_por", persona.id).order("entregar_antes")
       .returns<{ id: string; monto: string | number; entregar_antes: string; solicitud_id: string; solicitudes: { cliente_nombre: string } | null }[]>(),
     supabase.from("extras_herramienta").select("cantidad").eq("persona_id", persona.id).eq("mes", mes).returns<{ cantidad: number }[]>(),
     supabase.rpc("mi_inactividad"),
+    supabase.rpc("mis_paquetes"),
   ]);
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const lista: Pendiente[] = [];
@@ -52,6 +53,13 @@ async function delComisionista(persona: Persona): Promise<Pendiente[]> {
     lista.push({ href: "/solicitudes/nueva", urgente: true,
       texto: `Te quedan ${inact.dias ?? 0} día${inact.dias === 1 ? "" : "s"} para que tu cuenta pase a inactiva y se apaguen el Mapa catastral y la Calculadora completa. Un trabajo cobrado la mantiene activa.` });
   }
+  const paq = paquetes as { por_vencer: { vence: string; saldo: number }[] | null; por_pagar: { paquete: string } | null } | null;
+  for (const v of paq?.por_vencer ?? []) {
+    const dias = Math.round((Date.parse(`${v.vence}T12:00:00Z`) - Date.parse(`${hoy}T12:00:00Z`)) / 86_400_000);
+    lista.push({ href: "/paquetes", urgente: dias <= 7,
+      texto: `Tu crédito de ${pesos(Number(v.saldo))} vence ${dias <= 0 ? "hoy" : `en ${dias} día${dias === 1 ? "" : "s"}`}. Renueva antes y se suma al nuevo paquete.` });
+  }
+  if (paq?.por_pagar) lista.push({ href: "/paquetes", texto: `Tu paquete ${paq.por_pagar.paquete} está por pagar` });
   lista.push(...(porEntregar ?? []).map((p) => ({
     href: `/trabajos/${p.solicitud_id}`,
     texto: `Entrega a la cuenta ${pesos(Number(p.monto))} de ${p.solicitudes?.cliente_nombre ?? "tu cliente"} · ${p.entregar_antes < hoy ? `venció el ${fechaCorta(p.entregar_antes)}` : `a más tardar el ${fechaCorta(p.entregar_antes)}`}`,
@@ -65,10 +73,13 @@ async function delComisionista(persona: Persona): Promise<Pendiente[]> {
 
 async function deOperacion(persona: Persona): Promise<Pendiente[]> {
   const staff = esStaff(persona);
-  const [p, porPagar] = await Promise.all([pendientesDelPanel(), staff ? comisionesPorPagar() : Promise.resolve([])]);
+  const supabase = await crearClienteServidor();
+  const [p, porPagar, paquetes] = await Promise.all([pendientesDelPanel(), staff ? comisionesPorPagar() : Promise.resolve([]),
+    staff ? supabase.from("compras_paquete").select("id", { count: "exact", head: true }).eq("estado", "por_pagar") : Promise.resolve({ count: 0 })]);
   const vencidas = porPagar.filter((x) => x.vencido);
   const lista: Pendiente[] = [];
   if (p.pagos) lista.push({ href: "/admin/pagos", texto: "Pagos por confirmar", cuenta: p.pagos });
+  if (paquetes.count) lista.push({ href: "/admin/paquetes", texto: "Pagos de paquete por confirmar", cuenta: paquetes.count });
   if (p.solicitudes) lista.push({ href: "/admin/solicitudes", texto: "Solicitudes por cotizar", cuenta: p.solicitudes });
   if (p.alertas) lista.push({ href: "/admin/alertas", texto: "Alertas", cuenta: p.alertas });
   if (staff && p.altas) lista.push({ href: "/admin/altas", texto: "Solicitudes de alta", cuenta: p.altas });

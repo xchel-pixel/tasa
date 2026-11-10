@@ -10,7 +10,7 @@ const ENTRADA =
 export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string; calculo?: string; direccion?: string; desde?: "mapa" };
 
 /** `inicial`: lo que trae la liga de la calculadora de traslado (servicio, municipio, clave y notas). */
-export default function FormularioSolicitud({ servicios, inicial = {} }: { servicios: { id: string; nombre: string }[]; inicial?: InicialSolicitud }) {
+export default function FormularioSolicitud({ servicios, inicial = {}, credito = 0 }: { servicios: { id: string; nombre: string }[]; inicial?: InicialSolicitud; credito?: number }) {
   const [estado, enviar] = useActionState<EstadoSolicitud, FormData>(crearSolicitud, { error: null });
 
   return (
@@ -71,6 +71,13 @@ export default function FormularioSolicitud({ servicios, inicial = {} }: { servi
         <Campo id="cliente_correo" etiqueta="Correo" opcional tipo="email" />
       </fieldset>
 
+      {credito > 0 ? (
+        <label className="flex items-start gap-2 rounded-xl border border-linea px-4 py-3 text-[0.9375rem] leading-6">
+          <input type="checkbox" name="pagar_con_credito" className="mt-1 h-5 w-5 shrink-0" />
+          <span><span className="font-semibold">Pagar con mi crédito</span> (tienes {credito.toLocaleString("es-MX", { style: "currency", currency: "MXN" })}).
+            Al aceptarse la cotización se aplica a los honorarios{" "}(+ IVA si lleva factura); si no alcanza, el resto se paga normal.</span>
+        </label>
+      ) : null}
       {estado.error ? <p className="text-[0.9375rem] leading-6 text-error">{estado.error}</p> : null}
       <Enviar />
     </form>

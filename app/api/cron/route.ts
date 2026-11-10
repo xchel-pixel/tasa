@@ -60,6 +60,10 @@ export async function POST(request: NextRequest) {
     const { data: sinUso, error: errorSes } = await supabase.rpc("cerrar_sesiones_sin_uso");
     if (errorSes) console.error(`[tasa] No se pudieron cerrar las sesiones sin uso: ${errorSes.message}`);
     else if (sinUso) console.log(`[tasa] Sesiones sin uso en 30 días cerradas: ${sinUso}`);
+    // Monedero (0077): los lotes de crédito vencidos sin renovar se quedan en cero (queda el movimiento).
+    const { data: vencidos, error: errorCred } = await supabase.rpc("vencer_creditos");
+    if (errorCred) console.error(`[tasa] No se pudieron vencer los créditos: ${errorCred.message}`);
+    else if (vencidos) console.log(`[tasa] Créditos vencidos: ${vencidos}`);
     await limpiarAltas(supabase, Boolean(cuerpo.barrido_csf));
   }
 
