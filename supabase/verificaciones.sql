@@ -323,9 +323,10 @@ begin
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public' and c.relkind = 'r'
      and not has_table_privilege('authenticated', c.oid, 'select');
-  -- Excepción a propósito (0059): los datos catastrales solo se leen por función (catastro_ficha), nunca directo.
-  perform pg_temp.igual(v, 'catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones'::text,
-    'authenticated puede leer todas las tablas (el RLS filtra las filas), salvo las catastrales');
+  -- Excepciones a propósito: los datos catastrales solo se leen por función (catastro_ficha, 0059), nunca directo;
+  -- la huella de la clave de humo (0072) no la lee nadie, solo es_humo().
+  perform pg_temp.igual(v, 'catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones, humo_huella'::text,
+    'authenticated puede leer todas las tablas (el RLS filtra las filas), salvo las catastrales y la huella de humo');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -4767,6 +4768,147 @@ begin
   delete from eventos_uso;
   delete from catastro_fallas;
   delete from auth.sessions where user_id = uana;
+end;
+$$;
+
+-- @@ Humo marcado
+-- 0072: solo con la clave exacta (su huella coincide) un evento queda como humo; una clave falsa o ninguna, no.
+-- Lo de humo no cuenta en el cupo ni sale en el historial de Accesos.
+do $$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  nv   uuid;
+  geo  jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.5928]]]}';
+begin
+  perform pg_temp.sistema();
+  -- En la prueba, la huella de una clave conocida (la real vive en .env.local de quien corre humo).
+  update humo_huella set huella = encode(sha256(convert_to('clave-de-prueba', 'UTF8')), 'hex');
+  delete from eventos_uso;
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  insert into catastro_predios (clave, municipio, geometria) values ('140100000000111', '14', geo), ('140100000000112', '14', geo);
+  nv := nivel_del_mes(xg, ana, mes_mx(now()));
+  update cupos_herramienta set cantidad = 1 where organizacion_id = xg and herramienta = 'mapa_catastral_pdf' and nivel_id = nv;
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform set_config('request.headers', '{"x-tasa-humo":"otra-clave"}', true);
+  perform pg_temp.igual(es_humo(), false, 'Con una clave falsa no es humo');
+  perform set_config('request.headers', '', true);
+  perform pg_temp.igual(es_humo(), false, 'Sin encabezado no es humo');
+  perform registrar_acceso('Chrome en Android');
+
+  -- Humo con su clave: el PDF no gasta cupo y el evento queda marcado.
+  perform set_config('request.headers', '{"x-tasa-humo":"clave-de-prueba"}', true);
+  perform pg_temp.igual(es_humo(), true, 'Con la clave exacta sí es humo');
+  perform catastro_pdf('140100000000111');
+  perform registrar_acceso('Servidor');
+  perform pg_temp.igual((select usados from mi_cupo('mapa_catastral_pdf')), 0, 'El PDF de humo no cuenta en el cupo');
+  perform set_config('request.headers', '', true);
+  perform pg_temp.igual(catastro_pdf('140100000000112')->>'error', null, 'Por eso Ana todavía tiene su PDF del mes');
+  perform pg_temp.igual((select usados from mi_cupo('mapa_catastral_pdf')), 1, 'El PDF normal sí cuenta');
+
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select string_agg(evento || ':' || coalesce(referencia, clave, '-') || ':' || humo, ',' order by id) from eventos_uso where persona_id = ana),
+    'acceso:Chrome en Android:false,pdf:140100000000111:true,acceso:Servidor:true,pdf:140100000000112:false',
+    'Cada evento queda marcado como humo o no, según la clave');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(accesos_persona(ana)->'eventos') e where (e->>'humo')::boolean), 0::bigint,
+    'El historial de Accesos no trae lo de humo');
+  perform pg_temp.igual((select string_agg(e->>'referencia', ',') from jsonb_array_elements(accesos_persona(ana)->'eventos') e where e->>'evento' = 'acceso'),
+    'Chrome en Android', 'Solo el acceso normal');
+
+  perform pg_temp.sistema();
+  delete from eventos_uso;
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+  delete from catastro_predios where clave like '1401000000001%';
+  update cupos_herramienta set cantidad = null where organizacion_id = xg and herramienta like 'mapa_catastral%' and nivel_id = nv;
+  update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$$;
+
+-- @@ Estadísticas y bitácora de la organización
+-- 0073: los números salen de eventos_uso, usos, alertas y solicitudes, sin humo; admin_org y finanzas leen, el
+-- comisionista no. La bitácora: solo admin_org y solo lo de su organización.
+do $$
+declare
+  xg  uuid := pg_temp.xg();
+  ana uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  hoy date := (now() at time zone 'America/Mexico_City')::date;
+  geo jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.5928]]]}';
+  st  jsonb;
+  pa  jsonb;
+  em  jsonb;
+  bi  jsonb;
+begin
+  perform pg_temp.sistema();
+  delete from eventos_uso;
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+  insert into catastro_predios (clave, municipio, geometria, colonia) values ('140100000000121', '14', geo, 'Centro'), ('140100000000122', '14', geo, 'Centro');
+  -- 2 de la fuente (1 y 3 s), 1 falla, 3 de lo guardado; un PDF, un DXF, un cálculo rápido, una denegación; y una de humo.
+  perform registrar_evento(xg, ana, 'mapa_catastral', 'consulta', 'fuente', '140100000000121', 'ok', null, null, true, 1000);
+  perform registrar_evento(xg, ana, 'mapa_catastral', 'consulta', 'fuente', '140100000000122', 'ok', null, null, true, 3000);
+  perform registrar_evento(xg, ana, 'mapa_catastral', 'consulta', 'fuente', null, 'falla', null, null, false, 12000);
+  perform registrar_evento(xg, ana, 'mapa_catastral', 'consulta', 'guardado', '140100000000121', 'ok');
+  perform registrar_evento(xg, ana, 'mapa_catastral', 'consulta', 'guardado', '140100000000121', 'ok');
+  perform registrar_evento(xg, ana, 'mapa_catastral', 'consulta', 'guardado', '140100000000122', 'ok');
+  perform registrar_evento(xg, ana, 'mapa_catastral_pdf', 'pdf', 'guardado', '140100000000121', 'ok', null, null, true);
+  perform registrar_evento(xg, ana, 'mapa_catastral_dxf', 'dxf', 'guardado', '140100000000121', 'ok', null, null, true);
+  perform registrar_evento(xg, ana, 'calculadora_traslado', 'calculo', null, null, 'ok', null, null, true);
+  perform registrar_evento(xg, ana, 'mapa_catastral_pdf', 'denegado', null, '140100000000122', 'denegado', 'sin_cupo', 429::smallint);
+  insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, origen, clave, resultado, humo)
+  values (xg, ana, 'mapa_catastral', 'consulta', 'fuente', '140100000000121', 'ok', true);
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo) values (xg, ana, 'mapa_catastral', 'consulta'), (xg, ana, 'mapa_catastral', 'consulta');
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo, humo) values (xg, ana, 'mapa_catastral', 'consulta', true);
+  insert into alertas (organizacion_id, tipo, codigo, mensaje) values (xg, 'cupo_agotado', ana || ':mapa_catastral_pdf:2026-11', 'pide más');
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, inmueble_clave_catastral, cliente_nombre, creado_por,
+                           origen_herramienta, estado, estatus_publico, monto_honorarios, aceptada_en)
+  values (ana, 'cotizacion', 'portal', (select id from servicios where organizacion_id = xg and activo order by orden limit 1),
+          'Calle Estadística 1', '140100000000121', 'Cliente estadística', ana, 'mapa_catastral', 'tramite', 'aceptada', 1000, now());
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$select estadisticas(%L, %L)$q$, hoy, hoy), 'Solo administración', 'El comisionista no ve estadísticas');
+  perform pg_temp.como('gaby@tasa.test');
+  st := estadisticas(hoy, hoy);
+  perform pg_temp.igual(st->'uso'->>'fuente' || '/' || (st->'uso'->>'guardado') || '/' || (st->'uso'->>'fallas'), '2/3/1',
+    'Uso: 2 de la fuente, 3 de lo guardado, 1 falla (sin la de humo)');
+  perform pg_temp.igual((st->'uso'->>'pdf') || '/' || (st->'uso'->>'dxf') || '/' || (st->'uso'->>'calculo_rapida') || '/' || (st->'uso'->>'denegaciones'),
+    '1/1/1/1', 'PDF, DXF, cálculo y denegaciones');
+  pa := (select p from jsonb_array_elements(st->'personas') p where p->>'persona_id' = ana::text);
+  perform pg_temp.igual((pa->'cupos'->'mapa_catastral'->>'usados')::int, 2, 'Por persona: 2 consultas (la de humo no cuenta)');
+  perform pg_temp.igual((pa->>'pidio_mas')::int || '/' || (pa->>'denegaciones'),
+    (select count(*) from alertas where tipo = 'cupo_agotado' and codigo like ana::text || ':%' and creada_en >= hoy::timestamp at time zone 'America/Mexico_City') || '/1',
+    'Por persona: cuántas veces pidió más en el periodo y su denegación');
+  em := (select e from jsonb_array_elements(st->'embudo') e where e->>'persona_id' = ana::text);
+  perform pg_temp.igual(em->>'mapa_consultas' || '→' || (em->>'mapa_solicitudes') || '→' || (em->>'mapa_tramites'), '6→1→1',
+    'Embudo del mapa: consultas → solicitudes → trámites');
+  perform pg_temp.igual((select z->>'colonia' || ':' || (z->>'consultas') || ':' || (z->>'predios') from jsonb_array_elements(st->'zonas') z
+                          where z->>'colonia' = 'Centro'), 'Centro:5:2', 'Por colonia: consultas y predios');
+  perform pg_temp.igual((select d->>'consultas' || '/' || (d->>'fallas') || '/' || (d->>'ms_promedio') from jsonb_array_elements(st->'salud') d),
+    '3/1/2000', 'Salud de la fuente: consultas, fallas y tiempo promedio (sin contar la falla)');
+  st := estadisticas(hoy, hoy, null, null, 'mapa_catastral_pdf');
+  perform pg_temp.igual((st->'uso'->>'fuente') || '/' || (st->'uso'->>'pdf'), '0/1', 'Filtro por herramienta');
+  perform pg_temp.debe_fallar(format($q$select estadisticas(%L, %L)$q$, hoy, hoy - 1), 'Periodo inválido', 'Periodo al revés');
+
+  -- Bitácora: admin_org, solo su organización.
+  perform pg_temp.debe_fallar(format($q$select bitacora_org(%L, %L)$q$, hoy, hoy), 'Solo admin_org', 'Finanzas no lee la bitácora');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform suspender_persona(ana, 'Prueba de bitácora');
+  perform reactivar_persona(ana, 'Fin de prueba');
+  bi := bitacora_org(hoy, hoy, ana);
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(bi->'filas') f where f->>'motivo' like 'Suspendida: Prueba de bitácora%'), 1::bigint,
+    'La bitácora trae la suspensión con su motivo');
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(bitacora_org(hoy, hoy)->'filas') f
+                          where f->>'tabla' = 'membresias' and f::text like '%' || pg_temp.notion_xg()::text || '%'), 0::bigint,
+    'Nada de otra organización');
+
+  perform pg_temp.sistema();
+  delete from solicitudes where cliente_nombre = 'Cliente estadística';
+  delete from alertas where mensaje = 'pide más';
+  delete from eventos_uso;
+  delete from usos_herramienta where herramienta like 'mapa_catastral%';
+  delete from catastro_predios where clave like '1401000000001%';
 end;
 $$;
 

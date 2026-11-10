@@ -23,5 +23,7 @@ export default defineConfig({
     viewport: { width: 390, height: 844 },
     // Microsoft Edge, que ya trae Windows: en esta PC la descarga de Chromium de Playwright se traba.
     channel: "msedge",
+    // Humo marcado (0072): lo que hace humo queda como prueba y no cuenta en estadísticas, cupos ni historial.
+    ...(process.env.HUMO_SECRETO ? { extraHTTPHeaders: { "x-tasa-humo": process.env.HUMO_SECRETO } } : {}),
   },
 });

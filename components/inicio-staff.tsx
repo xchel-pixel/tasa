@@ -106,10 +106,12 @@ export async function InicioStaff({ persona }: { persona: Persona }) {
         <Enlace href="/admin/comisionistas">Comisionistas</Enlace>
         {staff ? <Enlace href="/admin/referidos">Referidos</Enlace> : null}
         {staff ? <Enlace href="/admin/reportes">Reportes</Enlace> : null}
+        {staff ? <Enlace href="/admin/estadisticas">Estadísticas</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/admin/configuracion">Configuración</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/admin/catalogos">Catálogos</Enlace> : null}
         {staff ? <Enlace href="/admin/equipo">Equipo</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/admin/accesos">Accesos</Enlace> : null}
+        {persona.rol === "admin_org" ? <Enlace href="/admin/bitacora">Bitácora</Enlace> : null}
         {persona.rol === "admin_org" ? <Enlace href="/ajustes">Ajustes</Enlace> : null}
         {persona.superPlataforma ? <Enlace href="/plataforma">Plataforma</Enlace> : null}
       </nav>

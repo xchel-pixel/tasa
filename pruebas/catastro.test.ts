@@ -183,6 +183,7 @@ let fichaGuardada: Record<string, unknown> | null = null;
 const { rpc } = vi.hoisted(() => ({ rpc: { fn: null as null | ((fn: string, args?: Record<string, unknown>) => Promise<unknown>) } }));
 vi.mock("@/lib/supabase/servicio", () => ({ clienteDeServicio: () => ({ rpc: (fn: string, args?: Record<string, unknown>) => rpc.fn!(fn, args) }) }));
 vi.mock("@/lib/supabase/server", () => ({
+  encabezadoHumo: async () => null,
   crearClienteServidor: async () => ({
     rpc: async (fn: string, args: Record<string, unknown> = {}) => {
       if (["catastro_guardar", "catastro_registrar_falla"].includes(fn)) throw new Error(`${fn} con la sesión del usuario: solo con la llave de servicio`);

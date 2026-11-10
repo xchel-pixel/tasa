@@ -46,6 +46,7 @@ function delRol(persona: Persona): Mosaico[] {
     { href: "/admin/tramites", titulo: "Trámites", detalle: "Todos los trabajos" },
     { href: "/admin/comisionistas", titulo: "Comisionistas", detalle: "Fichas, niveles y estado de cuenta" },
     ...(staff ? [{ href: "/admin/cierres", titulo: "Cierres", detalle: "Cierre mensual de comisiones" }] : []),
+    ...(staff ? [{ href: "/admin/estadisticas", titulo: "Estadísticas", detalle: "Uso de herramientas, embudo y salud de la fuente" }] : []),
     ...(persona.rol === "admin_org" ? [{ href: "/admin/configuracion", titulo: "Catálogos y ajustes", detalle: "Configuración de la organización" }] : []),
     ...(persona.rol === "admin_org" ? [{ href: "/admin/accesos", titulo: "Accesos", detalle: "Estatus, sesiones e historial de cada persona" }] : []),
   ];

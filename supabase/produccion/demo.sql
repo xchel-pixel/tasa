@@ -556,6 +556,95 @@ begin
 end;
 $$;
 
+-- 12. Uso de ejemplo para Estadísticas, Accesos y "Mi uso" (0070-0073): del día 1 del mes a hoy, sin humo. Reproducible
+--     (sin azar). Consultas de la fuente (con tiempos y alguna falla) y de lo guardado, PDF, DXF, cálculos, accesos,
+--     denegaciones, un "pedir más", y solicitudes de este mes marcadas como venidas del mapa o de la calculadora.
+do $$
+declare
+  v_demo  uuid := (select id from organizaciones where slug = 'demo');
+  v_ini   date := date_trunc('month', now() at time zone 'America/Mexico_City')::date;
+  v_dias  integer := ((now() at time zone 'America/Mexico_City')::date - date_trunc('month', now() at time zone 'America/Mexico_City')::date);
+  v_gente uuid[] := array(select p.id from personas p where p.correo in ('xchel+demo-ana@arqosuv.com', 'xchel+demo-beto@arqosuv.com',
+                                                                         'xchel+demo-carla@arqosuv.com', 'diego.ref@demo.test')
+                          order by p.correo);
+  v_claves text[] := array['149999990000001', '149999990000002', '149999990000003'];
+  v_p     uuid;
+  i       integer;
+  d       integer;
+  k       integer;
+  v_t     timestamptz;
+begin
+  if v_demo is null then return; end if;
+  delete from eventos_uso where organizacion_id = v_demo and not humo;
+  update solicitudes set origen_herramienta = null, evento_origen_id = null
+   where organizacion_id = v_demo and calculo_traslado_id is null;
+  for i in 1 .. coalesce(array_length(v_gente, 1), 0) loop
+    v_p := v_gente[i];
+    for d in 0 .. v_dias loop
+      v_t := ((v_ini + d)::timestamp + time '10:00') at time zone 'America/Mexico_City';
+      if (d + i) % 3 = 0 then
+        insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, resultado, referencia, creado_en, humo)
+        values (v_demo, v_p, 'acceso', 'acceso', 'ok', case when i % 2 = 0 then 'Safari en iPhone' else 'Chrome en Android' end, v_t, false);
+      end if;
+      for k in 1 .. ((d * i) % 3) + 1 loop
+        insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, origen, clave, resultado, consumio, duracion_ms, creado_en, humo)
+        values (v_demo, v_p, 'mapa_catastral', 'consulta',
+                case when k = 1 then 'fuente' else 'guardado' end,
+                v_claves[1 + ((d + k + i) % 3)],
+                case when k = 1 and (d + i) % 7 = 0 then 'falla' else 'ok' end,
+                k = 1 and (d + i) % 7 <> 0,
+                case when k = 1 then 900 + ((d * 37 + i * 211) % 2600) end,
+                v_t + make_interval(mins => 15 * k), false);
+      end loop;
+      if (d + i) % 4 = 0 then
+        insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, origen, clave, resultado, consumio, creado_en, humo)
+        values (v_demo, v_p, 'mapa_catastral_pdf', 'pdf', 'guardado', v_claves[1 + (d % 3)], 'ok', true, v_t + interval '1 hour', false);
+      end if;
+      if (d + i) % 5 = 0 then
+        insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, resultado, consumio, creado_en, humo)
+        values (v_demo, v_p, case when i % 2 = 0 then 'calculadora_traslado_completa' else 'calculadora_traslado' end, 'calculo', 'ok', true,
+                v_t + interval '2 hours', false);
+      end if;
+    end loop;
+  end loop;
+  -- Beto llegó a su límite de PDF (3 en Enlace): uno más, el día 1.
+  insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, origen, clave, resultado, consumio, creado_en, humo)
+  select v_demo, id, 'mapa_catastral_pdf', 'pdf', 'guardado', '149999990000003', 'ok', true,
+         (v_ini::timestamp + time '09:00') at time zone 'America/Mexico_City', false
+    from personas where correo = 'xchel+demo-beto@arqosuv.com';
+  -- Ana: un DXF; Beto: se quedó sin PDF (denegación) y pidió más.
+  insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, origen, clave, resultado, consumio, creado_en, humo)
+  select v_demo, id, 'mapa_catastral_dxf', 'dxf', 'guardado', '149999990000002', 'ok', true, now() - interval '2 days', false
+    from personas where correo = 'xchel+demo-ana@arqosuv.com';
+  insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, clave, resultado, codigo, estado_http, creado_en, humo)
+  select v_demo, id, 'mapa_catastral_pdf', 'denegado', '149999990000001', 'denegado', 'sin_cupo', 429, now() - interval '1 day', false
+    from personas where correo = 'xchel+demo-beto@arqosuv.com';
+  insert into alertas (organizacion_id, tipo, codigo, mensaje, creada_en)
+  select v_demo, 'cupo_agotado', id || ':mapa_catastral_pdf:' || to_char(v_ini, 'YYYY-MM'), 'Beto DEMO llegó a su límite de PDF del mapa catastral este mes y pide más.',
+         now() - interval '1 day'
+    from personas where correo = 'xchel+demo-beto@arqosuv.com'
+  on conflict do nothing;
+  -- El cupo se cuenta con usos_herramienta: lo que gastó cupo en los eventos del mapa y del PDF (los cálculos ya los trae la semilla).
+  delete from usos_herramienta where organizacion_id = v_demo and not humo and herramienta in ('mapa_catastral', 'mapa_catastral_pdf');
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo, referencia, creado_en, humo)
+  select organizacion_id, persona_id, herramienta, case when herramienta = 'mapa_catastral' then 'consulta' else 'pdf' end,
+         case when herramienta = 'mapa_catastral_pdf' then clave end, creado_en, false
+    from eventos_uso
+   where organizacion_id = v_demo and not humo and consumio and herramienta in ('mapa_catastral', 'mapa_catastral_pdf');
+  -- Embudo: solicitudes de este mes venidas del mapa (Ana y Carla) y de la calculadora (Beto).
+  update solicitudes s set origen_herramienta = 'mapa_catastral'
+   where s.id in (select s2.id from solicitudes s2 join personas p on p.id = s2.comisionista_id
+                   where s2.organizacion_id = v_demo and p.correo in ('xchel+demo-ana@arqosuv.com', 'xchel+demo-carla@arqosuv.com')
+                     and s2.creado_en >= v_ini::timestamp at time zone 'America/Mexico_City' and s2.estado in ('tramite', 'solicitada', 'cotizada')
+                   order by s2.creado_en limit 5);
+  update solicitudes s set origen_herramienta = 'calculadora_traslado'
+   where s.id in (select s2.id from solicitudes s2 join personas p on p.id = s2.comisionista_id
+                   where s2.organizacion_id = v_demo and p.correo = 'xchel+demo-beto@arqosuv.com'
+                     and s2.creado_en >= v_ini::timestamp at time zone 'America/Mexico_City' and s2.origen_herramienta is null
+                   order by s2.creado_en limit 2);
+end;
+$$;
+
 -- Lo que quedó, para que se vea al correrlo.
 select estatus_publico, honorario_tipo, count(*)
   from solicitudes where organizacion_id = (select id from organizaciones where slug = 'demo')

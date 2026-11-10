@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 /**
  * Una consulta rota no puede verse igual que "no hay nada".
@@ -31,11 +31,13 @@ export function oExplota<T>(
  */
 export async function crearClienteServidor() {
   const almacen = await cookies();
+  const humo = await encabezadoHumo();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      ...(humo ? { global: { headers: humo } } : {}),
       cookies: {
         getAll() {
           return almacen.getAll();
@@ -53,4 +55,18 @@ export async function crearClienteServidor() {
       },
     }
   );
+}
+
+/**
+ * Humo marcado (0072): si la petición trae x-tasa-humo, se reenvía tal cual a la base. Quien decide si es humo es la
+ * base (compara la huella con la guardada); aquí no se valida nada, así que reenviarla no le da nada a nadie más.
+ * Fuera de una petición (cron), no hay encabezado.
+ */
+export async function encabezadoHumo(): Promise<Record<string, string> | null> {
+  try {
+    const valor = (await headers()).get("x-tasa-humo");
+    return valor ? { "x-tasa-humo": valor.slice(0, 200) } : null;
+  } catch {
+    return null;
+  }
 }

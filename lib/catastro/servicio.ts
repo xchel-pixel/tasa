@@ -1,4 +1,4 @@
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { crearClienteServidor, encabezadoHumo } from "@/lib/supabase/server";
 import { clienteDeServicio } from "@/lib/supabase/servicio";
 import { aLonLat, caja, contiene, geometriaValida, puntoInterior, type Geometria } from "./geo";
 import { consultarExpediente, consultarMapa, type PredioDeCapa } from "./idecatq";
@@ -16,8 +16,8 @@ import { centroideDelExpediente, limpiarExpediente, type Datos, type Privados } 
 /** Quién consulta, ya verificado con su sesión. */
 export type Quien = { persona: string; organizacion: string };
 
-function servicio() {
-  const db = clienteDeServicio();
+async function servicio() {
+  const db = clienteDeServicio(await encabezadoHumo());
   if (!db) throw new Error("Falta la llave de servicio en el servidor.");
   return db;
 }
@@ -91,7 +91,7 @@ async function impedimento(clave: string | null = null): Promise<string | null> 
 /** El registro de la consulta (0070): de la fuente o de lo guardado, con su resultado y duración. Nunca detiene la consulta. */
 async function anotar(quien: Quien, clave: string | null, origen: "fuente" | "guardado", resultado: "ok" | "pendiente" | "sin_predio" | "falla",
   desde: number | null = null) {
-  const { error } = await servicio().rpc("catastro_registrar_consulta", {
+  const { error } = await (await servicio()).rpc("catastro_registrar_consulta", {
     p_org: quien.organizacion, p_persona: quien.persona, p_clave: clave, p_origen: origen, p_resultado: resultado,
     p_duracion: desde === null ? null : Math.round(performance.now() - desde),
   });
@@ -99,14 +99,14 @@ async function anotar(quien: Quien, clave: string | null, origen: "fuente" | "gu
 }
 
 async function registrarFalla(quien: Quien, tipo: "mapa" | "expediente") {
-  await servicio().rpc("catastro_registrar_falla", { p_org: quien.organizacion, p_persona: quien.persona, p_servicio: tipo });
+  await (await servicio()).rpc("catastro_registrar_falla", { p_org: quien.organizacion, p_persona: quien.persona, p_servicio: tipo });
 }
 
 async function guardar(quien: Quien, p: {
   clave: string; geometria: Geometria | null; geometriaUtm: Geometria | null; datos: Datos; expediente: "completo" | "pendiente"; privados: Privados | null; modo: "consulta" | "actualizar";
 }): Promise<string | null> {
   const [lon, lat] = p.geometria ? puntoInterior(p.geometria) : [null, null];
-  const { error } = await servicio().rpc("catastro_guardar", {
+  const { error } = await (await servicio()).rpc("catastro_guardar", {
     p_org: quien.organizacion,
     p_persona: quien.persona,
     p_clave: p.clave,

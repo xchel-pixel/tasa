@@ -25,7 +25,7 @@ export default async function MiUso() {
     Promise.all(conCupo.map(async (h) => [h, await miCupo(h)] as const)),
     miDxf(),
     // RLS: solo los suyos.
-    supabase.from("eventos_uso").select("id, evento, clave, creado_en").in("evento", ["consulta", "pdf", "dxf"]).not("clave", "is", null)
+    supabase.from("eventos_uso").select("id, evento, clave, creado_en").eq("humo", false).in("evento", ["consulta", "pdf", "dxf"]).not("clave", "is", null)
       .order("creado_en", { ascending: false }).limit(100)
       .returns<Pick<EventoUso, "id" | "evento" | "clave" | "creado_en">[]>(),
   ]);
