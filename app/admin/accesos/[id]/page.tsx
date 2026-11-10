@@ -20,7 +20,7 @@ type Acceso = {
   yo: boolean;
   nivel: string | null;
   ultimo_acceso: string | null;
-  sesiones: { creada: string; actividad: string; navegador: string | null; ip: string | null }[];
+  sesiones: { creada: string; actividad: string; navegador: string | null; ip: string | null; humo: boolean }[];
   cupos: Record<string, Cupo>;
   eventos: EventoUso[];
   bitacora: { creado_en: string; tabla: string; accion: string; motivo: string | null; quien: string | null; cambios: string[]; activa: boolean | null }[];
@@ -48,11 +48,14 @@ export default async function AccesoPersona({ params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const supabase = await crearClienteServidor();
-  const [{ data }, { data: inact }] = await Promise.all([supabase.rpc("accesos_persona", { p_persona: id }), supabase.rpc("inactividad_org")]);
+  const [{ data }, { data: inact }, { data: eq }] = await Promise.all([supabase.rpc("accesos_persona", { p_persona: id }), supabase.rpc("inactividad_org"),
+    supabase.rpc("equipos_org")]);
+  const equipos = ((eq ?? []) as { persona_id: string; equipos: number; maximo: number | null; cierres_mes: number }[]).find((e) => e.persona_id === id) ?? null;
   const a = data as Acceso | null;
   if (!a) notFound();
   const actividad = ((inact ?? []) as Actividad[]).find((i) => i.persona_id === id) ?? null;
-  const accesos = a.eventos.filter((e) => e.evento === "acceso");
+  const accesos = a.eventos.filter((e) => e.evento === "acceso" || e.evento === "cierre_limite");
+  const sesiones = a.sesiones.filter((s) => !s.humo);
   const negados = a.eventos.filter((e) => e.evento === "denegado");
   const usos = a.eventos.filter((e) => e.evento !== "acceso" && e.evento !== "denegado");
 
@@ -101,17 +104,22 @@ export default async function AccesoPersona({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <Bloque titulo={`Sesiones abiertas (${a.sesiones.length})`}>
-        {a.sesiones.length ? (
+      <Bloque titulo={`Equipos conectados: ${sesiones.length}${equipos?.maximo ? ` de ${equipos.maximo} permitidos` : " (sin límite)"}`}>
+        {equipos?.cierres_mes ? (
+          <p className="mt-1 text-[0.9375rem] text-secundario">
+            {equipos.cierres_mes} cierre{equipos.cierres_mes === 1 ? "" : "s"} por límite este mes{equipos.cierres_mes >= 4 ? ": puede ser una cuenta compartida." : "."}
+          </p>
+        ) : null}
+        {sesiones.length ? (
           <ul className="mt-2 flex flex-col gap-2 text-[0.9375rem]">
-            {a.sesiones.slice(0, 5).map((s, i) => (
+            {sesiones.slice(0, 5).map((s, i) => (
               <li key={i}>
                 <span className="font-semibold">{resumenNavegador(s.navegador ?? "")}</span>
                 <span className="block text-secundario">Desde {fechaHora(s.creada)} · última actividad {fechaHora(s.actividad)}{s.ip ? ` · IP ${s.ip}` : ""}</span>
               </li>
             ))}
-            {a.sesiones.length > 5 ? (
-              <li className="text-secundario">Y {a.sesiones.length - 5} más, menos recientes. &quot;Cerrar sus sesiones&quot; las cierra todas.</li>
+            {sesiones.length > 5 ? (
+              <li className="text-secundario">Y {sesiones.length - 5} más, menos recientes. &quot;Cerrar sus sesiones&quot; las cierra todas.</li>
             ) : null}
           </ul>
         ) : <p className="mt-1 text-[0.9375rem] text-secundario">Ninguna.</p>}

@@ -6,7 +6,7 @@
 export type EventoUso = {
   id: number;
   herramienta: string;
-  evento: "consulta" | "pdf" | "dxf" | "calculo" | "acceso" | "denegado";
+  evento: "consulta" | "pdf" | "dxf" | "calculo" | "acceso" | "denegado" | "cierre_limite";
   origen: "fuente" | "guardado" | null;
   clave: string | null;
   resultado: "ok" | "pendiente" | "sin_predio" | "falla" | "denegado";
@@ -43,6 +43,7 @@ export const MOTIVO_DENEGACION: Record<string, string> = {
 export function textoEvento(e: EventoUso): string {
   const h = NOMBRE_HERRAMIENTA[e.herramienta] ?? e.herramienta;
   if (e.evento === "acceso") return `Entró${e.referencia ? ` desde ${e.referencia}` : ""}`;
+  if (e.evento === "cierre_limite") return `Se cerró su sesión en ${e.referencia ?? "otro equipo"} por el límite de equipos`;
   if (e.evento === "denegado") return `Negado: ${h}, ${MOTIVO_DENEGACION[e.codigo ?? ""] ?? e.codigo ?? "sin motivo"}${e.estado_http ? ` (${e.estado_http})` : ""}`;
   if (e.evento === "consulta") {
     const origen = e.origen === "fuente" ? "de la fuente" : "de lo guardado";

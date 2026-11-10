@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
     const { data: inactividad, error: errorInact } = await supabase.rpc("revisar_inactividad");
     if (errorInact) console.error(`[tasa] No se pudo revisar la inactividad: ${errorInact.message}`);
     else if (inactividad && (inactividad.avisos || inactividad.inactivas || inactividad.reactivadas)) console.log(`[tasa] Inactividad: ${JSON.stringify(inactividad)}`);
+    // Límite de equipos (0076): las sesiones sin uso en 30 días se cierran, para que Accesos cuente equipos reales.
+    const { data: sinUso, error: errorSes } = await supabase.rpc("cerrar_sesiones_sin_uso");
+    if (errorSes) console.error(`[tasa] No se pudieron cerrar las sesiones sin uso: ${errorSes.message}`);
+    else if (sinUso) console.log(`[tasa] Sesiones sin uso en 30 días cerradas: ${sinUso}`);
     await limpiarAltas(supabase, Boolean(cuerpo.barrido_csf));
   }
 

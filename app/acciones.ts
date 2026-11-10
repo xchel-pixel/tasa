@@ -198,10 +198,12 @@ async function verificarCodigo(formData: FormData): Promise<EstadoAcceso> {
   await olvidarAcceso();
   // El acceso queda registrado (0070): fecha y un resumen del navegador; sin IP.
   await supabase.rpc("vincular_mi_usuario");
-  await supabase.rpc("registrar_acceso", { p_navegador: resumenNavegador((await headers()).get("user-agent") ?? "") });
+  // Límite de equipos (0076): si ya tenía el máximo, la base cierra la sesión de uso más viejo y aquí se le avisa.
+  const { data: entrada } = await supabase.rpc("al_entrar", { p_navegador: resumenNavegador((await headers()).get("user-agent") ?? "") });
+  const { cerradas, maximo } = (entrada ?? { cerradas: [], maximo: null }) as { cerradas: string[]; maximo: number | null };
 
   // redirect() lanza para cortar la ejecución: va fuera de cualquier try.
-  redirect("/");
+  redirect(cerradas.length && maximo ? `/?equipo_cerrado=${encodeURIComponent(cerradas.join(", "))}&maximo=${maximo}` : "/");
 }
 
 export async function cerrarSesion() {

@@ -324,8 +324,8 @@ begin
    where n.nspname = 'public' and c.relkind = 'r'
      and not has_table_privilege('authenticated', c.oid, 'select');
   -- Excepciones a propósito: los datos catastrales solo se leen por función (catastro_ficha, 0059), nunca directo;
-  -- la huella de la clave de humo (0072) no la lee nadie, solo es_humo().
-  perform pg_temp.igual(v, 'catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones, humo_huella'::text,
+  -- la huella de la clave de humo (0072) no la lee nadie, solo es_humo(); las sesiones de humo (0076), solo al_entrar y Accesos.
+  perform pg_temp.igual(v, 'catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones, humo_huella, sesiones_humo'::text,
     'authenticated puede leer todas las tablas (el RLS filtra las filas), salvo las catastrales y la huella de humo');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -4998,6 +4998,98 @@ begin
 
   update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
   update membresias set activa = false where persona_id = ines;
+end;
+$sec$;
+
+-- @@ Límite de equipos conectados
+-- 0076: al entrar con el máximo de equipos, se cierra la sesión de último uso más antiguo (evento en eventos_uso);
+-- admin_org sin límite; humo no cuenta; el cron cierra sesiones sin uso en 30 días; admin_org edita los máximos.
+do $sec$
+declare
+  ana_u  uuid := (select user_id from personas where correo = 'xchel+ana@arqosuv.com');
+  ana    uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  adm_u  uuid := (select user_id from personas where correo = 'xchel@arqosuv.com');
+  nueva  uuid := gen_random_uuid();
+  humo_s uuid := gen_random_uuid();
+  otra   uuid := gen_random_uuid();
+  vieja  uuid := gen_random_uuid();
+  r      jsonb;
+begin
+  perform pg_temp.sistema();
+  delete from auth.sessions where user_id in (ana_u, adm_u);
+  delete from eventos_uso where evento = 'cierre_limite';
+  insert into auth.sessions (user_id, created_at, updated_at, user_agent) values
+    (ana_u, now() - interval '10 days', now() - interval '1 day',  'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36'),
+    (ana_u, now() - interval '20 days', now() - interval '2 days', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1'),
+    (ana_u, now() - interval '1 day',   now() - interval '3 hours', 'Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile Safari/537.36');
+  insert into auth.sessions (id, user_id, user_agent) values (nueva, ana_u, 'Mozilla/5.0 (Macintosh; Mac OS X 14_0) Firefox/131.0');
+
+  -- Cuarto inicio de sesión de un comisionista (máximo 3): se cierra la de último uso más antiguo.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform set_config('request.jwt.claims', json_build_object('sub', ana_u, 'session_id', nueva)::text, true);
+  perform set_config('request.headers', '', true);
+  r := al_entrar('Firefox en Mac');
+  perform pg_temp.igual(r, '{"cerradas": ["Safari en iPhone"], "maximo": 3}'::jsonb, 'El cuarto equipo cierra la sesión de uso más viejo');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from auth.sessions where user_id = ana_u), 3::bigint, 'Quedan 3 sesiones');
+  perform pg_temp.igual(exists (select 1 from auth.sessions where id = nueva), true, 'La sesión nueva no se toca');
+  perform pg_temp.igual((select string_agg(evento || ':' || codigo || ':' || referencia, ',') from eventos_uso where persona_id = ana and evento = 'cierre_limite'),
+    'cierre_limite:limite_equipos:Safari en iPhone', 'Queda el evento con el navegador cerrado');
+
+  -- Humo no cuenta: entra sin cerrar nada, y su sesión no se cierra por el límite.
+  insert into auth.sessions (id, user_id, user_agent) values (humo_s, ana_u, 'node');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform set_config('request.jwt.claims', json_build_object('sub', ana_u, 'session_id', humo_s)::text, true);
+  perform set_config('request.headers', '{"x-tasa-humo":"clave-de-prueba"}', true);
+  r := al_entrar('Servidor');
+  perform set_config('request.headers', '', true);
+  perform pg_temp.igual(r->'cerradas', '[]'::jsonb, 'Humo entra sin cerrar sesiones');
+  perform pg_temp.sistema();
+  perform pg_temp.igual(equipos_abiertos(ana), 3, 'La sesión de humo no cuenta');
+  insert into auth.sessions (id, user_id, user_agent) values (otra, ana_u, 'Mozilla/5.0 (Linux; Android 14) SamsungBrowser/25.0 Chrome/121.0 Mobile Safari/537.36');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform set_config('request.jwt.claims', json_build_object('sub', ana_u, 'session_id', otra)::text, true);
+  r := al_entrar('Samsung Internet en Android');
+  perform pg_temp.igual(r->'cerradas', '["Chrome en Windows"]'::jsonb, 'El siguiente equipo cierra una normal, no la de humo');
+  perform pg_temp.sistema();
+  perform pg_temp.igual(exists (select 1 from auth.sessions where id = humo_s), true, 'La sesión de humo sigue');
+
+  -- admin_org sin límite.
+  insert into auth.sessions (user_id, updated_at) select adm_u, now() - make_interval(hours => g) from generate_series(1, 6) g;
+  insert into auth.sessions (id, user_id) values (vieja, adm_u);
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform set_config('request.jwt.claims', json_build_object('sub', adm_u, 'session_id', vieja)::text, true);
+  perform pg_temp.igual(al_entrar('Chrome en Mac')->'cerradas', '[]'::jsonb, 'admin_org no tiene límite');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from auth.sessions where user_id = adm_u), 7::bigint, 'Con 7 equipos');
+
+  -- Accesos: equipos, máximo y cierres por límite del mes.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select equipos || ' de ' || maximo || ' · ' || cierres_mes from equipos_org() where persona_id = ana), '3 de 3 · 2',
+    'Accesos ve 3 de 3 y 2 cierres por límite en el mes');
+  perform pg_temp.igual((select maximo from equipos_org() where persona_id = (select id from personas where user_id = adm_u)), null::integer,
+    'admin_org, sin máximo');
+
+  -- admin_org edita los máximos (con bitácora); el comisionista no.
+  perform pg_temp.debe_fallar($q$select guardar_limite_equipos('{"comisionista": 0}')$q$, 'de 1 a 20', 'Cero equipos no');
+  perform guardar_limite_equipos('{"comisionista": 2, "equipo": 3, "finanzas": 3, "admin_marca": null}');
+  perform pg_temp.igual((select limite_equipos from ajustes where organizacion_id = pg_temp.xg()),
+    '{"comisionista": 2, "equipo": 3, "finanzas": 3}'::jsonb, 'Se guardan los máximos (vacío = sin límite)');
+  perform pg_temp.igual((select motivo from bitacora where tabla = 'ajustes' order by id desc limit 1), 'Límite de equipos', 'Queda en la bitácora');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select guardar_limite_equipos('{"comisionista": 9}')$q$, 'Solo admin_org', 'El comisionista no cambia su máximo');
+  perform pg_temp.debe_fallar('select * from equipos_org()', 'Solo admin_org', 'Ni ve los equipos de los demás');
+
+  -- El cron: sesión de 31 días sin uso se cierra (cualquier rol); la de 29, no.
+  perform pg_temp.sistema();
+  insert into auth.sessions (user_id, created_at, updated_at) values (adm_u, now() - interval '40 days', now() - interval '31 days'),
+                                                                    (adm_u, now() - interval '40 days', now() - interval '29 days');
+  perform pg_temp.igual(cerrar_sesiones_sin_uso() >= 1, true, 'El cron cierra lo que lleva 31 días sin uso');
+  perform pg_temp.igual((select count(*) from auth.sessions where updated_at < now() - interval '30 days'), 0::bigint, 'No queda ninguna de más de 30 días');
+  perform pg_temp.igual((select count(*) from auth.sessions where user_id = adm_u and updated_at < now() - interval '28 days'), 1::bigint, 'La de 29 días sigue');
+
+  update ajustes set limite_equipos = '{"comisionista": 3, "equipo": 3, "finanzas": 3, "admin_marca": 3}' where organizacion_id = pg_temp.xg();
+  delete from auth.sessions where user_id in (ana_u, adm_u);
 end;
 $sec$;
 

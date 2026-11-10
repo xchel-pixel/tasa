@@ -106,6 +106,23 @@ export async function guardarPrefijo(_previo: EstadoAjustes, formData: FormData)
   return { mensaje: `Guardado: los siguientes folios serán ${prefijo}-AAAA-NNNN.`, error: null };
 }
 
+/** Límite de equipos a la vez por rol (0076). Vacío = sin límite; admin_org siempre sin límite. Queda en la bitácora. */
+export async function guardarLimiteEquipos(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
+  await exigirRol("admin_org");
+  const limites: Record<string, number | null> = {};
+  for (const rol of ["comisionista", "equipo", "finanzas", "admin_marca"]) {
+    const v = String(formData.get(rol) ?? "").trim();
+    const n = Number(v);
+    if (v && (!Number.isInteger(n) || n < 1 || n > 20)) return { mensaje: null, error: "Cada máximo va de 1 a 20, o vacío para sin límite." };
+    limites[rol] = v ? n : null;
+  }
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("guardar_limite_equipos", { p_limites: limites });
+  if (error) return { mensaje: null, error: error.message || "No se pudo guardar." };
+  revalidatePath("/ajustes");
+  return { mensaje: "Guardado. Aplica desde el siguiente inicio de sesión de cada persona.", error: null };
+}
+
 /** Por ahora solo "manual" está disponible; los demás llegan con su etapa. */
 export async function usarConectorManual(_previo: EstadoAjustes): Promise<EstadoAjustes> {
   await exigirRol("admin_org");

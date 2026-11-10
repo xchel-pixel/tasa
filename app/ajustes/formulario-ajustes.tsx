@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
-import { fijarUltimoFolio, guardarAjustes, guardarPrefijo, usarConectorManual, type EstadoAjustes } from "./acciones";
+import { fijarUltimoFolio, guardarAjustes, guardarLimiteEquipos, guardarPrefijo, usarConectorManual, type EstadoAjustes } from "./acciones";
 
 const INICIAL: EstadoAjustes = { mensaje: null, error: null };
 const ENTRADA =
@@ -233,6 +233,31 @@ export function FormularioPrefijo({ prefijo }: { prefijo: string }) {
       <input id="prefijo_folio" name="prefijo_folio" required maxLength={6} defaultValue={prefijo}
         className={`${ENTRADA.replace("mt-3 ", "")} max-w-40 uppercase`} />
       <BotonEnviar variante="secundario">Guardar prefijo</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
+
+const ROLES_EQUIPOS = [["comisionista", "Comisionista"], ["equipo", "Equipo"], ["finanzas", "Finanzas"], ["admin_marca", "Admin de marca"]] as const;
+
+/** Cuántos equipos a la vez por rol (0076). */
+export function FormularioLimiteEquipos({ limites }: { limites: Record<string, number | null | undefined> }) {
+  const [estado, enviar] = useActionState(guardarLimiteEquipos, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-3">
+      <p className="text-[0.9375rem] leading-6 text-secundario">
+        Al entrar en un equipo más, se cierra la sesión que lleva más tiempo sin usarse y se le avisa. Vacío = sin límite.
+        Administración de la organización siempre sin límite. Las sesiones sin uso en 30 días se cierran solas.
+      </p>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {ROLES_EQUIPOS.map(([rol, nombre]) => (
+          <label key={rol} className="block text-[0.9375rem] font-semibold">{nombre}
+            <input name={rol} type="number" inputMode="numeric" min={1} max={20} defaultValue={limites[rol] ?? ""}
+              className={`${ENTRADA.replace("mt-3 ", "mt-1 ")}`} />
+          </label>
+        ))}
+      </div>
+      <BotonEnviar variante="secundario">Guardar límite de equipos</BotonEnviar>
       <Aviso estado={estado} />
     </form>
   );

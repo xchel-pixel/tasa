@@ -335,10 +335,14 @@ async function entrar(contexto: BrowserContext, correo: string, sitio: string): 
       secure: sitio.startsWith("https"),
     }))
   );
-  return createClient(URL_SUPABASE, ANON, {
+  const sesion = createClient(URL_SUPABASE, ANON, {
     auth: { persistSession: false },
-    global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
+    global: { headers: { Authorization: `Bearer ${data.session.access_token}`, ...(process.env.HUMO_SECRETO ? { "x-tasa-humo": process.env.HUMO_SECRETO } : {}) } },
   });
+  // Límite de equipos (0076): con la clave de humo, la base anota esta sesión como de humo (no cuenta ni cierra otras).
+  const { error: e3 } = await sesion.rpc("al_entrar", { p_navegador: "Servidor" });
+  if (e3) throw new Error(`No se pudo anotar la sesión de humo de ${correo}: ${e3.message}`);
+  return sesion;
 }
 
 /**
