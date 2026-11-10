@@ -431,6 +431,15 @@ for (const q of QUIENES) {
       const { error } = await sesion.rpc("elegir_organizacion", { p_org: esperada?.id });
       if (error) throw new Error(`No se pudo elegir ${q.org} para ${q.correo}: ${error.message}`);
     }
+    // admin_marca solo ve lo de su marca (RLS): las fichas se eligen entre lo que él ve, no con la llave de servicio.
+    if (q.rol === "admin_marca") {
+      const visibles = (((await sesion.from("solicitudes").select("id, estado, pagado_en").limit(200)).data ?? []) as { id: string; estado: string; pagado_en: string | null }[]);
+      datos.porCotizar = visibles.find((s) => s.estado === "solicitada")?.id ?? null;
+      datos.trabajo = visibles.find((s) => s.estado === "tramite")?.id ?? null;
+      datos.trabajoPorPagar = visibles.find((s) => s.estado === "tramite" && !s.pagado_en)?.id ?? null;
+      const { data: com } = await sesion.from("comisionistas").select("persona_id").limit(1);
+      datos.comisionista = (com?.[0] as { persona_id: string } | undefined)?.persona_id ?? null;
+    }
     // Su propio cálculo de traslado (RLS: solo de quien calculó; DEMO trae uno por persona).
     datos.calculo = (await sesion.from("calculos_traslado").select("id").limit(1)).data?.[0]?.id ?? null;
     const misHerramientas = (((await sesion.rpc("mis_herramientas")).data ?? []) as { clave: string }[]).map((h) => h.clave);
@@ -481,7 +490,9 @@ for (const q of QUIENES) {
     await contexto.close();
     // En DEMO hay datos para todo: una ruta sin datos es un hueco en `npm run demo`.
     if (q.org === "DEMO") {
-      expect(test.info().annotations.filter((a) => a.type === "sin datos").map((a) => a.description), "Rutas sin datos en DEMO").toEqual([]);
+      // Una solicitud por cotizar no tiene marca todavía: admin_marca no la ve (RLS), así que esa ruta no aplica para él.
+      const noAplican = q.rol === "admin_marca" ? ["/admin/solicitudes/[id]", "/trabajos/[id]"] : [];
+      expect(test.info().annotations.filter((a) => a.type === "sin datos" && !noAplican.includes(a.description ?? "")).map((a) => a.description), "Rutas sin datos en DEMO").toEqual([]);
     }
     expect(problemas).toEqual([]);
   });
