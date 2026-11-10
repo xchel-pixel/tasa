@@ -7,6 +7,7 @@ import { miNivel } from "@/lib/trabajos";
 import { PortadaPublica } from "@/components/portada-publica";
 import { obtenerContacto } from "@/lib/contacto";
 import { NOMBRE_DEL_ROL, obtenerSesion } from "@/lib/sesion";
+import { verComoId } from "@/lib/supabase/server";
 
 /**
  * La portada: saludo, cuadrícula de herramientas (cada una abre su pantalla), "Próximamente" y la franja de
@@ -22,7 +23,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<R
   if (sesion.sinOrganizacion) redirect(sesion.superPlataforma ? "/plataforma" : "/organizacion");
 
   const { persona } = sesion;
-  if (persona?.debeAceptarTerminos) redirect("/terminos");
+  if (persona?.debeAceptarTerminos && !(await verComoId())) redirect("/terminos");
   const contacto = persona ? null : await obtenerContacto();
   const nivel = persona?.rol === "comisionista" ? await miNivel(persona.id, persona.organizacion.id) : null;
 

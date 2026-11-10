@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
 
 /** El rol en la organización activa (sale de la membresía, no de la persona). */
 export type Rol = "admin_org" | "finanzas" | "admin_marca" | "equipo" | "comisionista";
@@ -116,7 +116,8 @@ export async function exigirPersona(): Promise<Persona> {
   if (!sesion) redirect("/entrar");
   if (sesion.sinOrganizacion) redirect("/organizacion");
   if (!sesion.persona) redirect("/");
-  if (sesion.persona.debeAceptarTerminos) redirect("/terminos");
+  // En "ver como" (0080) no se pide aceptar nada: la barra de arriba dice qué tiene pendiente.
+  if (sesion.persona.debeAceptarTerminos && !(await verComoId())) redirect("/terminos");
   return sesion.persona;
 }
 
