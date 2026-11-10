@@ -16,6 +16,7 @@ import { AsignarComisionista, EntregarPago, GeneraComision } from "./asignar";
 import CambiarEstatus from "./cambiar-estatus";
 import FijarHonorarioFinal from "./fijar-honorario-final";
 import { AplicarCredito } from "@/app/admin/paquetes/formularios";
+import { ModalidadComision, type VistaModalidad } from "./modalidad";
 
 export const metadata = { title: "Trabajo — Tasa" };
 
@@ -78,6 +79,16 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
     cerrados.has(mesDeFecha(pago.fecha_pago)) ||
     (pago.estado === "confirmado" && Boolean(t.mes_cierre) && cerrados.has(mesDeFecha(t.mes_cierre!)));
   const confirmado = t.pagos.filter((p) => p.estado === "confirmado").reduce((s, p) => s + p.monto, 0);
+  // Comisión descontada o cobrada directamente (0079): solo admin_org y finanzas, en trámites con comisionista.
+  let modalidad: VistaModalidad | null = null;
+  if ((persona.rol === "admin_org" || persona.rol === "finanzas") && t.estado === "tramite" && t.comisionista_id) {
+    const { data } = await (await crearClienteServidor()).rpc("vista_modalidad_comision", { p_solicitud: t.id });
+    const v = data as Record<string, unknown> | null;
+    if (v && (v.modalidad || !t.pagado_en)) {
+      modalidad = { ...(v as unknown as VistaModalidad), pct: Number(v.pct ?? 0), comision: Number(v.comision ?? 0), honorario: Number(v.honorario ?? 0),
+        honorario_neto: Number(v.honorario_neto ?? 0), total: Number(v.total ?? 0), confirmado: Number(v.confirmado ?? 0) };
+    }
+  }
   // Monedero (0077): admin_org o finanzas aplican crédito del comisionista a un trámite sin pagar.
   const finanzas = persona.rol === "admin_org" || persona.rol === "finanzas";
   let credito: { monto: number; saldo: number; motivo: string | null } | null = null;
@@ -208,6 +219,11 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
             </Seccion>
           ) : null}
 
+          {modalidad ? (
+            <Seccion titulo="Comisión del comisionista">
+              <ModalidadComision solicitud={t.id} v={modalidad} />
+            </Seccion>
+          ) : null}
           {credito ? (
             <Seccion titulo="Crédito del comisionista">
               <p className="text-[0.9375rem] leading-6 text-secundario">

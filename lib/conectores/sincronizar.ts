@@ -122,6 +122,22 @@ export async function sincronizarConector(
       await registrar(supabase, "registrar_solicitado_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_error: error });
     }
 
+    // 6b. "Honorario" del trámite al descontar la comisión al cliente (0079), solo con la propiedad en el mapeo.
+    if (config.mapeo_campos.honorario) {
+      const { data: honorarios, error: errorHon } = await supabase.rpc("por_actualizar_honorario_afuera", { p_conector: config.id });
+      if (errorHon) throw new Error(errorHon.message);
+      for (const x of (honorarios ?? []) as { solicitud_id: string; externo_id: string; monto: string | number }[]) {
+        let error: string | null = null;
+        try {
+          if (!(await conector.actualizarHonorario(x.externo_id, Number(x.monto)))) error = "la página ya no existe";
+        } catch (falla) {
+          if (falla instanceof FallaConector && falla.codigo === "limite") continue;
+          error = falla instanceof Error ? falla.message : String(falla);
+        }
+        await registrar(supabase, "registrar_honorario_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_monto: Number(x.monto), p_error: error });
+      }
+    }
+
     // 7 y 8. Comisión directa ("Ext Comisión") y, al aprobar el cierre, bono de referido ("Ref Bono"). Solo con
     //    las propiedades en el mapeo; si faltan, quedan pendientes. Igual que "Solicitado por": alerta y sigue.
     const pasos = [

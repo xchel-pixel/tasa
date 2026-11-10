@@ -92,6 +92,8 @@ export interface Conector {
   actualizarComision(externoId: string, monto: number, pagina: string | null): Promise<boolean>;
   /** "Ref Comisionista" + "Ref Bono" del trámite, al aprobar el cierre. Falso si el registro ya no existe. */
   actualizarReferido(externoId: string, monto: number, pagina: string | null): Promise<boolean>;
+  /** "Honorario" del trámite (comisión descontada al cliente, 0079). Falso si el registro ya no existe. */
+  actualizarHonorario(externoId: string, monto: number): Promise<boolean>;
   /** "Crédito Tasa" (con IVA si lleva factura) y "Costo crédito" (bonificación sin IVA) del trámite. Falso si el registro ya no existe. */
   actualizarCredito(externoId: string, credito: number, costo: number): Promise<boolean>;
   /** Movimientos del pago (o su anulación) en Cobros y Gastos: ids creados y, si quedó incompleto, qué faltó. */

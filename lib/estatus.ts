@@ -53,7 +53,7 @@ export const ESTADO_PAGO: Record<EstadoPago, { texto: string; tono: Tono }> = {
   retirado: { texto: "Retirado", tono: "neutro" },
 };
 
-export type ViaPago = "comprobante" | "directo" | "aviso" | "efectivo" | "credito";
+export type ViaPago = "comprobante" | "directo" | "aviso" | "efectivo" | "credito" | "comision";
 
 export const VIA_PAGO: Record<ViaPago, string> = {
   comprobante: "Comprobante",
@@ -61,4 +61,5 @@ export const VIA_PAGO: Record<ViaPago, string> = {
   aviso: "Aviso sin archivo",
   efectivo: "Efectivo",
   credito: "Crédito Tasa",
+  comision: "Comisión cobrada directamente",
 };

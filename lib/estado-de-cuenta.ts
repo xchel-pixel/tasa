@@ -39,6 +39,8 @@ export type Movimiento = {
   anula_id: string | null;
   /** Este movimiento fue anulado (existe su contrario). */
   anulado: boolean;
+  /** 0079: la comisión la cobró el comisionista directo del cliente (ya pagada, fuera del total). */
+  cobrada_directo?: boolean;
 };
 
 /** Lo que el comisionista ve de un pago: nunca el origen del dinero. */
@@ -74,6 +76,7 @@ type FilaMovimiento = {
   pagada_en: string | null;
   nota: string | null;
   anula_id: string | null;
+  cobrada_directo: boolean;
   cuentas_receptoras: { alias: string } | null;
   servicios: { nombre: string } | null;
   solicitudes: { id: string; folio: string | null; cliente_nombre: string } | null;
@@ -100,11 +103,11 @@ export async function mesesDisponibles(personaId: string): Promise<string[]> {
  */
 export async function estadoDelMes(personaId: string, mes: string, staff = false): Promise<MesDeCuenta> {
   const supabase = await crearClienteServidor();
-  const [movs, cierre, nivel, pend] = await Promise.all([
+  const [movs, cierre, nivel, pend, descontadas] = await Promise.all([
     supabase
       .from("comisiones")
       .select(
-        "id, tipo, base, porcentaje, monto, provisional, estado, pagada_en, nota, anula_id, cuentas_receptoras(alias), servicios(nombre), solicitudes(id, folio, cliente_nombre)"
+        "id, tipo, base, porcentaje, monto, provisional, estado, pagada_en, nota, anula_id, cobrada_directo, cuentas_receptoras(alias), servicios(nombre), solicitudes(id, folio, cliente_nombre)"
       )
       .eq("comisionista_id", personaId)
       .eq("mes", mes)
@@ -125,6 +128,15 @@ export async function estadoDelMes(personaId: string, mes: string, staff = false
       .eq("mes", mes)
       .maybeSingle()
       .returns<{ id: string; monto: string | number; pagado: string | number; pagado_en: string | null; factura_ruta: string | null } | null>(),
+    // 0079: los trabajos con la comisión descontada al cliente salen en $0 con su leyenda.
+    supabase
+      .from("solicitudes")
+      .select("id, folio, cliente_nombre, monto_honorarios, modalidad_pct, servicios(nombre), cuentas_receptoras(alias)")
+      .eq("comisionista_id", personaId)
+      .eq("mes_cierre", mes)
+      .eq("modalidad_comision", "descontada")
+      .returns<{ id: string; folio: string | null; cliente_nombre: string; monto_honorarios: string | number; modalidad_pct: string | number | null;
+        servicios: { nombre: string } | null; cuentas_receptoras: { alias: string } | null }[]>(),
   ]);
 
   const filasMov = oExplota(movs, "los movimientos") ?? [];
@@ -144,10 +156,21 @@ export async function estadoDelMes(personaId: string, mes: string, staff = false
     servicio: f.servicios?.nombre ?? null,
     anula_id: f.anula_id,
     anulado: anulados.has(f.id),
+    cobrada_directo: f.cobrada_directo,
   }));
+  for (const d of oExplota(descontadas, "los trabajos con comisión descontada") ?? []) {
+    movimientos.push({
+      id: `descontada-${d.id}`, tipo: "comision", base: Number(d.monto_honorarios), porcentaje: d.modalidad_pct === null ? null : Number(d.modalidad_pct),
+      monto: 0, provisional: false, estado: "pagada", pagada_en: null, nota: "Comisión descontada al cliente",
+      trabajo: { id: d.id, folio: d.folio, cliente: d.cliente_nombre }, entidad: d.cuentas_receptoras?.alias ?? "Sin cuenta",
+      servicio: d.servicios?.nombre ?? null, anula_id: null, anulado: false,
+    });
+  }
+  // Lo cobrado directamente ya está pagado: no suma al total ni al pendiente del mes.
+  const sumables = movimientos.filter((m) => !m.cobrada_directo);
 
   const entidades = new Map<string, number>();
-  for (const m of movimientos) entidades.set(m.entidad, (entidades.get(m.entidad) ?? 0) + m.monto);
+  for (const m of sumables) entidades.set(m.entidad, (entidades.get(m.entidad) ?? 0) + m.monto);
 
   const p = oExplota(pend, "el pendiente de pago");
   const pendiente: Pendiente | null = p
@@ -167,7 +190,7 @@ export async function estadoDelMes(personaId: string, mes: string, staff = false
     publicado: oExplota(cierre, "el cierre")?.estado === "aprobado",
     movimientos,
     porEntidad: [...entidades].map(([entidad, t]) => ({ entidad, total: t })),
-    total: movimientos.reduce((s, m) => s + m.monto, 0),
+    total: sumables.reduce((s, m) => s + m.monto, 0),
     pendiente,
     nivelSiguiente: n
       ? { nombre: n.niveles?.nombre ?? "", porcentaje: Number(n.porcentaje), promedio: Number(n.promedio), meses: n.meses_considerados }

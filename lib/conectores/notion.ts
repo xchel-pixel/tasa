@@ -331,6 +331,14 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
       return escribirMontoYRelacion(externoId, "ref_bono", "ref_comisionista", monto, pagina);
     },
 
+    async actualizarHonorario(externoId, monto) {
+      const nombre = mapeo.honorario?.trim();
+      if (!nombre) throw new FallaConector("propiedad_no_encontrada", "Falta \"honorario\" en el mapeo del conector.");
+      if (!(await existe(externoId))) return false;
+      await notion(`/pages/${externoId}`, "PATCH", { properties: { [nombre]: { number: dosDecimales(monto) } } });
+      return true;
+    },
+
     async actualizarCredito(externoId, credito, costo) {
       const nCredito = mapeo.credito_tasa?.trim();
       const nCosto = mapeo.costo_credito?.trim();

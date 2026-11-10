@@ -5355,6 +5355,129 @@ begin
 end;
 $sec$;
 
+-- @@ Comisión descontada al cliente o cobrada directamente
+-- 0079: A) el cliente paga el total menos la comisión: sin comisión ni bono, el nivel cuenta el neto; B) el
+-- comisionista ya tomó su comisión: se devenga normal pero nace pagada y no entra al cierre; bono y nivel normales.
+-- Ambas se revierten antes de un cierre aprobado y no se mezclan con el crédito.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  rr    uuid := (select id from personas where correo = 'rosa.credito@ref.test');
+  fer   uuid;
+  b0    solicitudes%rowtype;
+  t1    uuid;
+  t2    uuid;
+  t3    uuid;
+  v     jsonb;
+  c1    numeric;
+  c2    numeric;
+  pct   numeric;
+  s     solicitudes%rowtype;
+begin
+  perform pg_temp.sistema();
+  select * into b0 from solicitudes where organizacion_id = xg and marca_id is not null and cuenta_receptora_id is not null limit 1;
+  fer := pg_temp.comisionista('Fer Descuento', rr);
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en)
+  values (fer, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Descuento 1', 'Cliente Descuento', b0.marca_id, b0.cuenta_receptora_id,
+          false, 8900, 'tramite', 'entregado', now()) returning id into t1;
+
+  -- A) La cuenta antes de confirmar, con la tasa vigente del trámite.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select aplicar_modalidad_comision(%L, %L, null)', t1, 'descontada'), 'Solo finanzas', 'El comisionista no lo hace');
+  perform pg_temp.como('gaby@tasa.test');
+  v := vista_modalidad_comision(t1);
+  pct := (v->>'pct')::numeric;
+  c1 := round(8900 * pct / 100, 2);
+  perform pg_temp.igual((v->>'comision')::numeric, c1, 'Muestra la comisión con la tasa vigente');
+  perform pg_temp.igual((v->>'honorario_neto')::numeric, 8900 - c1, 'Y el honorario neto');
+  perform aplicar_modalidad_comision(t1, 'descontada', 'Pagó por depósito el neto');
+  select * into s from solicitudes where id = t1;
+  perform pg_temp.igual(s.monto_honorarios || ' ' || s.monto_total || ' ' || s.modalidad_comision, (8900 - c1) || ' ' || (8900 - c1) || ' descontada',
+    'Honorario y total = total − comisión');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select motivo from bitacora where tabla = 'solicitudes' and registro_id = t1::text order by id desc limit 1),
+    'Comisión descontada al cliente: Pagó por depósito el neto', 'Queda en la bitácora');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(credito_aplicable(t1)->>'motivo', 'Tiene la comisión descontada o cobrada directamente', 'Con A no se aplica crédito');
+  perform pg_temp.debe_fallar(format('select aplicar_modalidad_comision(%L, %L, null)', t1, 'tomada'), 'ya tiene la comisión', 'No se aplica dos veces');
+
+  -- Pagan el neto: queda pagado y Tasa no genera comisión en ningún momento.
+  perform pg_temp.sistema();
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia, reportado_por) values (t1, 'directo', 8900 - c1, hoy_mx(), 'DEP-A', fer);
+  update pagos set estado = 'confirmado' where solicitud_id = t1;
+  select * into s from solicitudes where id = t1;
+  perform pg_temp.igual(s.pagado_en is not null, true, 'Con el neto queda pagado');
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = t1), 0::bigint, 'Sin comisión');
+  perform pg_temp.igual((select count(*) from bonos_referido_calculados(xg, s.mes_cierre) where solicitud = t1), 0::bigint, 'Sin bono por referido');
+  perform pg_temp.igual((select sum(monto_honorarios) from solicitudes where comisionista_id = fer and mes_cierre = s.mes_cierre and comision_regla <> 'ninguna'),
+    8900 - c1, 'Su volumen suma el neto (cuenta para nivel)');
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(resumen_del_mes(xg, s.mes_cierre)) f where f->>'comisionista_id' = fer::text), 0::bigint,
+    'No entra al cierre');
+
+  -- Revertir A: vuelve el honorario original y deja de estar pagado (falta la comisión).
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select revertir_modalidad_comision(%L, %L)', t1, ''), 'motivo', 'Revertir pide motivo');
+  perform revertir_modalidad_comision(t1, 'Se equivocó de trámite');
+  perform pg_temp.sistema();
+  select * into s from solicitudes where id = t1;
+  perform pg_temp.igual(s.monto_honorarios || ' ' || (s.pagado_en is null) || ' ' || coalesce(s.modalidad_comision, '-'), '8900.00 true -',
+    'Revertido: 8,900 y sin pagar');
+
+  -- B) El comisionista ya tomó su comisión: total igual; pago "comision" + neto entregado = pagado.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en)
+  values (fer, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Tomada 1', 'Cliente Tomada', b0.marca_id, b0.cuenta_receptora_id,
+          false, 10000, 'tramite', 'entregado', now()) returning id into t2;
+  perform pg_temp.como('gaby@tasa.test');
+  c2 := (vista_modalidad_comision(t2)->>'comision')::numeric;
+  perform aplicar_modalidad_comision(t2, 'tomada', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select via || ' ' || monto || ' ' || estado from pagos where solicitud_id = t2), 'comision ' || c2 || ' confirmado',
+    'Entra la comisión retenida como pago conciliado');
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia, reportado_por) values (t2, 'directo', 10000 - c2, hoy_mx(), 'DEP-B', fer);
+  update pagos set estado = 'confirmado' where solicitud_id = t2 and via = 'directo';
+  select * into s from solicitudes where id = t2;
+  perform pg_temp.igual(s.monto_total || ' ' || (s.pagado_en is not null), '10000.00 true', 'Total igual y pagado sin saldo pendiente');
+  perform pg_temp.igual((select monto || ' ' || estado || ' ' || cobrada_directo || ' ' || nota from comisiones where solicitud_id = t2 and tipo = 'comision'),
+    c2 || ' pagada true Cobrada directamente', 'La comisión nace pagada: cobrada directamente');
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(resumen_del_mes(xg, s.mes_cierre)) f where f->>'comisionista_id' = fer::text), 0::bigint,
+    'Lo cobrado directamente no entra al cierre');
+  perform pg_temp.igual((select base from bonos_referido_calculados(xg, s.mes_cierre) where solicitud = t2), 10000.00::numeric, 'El bono por referido sí, sobre el total');
+  perform pg_temp.igual((select sum(monto_honorarios) from solicitudes where id = t2), 10000.00::numeric, 'El volumen suma el total');
+
+  -- Con el mes en un cierre aprobado ya no se revierte.
+  perform set_config('session_replication_role', 'replica', true);
+  update solicitudes set mes_cierre = (select max(mes) from cierres where organizacion_id = xg and estado = 'aprobado') where id = t2;
+  perform set_config('session_replication_role', 'origin', true);
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select revertir_modalidad_comision(%L, %L)', t2, 'Prueba'), 'cierre aprobado', 'Con cierre aprobado no se revierte');
+  perform pg_temp.sistema();
+  perform set_config('session_replication_role', 'replica', true);
+  update solicitudes set mes_cierre = mes_abierto_desde(xg, pagado_en) where id = t2;
+  perform set_config('session_replication_role', 'origin', true);
+
+  -- Revertir B: se retira el pago de la comisión, se borra la comisión y vuelve la regla.
+  perform pg_temp.como('gaby@tasa.test');
+  perform revertir_modalidad_comision(t2, 'No la había tomado');
+  perform pg_temp.sistema();
+  select * into s from solicitudes where id = t2;
+  perform pg_temp.igual((s.pagado_en is null) || ' ' || s.comision_regla || ' ' || coalesce(s.modalidad_comision, '-'), 'true normal -', 'Revertido B');
+  perform pg_temp.igual((select estado from pagos where solicitud_id = t2 and via = 'comision'), 'retirado', 'El pago de la comisión queda retirado');
+  perform pg_temp.igual((select count(*) from comisiones where solicitud_id = t2), 0::bigint, 'Y su comisión, borrada');
+
+  -- Con crédito aplicado no se puede A ni B.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, credito_honorarios)
+  values (fer, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Crédito Mod', 'Cliente Crédito Mod', b0.marca_id, b0.cuenta_receptora_id,
+          false, 5000, 'tramite', 'entregado', now(), 1000) returning id into t3;
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(vista_modalidad_comision(t3)->>'motivo', 'Tiene crédito aplicado', 'Con crédito: ni A ni B');
+  perform pg_temp.debe_fallar(format('select aplicar_modalidad_comision(%L, %L, null)', t3, 'descontada'), 'crédito', 'Se bloquea');
+  perform pg_temp.sistema();
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
