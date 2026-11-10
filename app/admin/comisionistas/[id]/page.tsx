@@ -1,4 +1,5 @@
-import { ResumenComisionista } from "@/components/resumen-comisionista";
+import { BotonVerComo, ResumenComisionista } from "@/components/resumen-comisionista";
+import { AccesosYSesiones, HistorialPersona, PaqueteDePersona, ParaQueSirve } from "@/components/ficha-persona";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Etiqueta } from "@/components/etiqueta";
@@ -13,9 +14,6 @@ import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
 import { leerPerfil } from "@/lib/perfil";
-import { cupoDe, textoCupo } from "@/lib/cupos";
-import { LiberarCupo } from "@/components/formularios-cupo";
-import { DxfPersona } from "@/components/dxf-persona";
 import { AgregarMovimiento, CambiarActivo, CambiarVinculo, DecidirPerfil, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, PaginaNotion, PonerPerfil, TasaDeBienvenida } from "./formularios";
 
 export const metadata = { title: "Comisionista — Tasa" };
@@ -26,6 +24,19 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MOTIVO = { promedio: "", bienvenida: "bienvenida", arranque: "arranque", escalon: "bajando un nivel", elite: "Élite" } as const;
 
 const DOCUMENTO = { factura: "Factura", recibo: "Recibo simple", ninguno: "Sin documento" } as const;
+
+/** Las pestañas de la ficha (fase 2). "Accesos y sesiones" solo para admin_org; Paquete e Historial, para finanzas también. */
+type Pestana = "resumen" | "tramites" | "estado" | "paquete" | "accesos" | "historial";
+const PESTANAS: { clave: Pestana; texto: string; para: string; quien: "todos" | "staff" | "admin" }[] = [
+  { clave: "resumen", texto: "Resumen", quien: "todos",
+    para: "ver de un vistazo cómo va: su nivel, lo que le falta, su comisión, su paquete y sus últimos trámites; sus datos y acciones; y verlo como él lo ve." },
+  { clave: "tramites", texto: "Trámites", quien: "todos", para: "todos sus trabajos con su estatus; cada uno abre su ficha." },
+  { clave: "estado", texto: "Estado de cuenta", quien: "todos", para: "lo que se le debe y se le ha pagado, mes por mes, y la historia de su nivel." },
+  { clave: "paquete", texto: "Paquete", quien: "staff", para: "su paquete de crédito, su saldo, sus compras y en qué trabajos usó el crédito." },
+  { clave: "accesos", texto: "Accesos y sesiones", quien: "admin",
+    para: "suspender o reactivar, cerrar sesiones, ver sus equipos, y darle más cupo o DXF. Es el único lugar donde se editan sus cupos y su DXF." },
+  { clave: "historial", texto: "Historial", quien: "staff", para: "qué ha hecho en Tasa (accesos, consultas, negaciones) y, para administración, qué se le ha cambiado." },
+];
 
 type Ficha = {
   persona_id: string;
@@ -56,7 +67,7 @@ type Ficha = {
 export default async function FichaComisionista({ params, searchParams }: PageProps<"/admin/comisionistas/[id]">) {
   const yo = await exigirRol(...ROLES_OPERACION);
   const { id } = await params;
-  const { mes } = await searchParams;
+  const { mes, tab } = await searchParams;
   if (!UUID.test(id)) notFound();
 
   const supabase = await crearClienteServidor();
@@ -124,7 +135,9 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   ]);
   const tratos = await tratosDeLaOrg(yo.organizacion.id);
   const perfil = await leerPerfil(supabase, id);
-  const [cupoR, cupoC] = staff ? await Promise.all([cupoDe(id, "calculadora_traslado"), cupoDe(id, "calculadora_traslado_completa")]) : [null, null];
+  const pestanas = PESTANAS.filter((p) => p.quien === "todos" || (p.quien === "staff" && staff) || (p.quien === "admin" && superAdmin));
+  const t: Pestana = pestanas.find((p) => p.clave === tab)?.clave ?? "resumen";
+  const pestana = pestanas.find((p) => p.clave === t)!;
   const nivelDelTrato = f.trato_nivel_id
     ? (await supabase.from("niveles").select("nombre, porcentaje").eq("id", f.trato_nivel_id).maybeSingle()).data
     : null;
@@ -177,8 +190,19 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
       <p className="mt-2 text-[0.9375rem] text-secundario">
         Último acceso: {r?.ultimo_acceso ? fechaCorta(r.ultimo_acceso) : "nunca ha entrado"}
       </p>
-      {staff ? <ResumenComisionista personaId={id} /> : null}
+      <nav aria-label="Pestañas de la ficha" className="-mx-1 mt-4 flex gap-1 overflow-x-auto border-b border-linea pb-px">
+        {pestanas.map((p) => (
+          <Link key={p.clave} href={`/admin/comisionistas/${id}${p.clave === "resumen" ? "" : `?tab=${p.clave}`}`} aria-current={p.clave === t ? "page" : undefined}
+            className={`shrink-0 whitespace-nowrap rounded-t-lg px-3 py-2 text-[0.9375rem] font-semibold ${p.clave === t ? "border-b-2 border-primario text-primario" : "text-secundario"}`}>
+            {p.texto}
+          </Link>
+        ))}
+      </nav>
+      <ParaQueSirve>{pestana.para}</ParaQueSirve>
 
+      {t === "resumen" && staff ? <ResumenComisionista personaId={id} /> : null}
+
+      {t === "resumen" ? (
       <Seccion titulo="Datos">
         <dl className="flex flex-col gap-1 text-[0.9375rem]">
           <Dato etiqueta="Correo" valor={f.personas.correo} />
@@ -218,17 +242,12 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
         ) : null}
         {superAdmin && perfil.solicitado ? <DecidirPerfil personaId={id} solicitado={perfil.solicitado} /> : null}
         {superAdmin ? <PonerPerfil personaId={id} actual={perfil.otro ? null : perfil.perfilId} opciones={perfil.opciones} /> : null}
-        {cupoR && cupoC ? (
-          <details className="mt-3 rounded-xl border border-linea px-4 py-3">
-            <summary className="toque cursor-pointer font-semibold text-acento">Cupos del mes: calculadora</summary>
-            <p className="mt-2 text-[0.9375rem] leading-6">Rápida: {cupoR.usados} usados · {textoCupo(cupoR).replace("Te quedan", "le quedan")}</p>
-            <p className="text-[0.9375rem] leading-6">Completa: {cupoC.usados} usados · {textoCupo(cupoC).replace("Te quedan", "le quedan")}</p>
-            {superAdmin ? (
-              <LiberarCupo personaId={id} opciones={[{ clave: "calculadora_traslado", nombre: "Calculadora rápida" }, { clave: "calculadora_traslado_completa", nombre: "Calculadora completa" }, { clave: "mapa_catastral", nombre: "Mapa catastral (consultas)" }, { clave: "mapa_catastral_pdf", nombre: "PDF del mapa catastral" }]} />
-            ) : null}
-          </details>
+        {superAdmin ? (
+          <p className="mt-3 text-[0.9375rem]">
+            Cupos y DXF: en la pestaña{" "}
+            <Link href={`/admin/comisionistas/${id}?tab=accesos`} className="font-semibold text-acento underline underline-offset-4">Accesos y sesiones</Link>.
+          </p>
         ) : null}
-        {staff ? <DxfPersona personaId={id} edita={superAdmin} /> : null}
         {superAdmin ? (
           <PaginaNotion personaId={id} nombre={f.personas.nombre} ligada={f.notion_pagina ? (f.notion_nombre ?? "ligada") : null} />
         ) : null}
@@ -242,8 +261,9 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           />
         ) : null}
       </Seccion>
+      ) : null}
 
-      {staff ? (
+      {t === "resumen" && staff ? (
         <Seccion titulo="Tarjeta digital">
           {tarjeta ? (
             <>
@@ -278,7 +298,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
         </Seccion>
       ) : null}
 
-      {staff && vinculos && vinculos.length > 0 ? (
+      {t === "resumen" && staff && vinculos && vinculos.length > 0 ? (
         <Seccion titulo="Sus referidos">
           <ul className="flex flex-col gap-2 text-[0.9375rem]">
             {vinculos.map((v) => {
@@ -302,7 +322,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
         </Seccion>
       ) : null}
 
-      {staff ? (
+      {t === "estado" && staff ? (
       <Seccion titulo="Pagos de comisión">
         <dl className="flex items-baseline justify-between rounded-xl bg-tinte px-4 py-3">
           <dt className="font-semibold">Saldo por pagar</dt>
@@ -378,6 +398,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
 
       ) : null}
 
+      {t === "tramites" ? (
       <Seccion titulo="Trabajos">
         {(oExplota(trabajos, "los trabajos") ?? []).length === 0 ? (
           <p className="text-[0.9375rem] text-secundario">Sin trabajos todavía.</p>
@@ -403,7 +424,9 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           </ul>
         )}
       </Seccion>
+      ) : null}
 
+      {t === "estado" ? (
       <Seccion titulo="Niveles">
         {(oExplota(niveles, "los niveles") ?? []).length === 0 ? (
           <p className="text-[0.9375rem] text-secundario">Sin niveles calculados: el primero sale al aprobar su primer cierre.</p>
@@ -435,19 +458,23 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           </p>
         ) : null}
       </Seccion>
+      ) : null}
 
       {staff ? (
       <>
+      {t === "estado" ? (
       <Seccion titulo="Estado de cuenta">
         <VistaEstadoDeCuenta
           personaId={id}
           mesPedido={typeof mes === "string" ? mes : undefined}
-          base={`/admin/comisionistas/${id}`}
+          base={`/admin/comisionistas/${id}?tab=estado`}
           dueno={false}
           puedeAnular={superAdmin}
         />
       </Seccion>
+      ) : null}
 
+      {t === "resumen" ? (
       <Seccion titulo="Acciones">
         <div className="flex flex-col gap-6">
           {superAdmin ? (
@@ -462,8 +489,13 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
           <CambiarActivo personaId={id} activo={activo} />
         </div>
       </Seccion>
+      ) : null}
       </>
       ) : null}
+
+      {t === "paquete" && staff ? <PaqueteDePersona id={id} /> : null}
+      {t === "accesos" && superAdmin ? <AccesosYSesiones id={id} editaCuposYDxf verComo={<BotonVerComo personaId={id} />} /> : null}
+      {t === "historial" && staff ? <HistorialPersona id={id} admin={superAdmin} /> : null}
     </PantallaAdmin>
   );
 }

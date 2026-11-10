@@ -43,7 +43,7 @@ function delRol(persona: Persona): Mosaico[] {
   if (persona.rol === "equipo") return [{ href: "/panel", titulo: "Mi panel", detalle: "Los trámites de tu liga" }];
   const staff = persona.rol === "admin_org" || persona.rol === "finanzas";
   return [
-    { href: "/admin", titulo: "Panel de administración", detalle: "Pagos, solicitudes, alertas y comisiones" },
+    { href: "/admin", titulo: "Hoy", detalle: "Todo lo que espera una acción tuya" },
     { href: "/admin/tramites", titulo: "Trámites", detalle: "Todos los trabajos" },
     { href: "/admin/comisionistas", titulo: "Comisionistas", detalle: "Fichas, niveles y estado de cuenta" },
     ...(staff ? [{ href: "/admin/cierres", titulo: "Cierres", detalle: "Cierre mensual de comisiones" }] : []),

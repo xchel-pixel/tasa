@@ -25,13 +25,15 @@ const URL_SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const SECRETA = process.env.SUPABASE_SECRET_KEY ?? "";
 
-type Rol = "admin_org" | "finanzas" | "equipo" | "comisionista";
+type Rol = "admin_org" | "finanzas" | "admin_marca" | "equipo" | "comisionista";
 
 const QUIENES: { org: "XG" | "DEMO"; rol: Rol; correo: string }[] = [
   { org: "XG", rol: "admin_org", correo: process.env.HUMO_ADMIN ?? "xchel@arqosuv.com" },
   { org: "XG", rol: "finanzas", correo: process.env.HUMO_FINANZAS ?? "xchel+finanzas@arqosuv.com" },
   { org: "DEMO", rol: "admin_org", correo: "xchel+demo-admin@arqosuv.com" },
   { org: "DEMO", rol: "finanzas", correo: "xchel+demo-finanzas@arqosuv.com" },
+  // admin_marca: ve lo de una sola marca de DEMO (las pantallas de operación sí; las de dinero y configuración, no).
+  { org: "DEMO", rol: "admin_marca", correo: "xchel+demo-marca@arqosuv.com" },
   { org: "DEMO", rol: "equipo", correo: "xchel+demo-equipo@arqosuv.com" },
   { org: "DEMO", rol: "comisionista", correo: "xchel+demo-ana@arqosuv.com" },
 ];
@@ -68,41 +70,44 @@ type Pantalla = {
   herramienta?: string;
 };
 
-const TODOS: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "abre", comisionista: "abre" };
-const OPERACION: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "inicio", comisionista: "inicio" };
-const SOLO_ADMIN: Record<Rol, Espera> = { admin_org: "abre", finanzas: "inicio", equipo: "inicio", comisionista: "inicio" };
-const SOLO_COMISIONISTA: Record<Rol, Espera> = { admin_org: "inicio", finanzas: "inicio", equipo: "inicio", comisionista: "abre" };
-const EQUIPO_Y_STAFF: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "abre", comisionista: "inicio" };
-const COMISIONISTA_Y_STAFF: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", equipo: "inicio", comisionista: "abre" };
+const TODOS: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", admin_marca: "abre", equipo: "abre", comisionista: "abre" };
+/** ROLES_OPERACION: admin_org, finanzas y admin_marca (este, filtrado a sus marcas). */
+const OPERACION: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", admin_marca: "abre", equipo: "inicio", comisionista: "inicio" };
+/** Staff: admin_org y finanzas (dinero, altas, reportes). */
+const STAFF: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", admin_marca: "inicio", equipo: "inicio", comisionista: "inicio" };
+const SOLO_ADMIN: Record<Rol, Espera> = { admin_org: "abre", finanzas: "inicio", admin_marca: "inicio", equipo: "inicio", comisionista: "inicio" };
+const SOLO_COMISIONISTA: Record<Rol, Espera> = { admin_org: "inicio", finanzas: "inicio", admin_marca: "inicio", equipo: "inicio", comisionista: "abre" };
+const EQUIPO_Y_STAFF: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", admin_marca: "abre", equipo: "abre", comisionista: "inicio" };
+const COMISIONISTA_Y_STAFF: Record<Rol, Espera> = { admin_org: "abre", finanzas: "abre", admin_marca: "abre", equipo: "inicio", comisionista: "abre" };
 
 /** Cada ruta real de la aplicación y qué le pasa a cada rol. */
 const PANTALLAS: Record<string, Pantalla> = {
   "/": { rutas: () => ["/"], espera: TODOS, publica: true },
   "/admin/alertas": { rutas: () => ["/admin/alertas"], espera: OPERACION },
-  "/admin/altas": { rutas: () => ["/admin/altas", "/admin/altas?ver=todas"], espera: OPERACION },
-  "/admin/altas/[id]": { rutas: (d) => [d.alta && `/admin/altas/${d.alta}`], espera: OPERACION },
-  "/admin/altas/nueva": { rutas: () => ["/admin/altas/nueva"], espera: OPERACION },
+  "/admin/altas": { rutas: () => ["/admin/altas", "/admin/altas?ver=todas"], espera: STAFF },
+  "/admin/altas/[id]": { rutas: (d) => [d.alta && `/admin/altas/${d.alta}`], espera: STAFF },
+  "/admin/altas/nueva": { rutas: () => ["/admin/altas/nueva"], espera: STAFF },
   "/admin/catalogos": { rutas: () => ["/admin/catalogos"], espera: SOLO_ADMIN },
   "/admin/accesos": { rutas: () => ["/admin/accesos"], espera: SOLO_ADMIN },
   "/admin/bitacora": { rutas: () => ["/admin/bitacora"], espera: SOLO_ADMIN },
-  "/admin/estadisticas": { rutas: () => ["/admin/estadisticas"], espera: OPERACION },
-  "/admin/paquetes": { rutas: () => ["/admin/paquetes"], espera: OPERACION },
+  "/admin/estadisticas": { rutas: () => ["/admin/estadisticas"], espera: STAFF },
+  "/admin/paquetes": { rutas: () => ["/admin/paquetes"], espera: STAFF },
   "/paquetes": { rutas: () => ["/paquetes"], espera: SOLO_COMISIONISTA },
   "/admin/accesos/[id]": { rutas: (d) => [d.comisionista && `/admin/accesos/${d.comisionista}`], espera: SOLO_ADMIN },
-  "/admin/cierres": { rutas: () => ["/admin/cierres"], espera: OPERACION },
-  "/admin/cierres/[mes]": { rutas: (d) => [`/admin/cierres/${d.mesCierre}`], espera: OPERACION },
-  "/admin/comisiones": { rutas: () => ["/admin/comisiones"], espera: OPERACION },
-  "/admin/comisiones/pagar": { rutas: (d) => [d.comisionista && `/admin/comisiones/pagar?c=${d.comisionista}`], espera: OPERACION },
+  "/admin/cierres": { rutas: () => ["/admin/cierres"], espera: STAFF },
+  "/admin/cierres/[mes]": { rutas: (d) => [`/admin/cierres/${d.mesCierre}`], espera: STAFF },
+  "/admin/comisiones": { rutas: () => ["/admin/comisiones"], espera: STAFF },
+  "/admin/comisiones/pagar": { rutas: (d) => [d.comisionista && `/admin/comisiones/pagar?c=${d.comisionista}`], espera: STAFF },
   "/admin/comisionistas": { rutas: () => ["/admin/comisionistas"], espera: OPERACION },
   "/admin/comisionistas/[id]": { rutas: (d) => [d.comisionista && `/admin/comisionistas/${d.comisionista}`], espera: OPERACION },
   "/admin/comisionistas/importar": { rutas: () => ["/admin/comisionistas/importar"], espera: SOLO_ADMIN },
   "/admin/comisionistas/nuevo": { rutas: () => ["/admin/comisionistas/nuevo"], espera: SOLO_ADMIN },
   "/admin/configuracion": { rutas: () => ["/admin/configuracion"], espera: SOLO_ADMIN },
-  "/admin/equipo": { rutas: () => ["/admin/equipo"], espera: OPERACION },
+  "/admin/equipo": { rutas: () => ["/admin/equipo"], espera: STAFF },
   "/admin/niveles": { rutas: () => ["/admin/niveles"], espera: SOLO_ADMIN },
   "/admin/pagos": { rutas: () => ["/admin/pagos"], espera: OPERACION },
-  "/admin/referidos": { rutas: () => ["/admin/referidos"], espera: OPERACION },
-  "/admin/reportes": { rutas: (d) => ["/admin/reportes", `/admin/reportes?mes=${d.mesCierre}-01`], espera: OPERACION },
+  "/admin/referidos": { rutas: () => ["/admin/referidos"], espera: STAFF },
+  "/admin/reportes": { rutas: (d) => ["/admin/reportes", `/admin/reportes?mes=${d.mesCierre}-01`], espera: STAFF },
   "/admin/solicitudes": { rutas: () => ["/admin/solicitudes"], espera: OPERACION },
   "/admin/solicitudes/[id]": { rutas: (d) => [d.porCotizar && `/admin/solicitudes/${d.porCotizar}`], espera: OPERACION },
   "/admin/testimonios": { rutas: () => ["/admin/testimonios"], espera: SOLO_ADMIN },
@@ -125,7 +130,7 @@ const PANTALLAS: Record<string, Pantalla> = {
   // Mapa catastral (0059): nace apagado; en DEMO, encendido para todos. Abrir la pantalla no consulta IDECATQ.
   "/mapa-catastral": { rutas: () => ["/mapa-catastral"], espera: TODOS, herramienta: "mapa_catastral" },
   // Portada solo con herramientas (0056): cada tarjeta abre su pantalla.
-  "/panel": { rutas: () => ["/panel"], espera: { admin_org: "inicio", finanzas: "inicio", equipo: "abre", comisionista: "abre" } },
+  "/panel": { rutas: () => ["/panel"], espera: { admin_org: "inicio", finanzas: "inicio", admin_marca: "inicio", equipo: "abre", comisionista: "abre" } },
   "/admin": { rutas: () => ["/admin"], espera: OPERACION },
   "/para-tus-clientes": { rutas: () => ["/para-tus-clientes"], espera: TODOS },
   "/invitar": { rutas: () => ["/invitar"], espera: TODOS },

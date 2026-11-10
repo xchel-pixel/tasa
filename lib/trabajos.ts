@@ -1,6 +1,6 @@
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
+import { normalizarAvance } from "@/lib/nivel";
 import type { EstadoPago, EstatusPublico, ViaPago } from "@/lib/estatus";
-import { mesActual, mesSiguiente } from "@/lib/formato";
 
 /**
  * Lecturas del comisionista. No filtran por persona: el RLS ya solo le
@@ -201,101 +201,15 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
   };
 }
 
-export type MiNivel = {
-  nivel: string;
-  porcentaje: number;
-  /** El del mes en curso todavía no existe (falta aprobar el cierre anterior). */
-  provisional: boolean;
-  /** Proyección para el mes siguiente con lo cobrado hasta hoy. */
-  promedio: number;
-  meses: number;
-  siguiente: { nombre: string; umbral: number; porcentaje: number } | null;
-  /** Honorarios pagados que faltan ESTE mes para llegar al siguiente nivel. */
-  faltante: number;
-  /** 0 a 1, para la barra de progreso. */
-  avance: number;
-  comision_mes: number;
-  comision_mes_provisional: boolean;
-  /** Tasa de bienvenida, arranque, Élite con vencimiento o bajada escalonada, en una frase. */
-  trato: string | null;
-};
-
-type FilaNivel = { nombre: string; orden: number; umbral_minimo: string | null; porcentaje: string | null; es_forzado: boolean };
+export type { MiNivel } from "@/lib/nivel";
 
 /**
- * El nivel del mes y cuánto le falta para subir. La proyección usa
- * `calcular_nivel` de la base con el mes siguiente: es exactamente lo
- * que hará el cierre si el mes terminara hoy.
+ * El nivel del mes, lo que daría su promedio el mes que entra y lo que falta este mes (0081, avance_nivel). La
+ * misma función para el comisionista (lo suyo) y para administración (su ficha): todas las pantallas dicen lo mismo.
  */
-export async function miNivel(personaId: string, orgId: string): Promise<MiNivel> {
+export async function miNivel(personaId: string, _orgId?: string): Promise<import("@/lib/nivel").MiNivel> {
+  void _orgId;
   const supabase = await crearClienteServidor();
-  const mes = mesActual();
-
-  const [pct, prov, proy, niveles, comisiones, trato] = await Promise.all([
-    supabase.rpc("porcentaje_vigente", { p_org: orgId, p_comisionista: personaId, p_mes: mes }),
-    supabase.rpc("porcentaje_es_provisional", { p_org: orgId, p_comisionista: personaId, p_mes: mes }),
-    supabase.rpc("calcular_nivel", { p_org: orgId, p_comisionista: personaId, p_mes: mesSiguiente(mes) }),
-    supabase.from("niveles").select("nombre, orden, umbral_minimo, porcentaje, es_forzado").order("orden").returns<FilaNivel[]>(),
-    supabase.from("comisiones").select("monto, provisional").eq("comisionista_id", personaId).eq("mes", mes).returns<{ monto: string | number; provisional: boolean }[]>(),
-    supabase.rpc("mi_trato"),
-  ]);
-
-  const porcentaje = Number(oExplota(pct, "tu porcentaje"));
-  const provisional = Boolean(oExplota(prov, "tu nivel"));
-  const proyeccion = (oExplota(proy, "tu avance") as { promedio: string | number; meses_considerados: number }[] | null)?.[0];
-  const tabla = (oExplota(niveles, "los niveles") ?? []).filter((n) => !n.es_forzado);
-  const lineas = oExplota(comisiones, "tus comisiones") ?? [];
-
-  const actual =
-    tabla.filter((n) => Number(n.porcentaje) === porcentaje).at(-1)?.nombre ??
-    (oExplota(niveles, "los niveles") ?? []).find((n) => n.es_forzado)?.nombre ??
-    "";
-
-  const promedio = Number(proyeccion?.promedio ?? 0);
-  const meses = Math.max(1, Number(proyeccion?.meses_considerados ?? 1));
-  const siguienteFila = tabla.find((n) => Number(n.umbral_minimo) > promedio) ?? null;
-  const anterior = [...tabla].reverse().find((n) => Number(n.umbral_minimo) <= promedio);
-
-  const siguiente = siguienteFila
-    ? { nombre: siguienteFila.nombre, umbral: Number(siguienteFila.umbral_minimo), porcentaje: Number(siguienteFila.porcentaje) }
-    : null;
-  const piso = Number(anterior?.umbral_minimo ?? 0);
-
-  return {
-    nivel: actual,
-    porcentaje,
-    provisional,
-    promedio,
-    meses,
-    siguiente,
-    // Subir el promedio en X pide X × meses de honorarios en este mes.
-    faltante: siguiente ? Math.ceil((siguiente.umbral - promedio) * meses) : 0,
-    avance: siguiente ? Math.min(1, Math.max(0, (promedio - piso) / (siguiente.umbral - piso))) : 1,
-    comision_mes: lineas.reduce((t, l) => t + Number(l.monto), 0),
-    comision_mes_provisional: lineas.some((l) => l.provisional),
-    trato: fraseDelTrato(trato.data as MiTrato | null, porcentaje),
-  };
-}
-
-type MiTrato = {
-  trato: "bienvenida" | "arranque" | null;
-  hasta: string | null;
-  vigente: boolean;
-  porcentaje: number | null;
-  elite_vence: string | null;
-  motivo_mes: string | null;
-} | null;
-
-/** "Tasa de bienvenida 15% hasta el 31/01/2027", o nada. */
-function fraseDelTrato(t: MiTrato, porcentaje: number): string | null {
-  if (!t) return null;
-  const dma = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
-  if (t.elite_vence) return `Élite ${porcentaje}% hasta el ${dma(t.elite_vence)}`;
-  if (t.vigente && t.hasta && t.trato) {
-    return `${t.trato === "bienvenida" ? "Tasa de bienvenida" : "Tasa de arranque"} ${Number(t.porcentaje)}% hasta el ${dma(t.hasta)}`;
-  }
-  if (t.motivo_mes === "escalon") {
-    return "Terminó tu bienvenida: tu nivel baja uno por cierre hasta el que da tu promedio. Si tu promedio sube, subes de inmediato.";
-  }
-  return null;
+  const datos = oExplota(await supabase.rpc("avance_nivel", { p_persona: personaId }), "tu nivel");
+  return normalizarAvance(datos);
 }

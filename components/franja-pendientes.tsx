@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { comisionesPorPagar } from "@/lib/comisiones";
+import { tareasDeHoy } from "@/lib/hoy";
 import { fechaCorta, pesos } from "@/lib/formato";
-import { pendientesDelPanel } from "@/lib/panel";
-import { esStaff, type Persona } from "@/lib/sesion";
+import type { Persona } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 type Pendiente = { href: string; texto: string; cuenta?: number; urgente?: boolean };
@@ -75,21 +74,6 @@ async function delComisionista(persona: Persona): Promise<Pendiente[]> {
 }
 
 async function deOperacion(persona: Persona): Promise<Pendiente[]> {
-  const staff = esStaff(persona);
-  const supabase = await crearClienteServidor();
-  const [p, porPagar, paquetes] = await Promise.all([pendientesDelPanel(), staff ? comisionesPorPagar() : Promise.resolve([]),
-    staff ? supabase.from("compras_paquete").select("id", { count: "exact", head: true }).eq("estado", "por_pagar") : Promise.resolve({ count: 0 })]);
-  const vencidas = porPagar.filter((x) => x.vencido);
-  const lista: Pendiente[] = [];
-  if (p.pagos) lista.push({ href: "/admin/pagos", texto: "Pagos por confirmar", cuenta: p.pagos });
-  if (paquetes.count) lista.push({ href: "/admin/paquetes", texto: "Pagos de paquete por confirmar", cuenta: paquetes.count });
-  if (p.solicitudes) lista.push({ href: "/admin/solicitudes", texto: "Solicitudes por cotizar", cuenta: p.solicitudes });
-  if (p.alertas) lista.push({ href: "/admin/alertas", texto: "Alertas", cuenta: p.alertas });
-  if (staff && p.altas) lista.push({ href: "/admin/altas", texto: "Solicitudes de alta", cuenta: p.altas });
-  if (persona.rol === "admin_org" && p.testimonios) lista.push({ href: "/admin/testimonios", texto: "Testimonios por aprobar", cuenta: p.testimonios });
-  if (staff && p.cierre.estado !== "aprobado") {
-    lista.push({ href: `/admin/cierres/${p.cierre.mes.slice(0, 7)}`, texto: p.cierre.estado === "preparado" ? "Cierre por aprobar" : "Cierre por preparar" });
-  }
-  if (vencidas.length) lista.push({ href: "/admin/comisiones", texto: `Comisiones vencidas: ${pesos(vencidas.reduce((s, x) => s + x.saldo, 0))}`, cuenta: vencidas.length, urgente: true });
-  return lista;
+  // La misma lista que "Hoy" (/admin): antes eran dos listas que no coincidían.
+  return (await tareasDeHoy(persona)).map((t) => ({ href: t.href, texto: t.texto, cuenta: t.cuenta, urgente: t.urgente }));
 }

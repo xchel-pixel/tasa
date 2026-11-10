@@ -114,7 +114,7 @@ describe("Datos DEMO", () => {
       expect.arrayContaining([expect.stringContaining("8.00")])
     );
     expect(await demo(`select string_agg(rol, ',' order by rol) as v from membresias where ${enDemo} and persona_id in (select id from personas where correo like 'xchel+demo-%')`)).toEqual(
-      ["admin_org,comisionista,comisionista,comisionista,equipo,finanzas"]
+      ["admin_marca,admin_org,comisionista,comisionista,comisionista,equipo,finanzas"]
     );
     // 0047: un pago por entregar vencido (con alerta) y uno ya entregado; asignado, sin comisión y traído de Notion.
     expect(await demo(`select (count(*) filter (where entregado_en is null and entregar_antes < hoy_mx()))::text || ' ' || (count(*) filter (where entregado_en is not null))::text as v

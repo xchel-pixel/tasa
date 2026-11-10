@@ -535,6 +535,8 @@ begin
     'Y deja de ser provisional');
   perform pg_temp.igual((select count(*) from comisiones where organizacion_id = pg_temp.xg() and mes = '2026-10-01' and provisional), 0::bigint,
     'Nada de un mes aprobado queda provisional');
+  -- Los niveles vuelven a ser los de producción (lo aprobado ya quedó guardado en niveles_mensuales).
+  update niveles set umbral_minimo = 10000 where nombre = 'Aliado';
 end;
 $$;
 
@@ -1403,6 +1405,11 @@ begin
   perform pg_temp.igual(mi_trato()->>'trato', 'bienvenida', 'El comisionista ve su propio trato');
   perform pg_temp.debe_fallar(format('select poner_trato_inicial(%L, %L, 3, null)', ana, 'bienvenida'), 'Solo finanzas',
     'Un comisionista no se pone la bienvenida solo');
+  -- Fuera el nivel de prueba: los niveles vuelven a ser los de producción (Socio Plus es el tope automático).
+  perform pg_temp.sistema();
+  delete from niveles_mensuales where nivel_id in (select id from niveles where nombre = 'Diamante');
+  delete from cupos_herramienta where nivel_id in (select id from niveles where nombre = 'Diamante');
+  delete from niveles where nombre = 'Diamante';
 end;
 $$;
 
@@ -5565,6 +5572,77 @@ begin
   -- Sin encabezado la función previa no cambia nada.
   perform solo_lectura_si_ver_como();
   perform pg_temp.igual(current_setting('transaction_read_only'), 'off', 'Sin el encabezado, la petición escribe normal');
+  perform pg_temp.sistema();
+end;
+$sec$;
+
+-- @@ Avance de nivel (actual, próximo mes y lo que falta)
+-- 0081: nunca mezcla el nivel actual con el proyectado. Si el próximo mes bajaría, dice cuánto falta para mantener el
+-- actual; si ya lo asegura, cuánto falta para subir. Lo ve el comisionista (lo suyo) y administración.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  nina  uuid;
+  sp    uuid := (select id from niveles where organizacion_id = pg_temp.xg() and nombre = 'Socio Plus');
+  m     date := mes_de(hoy_mx());
+  r     jsonb;
+begin
+  perform pg_temp.sistema();
+  nina := pg_temp.comisionista('Nina Nivel');
+  insert into auth.users (email) values ('nina.nivel@ref.test');
+
+  -- Sin trabajos: Enlace este mes y el próximo; para subir a Aliado le falta el umbral × meses.
+  perform pg_temp.como('gaby@tasa.test');
+  r := avance_nivel(nina);
+  perform pg_temp.igual(r->'actual'->>'nombre', 'Enlace', 'Este mes: Enlace');
+  perform pg_temp.igual(r->'proyectado'->>'nombre', 'Enlace', 'El próximo mes: Enlace');
+  perform pg_temp.igual(r->'objetivo'->>'tipo' || ' ' || (r->'objetivo'->>'nombre'), 'subir Aliado', 'Lo que falta es para subir a Aliado');
+  perform pg_temp.igual((r->'objetivo'->>'falta')::numeric, ceil((select umbral_minimo from niveles where organizacion_id = xg and nombre = 'Aliado') * greatest((r->'proyectado'->>'meses')::numeric, 1)), 'Falta el umbral por los meses que cuenta');
+
+  -- Con bienvenida que sigue el próximo mes: Socio Plus ahora y después; ya es lo más alto.
+  perform pg_temp.sistema();
+  update comisionistas set trato_inicial = 'bienvenida', trato_nivel_id = sp, trato_desde = m,
+         trato_hasta = (m + interval '2 months')::date - 1 where persona_id = nina;
+  perform pg_temp.como('gaby@tasa.test');
+  r := avance_nivel(nina);
+  perform pg_temp.igual(r->'actual'->>'nombre' || ' / ' || (r->'proyectado'->>'nombre'), 'Socio Plus / Socio Plus', 'Bienvenida: este mes y el próximo Socio Plus');
+  perform pg_temp.igual(r->'especial'->>'tipo', 'bienvenida', 'Con su tasa de bienvenida y su fecha de fin');
+  perform pg_temp.igual(r->>'objetivo', null::text, 'Socio Plus es el tope automático: no hay "falta"');
+
+  -- La bienvenida termina este mes: el próximo mes bajaría; lo que falta es para MANTENER Socio Plus.
+  perform pg_temp.sistema();
+  update comisionistas set trato_hasta = (m + interval '1 month')::date - 1 where persona_id = nina;
+  perform pg_temp.como('gaby@tasa.test');
+  r := avance_nivel(nina);
+  perform pg_temp.igual(r->'actual'->>'nombre', 'Socio Plus', 'Este mes sigue en Socio Plus');
+  perform pg_temp.igual(r->'proyectado'->>'nombre' <> 'Socio Plus', true, 'El próximo mes bajaría');
+  perform pg_temp.igual(r->'objetivo'->>'tipo' || ' ' || (r->'objetivo'->>'nombre'), 'mantener Socio Plus', 'Lo que falta es para mantener Socio Plus');
+
+  -- Élite manual: no sube ni baja por promedio; no hay "falta".
+  perform pg_temp.sistema();
+  update comisionistas set trato_inicial = null, trato_nivel_id = null, trato_desde = null, trato_hasta = null,
+         porcentaje_forzado = 22, elite_vence = null where persona_id = nina;
+  perform pg_temp.como('gaby@tasa.test');
+  r := avance_nivel(nina);
+  perform pg_temp.igual((r->'actual'->>'porcentaje')::numeric || ' ' || (r->'actual'->>'forzado'), '22.00 true', 'Élite manual: cobra su porcentaje fijo');
+  perform pg_temp.igual(r->'especial'->>'tipo', 'elite', 'Marcado como Élite');
+  perform pg_temp.igual((r->'proyectado'->>'porcentaje')::numeric, 22.00::numeric, 'El próximo mes sigue en Élite: el promedio no lo mueve');
+  perform pg_temp.igual(r->>'objetivo', null::text, 'Sin "falta" para Élite (no depende del promedio)');
+
+  -- Socio Plus es el tope automático: con promedio de sobra, no hay nivel arriba que ganar por promedio.
+  perform pg_temp.sistema();
+  update comisionistas set porcentaje_forzado = null where persona_id = nina;
+  perform pg_temp.pagado(nina, 250000, m);
+  perform pg_temp.como('gaby@tasa.test');
+  r := avance_nivel(nina);
+  perform pg_temp.igual(r->'proyectado'->>'nombre', 'Socio Plus', 'Con 250,000 este mes, el próximo sería Socio Plus');
+  perform pg_temp.igual(r->>'objetivo', null::text, 'Socio Plus es el tope automático: no hay "falta"');
+
+  -- Ella ve lo suyo; otro comisionista no.
+  perform pg_temp.como('nina.nivel@ref.test');
+  perform pg_temp.igual(avance_nivel(nina), r, 'El comisionista ve su propio avance, igual que administración');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select avance_nivel(%L)', nina), 'Solo el comisionista', 'Otro comisionista no lo ve');
   perform pg_temp.sistema();
 end;
 $sec$;

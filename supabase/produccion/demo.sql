@@ -694,3 +694,33 @@ begin
   end if;
 end;
 $$;
+
+-- 14. Marca DEMO (admin_marca) para humo: ve solo lo de una marca de DEMO. Una sola vez.
+do $$
+declare
+  v_demo  uuid := (select id from organizaciones where slug = 'demo');
+  v_p     uuid;
+  v_m     uuid;
+  v_marca uuid;
+begin
+  if v_demo is null then return; end if;
+  insert into personas (nombre, correo, organizacion_activa) values ('Marca DEMO', 'xchel+demo-marca@arqosuv.com', v_demo)
+  on conflict ((lower(correo))) do nothing;
+  select id into v_p from personas where lower(correo) = 'xchel+demo-marca@arqosuv.com';
+  update personas set organizacion_activa = v_demo, activo = true where id = v_p;
+  insert into membresias (persona_id, organizacion_id, rol) values (v_p, v_demo, 'admin_marca') on conflict (persona_id, organizacion_id) do nothing;
+  select id into v_m from membresias where persona_id = v_p and organizacion_id = v_demo;
+  v_marca := (select id from marcas where organizacion_id = v_demo order by clave limit 1);
+  if v_marca is not null then
+    insert into membresia_marcas (organizacion_id, membresia_id, marca_id) values (v_demo, v_m, v_marca) on conflict do nothing;
+  end if;
+  update personas p set user_id = u.id from auth.users u where p.id = v_p and p.user_id is null and lower(u.email) = lower(p.correo);
+  -- Su cálculo de ejemplo ("Mis cálculos" es solo de quien calculó), como el de las demás personas DEMO.
+  insert into calculos_traslado (organizacion_id, persona_id, modo, referencia, municipio, lado, entrada, resultado)
+  select c.organizacion_id, v_p, c.modo, c.referencia, c.municipio, c.lado, c.entrada, c.resultado
+    from calculos_traslado c join personas q on q.id = c.persona_id
+   where c.organizacion_id = v_demo and q.correo = 'xchel+demo-admin@arqosuv.com'
+     and not exists (select 1 from calculos_traslado x where x.persona_id = v_p)
+   limit 1;
+end;
+$$;

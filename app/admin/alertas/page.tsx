@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { Etiqueta } from "@/components/etiqueta";
 import { PantallaAdmin } from "@/components/pantalla-admin";
-import { LiberarCupo } from "@/components/formularios-cupo";
-import { AgregarDxf } from "@/components/formularios-dxf";
 import { fechaCorta } from "@/lib/formato";
 import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
@@ -38,9 +36,31 @@ const FALLA: Record<string, string> = {
  *     confirma admin_org;
  *   · una falla del conector: se cierra sola cuando el siguiente sync sale bien.
  */
-export default async function Alertas() {
+export default async function Alertas({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const persona = await exigirRol(...ROLES_OPERACION);
   const supabase = await crearClienteServidor();
+  // "Ver todas" desde Hoy: el historial de las ya resueltas.
+  if ((await searchParams).ver === "resueltas") {
+    const resueltas = oExplota(
+      await supabase.from("alertas").select("id, tipo, mensaje, creada_en, resuelta_en, resolucion").not("resuelta_en", "is", null)
+        .order("resuelta_en", { ascending: false }).limit(100)
+        .returns<{ id: string; tipo: string; mensaje: string; creada_en: string; resuelta_en: string; resolucion: string | null }[]>(),
+      "las alertas resueltas"
+    ) ?? [];
+    return (
+      <PantallaAdmin titulo="Alertas resueltas" volver={{ href: "/admin/alertas", texto: "Alertas abiertas" }}>
+        <p className="mt-3 text-[0.9375rem] leading-6 text-secundario">Para qué sirve: revisar qué alertas hubo y cómo se cerraron. Las 100 más recientes.</p>
+        <ul className="mt-4 flex flex-col gap-2">
+          {resueltas.map((a) => (
+            <li key={a.id} className="rounded-xl border border-linea px-4 py-3 text-[0.9375rem] leading-6">
+              <p>{a.mensaje}</p>
+              <p className="text-secundario">Abierta el {fechaCorta(a.creada_en)} · cerrada el {fechaCorta(a.resuelta_en)}{a.resolucion ? ` · ${a.resolucion}` : ""}</p>
+            </li>
+          ))}
+        </ul>
+      </PantallaAdmin>
+    );
+  }
   const alertas =
     oExplota(
       await supabase
@@ -51,9 +71,22 @@ export default async function Alertas() {
         .returns<Fila[]>(),
       "las alertas"
     ) ?? [];
+  // "Pedir más": de un comisionista se resuelve en su ficha (único lugar donde se editan sus cupos y su DXF).
+  const idsCupo = alertas.filter((a) => a.tipo === "cupo_agotado").map((a) => a.codigo?.split(":")[0] ?? "").filter((x) => x.length === 36);
+  const comisionistas = new Set(idsCupo.length
+    ? ((await supabase.from("comisionistas").select("persona_id").in("persona_id", idsCupo)).data ?? []).map((c: { persona_id: string }) => c.persona_id)
+    : []);
+  const ligaCupo = (codigo: string | null) => {
+    const pid = codigo?.split(":")[0] ?? "";
+    return comisionistas.has(pid) ? `/admin/comisionistas/${pid}?tab=accesos` : `/admin/accesos/${pid}`;
+  };
 
   return (
-    <PantallaAdmin titulo="Alertas">
+    <PantallaAdmin titulo="Alertas" volver={{ href: "/admin", texto: "Hoy" }}>
+      <p className="mt-3 text-[0.9375rem] leading-6 text-secundario">
+        Para qué sirve: lo que el sistema no resuelve solo y necesita que alguien decida. También salen en Hoy.{" "}
+        <Link href="/admin/alertas?ver=resueltas" className="font-semibold text-acento underline underline-offset-4">Ver las resueltas</Link>
+      </p>
       {alertas.length === 0 ? (
         <p className="mt-4 rounded-xl bg-alterno px-4 py-3 text-secundario">No hay alertas abiertas.</p>
       ) : (
@@ -98,21 +131,12 @@ export default async function Alertas() {
                   <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>
                   {" "}(Página en Notion). Se cierra sola al ligarlo; lo ya escrito se corrige a mano en Notion.
                 </p>
-              ) : a.tipo === "cupo_agotado" && a.codigo?.split(":")[1] === "mapa_catastral_dxf" ? (
-                persona.rol === "admin_org" ? (
-                  <>
-                    <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
-                      Agrega descargas aquí o en su ficha (Comisionistas o Equipo → DXF del mapa catastral). Se cierra sola al darle saldo.
-                    </p>
-                    <AgregarDxf personaId={a.codigo?.split(":")[0] ?? ""} />
-                  </>
-                ) : <p className="mt-2 text-[0.9375rem] text-secundario">La resuelve Administración.</p>
               ) : a.tipo === "cupo_agotado" ? (
                 persona.rol === "admin_org" ? (
-                  <>
-                    <Link href={`/admin/comisionistas/${a.codigo?.split(":")[0]}`} className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Ver su ficha</Link>
-                    <LiberarCupo personaId={a.codigo?.split(":")[0] ?? ""} herramienta={a.codigo?.split(":")[1]} opciones={[]} />
-                  </>
+                  <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
+                    <Link href={ligaCupo(a.codigo)} className="font-semibold text-acento underline underline-offset-4">Darle más en su ficha</Link>
+                    {" "}(pestaña Accesos y sesiones). Se cierra sola al darle cupo o DXF.
+                  </p>
                 ) : <p className="mt-2 text-[0.9375rem] text-secundario">La resuelve Administración.</p>
               ) : a.tipo === "parametros_fiscales" ? (
                 persona.rol === "admin_org" ? (

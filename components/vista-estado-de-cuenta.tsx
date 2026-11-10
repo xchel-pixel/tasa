@@ -49,7 +49,7 @@ export async function VistaEstadoDeCuenta({
           {meses.map((m) => (
             <li key={m}>
               <Link
-                href={`${base}?mes=${m}`}
+                href={`${base}${base.includes("?") ? "&" : "?"}mes=${m}`}
                 scroll={false}
                 aria-current={m === mes ? "page" : undefined}
                 className={`toque whitespace-nowrap rounded-full border px-4 text-[0.9375rem] font-semibold ${

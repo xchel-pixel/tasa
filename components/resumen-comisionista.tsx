@@ -3,7 +3,9 @@ import { abrirVerComo } from "@/app/ver-como/acciones";
 import { Etiqueta } from "@/components/etiqueta";
 import { estatusVisible, type EstatusPublico } from "@/lib/estatus";
 import { fechaCorta, pesos } from "@/lib/formato";
+import { BloqueNivel } from "@/components/bloque-nivel";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { miNivel } from "@/lib/trabajos";
 
 type Resumen = {
   nivel: string | null; nivel_anterior: string | null; porcentaje: number; provisional: boolean; motivo: string | null;
@@ -14,8 +16,6 @@ type Resumen = {
   actividad: { estado: "activa" | "por_vencer" | "inactiva" | "no_aplica"; vence: string | null; dias: number | null };
   tramites: { id: string; folio: string | null; cliente_nombre: string; estado: string; estatus_publico: string; monto_honorarios: number | null; creado_en: string }[];
 };
-
-const TRATO: Record<string, string> = { bienvenida: "Bienvenida", arranque: "Arranque" };
 
 /** "Ver como este comisionista" (0080): abre su vista de solo lectura. */
 export function BotonVerComo({ personaId }: { personaId: string }) {
@@ -45,12 +45,8 @@ export async function ResumenComisionista({ personaId }: { personaId: string }) 
   const { data, error } = await supabase.rpc("resumen_comisionista", { p_persona: personaId });
   if (error || !data) return null;
   const r = data as Resumen;
+  const nivel = await miNivel(personaId);
   const n = (x: number | string | null) => Number(x ?? 0);
-  const tasa = r.elite
-    ? `Élite ${n(r.elite.porcentaje)} %${r.elite.hasta ? ` hasta el ${fechaCorta(r.elite.hasta)}` : ""}`
-    : r.trato
-      ? `${TRATO[r.trato.tipo ?? ""] ?? "Trato"} (${r.trato.nivel ?? "nivel"}) hasta el ${fechaCorta(r.trato.hasta)}`
-      : r.provisional ? "Provisional hasta el cierre" : "Por su promedio";
   const estado = r.actividad.estado === "inactiva" ? <Etiqueta tono="neutro">Inactiva</Etiqueta>
     : r.actividad.estado === "por_vencer" ? <Etiqueta tono="proceso">Por inactivarse{r.actividad.dias !== null ? ` (${r.actividad.dias} días)` : ""}</Etiqueta>
     : <Etiqueta tono="exito">Activa</Etiqueta>;
@@ -61,13 +57,10 @@ export async function ResumenComisionista({ personaId }: { personaId: string }) 
         <h2 className="font-bold">Resumen</h2>
         {estado}
       </div>
+      <div className="mt-3"><BloqueNivel nivel={nivel} conComision={false} /></div>
+      <p className="mt-2 text-[0.875rem] text-secundario">Mes anterior: {r.nivel_anterior ?? "—"} · promedio con que se calcula su nivel: {pesos(n(r.promedio))} ({r.meses} mes{r.meses === 1 ? "" : "es"}).</p>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-[0.9375rem] md:grid-cols-4">
-        <Cifra titulo="Nivel actual" valor={`${r.nivel ?? "—"} · ${n(r.porcentaje)} %`} detalle={`Mes anterior: ${r.nivel_anterior ?? "—"}`} />
-        <Cifra titulo="Tasa vigente" valor={`${n(r.porcentaje)} %`} detalle={tasa} />
         <Cifra titulo="Volumen del mes" valor={pesos(n(r.volumen_mes))} detalle="Honorarios de trabajos pagados" />
-        <Cifra titulo="Promedio para su nivel" valor={pesos(n(r.promedio))} detalle={`${r.meses} mes${r.meses === 1 ? "" : "es"} · proyecta ${r.nivel_proyectado ?? "—"}`} />
-        <Cifra titulo="Para el siguiente nivel" valor={r.siguiente ? pesos(n(r.siguiente.falta)) : "Ya está en el más alto"}
-          detalle={r.siguiente ? `Faltan este mes para ${r.siguiente.nombre} (${n(r.siguiente.porcentaje)} %)` : null} />
         <Cifra titulo="Comisión del mes" valor={pesos(n(r.comision_mes))} detalle={n(r.por_pagar) ? `${pesos(n(r.por_pagar))} de cierres por pagar` : "Nada de cierres por pagar"} />
         <Cifra titulo="Paquete y saldo" valor={r.paquete ? `${r.paquete} · ${pesos(n(r.saldo))}` : "Sin paquete"}
           detalle={r.paquete_vence ? `Vence el ${fechaCorta(r.paquete_vence)}` : null} />
