@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { FranjaPendientes } from "@/components/franja-pendientes";
+import { BloqueNivel } from "@/components/bloque-nivel";
 import { Lanzador } from "@/components/lanzador";
+import { miNivel } from "@/lib/trabajos";
 import { PortadaPublica } from "@/components/portada-publica";
 import { obtenerContacto } from "@/lib/contacto";
 import { NOMBRE_DEL_ROL, obtenerSesion } from "@/lib/sesion";
@@ -22,6 +24,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<R
   const { persona } = sesion;
   if (persona?.debeAceptarTerminos) redirect("/terminos");
   const contacto = persona ? null : await obtenerContacto();
+  const nivel = persona?.rol === "comisionista" ? await miNivel(persona.id, persona.organizacion.id) : null;
 
   return (
     <>
@@ -52,6 +55,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<R
                   Cerramos tu sesión en {equipoCerrado} porque tu cuenta permite {maximo} equipo{maximo === 1 ? "" : "s"} a la vez.
                 </p>
               ) : null}
+              {nivel ? <div className="mt-4"><BloqueNivel nivel={nivel} /></div> : null}
               <Lanzador persona={persona} />
               <FranjaPendientes persona={persona} />
             </>

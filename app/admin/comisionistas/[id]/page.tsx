@@ -1,3 +1,4 @@
+import { ResumenComisionista } from "@/components/resumen-comisionista";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Etiqueta } from "@/components/etiqueta";
@@ -176,6 +177,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
       <p className="mt-2 text-[0.9375rem] text-secundario">
         Último acceso: {r?.ultimo_acceso ? fechaCorta(r.ultimo_acceso) : "nunca ha entrado"}
       </p>
+      {staff ? <ResumenComisionista personaId={id} /> : null}
 
       <Seccion titulo="Datos">
         <dl className="flex flex-col gap-1 text-[0.9375rem]">

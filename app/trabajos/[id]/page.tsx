@@ -7,7 +7,7 @@ import { ESTADO_PAGO, VIA_PAGO, estatusVisible } from "@/lib/estatus";
 import { fechaCorta, pesos } from "@/lib/formato";
 import { paraAsignar } from "@/lib/asignar";
 import { carpetaDe, exigirPersona } from "@/lib/sesion";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
 import { obtenerTrabajo, type Trabajo } from "@/lib/trabajos";
 import { AccionConMotivo, MesCerrado } from "@/components/accion-con-motivo";
 import { mesDeFecha, mesesCerrados } from "@/lib/meses";
@@ -32,7 +32,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
   if (!t) notFound();
 
   const estatus = estatusVisible(t.estatus_publico, t.folio);
-  if (persona.rol === "comisionista") await (await crearClienteServidor()).rpc("marcar_avisos_del_trabajo", { p_solicitud: t.id });
+  if (persona.rol === "comisionista" && !(await verComoId())) await (await crearClienteServidor()).rpc("marcar_avisos_del_trabajo", { p_solicitud: t.id });
   // El equipo ve lo de su liga solo para seguimiento: aceptar y pagar son del comisionista y del staff.
   const actua = persona.rol !== "equipo";
 

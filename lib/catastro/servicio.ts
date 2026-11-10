@@ -1,4 +1,4 @@
-import { crearClienteServidor, encabezadoHumo } from "@/lib/supabase/server";
+import { crearClienteServidor, encabezadoHumo, verComoId } from "@/lib/supabase/server";
 import { clienteDeServicio } from "@/lib/supabase/servicio";
 import { aLonLat, caja, contiene, geometriaValida, puntoInterior, type Geometria } from "./geo";
 import { consultarExpediente, consultarMapa, type PredioDeCapa } from "./idecatq";
@@ -17,6 +17,7 @@ import { centroideDelExpediente, limpiarExpediente, type Datos, type Privados } 
 export type Quien = { persona: string; organizacion: string };
 
 async function servicio() {
+  if (await verComoId()) throw new Error("Modo solo lectura: en \"ver como\" no se consulta ni se descarga nada.");
   const db = clienteDeServicio(await encabezadoHumo());
   if (!db) throw new Error("Falta la llave de servicio en el servidor.");
   return db;

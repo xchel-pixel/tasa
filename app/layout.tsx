@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
+import { BarraVerComo } from "@/components/barra-ver-como";
 import ErroresVisibles from "@/components/errores-visibles";
 import EstadoDelNavegador from "@/components/estado-del-navegador";
 import "./globals.css";
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <ErroresVisibles />
         <EstadoDelNavegador />
+        <BarraVerComo />
         {children}
       </body>
     </html>

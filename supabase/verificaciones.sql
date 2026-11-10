@@ -316,7 +316,7 @@ begin
   select string_agg(p.proname, ', ' order by p.proname) into v
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, insignia_tarjeta, invitado_por, organizaciones_con_alta, pedir_alta, pedir_por_liga, registrar_clic_tarjeta, registrar_evento_tarjeta'::text,
+  perform pg_temp.igual(v, 'alta_admite_csf, aviso_privacidad_publico, cliente_admite_adjunto, confirmar_alta, contacto_soporte, correo_en_padron, datos_alta_publica, datos_liga_cliente, datos_tarjeta, insignia_tarjeta, invitado_por, organizaciones_con_alta, pedir_alta, pedir_por_liga, registrar_clic_tarjeta, registrar_evento_tarjeta, solo_lectura_si_ver_como, ver_como_activo'::text,
     'anon solo ejecuta lo de la pantalla de acceso, la solicitud de alta y el aviso de privacidad');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -5474,6 +5474,97 @@ begin
   perform pg_temp.como('gaby@tasa.test');
   perform pg_temp.igual(vista_modalidad_comision(t3)->>'motivo', 'Tiene crédito aplicado', 'Con crédito: ni A ni B');
   perform pg_temp.debe_fallar(format('select aplicar_modalidad_comision(%L, %L, null)', t3, 'descontada'), 'crédito', 'Se bloquea');
+  perform pg_temp.sistema();
+end;
+$sec$;
+
+-- @@ Ver como comisionista (solo lectura)
+-- 0080: admin_org o finanzas abren una vista de una hora (bitácora). Con el encabezado, la base responde como el
+-- comisionista y la petición es de solo lectura: ninguna escritura pasa, ni de funciones security definer.
+create function pg_temp.escribir_en_ver_como(p_ana uuid) returns void language plpgsql as $f$
+begin
+  perform solo_lectura_si_ver_como();
+  update personas set nombre = nombre where id = p_ana;
+end;
+$f$;
+create function pg_temp.rpc_en_ver_como() returns void language plpgsql as $f$
+begin
+  perform solo_lectura_si_ver_como();
+  perform marcar_avisos_del_trabajo((select id from solicitudes limit 1));
+  insert into eventos_uso (organizacion_id, persona_id, herramienta, evento, resultado) values (pg_temp.xg(), mi_persona_id(), 'acceso', 'acceso', 'ok');
+end;
+$f$;
+
+do $sec$
+declare
+  ana     uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  gaby_u  uuid := (select user_id from personas where correo = 'gaby@tasa.test');
+  beto_u  uuid := (select user_id from personas where correo = 'xchel+beto@arqosuv.com');
+  xchel_u uuid := (select user_id from personas where correo = 'xchel@arqosuv.com');
+  v       uuid;
+  n_ana   bigint;
+  r       jsonb;
+begin
+  -- Lo que Ana ve de sí misma.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  n_ana := (select count(*) from solicitudes);
+  perform pg_temp.debe_fallar(format('select iniciar_ver_como(%L)', ana), 'Solo administración', 'Un comisionista no abre "ver como"');
+  perform pg_temp.debe_fallar(format('select resumen_comisionista(%L)', ana), 'Solo administración', 'Ni ve el resumen');
+
+  -- Finanzas abre la vista (queda en la bitácora).
+  perform pg_temp.como('gaby@tasa.test');
+  r := resumen_comisionista(ana);
+  perform pg_temp.igual(r ? 'nivel' and r ? 'siguiente' and r ? 'actividad' and jsonb_array_length(r->'tramites') <= 5, true,
+    'Finanzas ve el resumen del comisionista');
+  v := iniciar_ver_como(ana);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select motivo from bitacora where tabla = 'vistas_como' and registro_id = v::text order by id desc limit 1),
+    'Ver como comisionista (solo lectura)', 'Queda en la bitácora quién lo abrió y cuándo');
+
+  -- Con el encabezado: la base responde como Ana.
+  perform pg_temp.como('gaby@tasa.test');
+  perform set_config('request.headers', json_build_object('x-tasa-ver-como', ana)::text, true);
+  perform pg_temp.igual(mi_persona_id(), ana, 'Con la vista abierta, la base responde como Ana');
+  perform pg_temp.igual(mi_rol(), 'comisionista', 'Con su rol');
+  perform pg_temp.igual((select count(*) from solicitudes), n_ana, 'Y ve exactamente sus trabajos');
+  perform pg_temp.igual((mi_sesion()->>'persona_id')::uuid, ana, 'La sesión de la app es la de Ana');
+
+  -- Solo lectura: ni escrituras directas ni funciones que escriben.
+  perform pg_temp.debe_fallar(format('select pg_temp.escribir_en_ver_como(%L)', ana), 'read-only', 'Una escritura directa se niega');
+  perform pg_temp.debe_fallar('select pg_temp.rpc_en_ver_como()', 'read-only', 'Una función que escribe también');
+  perform set_config('request.headers', '', true);
+
+  -- Sin vista válida, el encabezado no da nada.
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform set_config('request.headers', json_build_object('x-tasa-ver-como', ana)::text, true);
+  perform pg_temp.igual(mi_persona_id(), null::uuid, 'Otro con el encabezado no es nadie');
+  perform pg_temp.igual((select count(*) from solicitudes), 0::bigint, 'Y no ve nada');
+  perform set_config('request.headers', json_build_object('x-tasa-ver-como', 'basura')::text, true);
+  perform pg_temp.igual(mi_persona_id(), null::uuid, 'Un encabezado mal formado tampoco');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform set_config('request.headers', json_build_object('x-tasa-ver-como', ana)::text, true);
+  perform pg_temp.igual(mi_persona_id(), null::uuid, 'Admin sin su propia vista abierta: nadie');
+  perform pg_temp.igual(soy_super_plataforma(), false, 'En ver como nadie es super plataforma');
+  perform set_config('request.headers', '', true);
+  perform pg_temp.igual(soy_super_plataforma(), true, 'Sin el encabezado, Xchel sigue siendo super plataforma');
+
+  -- Vencida o cerrada, se acaba.
+  perform pg_temp.sistema();
+  update vistas_como set expira_en = now() - interval '1 minute' where id = v;
+  perform pg_temp.como('gaby@tasa.test');
+  perform set_config('request.headers', json_build_object('x-tasa-ver-como', ana)::text, true);
+  perform pg_temp.igual(mi_persona_id(), null::uuid, 'Vencida la hora, ya no');
+  perform set_config('request.headers', '', true);
+  v := iniciar_ver_como(ana);
+  perform cerrar_ver_como();
+  perform set_config('request.headers', json_build_object('x-tasa-ver-como', ana)::text, true);
+  perform pg_temp.igual(mi_persona_id(), null::uuid, 'Al salir, ya no');
+  perform set_config('request.headers', '', true);
+  perform pg_temp.igual(mi_persona_id(), (select id from personas where correo = 'gaby@tasa.test'), 'Y vuelve a ser ella');
+
+  -- Sin encabezado la función previa no cambia nada.
+  perform solo_lectura_si_ver_como();
+  perform pg_temp.igual(current_setting('transaction_read_only'), 'off', 'Sin el encabezado, la petición escribe normal');
   perform pg_temp.sistema();
 end;
 $sec$;

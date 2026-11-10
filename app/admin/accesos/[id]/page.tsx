@@ -1,3 +1,4 @@
+import { BotonVerComo } from "@/components/resumen-comisionista";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { DxfPersona } from "@/components/dxf-persona";
@@ -100,6 +101,7 @@ export default async function AccesoPersona({ params }: { params: Promise<{ id: 
             <AccionAcceso que="reactivar_inactiva" personaId={a.persona.id} texto="Reactivar su cuenta inactiva"
               explicacion="Le vuelven el Mapa catastral y la Calculadora completa, y cuenta como actividad: tendrá otros 6 meses antes de volver a quedar inactiva." />
           ) : null}
+          {a.rol === "comisionista" && a.activa ? <BotonVerComo personaId={a.persona.id} /> : null}
           {a.sesiones.length ? (
             <AccionAcceso que="cerrar" personaId={a.persona.id} texto="Cerrar sus sesiones"
               explicacion="Sin suspenderla: tendrá que volver a entrar con el código que le llega al correo. Útil si perdió su celular." />

@@ -32,12 +32,15 @@ export function oExplota<T>(
 export async function crearClienteServidor() {
   const almacen = await cookies();
   const humo = await encabezadoHumo();
+  // "Ver como" (0080): la base valida la vista y responde como el comisionista, en solo lectura.
+  const verComo = almacen.get(COOKIE_VER_COMO)?.value;
+  const encabezados = { ...(humo ?? {}), ...(verComo ? { "x-tasa-ver-como": verComo.slice(0, 36) } : {}) };
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      ...(humo ? { global: { headers: humo } } : {}),
+      ...(Object.keys(encabezados).length ? { global: { headers: encabezados } } : {}),
       cookies: {
         getAll() {
           return almacen.getAll();
@@ -55,6 +58,18 @@ export async function crearClienteServidor() {
       },
     }
   );
+}
+
+/** "Ver como este comisionista" (0080): la persona que se está viendo y la marca de solo lectura para el navegador. */
+export const COOKIE_VER_COMO = "tasa_ver_como";
+export const COOKIE_SOLO_LECTURA = "tasa_solo_lectura";
+
+export async function verComoId(): Promise<string | null> {
+  try {
+    return (await cookies()).get(COOKIE_VER_COMO)?.value ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
