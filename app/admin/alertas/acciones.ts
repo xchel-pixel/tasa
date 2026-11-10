@@ -46,6 +46,16 @@ export async function liberarTelefono(_previo: EstadoAlerta, formData: FormData)
 }
 
 /** Cerrar una alerta que no pide más acción (p. ej. límite por conexión, que se libera solo), con nota. */
+/** El pendiente de "Pagar con mi crédito" no aplicado (0078): finanzas o admin_org, con nota opcional. */
+export async function cerrarAlertaCredito(_previo: EstadoAlerta, formData: FormData): Promise<EstadoAlerta> {
+  await exigirRol("admin_org", "finanzas");
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("cerrar_alerta_credito", { p_alerta: String(formData.get("alerta") ?? ""), p_nota: String(formData.get("nota") ?? "") });
+  if (error) return { error: error.message || "No se pudo cerrar.", mensaje: null };
+  revalidatePath("/admin/alertas");
+  return { error: null, mensaje: "Pendiente cerrado." };
+}
+
 export async function cerrarAlerta(_previo: EstadoAlerta, formData: FormData): Promise<EstadoAlerta> {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();

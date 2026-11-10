@@ -8,13 +8,15 @@ import { exigirRol, ROLES_OPERACION } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { CerrarAlerta, LiberarTelefono } from "./liberar-telefono";
 import ResolverAlerta from "./resolver-alerta";
+import { CerrarAlertaCredito } from "./cerrar-credito";
 
 export const metadata = { title: "Alertas — Tasa" };
 
 type Fila = {
   id: string;
   tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector"
-    | "externo_comision" | "notion_sin_pagina" | "notion_pago" | "parametros_fiscales" | "cupo_agotado" | "catastro";
+    | "externo_comision" | "notion_sin_pagina" | "notion_pago" | "parametros_fiscales" | "cupo_agotado" | "catastro" | "credito_no_aplicado"
+    | "externo_credito";
   codigo: string | null;
   mensaje: string;
   creada_en: string;
@@ -127,6 +129,15 @@ export default async function Alertas() {
                     <CerrarAlerta alertaId={a.id} />
                   </>
                 ) : <p className="mt-2 text-[0.9375rem] text-secundario">La resuelve Administración.</p>
+              ) : a.tipo === "credito_no_aplicado" ? (
+                persona.rol === "admin_org" || persona.rol === "finanzas" ? (
+                  <>
+                    <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
+                      Se cierra sola cuando el trabajo quede pagado. Si aplica, puedes aplicar crédito desde el trámite.
+                    </p>
+                    <CerrarAlertaCredito alertaId={a.id} />
+                  </>
+                ) : null
               ) : a.tipo === "notion_pago" ? (
                 persona.rol === "admin_org" ? <CerrarAlerta alertaId={a.id} /> : null
               ) : a.tipo === "liga_limite" ? (

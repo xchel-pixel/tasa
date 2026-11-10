@@ -331,6 +331,17 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
       return escribirMontoYRelacion(externoId, "ref_bono", "ref_comisionista", monto, pagina);
     },
 
+    async actualizarCredito(externoId, credito, costo) {
+      const nCredito = mapeo.credito_tasa?.trim();
+      const nCosto = mapeo.costo_credito?.trim();
+      if (!nCredito || !nCosto) throw new FallaConector("propiedad_no_encontrada", "Faltan \"credito_tasa\" y \"costo_credito\" en el mapeo del conector.");
+      if (!(await existe(externoId))) return false;
+      await notion(`/pages/${externoId}`, "PATCH", {
+        properties: { [nCredito]: { number: dosDecimales(credito) }, [nCosto]: { number: dosDecimales(costo) } },
+      });
+      return true;
+    },
+
     async buscarComisionistas(nombre) {
       const r = await fuente("base_comisionistas", "comisionistas").buscar({ contains: nombre.trim() }, 20);
       return r.map((p): PaginaComisionista => ({ id: p.id, nombre: p.titulo }));

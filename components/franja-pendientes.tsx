@@ -34,7 +34,7 @@ export async function FranjaPendientes({ persona }: { persona: Persona }) {
 async function delComisionista(persona: Persona): Promise<Pendiente[]> {
   const supabase = await crearClienteServidor();
   const mes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date()).slice(0, 7) + "-01";
-  const [{ data: yo }, { data: porEntregar }, { data: extras }, { data: inactividad }, { data: paquetes }] = await Promise.all([
+  const [{ data: yo }, { data: porEntregar }, { data: extras }, { data: inactividad }, { data: paquetes }, { data: avisos }] = await Promise.all([
     supabase.from("comisionistas").select("csf_ruta").eq("persona_id", persona.id).maybeSingle<{ csf_ruta: string | null }>(),
     supabase.from("pagos").select("id, monto, entregar_antes, solicitud_id, solicitudes(cliente_nombre)")
       .eq("recibio_asesor", true).eq("estado", "reportado").is("entregado_en", null).eq("reportado_por", persona.id).order("entregar_antes")
@@ -42,6 +42,8 @@ async function delComisionista(persona: Persona): Promise<Pendiente[]> {
     supabase.from("extras_herramienta").select("cantidad").eq("persona_id", persona.id).eq("mes", mes).returns<{ cantidad: number }[]>(),
     supabase.rpc("mi_inactividad"),
     supabase.rpc("mis_paquetes"),
+    supabase.from("avisos_comisionista").select("id, solicitud_id, texto").is("visto_en", null).order("creado_en")
+      .returns<{ id: string; solicitud_id: string | null; texto: string }[]>(),
   ]);
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const lista: Pendiente[] = [];
@@ -53,6 +55,7 @@ async function delComisionista(persona: Persona): Promise<Pendiente[]> {
     lista.push({ href: "/solicitudes/nueva", urgente: true,
       texto: `Te quedan ${inact.dias ?? 0} día${inact.dias === 1 ? "" : "s"} para que tu cuenta pase a inactiva y se apaguen el Mapa catastral y la Calculadora completa. Un trabajo cobrado la mantiene activa.` });
   }
+  for (const a of avisos ?? []) lista.push({ href: a.solicitud_id ? `/trabajos/${a.solicitud_id}` : "/paquetes", texto: a.texto, urgente: true });
   const paq = paquetes as { por_vencer: { vence: string; saldo: number }[] | null; por_pagar: { paquete: string } | null } | null;
   for (const v of paq?.por_vencer ?? []) {
     const dias = Math.round((Date.parse(`${v.vence}T12:00:00Z`) - Date.parse(`${hoy}T12:00:00Z`)) / 86_400_000);

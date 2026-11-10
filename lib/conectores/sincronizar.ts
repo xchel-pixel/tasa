@@ -146,6 +146,24 @@ export async function sincronizarConector(
       }
     }
 
+    // 8b. Monedero (0078): "Crédito Tasa" y "Costo crédito" del trámite al aplicar o devolver crédito. Solo con LAS DOS
+    //     propiedades en el mapeo (credito_tasa y costo_credito); mientras no estén, no se escribe nada y queda pendiente.
+    if (config.mapeo_campos.credito_tasa && config.mapeo_campos.costo_credito) {
+      const { data: creditos, error: errorCred } = await supabase.rpc("por_actualizar_credito_afuera", { p_conector: config.id });
+      if (errorCred) throw new Error(errorCred.message);
+      for (const x of (creditos ?? []) as { solicitud_id: string; externo_id: string; credito: string | number; costo: string | number }[]) {
+        let error: string | null = null;
+        try {
+          if (!(await conector.actualizarCredito(x.externo_id, Number(x.credito), Number(x.costo)))) error = "la página ya no existe";
+        } catch (falla) {
+          if (falla instanceof FallaConector && falla.codigo === "limite") continue;
+          error = falla instanceof Error ? falla.message : String(falla);
+        }
+        await registrar(supabase, "registrar_credito_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_credito: Number(x.credito),
+          p_costo: Number(x.costo), p_error: error });
+      }
+    }
+
     // 9. Pagos de comisión (y sus anulaciones) → Cobros y Gastos. Solo si la base está configurada.
     if (config.configuracion.base_pagos) {
       const { data: pagos, error: errorPagos } = await supabase.rpc("por_registrar_pagos_afuera", { p_conector: config.id });

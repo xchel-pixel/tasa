@@ -5283,6 +5283,78 @@ begin
 end;
 $sec$;
 
+-- @@ Crédito: avisos al no aplicarse y montos para Notion
+-- 0078: "Pagar con mi crédito" que no se puede aplicar avisa al comisionista y deja alerta a finanzas; con saldo
+-- insuficiente aplica lo que hay y avisa del resto. Cada aplicación guarda su costo (bonificación sin IVA) para Notion.
+do $sec$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  b0   solicitudes%rowtype;
+  se   uuid;
+  sp   uuid;
+  sn   uuid;
+  c    record;
+begin
+  perform pg_temp.sistema();
+  select * into b0 from solicitudes where organizacion_id = xg and marca_id is not null and cuenta_receptora_id is not null limit 1;
+  delete from avisos_comisionista;
+  perform pg_temp.igual(saldo_credito(xg, ana), 3850.00::numeric, 'Ana empieza con 3,850 (su mensual)');
+
+  -- Estimado sin monto final: no se aplica, se avisa y queda alerta.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, honorario_tipo, honorario_estimado, estado, estatus_publico, aceptada_en, pagar_con_credito)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Aviso 1', 'Cliente Estimado', b0.marca_id, b0.cuenta_receptora_id,
+          false, 4000, 'estimado', 4000, 'tramite', 'entregado', now(), true) returning id into se;
+  perform pg_temp.igual((select texto from avisos_comisionista where solicitud_id = se),
+    'No se pudo aplicar tu crédito a tu trabajo de Cliente Estimado porque su honorario es estimado y todavía no tiene monto final. Se cobrará normal; si tienes dudas, escríbenos.',
+    'Aviso al comisionista con el motivo');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = se and tipo = 'credito_no_aplicado' and resuelta_en is null), 1::bigint,
+    'Y un pendiente para finanzas');
+  perform pg_temp.igual(saldo_credito(xg, ana), 3850.00::numeric, 'No se tocó su saldo');
+
+  -- Saldo insuficiente: aplica lo que hay y avisa del resto.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, pagar_con_credito, externo_id)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Aviso 2', 'Cliente Parcial Aviso', b0.marca_id, b0.cuenta_receptora_id,
+          false, 5000, 'tramite', 'entregado', now(), true, 'aaaabbbbccccddddeeeeffff00001111') returning id into sp;
+  perform pg_temp.igual(saldo_credito(xg, ana), 0::numeric, 'Aplica todo su saldo');
+  perform pg_temp.igual((select texto from avisos_comisionista where solicitud_id = sp),
+    'Se aplicaron $3,850.00 de tu crédito a tu trabajo de Cliente Parcial Aviso; tu saldo no alcanzó para $1,150.00, que se cobrará normal. Si tienes dudas, escríbenos.',
+    'Avisa lo que se aplicó y lo que falta');
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = sp and tipo = 'credito_no_aplicado'), 1::bigint, 'Finanzas también lo ve');
+
+  -- Costo de la bonificación (mensual: 3,500 por 3,850): 3,850 sin IVA × (1 − 3,500/3,850) = 350.
+  select * into c from credito_del_trabajo(sp);
+  perform pg_temp.igual(c.credito || ' ' || c.costo, '3850.00 350.00', 'Crédito Tasa 3,850 y Costo crédito 350');
+  if hay_conector_notion(xg) then
+    perform pg_temp.igual((select externo_credito_pendiente from solicitudes where id = sp), true, 'Queda pendiente de escribir en Notion');
+  end if;
+
+  -- Sin saldo: no se aplica y se avisa.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, pagar_con_credito)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Aviso 3', 'Cliente Sin Saldo', b0.marca_id, b0.cuenta_receptora_id,
+          false, 1000, 'tramite', 'entregado', now(), true) returning id into sn;
+  perform pg_temp.igual((select texto like '%porque no tienes saldo vigente.%' from avisos_comisionista where solicitud_id = sn), true, 'Sin saldo: se avisa');
+
+  -- Ella ve sus avisos; al abrir el trabajo dejan de salir.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from avisos_comisionista where visto_en is null), 3::bigint, 'Ana ve sus tres avisos');
+  perform marcar_avisos_del_trabajo(se);
+  perform pg_temp.igual((select count(*) from avisos_comisionista where visto_en is null), 2::bigint, 'Visto al abrir el trabajo');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select count(*) from avisos_comisionista), 0::bigint, 'Beto no ve los avisos de Ana');
+
+  -- Cancelar devuelve el crédito y también el costo (en Notion quedaría en cero).
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform cancelar_trabajo(sp, 'Prueba de costo');
+  perform pg_temp.sistema();
+  select * into c from credito_del_trabajo(sp);
+  perform pg_temp.igual(c.credito || ' ' || c.costo, '0.00 0.00', 'Devuelto: crédito y costo en cero');
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
