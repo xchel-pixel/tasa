@@ -4912,6 +4912,95 @@ begin
 end;
 $$;
 
+-- @@ Inactividad de comisionistas
+-- 0075: 6 meses sin trabajo cobrado → aviso, y 15 días después, inactiva (se apagan Mapa y Calculadora completa; la
+-- rápida sigue). Un trabajo cobrado la reactiva al instante; un paquete vigente la mantiene activa; admin_org reactiva a mano.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  ines  uuid;
+  s     uuid;
+  r     jsonb;
+begin
+  perform pg_temp.sistema();
+  ines := pg_temp.comisionista('Ines Inactiva');
+  insert into auth.users (email) values ('ines.inactiva@ref.test');
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'equipo', 'comisionista'], niveles = null
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf', 'calculadora_traslado', 'calculadora_traslado_completa');
+
+  -- Recién dada de alta: activa.
+  perform pg_temp.igual(inactividad_de(xg, ines)->>'estado', 'activa', 'Recién dada de alta está activa');
+  perform revisar_inactividad();
+  perform pg_temp.igual(inactividad_de(xg, ines)->>'estado', 'activa', 'El cron no le avisa nada');
+
+  -- 7 meses sin trabajo: primero el aviso, no la inactivación (15 días de aviso siempre).
+  update membresias set creado_en = now() - interval '7 months' where persona_id = ines;
+  r := revisar_inactividad();
+  perform pg_temp.igual(inactividad_de(xg, ines)->>'estado', 'por_vencer', 'Con 7 meses sin trabajo, primero se le avisa');
+  perform pg_temp.igual((inactividad_de(xg, ines)->>'dias')::integer, 15, 'Le quedan 15 días');
+  perform revisar_inactividad();
+  perform pg_temp.igual(esta_inactiva(xg, ines), false, 'Durante el aviso sigue activa');
+
+  -- Pasados los 15 días del aviso: inactiva.
+  update membresias set inactividad_avisada_en = now() - interval '16 days' where persona_id = ines;
+  perform revisar_inactividad();
+  perform pg_temp.igual(inactividad_de(xg, ines)->>'estado', 'inactiva', '6 meses sin trabajo y 15 días de aviso: inactiva');
+  perform pg_temp.igual((select motivo from bitacora where tabla = 'membresias' and registro_id = (select id::text from membresias where persona_id = ines)
+                          order by id desc limit 1), 'Inactiva: 6 meses sin trabajo cobrado', 'Queda en la bitácora con su motivo');
+
+  perform pg_temp.como('ines.inactiva@ref.test');
+  perform pg_temp.igual((select string_agg(clave, ',' order by clave) from mis_herramientas()
+                          where clave in ('mapa_catastral', 'mapa_catastral_pdf', 'calculadora_traslado', 'calculadora_traslado_completa')),
+    'calculadora_traslado', 'Inactiva: se apagan Mapa, su PDF y la Calculadora completa; la rápida sigue');
+  perform pg_temp.igual((select count(*) from mis_herramientas() where clave in ('mi_tarjeta', 'para_tus_clientes')) =
+                        (select count(*) from herramientas where organizacion_id = xg and activa and clave in ('mi_tarjeta', 'para_tus_clientes')
+                           and 'comisionista' = any (roles) and niveles is null), true, 'Conserva su tarjeta y la liga para clientes');
+  perform pg_temp.igual(mi_inactividad()->>'estado', 'inactiva', 'Ella ve su propio estado');
+  perform pg_temp.debe_fallar('select * from inactividad_org()', 'Solo administración', 'El comisionista no ve la lista');
+  perform pg_temp.sistema();
+  perform pg_temp.igual(catastro_tiene_herramienta(xg, ines), false, 'La base le niega el mapa (consulta, PDF y DXF)');
+
+  -- Un trabajo cobrado la reactiva al instante, sin esperar al cron.
+  s := pg_temp.pagado(ines, 2000, mes_de(hoy_mx()));
+  perform set_config('session_replication_role', 'replica', true);
+  update solicitudes set pagado_en = (now() at time zone 'America/Mexico_City')::date where id = s;
+  perform set_config('session_replication_role', 'origin', true);
+  perform pg_temp.igual(inactividad_de(xg, ines)->>'estado', 'activa', 'Con un trabajo cobrado vuelve a activa al instante');
+  perform pg_temp.igual(catastro_tiene_herramienta(xg, ines), true, 'Y recupera el mapa');
+  r := revisar_inactividad();
+  perform pg_temp.igual((r->>'reactivadas')::integer >= 1, true, 'El cron deja el registro de la reactivación');
+  perform pg_temp.igual((select inactiva_desde from membresias where persona_id = ines), null::timestamptz, 'Sin marca de inactiva');
+
+  -- Inactiva otra vez (todo su historial viejo) y admin_org la reactiva a mano con motivo.
+  perform set_config('session_replication_role', 'replica', true);
+  update solicitudes set pagado_en = pagado_en - 300 where id = s;
+  perform set_config('session_replication_role', 'origin', true);
+  update membresias set inactividad_avisada_en = now() - interval '20 days', inactiva_desde = now() - interval '1 day' where persona_id = ines;
+  perform pg_temp.igual(esta_inactiva(xg, ines), true, 'Vuelve a estar inactiva');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select estado from inactividad_org() where persona_id = ines), 'inactiva', 'Accesos y Estadísticas la ven inactiva');
+  perform pg_temp.debe_fallar(format('select reactivar_inactiva(%L, %L)', ines, ''), 'motivo', 'Sin motivo no se reactiva');
+  perform reactivar_inactiva(ines, 'Volvió a mandar trabajo');
+  perform pg_temp.igual((select estado from inactividad_org() where persona_id = ines), 'activa', 'admin_org la reactiva a mano');
+  perform pg_temp.debe_fallar(format('select reactivar_inactiva(%L, %L)', ines, 'otra vez'), 'no está inactiva', 'Activa no se reactiva');
+  perform pg_temp.sistema();
+
+  -- Un paquete vigente cuenta como actividad: nunca queda inactiva (el monedero redefine paquete_vigente_de).
+  update membresias set actividad_manual_en = null, creado_en = now() - interval '2 years', inactividad_avisada_en = now() - interval '20 days'
+   where persona_id = ines;
+  execute format($f$create or replace function paquete_vigente_de(p_org uuid, p_persona uuid) returns boolean language sql stable
+                    security definer set search_path = public as $b$ select p_persona = %L::uuid $b$ $f$, ines);
+  perform revisar_inactividad();
+  perform pg_temp.igual(inactividad_de(xg, ines)->>'estado', 'activa', 'Con paquete vigente nunca queda inactiva');
+  perform pg_temp.igual((select inactividad_avisada_en from membresias where persona_id = ines), null::timestamptz, 'Y el paquete quita el aviso');
+  create or replace function paquete_vigente_de(p_org uuid, p_persona uuid) returns boolean language sql stable
+    security definer set search_path = public as $b$ select false $b$;
+
+  update herramientas set activa = false where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  update membresias set activa = false where persona_id = ines;
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

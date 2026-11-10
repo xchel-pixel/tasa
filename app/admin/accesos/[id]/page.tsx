@@ -26,6 +26,8 @@ type Acceso = {
   bitacora: { creado_en: string; tabla: string; accion: string; motivo: string | null; quien: string | null; cambios: string[]; activa: boolean | null }[];
 };
 
+type Actividad = { persona_id: string; estado: "activa" | "por_vencer" | "inactiva"; ultima_actividad: string; vence: string | null; inactiva_desde: string | null; paquete: boolean };
+
 const TABLA: Record<string, string> = {
   membresias: "Membresía", "auth.sessions": "Sesiones", extras_herramienta: "Cupo extra", dxf_autorizaciones: "DXF",
   comisionistas: "Ficha de comisionista", personas: "Datos de la persona", membresia_marcas: "Marcas",
@@ -46,9 +48,10 @@ export default async function AccesoPersona({ params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const supabase = await crearClienteServidor();
-  const { data } = await supabase.rpc("accesos_persona", { p_persona: id });
+  const [{ data }, { data: inact }] = await Promise.all([supabase.rpc("accesos_persona", { p_persona: id }), supabase.rpc("inactividad_org")]);
   const a = data as Acceso | null;
   if (!a) notFound();
+  const actividad = ((inact ?? []) as Actividad[]).find((i) => i.persona_id === id) ?? null;
   const accesos = a.eventos.filter((e) => e.evento === "acceso");
   const negados = a.eventos.filter((e) => e.evento === "denegado");
   const usos = a.eventos.filter((e) => e.evento !== "acceso" && e.evento !== "denegado");
@@ -60,6 +63,20 @@ export default async function AccesoPersona({ params }: { params: Promise<{ id: 
         <div><dt className="text-[0.8125rem] text-secundario">Estatus</dt>
           <dd>{a.activa ? <Etiqueta tono="exito">Activa</Etiqueta> : <Etiqueta tono="error">Suspendida</Etiqueta>}</dd></div>
         {a.nivel ? <div><dt className="text-[0.8125rem] text-secundario">Nivel del mes</dt><dd>{a.nivel}</dd></div> : null}
+        {actividad ? (
+          <div><dt className="text-[0.8125rem] text-secundario">Actividad</dt>
+            <dd>{actividad.estado === "inactiva" ? <Etiqueta tono="neutro">Inactiva</Etiqueta>
+              : actividad.estado === "por_vencer" ? <Etiqueta tono="proceso">Por inactivarse</Etiqueta> : <Etiqueta tono="exito">Al corriente</Etiqueta>}</dd></div>
+        ) : null}
+        {actividad ? (
+          <div><dt className="text-[0.8125rem] text-secundario">Último trabajo cobrado o alta</dt><dd>{fechaHora(actividad.ultima_actividad).split(",")[0]}</dd></div>
+        ) : null}
+        {actividad && actividad.estado !== "inactiva" && actividad.vence ? (
+          <div><dt className="text-[0.8125rem] text-secundario">Pasaría a inactiva</dt><dd>{fechaHora(actividad.vence).split(",")[0]}</dd></div>
+        ) : null}
+        {actividad?.inactiva_desde ? (
+          <div><dt className="text-[0.8125rem] text-secundario">Inactiva desde</dt><dd>{fechaHora(actividad.inactiva_desde).split(",")[0]}</dd></div>
+        ) : null}
         <div><dt className="text-[0.8125rem] text-secundario">Último acceso</dt><dd>{a.ultimo_acceso ? fechaHora(a.ultimo_acceso) : "Nunca"}</dd></div>
         <div className="col-span-2"><dt className="text-[0.8125rem] text-secundario">Correo</dt><dd className="[overflow-wrap:anywhere]">{a.persona.correo}</dd></div>
       </dl>
@@ -73,6 +90,10 @@ export default async function AccesoPersona({ params }: { params: Promise<{ id: 
             <AccionAcceso que="reactivar" personaId={a.persona.id} texto="Reactivar"
               explicacion="Vuelve a poder entrar con su código; sus sesiones anteriores no se recuperan." />
           )}
+          {a.activa && actividad && actividad.estado !== "activa" ? (
+            <AccionAcceso que="reactivar_inactiva" personaId={a.persona.id} texto="Reactivar su cuenta inactiva"
+              explicacion="Le vuelven el Mapa catastral y la Calculadora completa, y cuenta como actividad: tendrá otros 6 meses antes de volver a quedar inactiva." />
+          ) : null}
           {a.sesiones.length ? (
             <AccionAcceso que="cerrar" personaId={a.persona.id} texto="Cerrar sus sesiones"
               explicacion="Sin suspenderla: tendrá que volver a entrar con el código que le llega al correo. Útil si perdió su celular." />

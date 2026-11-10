@@ -12,6 +12,7 @@ const ACCIONES = {
   suspender: { rpc: "suspender_persona", listo: "Suspendida: sus sesiones se cerraron y la base ya no le deja ver ni hacer nada." },
   reactivar: { rpc: "reactivar_persona", listo: "Reactivada: puede volver a entrar con su código." },
   cerrar: { rpc: "cerrar_sesiones_persona", listo: "Sesiones cerradas: tendrá que entrar de nuevo con su código." },
+  reactivar_inactiva: { rpc: "reactivar_inactiva", listo: "Cuenta activa otra vez: ya tiene el Mapa catastral y la Calculadora completa." },
 } as const;
 
 export async function accionAcceso(_p: EstadoAcceso, f: FormData): Promise<EstadoAcceso> {

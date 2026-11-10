@@ -77,6 +77,22 @@ export function agoto(c: CupoStat): boolean {
 
 export type Tabla = { titulo: string; columnas: string[]; filas: (string | number)[][] };
 
+export type ActividadComisionista = { persona_id: string; nombre: string; estado: "activa" | "por_vencer" | "inactiva"; ultima_actividad: string;
+  vence: string | null; inactiva_desde: string | null; paquete: boolean };
+
+const fechaMx = (t: string | null) => (t ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date(t)) : "—");
+const ESTADO_ACTIVIDAD = { activa: "Al corriente", por_vencer: "Por inactivarse", inactiva: "Inactiva" } as const;
+
+/** Actividad de comisionistas (0075): no depende del periodo, es la foto de hoy. */
+export function tablaActividad(a: ActividadComisionista[]): Tabla {
+  return {
+    titulo: "Actividad de comisionistas (hoy)",
+    columnas: ["Comisionista", "Estado", "Último trabajo cobrado o alta", "Pasaría a inactiva", "Inactiva desde"],
+    filas: a.map((x) => [x.nombre, x.paquete ? "Al corriente (paquete vigente)" : ESTADO_ACTIVIDAD[x.estado], fechaMx(x.ultima_actividad),
+      x.estado === "inactiva" ? "—" : fechaMx(x.vence), fechaMx(x.inactiva_desde)]),
+  };
+}
+
 /** Las cinco tablas, listas para pantalla o CSV. */
 export function tablas(e: Estadisticas): Record<"uso" | "personas" | "embudo" | "zonas" | "salud", Tabla> {
   const u = e.uso;

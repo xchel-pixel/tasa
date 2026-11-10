@@ -1,5 +1,5 @@
 import { PantallaAdmin } from "@/components/pantalla-admin";
-import { filtrosDe, HERRAMIENTAS_FILTRO, parametros, queryDe, tablas, type Estadisticas, type Tabla } from "@/lib/estadisticas";
+import { filtrosDe, HERRAMIENTAS_FILTRO, parametros, queryDe, tablaActividad, tablas, type ActividadComisionista, type Estadisticas, type Tabla } from "@/lib/estadisticas";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { NOMBRE_HERRAMIENTA } from "@/lib/uso";
@@ -40,11 +40,12 @@ export default async function EstadisticasPagina({ searchParams }: { searchParam
   await exigirRol("admin_org", "finanzas");
   const f = filtrosDe(await searchParams);
   const supabase = await crearClienteServidor();
-  const [datos, gente, niveles] = await Promise.all([
+  const [datos, gente, niveles, actividad] = await Promise.all([
     supabase.rpc("estadisticas", parametros(f)),
     supabase.from("membresias").select("persona_id, rol, personas(nombre)").in("rol", ["comisionista", "equipo"])
       .returns<{ persona_id: string; rol: string; personas: { nombre: string } | null }[]>(),
     supabase.from("niveles").select("id, nombre").order("orden").returns<{ id: string; nombre: string }[]>(),
+    supabase.rpc("inactividad_org"),
   ]);
   if (datos.error) throw new Error(`No se pudieron calcular las estadísticas: ${datos.error.message}`);
   const t = tablas(datos.data as Estadisticas);
@@ -86,6 +87,7 @@ export default async function EstadisticasPagina({ searchParams }: { searchParam
       <VerTabla t={t.embudo} csv={ligaCsv("embudo")} vacio="Sin consultas ni solicitudes desde el mapa o la calculadora." />
       <VerTabla t={t.zonas} csv={ligaCsv("zonas")} vacio="Sin consultas del mapa en el periodo." />
       <VerTabla t={t.salud} csv={ligaCsv("salud")} vacio="Sin consultas a la fuente en el periodo." />
+      <VerTabla t={tablaActividad((actividad.data ?? []) as ActividadComisionista[])} csv={ligaCsv("actividad")} vacio="Sin comisionistas activos." />
     </PantallaAdmin>
   );
 }

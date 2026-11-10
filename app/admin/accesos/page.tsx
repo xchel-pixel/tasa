@@ -13,9 +13,10 @@ type Fila = { persona_id: string; nombre: string; correo: string; rol: Rol; acti
 export default async function Accesos() {
   await exigirRol("admin_org");
   const supabase = await crearClienteServidor();
-  const { data, error } = await supabase.rpc("accesos_lista");
+  const [{ data, error }, { data: inact }] = await Promise.all([supabase.rpc("accesos_lista"), supabase.rpc("inactividad_org")]);
   if (error) throw new Error(`No se pudieron leer los accesos: ${error.message}`);
   const filas = (data ?? []) as Fila[];
+  const actividad = new Map(((inact ?? []) as { persona_id: string; estado: string }[]).map((i) => [i.persona_id, i.estado]));
 
   return (
     <PantallaAdmin titulo="Accesos">
@@ -33,7 +34,10 @@ export default async function Accesos() {
                   {f.sesiones ? ` · ${f.sesiones} sesión${f.sesiones === 1 ? "" : "es"} abierta${f.sesiones === 1 ? "" : "s"}` : ""}
                 </span>
               </span>
-              <span className="shrink-0">{f.activa ? <Etiqueta tono="exito">Activa</Etiqueta> : <Etiqueta tono="error">Suspendida</Etiqueta>}</span>
+              <span className="shrink-0">{!f.activa ? <Etiqueta tono="error">Suspendida</Etiqueta>
+                : actividad.get(f.persona_id) === "inactiva" ? <Etiqueta tono="neutro">Inactiva</Etiqueta>
+                : actividad.get(f.persona_id) === "por_vencer" ? <Etiqueta tono="proceso">Por inactivarse</Etiqueta>
+                : <Etiqueta tono="exito">Activa</Etiqueta>}</span>
             </Link>
           </li>
         ))}
