@@ -5,6 +5,12 @@
  * la base, donde viven las reglas.
  */
 
+/** Lo que el sync manda para el par de compensación (0083). */
+export type Compensacion = {
+  accion: "crear" | "borrar"; externo_id: string; monto: number; fecha: string; folio: string | null; comisionista: string;
+  pagina: string | null; ids: string[] | null;
+};
+
 export type CodigoFalla = "propiedad_no_encontrada" | "credencial_invalida" | "inaccesible" | "limite" | "otro";
 
 /** Una falla que el conector sabe explicar; acaba en una alerta para admin_org. */
@@ -92,6 +98,8 @@ export interface Conector {
   actualizarComision(externoId: string, monto: number, pagina: string | null): Promise<boolean>;
   /** "Ref Comisionista" + "Ref Bono" del trámite, al aprobar el cierre. Falso si el registro ya no existe. */
   actualizarReferido(externoId: string, monto: number, pagina: string | null): Promise<boolean>;
+  /** Par de compensación de una comisión retenida (acción B, 0083): crea ingreso + gasto y devuelve sus ids, o los manda a la papelera. */
+  compensarComision(c: Compensacion): Promise<string[]>;
   /** "Honorarios estatus" (Pagado / No Pagado 🔥) cuando Tasa causó el pago al 100% (0082). Falso si el registro ya no existe. */
   actualizarHonorariosEstatus(externoId: string, estatus: string): Promise<boolean>;
   /** "Honorario" del trámite (comisión descontada al cliente, 0079). Falso si el registro ya no existe. */

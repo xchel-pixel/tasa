@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conectorNotion } from "./notion";
-import { FallaConector, type ConfigConector, type Conector, type PagoPorRegistrar, type TramitePorCrear } from "./tipos";
+import { FallaConector, type ConfigConector, type Conector, type PagoPorRegistrar, type TramitePorCrear, type Compensacion } from "./tipos";
 
 /**
  * Una vuelta del cron para un conector: crear lo nuevo afuera, leer lo
@@ -152,6 +152,23 @@ export async function sincronizarConector(
           error = falla instanceof Error ? falla.message : String(falla);
         }
         await registrar(supabase, "registrar_honorarios_estatus_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_estatus: x.estatus, p_error: error });
+      }
+    }
+
+    // 6d. Par de compensación de una comisión retenida (acción B, 0083): crear o mandar a la papelera. Solo con la cuenta configurada.
+    if (config.configuracion.cuenta_compensacion && config.configuracion.base_pagos) {
+      const { data: pares, error: errorPar } = await supabase.rpc("por_compensar_afuera", { p_conector: config.id });
+      if (errorPar) throw new Error(errorPar.message);
+      for (const x of (pares ?? []) as (Omit<Compensacion, "monto"> & { solicitud_id: string; monto: string | number | null })[]) {
+        let ids: string[] = [];
+        let error: string | null = null;
+        try {
+          ids = await conector.compensarComision({ ...x, monto: Number(x.monto ?? 0) });
+        } catch (falla) {
+          if (falla instanceof FallaConector && falla.codigo === "limite") continue;
+          error = falla instanceof Error ? falla.message : String(falla);
+        }
+        await registrar(supabase, "registrar_compensacion_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_ids: ids, p_error: error });
       }
     }
 

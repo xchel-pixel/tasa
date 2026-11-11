@@ -246,6 +246,52 @@ describe("Comisiones, bono y pagos (0052)", () => {
     expect(llamadas2.find((l) => l.metodo === "PATCH")?.cuerpo.properties).toEqual({ "Honorarios estatus": { select: { name: "No Pagado 🔥" } } });
   });
 
+  test("par de compensación (acción B): ingreso ligado al trámite y gasto al comisionista, misma cuenta; al revertir, a la papelera", async () => {
+    const conComp = { ...conComisiones, configuracion: { ...conComisiones.configuracion, cuenta_compensacion: "Compensación comisiones retenidas", categoria_cobros: "Producto MGP" } };
+    const llamadas: { metodo: string; ruta: string; cuerpo: any }[] = [];
+    let n = 0;
+    const respuestas: Record<string, () => unknown> = {
+      "GET /data_sources/ds_pagos": () => ({ properties: { Projects: { type: "title" } } }),
+      "GET /data_sources/ds_cuentas": () => ({ properties: { Projects: { type: "title" } } }),
+      "GET /data_sources/ds_cat": () => ({ properties: { Name: { type: "title" } } }),
+      "POST /data_sources/ds_pagos/query": () => ({ results: [{ id: "x1", properties: { Projects: { title: [{ plain_text: "26/11/11-007" }] } } }] }),
+      "POST /data_sources/ds_cuentas/query": () => ({ results: [{ id: "cccccccc-aaaa-bbbb-cccc-dddddddddddd", properties: { Projects: { title: [{ plain_text: "Compensación comisiones retenidas" }] } } }] }),
+      "POST /data_sources/ds_cat/query": () => ({ results: [
+        { id: "11111111-aaaa-bbbb-cccc-dddddddddddd", properties: { Name: { title: [{ plain_text: "Producto MGP" }] } } },
+        { id: "22222222-aaaa-bbbb-cccc-dddddddddddd", properties: { Name: { title: [{ plain_text: "Tasa" }] } } }] }),
+    };
+    const falso = (async (url: string, init?: RequestInit) => {
+      const ruta = url.replace("https://api.notion.com/v1", "");
+      const metodo = init?.method ?? "GET";
+      const cuerpo = init?.body ? JSON.parse(String(init.body)) : null;
+      llamadas.push({ metodo, ruta, cuerpo });
+      const r = respuestas[`${metodo} ${ruta}`];
+      const json = r ? r() : metodo === "POST" && ruta === "/pages" ? { id: `nueva-${++n}` } : { id: "ok" };
+      return new Response(JSON.stringify(json), { status: 200 });
+    }) as typeof fetch;
+    const notion = conectorNotion(conComp, "ntn_x", falso);
+    const ids = await notion.compensarComision({ accion: "crear", externo_id: "3fef127050c081048789e3f1096b00a7", monto: 2000, fecha: "2026-11-11",
+      folio: "MGP-2026-0587", comisionista: "Rodolfo", pagina: "6eb0e945e9d74f04ba3960908bbc61bd", ids: null });
+    expect(ids).toEqual(["nueva1", "nueva2"]);
+    const [ingreso, gasto] = llamadas.filter((l) => l.metodo === "POST" && l.ruta === "/pages").map((l) => l.cuerpo.properties);
+    expect(ingreso["Projects"].title[0].text.content).toBe("26/11/11-008");
+    expect(gasto["Projects"].title[0].text.content).toBe("26/11/11-009");
+    expect(ingreso["Tipo de cuenta"]).toEqual({ select: { name: "Ingreso" } });
+    expect(gasto["Tipo de cuenta"]).toEqual({ select: { name: "Gasto" } });
+    expect(ingreso["Monto Reportado"]).toEqual({ number: 2000 });
+    expect(gasto["Monto Reportado"]).toEqual({ number: 2000 });
+    expect(ingreso["Cuenta"]).toEqual(gasto["Cuenta"]);
+    expect(ingreso["Trámite"]).toEqual({ relation: [{ id: "3fef127050c081048789e3f1096b00a7" }] });
+    expect(gasto["Trámite"]).toBeUndefined();
+    expect(gasto["Ext Comisionista"]).toEqual({ relation: [{ id: "6eb0e945e9d74f04ba3960908bbc61bd" }] });
+    expect(ingreso["Categoría"]).toEqual({ relation: [{ id: "11111111aaaabbbbccccdddddddddddd" }] });
+    expect(gasto["Categoría"]).toEqual({ relation: [{ id: "22222222aaaabbbbccccdddddddddddd" }] });
+
+    expect(await notion.compensarComision({ accion: "borrar", externo_id: "x", monto: 0, fecha: "2026-11-11", folio: null, comisionista: "R", pagina: null,
+      ids: ["aaa1", "aaa2"] })).toEqual([]);
+    expect(llamadas.filter((l) => l.metodo === "PATCH").map((l) => [l.ruta, l.cuerpo])).toEqual([["/pages/aaa1", { in_trash: true }], ["/pages/aaa2", { in_trash: true }]]);
+  });
+
   test("el consecutivo del día y las descripciones", () => {
     expect(prefijoDelDia("2026-11-10")).toBe("26/11/10-");
     expect(siguienteConsecutivo(["26/11/10-002", "26/11/10-010", "26/11/09-099", "otro"], "26/11/10-")).toBe(11);

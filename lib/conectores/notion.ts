@@ -331,6 +331,53 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
       return escribirMontoYRelacion(externoId, "ref_bono", "ref_comisionista", monto, pagina);
     },
 
+    async compensarComision(c) {
+      if (c.accion === "borrar") {
+        for (const id of c.ids ?? []) await notion(`/pages/${id}`, "PATCH", { in_trash: true });
+        return [];
+      }
+      const nombreCuenta = config.configuracion.cuenta_compensacion?.trim();
+      if (!nombreCuenta) throw new FallaConector("propiedad_no_encontrada", "Falta \"cuenta_compensacion\" en la configuración del conector.");
+      const cobros = fuente("base_pagos", "Cobros y Gastos");
+      const [cuenta, catCobro, catComision, prop] = await Promise.all([
+        porNombre("base_cuentas", "cuentas", nombreCuenta),
+        porNombre("base_categorias", "categorías", config.configuracion.categoria_cobros),
+        porNombre("base_categorias", "categorías", config.configuracion.categoria_pagos),
+        cobros.titulo(),
+      ]);
+      if (!cuenta) throw new FallaConector("propiedad_no_encontrada", `No encontré la cuenta "${nombreCuenta}" en Cuentas MGP.`);
+      const prefijo = prefijoDelDia(c.fecha);
+      let n = siguienteConsecutivo((await cobros.buscar({ starts_with: prefijo })).map((x) => x.titulo), prefijo);
+      const folio = c.folio ?? "sin folio";
+      const monto = dosDecimales(c.monto);
+      const titulos = [`${prefijo}${String(n++).padStart(3, "0")}`, `${prefijo}${String(n++).padStart(3, "0")}`];
+      const movimientos = [
+        { titulo: titulos[0], tipo: "Ingreso", categoria: catCobro, extra: { Trámite: { relation: [{ id: c.externo_id }] } },
+          descripcion: `Comisión retenida por el comisionista · ${folio} · ${c.comisionista} retuvo su comisión del pago del cliente. Compensa con ${titulos[1]}.` },
+        { titulo: titulos[1], tipo: "Gasto", categoria: catComision, extra: { [COBROS.comisionista]: { relation: c.pagina ? [{ id: c.pagina }] : [] } },
+          descripcion: `Comisión de ${c.comisionista} cobrada directamente · ${folio}. Compensa con ${titulos[0]}.` },
+      ];
+      const ids: string[] = [];
+      for (const m of movimientos) {
+        const pagina = await cobros.llamar<{ id: string }>("/pages", "POST", {
+          parent: { type: "data_source_id", data_source_id: cobros.id },
+          properties: {
+            [prop]: { title: texto(m.titulo) },
+            [COBROS.tipo]: { select: { name: m.tipo } },
+            ...(config.configuracion.entidad_pagos ? { [COBROS.entidad]: { select: { name: config.configuracion.entidad_pagos } } } : {}),
+            [COBROS.descripcion]: { rich_text: texto(m.descripcion) },
+            [COBROS.monto]: { number: monto },
+            [COBROS.fecha]: { date: { start: c.fecha.slice(0, 10) } },
+            [COBROS.cuenta]: { relation: [{ id: cuenta }] },
+            [COBROS.categoria]: { relation: m.categoria ? [{ id: m.categoria }] : [] },
+            ...m.extra,
+          },
+        });
+        ids.push(sinGuiones(pagina.id));
+      }
+      return ids;
+    },
+
     async actualizarHonorariosEstatus(externoId, estatus) {
       const nombre = mapeo.honorarios_estatus?.trim();
       if (!nombre) throw new FallaConector("propiedad_no_encontrada", "Falta \"honorarios_estatus\" en el mapeo del conector.");

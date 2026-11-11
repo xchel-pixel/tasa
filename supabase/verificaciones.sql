@@ -5727,6 +5727,86 @@ begin
 end;
 $sec$;
 
+-- @@ Par de compensación en Cobros y Gastos (acción B)
+-- 0083: aplicar B deja por crear el par (ingreso y gasto por la comisión retenida); el sync guarda los ids. Revertir B
+-- deja por borrarlos; si se revierte antes del sync, ya no se escribe nada. La acción A no crea par.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  fer   uuid := (select id from personas where correo = 'fer.descuento@ref.test');
+  b0    solicitudes%rowtype;
+  t1    uuid;
+  t2    uuid;
+  r     record;
+begin
+  perform pg_temp.sistema();
+  select * into b0 from solicitudes where organizacion_id = xg and marca_id is not null and cuenta_receptora_id is not null limit 1;
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, externo_id)
+  values (fer, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Compensa 1', 'Cliente Compensa B', b0.marca_id, b0.cuenta_receptora_id,
+          false, 8000, 'tramite', 'entregado', now(), 'dddd0000dddd0000dddd0000dddd0001') returning id into t1;
+
+  -- 1. Se aplica B: queda por crear, con el monto de la comisión.
+  perform pg_temp.como('gaby@tasa.test');
+  perform aplicar_modalidad_comision(t1, 'tomada', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select externo_compensacion_pendiente from solicitudes where id = t1), 'crear', 'Con B: el par queda por crear');
+  perform pg_temp.como('xchel@arqosuv.com');
+  select * into r from por_compensar_afuera(pg_temp.notion_xg()) where solicitud_id = t1;
+  perform pg_temp.igual(r.accion || ' ' || r.monto, 'crear ' || (select modalidad_monto from solicitudes where id = t1),
+    'El sync lo tiene por crear, por el monto retenido');
+  perform pg_temp.igual(r.monto > 0, true, 'El monto no es cero');
+
+  -- El sync lo crea y guarda los ids.
+  perform registrar_compensacion_afuera(pg_temp.notion_xg(), t1, array['ing1', 'gas1'], null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select array_to_string(externo_compensacion_ids, ',') || ' ' || coalesce(externo_compensacion_pendiente, '-')
+                           from solicitudes where id = t1), 'ing1,gas1 -', 'Creado: guarda los ids y ya no está pendiente');
+
+  -- 2. Se revierte B: queda por borrar, con esos ids.
+  perform pg_temp.como('gaby@tasa.test');
+  perform revertir_modalidad_comision(t1, 'Prueba de compensación');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select externo_compensacion_pendiente from solicitudes where id = t1), 'borrar', 'Revertida B: el par queda por borrar');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select array_to_string(ids, ',') from por_compensar_afuera(pg_temp.notion_xg()) where solicitud_id = t1 and accion = 'borrar'),
+    'ing1,gas1', 'El sync sabe cuáles borrar');
+  perform registrar_compensacion_afuera(pg_temp.notion_xg(), t1, null, null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select (externo_compensacion_ids is null) || ' ' || coalesce(externo_compensacion_pendiente, '-') from solicitudes where id = t1),
+    'true -', 'Borrado: sin ids y sin pendiente');
+
+  -- 3. B y revertir antes del sync: no se escribe nada.
+  perform pg_temp.como('gaby@tasa.test');
+  perform aplicar_modalidad_comision(t1, 'tomada', null);
+  perform revertir_modalidad_comision(t1, 'Antes del sync');
+  perform pg_temp.sistema();
+  perform pg_temp.igual(coalesce((select externo_compensacion_pendiente from solicitudes where id = t1), '-'), '-',
+    'Revertida antes del sync: nada por crear ni borrar');
+
+  -- 4. Un error de Notion deja alerta y no se reintenta solo.
+  perform pg_temp.como('gaby@tasa.test');
+  perform aplicar_modalidad_comision(t1, 'tomada', null);
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_compensacion_afuera(pg_temp.notion_xg(), t1, null, 'Falta la cuenta');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where solicitud_id = t1 and tipo = 'externo_comision' and resuelta_en is null
+                           and mensaje like 'No se pudo crear el par de compensación%')::int, 1, 'Error: alerta para hacerlo a mano');
+  perform pg_temp.igual(coalesce((select externo_compensacion_pendiente from solicitudes where id = t1), '-'), '-', 'Y ya no queda pendiente');
+
+  -- 5. La acción A no crea par.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, externo_id)
+  values (fer, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Compensa 2', 'Cliente Compensa A', b0.marca_id, b0.cuenta_receptora_id,
+          false, 5000, 'tramite', 'entregado', now(), 'dddd0000dddd0000dddd0000dddd0002') returning id into t2;
+  perform pg_temp.como('gaby@tasa.test');
+  perform aplicar_modalidad_comision(t2, 'descontada', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual(coalesce((select externo_compensacion_pendiente from solicitudes where id = t2), '-'), '-', 'Con A: no hay par');
+end;
+$sec$;
+
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
