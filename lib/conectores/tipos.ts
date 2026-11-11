@@ -112,6 +112,8 @@ export interface Conector {
   buscarComisionistas(nombre: string): Promise<PaginaComisionista[]>;
   /** Crea la página del comisionista en la base de comisionistas. */
   crearComisionista(nombre: string): Promise<PaginaComisionista>;
+  /** Páginas de Ext Comisionistas con nombre igual o parecido (al dar de alta, 0085). */
+  paginasParecidas(nombre: string): Promise<PaginaComisionista[]>;
 }
 
 export type PaginaComisionista = { id: string; nombre: string };

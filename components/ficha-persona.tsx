@@ -20,6 +20,7 @@ type Acceso = {
   persona: { id: string; nombre: string; correo: string };
   rol: Rol;
   activa: boolean;
+  demo?: boolean;
   yo: boolean;
   nivel: string | null;
   ultimo_acceso: string | null;
@@ -72,7 +73,10 @@ export async function AccesosYSesiones({ id, editaCuposYDxf, verComo = null }: {
         <div><dt className="text-[0.8125rem] text-secundario">Rol</dt><dd>{NOMBRE_DEL_ROL[a.rol] ?? a.rol}</dd></div>
         <div><dt className="text-[0.8125rem] text-secundario">Estatus</dt>
           <dd>{a.activa ? <Etiqueta tono="exito">Activa</Etiqueta> : <Etiqueta tono="error">Suspendida</Etiqueta>}</dd></div>
-        {actividad ? (
+        {a.demo ? (
+          <div><dt className="text-[0.8125rem] text-secundario">Tipo de cuenta</dt><dd><Etiqueta tono="neutro">Cuenta de demostración</Etiqueta></dd></div>
+        ) : null}
+        {actividad && !a.demo ? (
           <div><dt className="text-[0.8125rem] text-secundario">Actividad</dt>
             <dd>{actividad.estado === "inactiva" ? <Etiqueta tono="neutro">Inactiva</Etiqueta>
               : actividad.estado === "por_vencer" ? <Etiqueta tono="proceso">Por inactivarse</Etiqueta> : <Etiqueta tono="exito">Al corriente</Etiqueta>}</dd></div>
@@ -104,6 +108,13 @@ export async function AccesosYSesiones({ id, editaCuposYDxf, verComo = null }: {
               explicacion="Le vuelven el Mapa catastral y la Calculadora completa, y cuenta como actividad: tendrá otros 6 meses antes de volver a quedar inactiva." />
           ) : null}
           {verComo}
+          {a.rol === "comisionista" ? (a.demo ? (
+            <AccionAcceso que="quitar_demo" personaId={a.persona.id} texto="Quitar la marca de demostración"
+              explicacion="Vuelve a enviar solicitudes y a contar en estadísticas, niveles, inactividad y límite de equipos." />
+          ) : (
+            <AccionAcceso que="marcar_demo" personaId={a.persona.id} texto="Marcar como cuenta de demostración"
+              explicacion="Para enseñar los menús: ve todas las herramientas, no envía solicitudes y queda fuera de estadísticas, niveles, inactividad, límite de equipos y Notion." />
+          )) : null}
           {a.sesiones.length ? (
             <AccionAcceso que="cerrar" personaId={a.persona.id} texto="Cerrar sus sesiones"
               explicacion="Sin suspenderla: tendrá que volver a entrar con el código que le llega al correo. Útil si perdió su celular." />

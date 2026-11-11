@@ -13,7 +13,7 @@ export const metadata = { title: "Alertas — Tasa" };
 type Fila = {
   id: string;
   tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector"
-    | "externo_comision" | "notion_sin_pagina" | "notion_pago" | "parametros_fiscales" | "cupo_agotado" | "catastro" | "credito_no_aplicado"
+    | "externo_comision" | "notion_sin_pagina" | "notion_pagina_propuesta" | "notion_pago" | "parametros_fiscales" | "cupo_agotado" | "catastro" | "credito_no_aplicado"
     | "externo_credito";
   codigo: string | null;
   mensaje: string;
@@ -124,6 +124,12 @@ export default async function Alertas({ searchParams }: { searchParams: Promise<
                   {persona.rol === "admin_org" ? "Apruébalo o recházalo en " : "Lo aprueba Administración en "}
                   <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>.
                   Mientras tanto, su tarjeta sigue con el perfil anterior.
+                </p>
+              ) : a.tipo === "notion_pagina_propuesta" ? (
+                <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
+                  {persona.rol === "admin_org" ? "Confírmala en " : "La confirma Administración en "}
+                  <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>
+                  {" "}(Página en Notion): busca su nombre y liga la que es, o créala. Se cierra sola al ligarla.
                 </p>
               ) : a.tipo === "notion_sin_pagina" ? (
                 <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">

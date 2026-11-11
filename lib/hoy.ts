@@ -24,6 +24,7 @@ const TIPOS_CUPO = ["cupo_agotado"];
 const TIPOS_FUENTE = ["catastro"];
 const TIPOS_CREDITO = ["credito_no_aplicado"];
 const TIPOS_SIN_PAGINA = ["notion_sin_pagina"];
+const TIPOS_PROPUESTA = ["notion_pagina_propuesta"];
 const PREFIJO_SIN_PAGINA = "Comisionista sin página de Notion: ";
 
 export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
@@ -43,7 +44,7 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
 
   const tipos = (alertas.data ?? []).map((a) => a.tipo);
   const cuenta = (lista: string[]) => tipos.filter((t) => lista.includes(t)).length;
-  const otras = tipos.filter((t) => ![...TIPOS_CUPO, ...TIPOS_FUENTE, ...TIPOS_CREDITO, ...TIPOS_SIN_PAGINA].includes(t)).length;
+  const otras = tipos.filter((t) => ![...TIPOS_CUPO, ...TIPOS_FUENTE, ...TIPOS_CREDITO, ...TIPOS_SIN_PAGINA, ...TIPOS_PROPUESTA].includes(t)).length;
   // "Comisionista sin página de Notion: Nombre. …" (0084): los nombres, para verlos sin abrir Alertas.
   const sinPagina = (alertas.data ?? []).filter((a) => TIPOS_SIN_PAGINA.includes(a.tipo))
     .map((a) => (a.mensaje ?? "").split(PREFIJO_SIN_PAGINA)[1]?.split(". ")[0]).filter((n): n is string => !!n);
@@ -60,6 +61,8 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
       detalle: p.deLiga > 0 ? `${p.deLiga === 1 ? "1 llegó" : `${p.deLiga} llegaron`} por liga de cliente` : undefined },
     ...(staff ? [{ grupo: "decidir" as const, texto: "Solicitudes de alta", cuenta: p.altas, href: "/admin/altas" }] : []),
     { grupo: "decidir", texto: "Piden más cupo", cuenta: cuenta(TIPOS_CUPO), href: "/admin/alertas" },
+    { grupo: "decidir", texto: "Páginas de Notion por confirmar", cuenta: cuenta(TIPOS_PROPUESTA), href: "/admin/alertas",
+      detalle: "Altas nuevas con un nombre parecido en Ext Comisionistas" },
     { grupo: "decidir", texto: "Créditos no aplicados", cuenta: cuenta(TIPOS_CREDITO), href: "/admin/alertas", detalle: "Pidieron pagar con crédito y no se pudo" },
     ...(persona.rol === "admin_org" ? [{ grupo: "decidir" as const, texto: "Testimonios por aprobar", cuenta: p.testimonios, href: "/admin/testimonios" }] : []),
     ...(staff && p.cierre.estado !== "aprobado"

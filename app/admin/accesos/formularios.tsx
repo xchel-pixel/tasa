@@ -9,7 +9,7 @@ const INICIAL: EstadoAcceso = { error: null, mensaje: null };
 
 /** Suspender, reactivar o cerrar sesiones: en dos pasos, con lo que va a pasar y el motivo (obligatorio). */
 export function AccionAcceso({ que, personaId, texto, explicacion, peligro = false }: {
-  que: "suspender" | "reactivar" | "cerrar" | "reactivar_inactiva"; personaId: string; texto: string; explicacion: string; peligro?: boolean;
+  que: "suspender" | "reactivar" | "cerrar" | "reactivar_inactiva" | "marcar_demo" | "quitar_demo"; personaId: string; texto: string; explicacion: string; peligro?: boolean;
 }) {
   const [estado, enviar] = useActionState(accionAcceso, INICIAL);
   const [abierto, setAbierto] = useState(false);

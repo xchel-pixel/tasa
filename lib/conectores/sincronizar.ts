@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conectorNotion } from "./notion";
-import { FallaConector, type ConfigConector, type Conector, type PagoPorRegistrar, type TramitePorCrear, type Compensacion } from "./tipos";
+import { FallaConector, type ConfigConector, type Conector, type PagoPorRegistrar, type TramitePorCrear, type Compensacion, type PaginaComisionista } from "./tipos";
 
 /**
  * Una vuelta del cron para un conector: crear lo nuevo afuera, leer lo
@@ -120,6 +120,27 @@ export async function sincronizarConector(
         error = falla instanceof Error ? falla.message : String(falla);
       }
       await registrar(supabase, "registrar_solicitado_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_error: error });
+    }
+
+    // 6a. Altas nuevas (0085): si en Ext Comisionistas no hay nadie con nombre igual o parecido, se crea su página y
+    //     se liga; si lo hay, se propone en Hoy para que admin_org confirme en la ficha. Antes de escribir comisiones.
+    if (config.configuracion.base_comisionistas) {
+      const { data: altas, error: errorAltas } = await supabase.rpc("por_ligar_comisionistas_afuera", { p_conector: config.id });
+      if (errorAltas) throw new Error(errorAltas.message);
+      for (const x of (altas ?? []) as { persona_id: string; nombre: string; ligadas: string[] | null }[]) {
+        let pagina: PaginaComisionista | null = null;
+        let candidatos: PaginaComisionista[] = [];
+        let error: string | null = null;
+        try {
+          candidatos = (await conector.paginasParecidas(x.nombre)).filter((p) => !(x.ligadas ?? []).includes(p.id));
+          if (!candidatos.length) pagina = await conector.crearComisionista(x.nombre);
+        } catch (falla) {
+          if (falla instanceof FallaConector && falla.codigo === "limite") continue;
+          error = falla instanceof Error ? falla.message : String(falla);
+        }
+        await registrar(supabase, "registrar_comisionista_afuera", { p_conector: config.id, p_persona: x.persona_id,
+          p_pagina: pagina?.id ?? null, p_nombre_pagina: pagina?.nombre ?? null, p_candidatos: candidatos, p_error: error });
+      }
     }
 
     // 6b. "Honorario" del trámite al descontar la comisión al cliente (0079), solo con la propiedad en el mapeo.

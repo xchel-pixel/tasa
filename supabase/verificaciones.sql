@@ -5812,6 +5812,133 @@ end;
 $sec$;
 
 
+-- @@ Cuenta de demostración
+-- 0085: solo admin_org la marca (con motivo y bitácora). No envía solicitudes; fuera de estadísticas, niveles,
+-- inactividad, límite de equipos y Notion; ve todas las herramientas. Al quitar la marca vuelve a contar.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  demo  uuid;
+  b0    solicitudes%rowtype;
+  m     date := mes_de(hoy_mx());
+  r     jsonb;
+begin
+  perform pg_temp.sistema();
+  demo := pg_temp.comisionista('Demo Menus');
+  insert into auth.users (email) values ('demo.menus@ref.test');
+  select * into b0 from solicitudes where organizacion_id = xg and marca_id is not null and cuenta_receptora_id is not null limit 1;
+
+  -- Solo admin_org, con motivo.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select marcar_demo(%L, %L)', demo, 'Para enseñar'), 'Solo admin_org', 'Finanzas no la marca');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select marcar_demo(%L, %L)', demo, ''), 'motivo', 'Pide motivo');
+  perform marcar_demo(demo, 'Solo para enseñar los menús');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select es_demo from membresias where persona_id = demo), true, 'Queda marcada');
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'membresias' and motivo = 'Cuenta de demostración: Solo para enseñar los menús')::int, 1,
+    'Queda en la bitácora con su motivo');
+  perform pg_temp.igual((select notion_alta_pendiente from comisionistas where persona_id = demo), false, 'Ya no pide página de Notion');
+
+  -- Candado: no envía solicitudes.
+  perform pg_temp.debe_fallar(format($q$insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre)
+                                        values (%L, 'cotizacion', 'portal', %L, 'Calle Demo 1', 'Cliente Demo')$q$, demo, b0.servicio_id),
+    'Cuenta de demostración: no envía solicitudes', 'No envía solicitudes');
+
+  -- Fuera de niveles, inactividad, límite de equipos y Notion; ve todas las herramientas.
+  insert into niveles_mensuales (organizacion_id, comisionista_id, mes, nivel_id, porcentaje, promedio, meses_considerados, motivo)
+  select xg, demo, (m + interval '1 month')::date, id, porcentaje, 0, 0, 'promedio' from niveles where organizacion_id = xg and orden = 1 limit 1;
+  perform pg_temp.igual((select count(*) from niveles_mensuales where comisionista_id = demo)::int, 0, 'El cierre no le calcula nivel');
+  perform pg_temp.igual(limite_equipos_de(xg, demo), null::integer, 'Sin límite de equipos');
+  update membresias set inactiva_desde = now() - interval '1 day' where persona_id = demo;
+  perform pg_temp.igual(esta_inactiva(xg, demo), false, 'Nunca queda inactiva');
+  update membresias set inactiva_desde = null where persona_id = demo;
+  perform pg_temp.igual(herramientas_sin_limite(xg, demo), true, 'Ve todas las herramientas');
+  perform avisar_sin_pagina(xg, demo, 'una prueba');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_sin_pagina' and codigo = demo::text)::int, 0, 'Sin alerta de página de Notion');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from inactividad_org() where persona_id = demo)::int, 0, 'No sale en inactividad');
+  perform pg_temp.igual((select count(*) from por_ligar_comisionistas_afuera(pg_temp.notion_xg()) where persona_id = demo)::int, 0,
+    'Notion no le crea página');
+  perform pg_temp.sistema();
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo, creado_en)
+  values (xg, demo, 'mapa_catastral', 'consulta', (hoy_mx() + time '12:00') at time zone 'America/Mexico_City');
+  perform pg_temp.como('xchel@arqosuv.com');
+  r := estadisticas(hoy_mx(), hoy_mx());
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(r->'personas') x where x->>'persona_id' = demo::text)::int, 0,
+    'No sale en estadísticas');
+
+  -- Al quitar la marca vuelve a contar.
+  perform quitar_demo(demo, 'Ya no la uso');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select es_demo from membresias where persona_id = demo), false, 'Desmarcada');
+  perform pg_temp.igual(limite_equipos_de(xg, demo) is not distinct from (select (limite_equipos ->> 'comisionista')::integer from ajustes where organizacion_id = xg),
+    true, 'Vuelve su límite de equipos');
+  perform pg_temp.como('xchel@arqosuv.com');
+  r := estadisticas(hoy_mx(), hoy_mx());
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(r->'personas') x where x->>'persona_id' = demo::text)::int, 1,
+    'Vuelve a salir en estadísticas');
+  perform pg_temp.sistema();
+end;
+$sec$;
+
+
+-- @@ Página de Notion al dar de alta
+-- 0085: el alta nueva queda por ligar. El sync crea la página si no hay nombre parecido (queda ligada) o la propone en
+-- Hoy; ligarla en la ficha cierra la propuesta. Las páginas ya ligadas a otros no se proponen.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  uno   uuid;
+  dos   uuid;
+  k     uuid := pg_temp.notion_xg();
+  r     record;
+begin
+  perform pg_temp.sistema();
+  uno := pg_temp.comisionista('Alta Nueva Uno');
+  dos := pg_temp.comisionista('Alta Nueva Dos');
+  perform pg_temp.igual((select notion_alta_pendiente from comisionistas where persona_id = uno), true, 'Al darlo de alta queda por ligar');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  select * into r from por_ligar_comisionistas_afuera(k) where persona_id = uno;
+  perform pg_temp.igual(r.nombre, 'Alta Nueva Uno', 'El sync lo tiene por ligar, con su nombre');
+  perform pg_temp.igual(r.ligadas is not null, true, 'Y sabe qué páginas ya están ligadas');
+
+  -- Sin parecidos: el sync la crea y queda ligada.
+  perform registrar_comisionista_afuera(k, uno, 'AAAA1111-2222-3333-4444-555566667777', 'Alta Nueva Uno', '[]', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select notion_pagina || ' ' || notion_alta_pendiente from comisionistas where persona_id = uno),
+    'aaaa1111222233334444555566667777 false', 'Creada y ligada (sin guiones)');
+
+  -- Con parecidos: se propone en Hoy y no se liga sola.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_comisionista_afuera(k, dos, null, null, '[{"id": "bbbb", "nombre": "Alta Nueva Dos Catastro"}]', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select notion_pagina is null and not notion_alta_pendiente from comisionistas where persona_id = dos), true,
+    'Con parecidos no se liga sola');
+  perform pg_temp.igual((select mensaje like 'Página de Notion por confirmar: Alta Nueva Dos.%"Alta Nueva Dos Catastro"%'
+                           from alertas where tipo = 'notion_pagina_propuesta' and codigo = dos::text and resuelta_en is null), true,
+    'Se propone en Hoy con la página parecida');
+
+  -- Confirmarla en la ficha (ligar) cierra la propuesta.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform ligar_pagina_notion(dos, 'cccc1111222233334444555566667777', 'Alta Nueva Dos Catastro');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_pagina_propuesta' and codigo = dos::text and resuelta_en is null)::int, 0,
+    'Ligarla cierra la propuesta');
+
+  -- Error de Notion: alerta para hacerlo a mano.
+  update comisionistas set notion_pagina = null, notion_alta_pendiente = true where persona_id = uno;
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_comisionista_afuera(k, uno, null, null, '[]', 'Notion no responde');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select mensaje like 'No se pudo crear la página de Notion de Alta Nueva Uno%' from alertas
+                          where tipo = 'notion_pagina_propuesta' and codigo = uno::text and resuelta_en is null), true, 'Error: alerta para ligarla a mano');
+  update comisionistas set notion_pagina = 'aaaa1111222233334444555566667777' where persona_id = uno;
+end;
+$sec$;
+
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

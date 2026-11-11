@@ -40,6 +40,22 @@ const COBROS = {
   categoria: "Categoría",
 } as const;
 
+/** Minúsculas, sin acentos ni signos: "Oliva • Ochoa" → ["oliva", "ochoa"]. */
+export function palabrasDelNombre(nombre: string): string[] {
+  // Sin acentos: se quitan las marcas que deja NFD (U+0300 a U+036F).
+  const limpio = [...nombre.normalize("NFD")].filter((c) => c.charCodeAt(0) < 0x300 || c.charCodeAt(0) > 0x36f).join("").toLowerCase();
+  return limpio.split(/[^a-z0-9]+/).filter((p) => p.length > 1);
+}
+
+/** Igual o parecido: las mismas palabras, unas contenidas en las otras, o al menos dos en común (nombre y apellido). */
+export function esNombreParecido(a: string, b: string): boolean {
+  const pa = palabrasDelNombre(a);
+  const pb = palabrasDelNombre(b);
+  if (!pa.length || !pb.length) return false;
+  const comunes = pa.filter((p) => pb.includes(p)).length;
+  return comunes >= 2 || comunes === Math.min(pa.length, pb.length);
+}
+
 /** Notion da ids con guiones; Tasa los guarda sin ellos. */
 export const sinGuiones = (id: string) => id.replace(/-/g, "").toLowerCase();
 
@@ -409,6 +425,17 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
     async buscarComisionistas(nombre) {
       const r = await fuente("base_comisionistas", "comisionistas").buscar({ contains: nombre.trim() }, 20);
       return r.map((p): PaginaComisionista => ({ id: p.id, nombre: p.titulo }));
+    },
+
+    async paginasParecidas(nombre) {
+      // Notion busca por texto contenido: una consulta por palabra (las primeras tres) y aquí se decide qué es parecido.
+      const palabras = palabrasDelNombre(nombre).filter((p) => p.length > 2).slice(0, 3);
+      const base = fuente("base_comisionistas", "comisionistas");
+      const vistas = new Map<string, PaginaComisionista>();
+      for (const p of palabras) {
+        for (const r of await base.buscar({ contains: p }, 50)) vistas.set(r.id, { id: r.id, nombre: r.titulo });
+      }
+      return [...vistas.values()].filter((p) => esNombreParecido(p.nombre, nombre));
     },
 
     async crearComisionista(nombre) {

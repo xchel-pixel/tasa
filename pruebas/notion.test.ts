@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- las respuestas de Notion se revisan campo por campo en las aserciones */
 import { describe, expect, test } from "vitest";
-import { conectorNotion, descripcionesDePago, fallaDeNotion, leerPagina, prefijoDelDia, propiedadesDeTramite, siguienteConsecutivo } from "@/lib/conectores/notion";
+import { conectorNotion, esNombreParecido, descripcionesDePago, fallaDeNotion, leerPagina, prefijoDelDia, propiedadesDeTramite, siguienteConsecutivo } from "@/lib/conectores/notion";
 import type { ConfigConector, TramitePorCrear } from "@/lib/conectores/tipos";
 
 /**
@@ -293,6 +293,37 @@ describe("Comisiones, bono y pagos (0052)", () => {
     expect(await notion.compensarComision({ accion: "borrar", externo_id: "x", monto: 0, fecha: "2026-11-11", folio: null, comisionista: "R", pagina: null,
       ids: ["aaa1", "aaa2"] })).toEqual([]);
     expect(llamadas.filter((l) => l.metodo === "PATCH").map((l) => [l.ruta, l.cuerpo])).toEqual([["/pages/aaa1", { in_trash: true }], ["/pages/aaa2", { in_trash: true }]]);
+  });
+
+  test("nombres parecidos para proponer la página de Notion al dar de alta", () => {
+    expect(esNombreParecido("FERNANDO SANCHEZ ORTEGA", "Fernando Sanchez Ortega Catastro")).toBe(true);
+    expect(esNombreParecido("Oliva • Ochoa", "Oliva Ochoa")).toBe(true);
+    expect(esNombreParecido("Gerardo Muñoz López", "Gerardo Munoz Lopez")).toBe(true);
+    expect(esNombreParecido("Rodolfo Muñoz Agraz Sanchez", "Rodolfo Muñoz")).toBe(true);
+    expect(esNombreParecido("Gerardo Martinez", "Gerardo Elias Guerra")).toBe(false);
+    expect(esNombreParecido("Fernando Urbina", "Fernando Sanchez Ortega Catastro")).toBe(false);
+    expect(esNombreParecido("Luis Alberto Martínez Rodríguez", "Gerardo Martinez")).toBe(false);
+  });
+
+  test("al dar de alta: busca por palabra, se queda con las parecidas y si no hay, la crea", async () => {
+    const conAlta = { ...conComisiones, configuracion: { ...conComisiones.configuracion, base_comisionistas: "ds_com" } };
+    const llamadas: { metodo: string; ruta: string; cuerpo: any }[] = [];
+    const filas = (nombres: string[]) => ({ results: nombres.map((t, i) => ({ id: `0000000${i}-aaaa-bbbb-cccc-dddddddddddd`, properties: { Name: { title: [{ plain_text: t }] } } })) });
+    const falso = (async (url: string, init?: RequestInit) => {
+      const ruta = url.replace("https://api.notion.com/v1", "");
+      const metodo = init?.method ?? "GET";
+      const cuerpo = init?.body ? JSON.parse(String(init.body)) : null;
+      llamadas.push({ metodo, ruta, cuerpo });
+      const json = ruta === "/data_sources/ds_com" ? { properties: { Name: { type: "title" } } }
+        : ruta === "/data_sources/ds_com/query" ? filas(cuerpo.filter.title.contains === "oliva" ? ["Oliva Ochoa", "Olivia Pérez"] : [])
+        : ruta === "/pages" ? { id: "nueva-pagina-1" } : {};
+      return new Response(JSON.stringify(json), { status: 200 });
+    }) as typeof fetch;
+    const notion = conectorNotion(conAlta, "ntn_x", falso);
+    expect((await notion.paginasParecidas("Oliva • Ochoa")).map((p) => p.nombre)).toEqual(["Oliva Ochoa"]);
+    expect(llamadas.filter((l) => l.ruta.endsWith("/query")).map((l) => l.cuerpo.filter.title.contains)).toEqual(["oliva", "ochoa"]);
+    expect(await notion.paginasParecidas("Gerardo Martinez")).toEqual([]);
+    expect(await notion.crearComisionista("Gerardo Martinez")).toEqual({ id: "nuevapagina1", nombre: "Gerardo Martinez" });
   });
 
   test("el consecutivo del día y las descripciones", () => {

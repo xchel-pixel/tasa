@@ -47,6 +47,7 @@ export async function crearSolicitud(
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.from("solicitudes").insert(datos).select("id").single();
 
+  if (error?.message?.includes("Cuenta de demostración")) return { error: "Cuenta de demostración: no envía solicitudes." };
   if (error || !data) {
     console.error(`[tasa] No se pudo crear la solicitud: ${error?.message}`);
     return { error: "No se pudo enviar la solicitud. Inténtalo otra vez." };
