@@ -3506,6 +3506,9 @@ begin
   perform pg_temp.igual((select count(*) from eventos_trabajo where solicitud_id = s and accion = 'notion_comision'), 1::bigint, 'Queda en el historial');
   perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_sin_pagina' and codigo = q::text and resuelta_en is null), 1::bigint,
     'Sin "Página en Notion": se escribe el monto y sale alerta');
+  perform pg_temp.igual((select mensaje like 'Comisionista sin página de Notion: ' || (select nombre from personas where id = q) || '. %'
+                           from alertas where tipo = 'notion_sin_pagina' and codigo = q::text and resuelta_en is null), true,
+    '0084: la alerta dice "Comisionista sin página de Notion: [nombre]" (así sale en Hoy)');
 
   -- Ligarla (solo admin_org) cierra la alerta; un ajuste vuelve a escribir el monto.
   perform pg_temp.como('xchel+ana@arqosuv.com');
@@ -5762,6 +5765,8 @@ begin
   perform pg_temp.sistema();
   perform pg_temp.igual((select array_to_string(externo_compensacion_ids, ',') || ' ' || coalesce(externo_compensacion_pendiente, '-')
                            from solicitudes where id = t1), 'ing1,gas1 -', 'Creado: guarda los ids y ya no está pendiente');
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_sin_pagina' and codigo = fer::text and resuelta_en is null)::int, 1,
+    'Sin página del comisionista, el gasto sale sin Ext Comisionista y hay alerta para ligarlo');
 
   -- 2. Se revierte B: queda por borrar, con esos ids.
   perform pg_temp.como('gaby@tasa.test');

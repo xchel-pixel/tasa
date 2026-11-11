@@ -203,16 +203,19 @@ describe("Comisiones, bono y pagos (0052)", () => {
     cuerpo: { results: nombres.map((t, i) => ({ id: `0000000${i}-aaaa-bbbb-cccc-dddddddddddd`, properties: { [prop]: { title: [{ plain_text: t }] } } })) },
   });
 
-  test("Ext Comisión y Ext Comisionista; sin página, la relación queda vacía", async () => {
+  test("Ext Comisión y Ext Comisionista; sin página ligada en Tasa, la relación NO se toca (ni se vacía ni se sobrescribe)", async () => {
     const { notion, llamadas } = notionFalso({
       "GET /pages/p1": () => ({ status: 200, cuerpo: { id: "p1" } }),
       "PATCH /pages/p1": () => ({ status: 200, cuerpo: { id: "p1" } }),
     });
     expect(await notion.actualizarComision("p1", 2006.724, "22bf127050c080a7a0dcdf4e9c734734")).toBe(true);
     expect(await notion.actualizarReferido("p1", 0, null)).toBe(true);
+    expect(await notion.actualizarComision("p1", 1335, null)).toBe(true);
     const parches = llamadas.filter((l) => l.metodo === "PATCH").map((l) => l.cuerpo.properties);
     expect(parches[0]).toEqual({ "Ext Comisión": { number: 2006.72 }, "Ext Comisionista": { relation: [{ id: "22bf127050c080a7a0dcdf4e9c734734" }] } });
-    expect(parches[1]).toEqual({ "Ref Bono": { number: 0 }, "Ref Comisionista": { relation: [] } });
+    expect(parches[1]).toEqual({ "Ref Bono": { number: 0 } });
+    expect(parches[2]).toEqual({ "Ext Comisión": { number: 1335 } });
+    for (const p of parches.slice(1)) expect(Object.values(p).some((v) => "relation" in (v as object))).toBe(false);
   });
 
   test("Crédito Tasa y Costo crédito: sin las dos propiedades en el mapeo no se escribe nada", async () => {

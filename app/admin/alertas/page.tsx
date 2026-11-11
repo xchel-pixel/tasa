@@ -129,7 +129,7 @@ export default async function Alertas({ searchParams }: { searchParams: Promise<
                 <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
                   {persona.rol === "admin_org" ? "Lígalo en " : "Lo liga Administración en "}
                   <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>
-                  {" "}(Página en Notion). Se cierra sola al ligarlo; lo ya escrito se corrige a mano en Notion.
+                  {" "}(Página en Notion). Mientras no esté ligado, Tasa escribe los montos pero no toca su relación en Notion. Se cierra sola al ligarlo.
                 </p>
               ) : a.tipo === "cupo_agotado" ? (
                 persona.rol === "admin_org" ? (

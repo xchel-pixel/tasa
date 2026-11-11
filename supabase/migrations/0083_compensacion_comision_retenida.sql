@@ -70,6 +70,11 @@ begin
        set externo_compensacion_ids = case when externo_compensacion_pendiente = 'crear' then p_ids end,
            externo_compensacion_pendiente = null
      where id = s.id;
+    -- El gasto se creó sin "Ext Comisionista": alerta en Hoy para ligarlo (0084).
+    if s.externo_compensacion_pendiente = 'crear'
+       and (select notion_pagina from comisionistas where organizacion_id = s.organizacion_id and persona_id = s.comisionista_id) is null then
+      perform avisar_sin_pagina(s.organizacion_id, s.comisionista_id, 'el gasto de compensación de ' || coalesce(s.folio, 'un trabajo'));
+    end if;
   else
     update solicitudes set externo_compensacion_pendiente = null where id = s.id;
     insert into alertas (organizacion_id, tipo, solicitud_id, mensaje)

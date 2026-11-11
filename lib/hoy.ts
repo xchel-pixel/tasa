@@ -23,6 +23,8 @@ export const GRUPOS: Record<Grupo, { titulo: string; para: string }> = {
 const TIPOS_CUPO = ["cupo_agotado"];
 const TIPOS_FUENTE = ["catastro"];
 const TIPOS_CREDITO = ["credito_no_aplicado"];
+const TIPOS_SIN_PAGINA = ["notion_sin_pagina"];
+const PREFIJO_SIN_PAGINA = "Comisionista sin página de Notion: ";
 
 export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
   const staff = esStaff(persona);
@@ -31,7 +33,7 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
     pendientesDelPanel(),
     staff ? comisionesPorPagar() : Promise.resolve([] as PorPagar[]),
     staff ? supabase.from("compras_paquete").select("id", { count: "exact", head: true }).eq("estado", "por_pagar") : Promise.resolve({ count: 0 }),
-    supabase.from("alertas").select("tipo").is("resuelta_en", null).returns<{ tipo: string }[]>(),
+    supabase.from("alertas").select("tipo, mensaje").is("resuelta_en", null).returns<{ tipo: string; mensaje: string | null }[]>(),
     supabase.from("conectores").select("estado, ultimo_error").eq("activo", true).maybeSingle<{ estado: string; ultimo_error: string | null }>(),
     staff ? supabase.rpc("inactividad_org") : Promise.resolve({ data: [] }),
     staff
@@ -41,7 +43,10 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
 
   const tipos = (alertas.data ?? []).map((a) => a.tipo);
   const cuenta = (lista: string[]) => tipos.filter((t) => lista.includes(t)).length;
-  const otras = tipos.filter((t) => ![...TIPOS_CUPO, ...TIPOS_FUENTE, ...TIPOS_CREDITO].includes(t)).length;
+  const otras = tipos.filter((t) => ![...TIPOS_CUPO, ...TIPOS_FUENTE, ...TIPOS_CREDITO, ...TIPOS_SIN_PAGINA].includes(t)).length;
+  // "Comisionista sin página de Notion: Nombre. …" (0084): los nombres, para verlos sin abrir Alertas.
+  const sinPagina = (alertas.data ?? []).filter((a) => TIPOS_SIN_PAGINA.includes(a.tipo))
+    .map((a) => (a.mensaje ?? "").split(PREFIJO_SIN_PAGINA)[1]?.split(". ")[0]).filter((n): n is string => !!n);
   const act = (actividad.data ?? []) as { estado: string }[];
   const porInactivarse = act.filter((a) => a.estado === "por_vencer").length;
   const inactivas = act.filter((a) => a.estado === "inactiva").length;
@@ -70,6 +75,8 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
       ? [{ grupo: "vigilar" as const, texto: "El conector no está sincronizando", urgente: true, detalle: conector.data.ultimo_error ?? undefined,
           href: persona.rol === "admin_org" ? "/ajustes" : "/admin/alertas" }]
       : []),
+    { grupo: "vigilar", texto: "Comisionistas sin página de Notion", cuenta: cuenta(TIPOS_SIN_PAGINA), urgente: true, href: "/admin/alertas",
+      detalle: sinPagina.length ? sinPagina.join(", ") : "Lígalos en su ficha: mientras, Tasa no toca su relación en Notion" },
     { grupo: "vigilar", texto: "Fallas de la fuente catastral", cuenta: cuenta(TIPOS_FUENTE), href: "/admin/alertas" },
     ...(staff ? [
       { grupo: "vigilar" as const, texto: "Comisionistas por inactivarse", cuenta: porInactivarse, href: "/admin/estadisticas", detalle: "Sin trabajo cobrado en casi 6 meses" },

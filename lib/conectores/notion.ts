@@ -237,7 +237,8 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
     return (await fuente(clave, que).buscar({ equals: nombre.trim() }, 10)).find((p) => p.titulo.trim().toLowerCase() === exacto)?.id ?? null;
   }
 
-  /** Escribe un número y una relación del trámite (comisión directa o bono de referido). */
+  /** Escribe un número y una relación del trámite (comisión directa o bono de referido). Sin página del comisionista
+   *  ligada en Tasa, escribe solo el número: la relación NUNCA se vacía ni se sobrescribe (la alerta la levanta la base). */
   async function escribirMontoYRelacion(externoId: string, claveMonto: string, claveRelacion: string, monto: number, pagina: string | null) {
     const nMonto = mapeo[claveMonto]?.trim();
     const nRelacion = mapeo[claveRelacion]?.trim();
@@ -246,7 +247,7 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
     }
     if (!(await existe(externoId))) return false;
     await notion(`/pages/${externoId}`, "PATCH", {
-      properties: { [nMonto]: { number: dosDecimales(monto) }, [nRelacion]: { relation: pagina ? [{ id: pagina }] : [] } },
+      properties: { [nMonto]: { number: dosDecimales(monto) }, ...(pagina ? { [nRelacion]: { relation: [{ id: pagina }] } } : {}) },
     });
     return true;
   }
