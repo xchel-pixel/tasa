@@ -5939,6 +5939,63 @@ end;
 $sec$;
 
 
+-- @@ Notion revisa a todos los comisionistas sin página
+-- 0086: no solo las altas nuevas. Un comisionista que ya existía sin página entra a la revisión; mientras su
+-- propuesta siga abierta en Hoy no se vuelve a buscar; cuentas de demostración y suspendidas, no. Y la cuenta de
+-- demostración respeta el tope de seguridad de 200 consultas al día del mapa aunque no tenga límite mensual.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  k     uuid := pg_temp.notion_xg();
+  viejo uuid;
+  susp  uuid;
+  demo  uuid;
+begin
+  perform pg_temp.sistema();
+  viejo := pg_temp.comisionista('Ya Existia Sin Pagina');
+  susp := pg_temp.comisionista('Suspendido Sin Pagina');
+  demo := pg_temp.comisionista('Otra Demo');
+  update comisionistas set notion_alta_pendiente = false where persona_id in (viejo, susp, demo);
+  update membresias set activa = false where persona_id = susp;
+  update membresias set es_demo = true where persona_id = demo;
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from por_ligar_comisionistas_afuera(k) where persona_id = viejo)::int, 1,
+    'Uno que ya existía sin página entra a la revisión');
+  perform pg_temp.igual((select count(*) from por_ligar_comisionistas_afuera(k) where persona_id in (susp, demo))::int, 0,
+    'Suspendidos y cuentas de demostración, no');
+
+  -- Con parecidos: propuesta en Hoy; mientras siga abierta, no se vuelve a buscar.
+  perform registrar_comisionista_afuera(k, viejo, null, null, '[{"id": "dddd", "nombre": "Ya Existia"}]', null);
+  perform pg_temp.igual((select count(*) from por_ligar_comisionistas_afuera(k) where persona_id = viejo)::int, 0,
+    'Con su propuesta abierta no se vuelve a buscar');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'notion_pagina_propuesta' and codigo = viejo::text and resuelta_en is null)::int, 1,
+    'Sale en Hoy para confirmar');
+
+  -- Ligado a mano entre la lectura y la escritura: el sync no lo pisa.
+  update comisionistas set notion_pagina = 'eeee1111222233334444555566667777' where persona_id = viejo;
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_comisionista_afuera(k, viejo, 'ffff1111222233334444555566667777', 'Otra', '[]', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select notion_pagina from comisionistas where persona_id = viejo), 'eeee1111222233334444555566667777',
+    'Lo ligado a mano no se sobrescribe');
+
+  -- Tope de 200 consultas al día del mapa, aunque la cuenta de demostración no tenga límite mensual.
+  perform pg_temp.igual((select disponibles from cupo_de(xg, demo, 'mapa_catastral')), null::integer, 'Sin límite mensual');
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo, creado_en)
+  select xg, demo, 'mapa_catastral', 'consulta', (hoy_mx() + time '12:00') at time zone 'America/Mexico_City' from generate_series(1, 199);
+  update herramientas set activa = true where organizacion_id = xg and clave = 'mapa_catastral'; -- otra sección la apagó
+  perform pg_temp.igual(catastro_impedimento_de(xg, demo), null::text, 'Con 199 en el día todavía consulta');
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo, creado_en)
+  values (xg, demo, 'mapa_catastral', 'consulta', (hoy_mx() + time '12:00') at time zone 'America/Mexico_City');
+  perform pg_temp.igual(catastro_impedimento_de(xg, demo), 'Llegaste al tope de seguridad de 200 consultas al día. Mañana se reinicia.',
+    'Con 200 en el día se detiene, aunque no tenga límite mensual');
+  update herramientas set activa = false where organizacion_id = xg and clave = 'mapa_catastral';
+end;
+$sec$;
+
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
