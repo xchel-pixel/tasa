@@ -331,6 +331,14 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
       return escribirMontoYRelacion(externoId, "ref_bono", "ref_comisionista", monto, pagina);
     },
 
+    async actualizarHonorariosEstatus(externoId, estatus) {
+      const nombre = mapeo.honorarios_estatus?.trim();
+      if (!nombre) throw new FallaConector("propiedad_no_encontrada", "Falta \"honorarios_estatus\" en el mapeo del conector.");
+      if (!(await existe(externoId))) return false;
+      await notion(`/pages/${externoId}`, "PATCH", { properties: { [nombre]: { select: { name: estatus } } } });
+      return true;
+    },
+
     async actualizarHonorario(externoId, monto) {
       const nombre = mapeo.honorario?.trim();
       if (!nombre) throw new FallaConector("propiedad_no_encontrada", "Falta \"honorario\" en el mapeo del conector.");

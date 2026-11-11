@@ -5647,6 +5647,86 @@ begin
 end;
 $sec$;
 
+-- @@ Honorarios estatus en Notion cuando Tasa causa el pago
+-- 0082: al quedar pagado al 100% por crédito o por la comisión descontada/cobrada, Tasa marca "Pagado" para Notion; si
+-- se revierte, solo esos regresan a "No Pagado 🔥". Un pago normal no se toca.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  fer   uuid := (select id from personas where correo = 'fer.descuento@ref.test');
+  b0    solicitudes%rowtype;
+  lote  uuid;
+  t1    uuid;
+  t2    uuid;
+  t3    uuid;
+  s     solicitudes%rowtype;
+begin
+  perform pg_temp.sistema();
+  perform pg_temp.igual(hay_conector_notion(xg), true, 'XG sincroniza con Notion');
+  select * into b0 from solicitudes where organizacion_id = xg and marca_id is not null and cuenta_receptora_id is not null limit 1;
+
+  -- 1. Crédito al 100%: Pagado, y Tasa recuerda que fue ella.
+  insert into compras_paquete (organizacion_id, persona_id, paquete_id, tipo, precio, credito, estado, terminos_version, inicia, vence, pago_fecha, pago_monto)
+  values (xg, ana, (select id from paquetes where organizacion_id = xg and clave = 'mensual'), 'compra', 3500, 3850, 'confirmada', 1,
+          hoy_mx(), hoy_mx() + 30, hoy_mx(), 3500) returning id into lote;
+  insert into movimientos_credito (organizacion_id, persona_id, compra_id, tipo, monto) values (xg, ana, lote, 'carga', 3850);
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, pagar_con_credito, externo_id)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Estatus 1', 'Cliente Estatus Crédito', b0.marca_id, b0.cuenta_receptora_id,
+          false, 1000, 'tramite', 'entregado', now(), true, 'cccc0000cccc0000cccc0000cccc0001') returning id into t1;
+  select * into s from solicitudes where id = t1;
+  perform pg_temp.igual((s.pagado_en is not null) || ' ' || s.honorarios_pagado_por_tasa || ' ' || s.externo_honorarios_estatus || ' ' || s.externo_honorarios_pendiente,
+    'true true Pagado true', 'Pagado al 100% con crédito: Tasa marca Pagado para Notion');
+
+  -- Se revierte el pago con crédito: regresa a No Pagado.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform revertir_pago((select id from pagos where solicitud_id = t1 and via = 'credito'), 'Prueba de reversa');
+  perform pg_temp.sistema();
+  select * into s from solicitudes where id = t1;
+  perform pg_temp.igual((s.pagado_en is null) || ' ' || s.honorarios_pagado_por_tasa || ' ' || s.externo_honorarios_estatus || ' ' || s.externo_honorarios_pendiente,
+    'true false No Pagado 🔥 true', 'Revertido: regresa a No Pagado');
+
+  -- La sincronización lo deja escrito.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select estatus from por_actualizar_honorarios_estatus_afuera(pg_temp.notion_xg()) where solicitud_id = t1), 'No Pagado 🔥',
+    'El sync lo tiene por escribir');
+  perform registrar_honorarios_estatus_afuera(pg_temp.notion_xg(), t1, 'No Pagado 🔥', null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select externo_honorarios_pendiente from solicitudes where id = t1), false, 'Escrito: ya no está pendiente');
+
+  -- 2. Un pago normal (sin crédito ni acción): Tasa no toca "Honorarios estatus".
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, externo_id)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Estatus 2', 'Cliente Estatus Normal', b0.marca_id, b0.cuenta_receptora_id,
+          false, 2000, 'tramite', 'entregado', now(), 'cccc0000cccc0000cccc0000cccc0002') returning id into t2;
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia, reportado_por) values (t2, 'directo', 2000, hoy_mx(), 'REF-N', ana);
+  update pagos set estado = 'confirmado' where solicitud_id = t2;
+  select * into s from solicitudes where id = t2;
+  perform pg_temp.igual((s.pagado_en is not null) || ' ' || s.honorarios_pagado_por_tasa || ' ' || coalesce(s.externo_honorarios_estatus, '-') || ' ' || s.externo_honorarios_pendiente,
+    'true false - false', 'Pagado por un pago normal: lo marca el equipo, Tasa no lo toca');
+
+  -- 3. Comisión descontada (A) y pago del neto: Pagado; revertir A: No Pagado.
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, cliente_nombre, marca_id, cuenta_receptora_id,
+                           requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, externo_id)
+  values (fer, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Estatus 3', 'Cliente Estatus A', b0.marca_id, b0.cuenta_receptora_id,
+          false, 5000, 'tramite', 'entregado', now(), 'cccc0000cccc0000cccc0000cccc0003') returning id into t3;
+  perform pg_temp.como('gaby@tasa.test');
+  perform aplicar_modalidad_comision(t3, 'descontada', null);
+  perform pg_temp.sistema();
+  insert into pagos (solicitud_id, via, monto, fecha_pago, referencia, reportado_por)
+  select t3, 'directo', monto_total, hoy_mx(), 'REF-A', fer from solicitudes where id = t3;
+  update pagos set estado = 'confirmado' where solicitud_id = t3;
+  perform pg_temp.igual((select externo_honorarios_estatus || ' ' || honorarios_pagado_por_tasa from solicitudes where id = t3), 'Pagado true',
+    'Con la comisión descontada y el neto pagado: Pagado');
+  perform pg_temp.como('gaby@tasa.test');
+  perform revertir_modalidad_comision(t3, 'Prueba');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select externo_honorarios_estatus || ' ' || honorarios_pagado_por_tasa from solicitudes where id = t3), 'No Pagado 🔥 false',
+    'Revertida la acción: No Pagado');
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

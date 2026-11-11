@@ -138,6 +138,23 @@ export async function sincronizarConector(
       }
     }
 
+    // 6c. "Honorarios estatus" cuando Tasa causó el pago al 100% (crédito o comisión descontada/cobrada, 0082), y su reversa.
+    //     Solo con la propiedad en el mapeo; lo que el equipo marca a mano por otros pagos no se toca.
+    if (config.mapeo_campos.honorarios_estatus) {
+      const { data: estatus, error: errorEst } = await supabase.rpc("por_actualizar_honorarios_estatus_afuera", { p_conector: config.id });
+      if (errorEst) throw new Error(errorEst.message);
+      for (const x of (estatus ?? []) as { solicitud_id: string; externo_id: string; estatus: string }[]) {
+        let error: string | null = null;
+        try {
+          if (!(await conector.actualizarHonorariosEstatus(x.externo_id, x.estatus))) error = "la página ya no existe";
+        } catch (falla) {
+          if (falla instanceof FallaConector && falla.codigo === "limite") continue;
+          error = falla instanceof Error ? falla.message : String(falla);
+        }
+        await registrar(supabase, "registrar_honorarios_estatus_afuera", { p_conector: config.id, p_solicitud: x.solicitud_id, p_estatus: x.estatus, p_error: error });
+      }
+    }
+
     // 7 y 8. Comisión directa ("Ext Comisión") y, al aprobar el cierre, bono de referido ("Ref Bono"). Solo con
     //    las propiedades en el mapeo; si faltan, quedan pendientes. Igual que "Solicitado por": alerta y sigue.
     const pasos = [

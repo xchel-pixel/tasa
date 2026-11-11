@@ -232,6 +232,20 @@ describe("Comisiones, bono y pagos (0052)", () => {
     expect(llamadas2.find((l) => l.metodo === "PATCH")?.cuerpo.properties).toEqual({ "Crédito Tasa": { number: 3850 }, "Costo crédito": { number: 350 } });
   });
 
+  test("Honorarios estatus: sin la propiedad en el mapeo no escribe; con ella, la selección", async () => {
+    const { notion, llamadas } = notionFalso({ "GET /pages/p1": () => ({ status: 200, cuerpo: { id: "p1" } }) });
+    await expect(notion.actualizarHonorariosEstatus("p1", "Pagado")).rejects.toThrow("honorarios_estatus");
+    expect(llamadas.filter((l) => l.metodo === "PATCH")).toEqual([]);
+    const conEstatus = { ...conComisiones, mapeo_campos: { ...conComisiones.mapeo_campos, honorarios_estatus: "Honorarios estatus" } };
+    const llamadas2: { metodo: string; cuerpo: any }[] = [];
+    const falso2 = (async (_url: string, init?: RequestInit) => {
+      llamadas2.push({ metodo: init?.method ?? "GET", cuerpo: init?.body ? JSON.parse(String(init.body)) : null });
+      return new Response(JSON.stringify({ id: "p1" }), { status: 200 });
+    }) as typeof fetch;
+    expect(await conectorNotion(conEstatus, "ntn_x", falso2).actualizarHonorariosEstatus("p1", "No Pagado 🔥")).toBe(true);
+    expect(llamadas2.find((l) => l.metodo === "PATCH")?.cuerpo.properties).toEqual({ "Honorarios estatus": { select: { name: "No Pagado 🔥" } } });
+  });
+
   test("el consecutivo del día y las descripciones", () => {
     expect(prefijoDelDia("2026-11-10")).toBe("26/11/10-");
     expect(siguienteConsecutivo(["26/11/10-002", "26/11/10-010", "26/11/09-099", "otro"], "26/11/10-")).toBe(11);
