@@ -5996,6 +5996,52 @@ end;
 $sec$;
 
 
+-- @@ No es la misma persona: página nueva y no se vuelve a proponer
+-- 0087: la propuesta guarda sus parecidas. "No es la misma persona" (solo admin_org) liga la página nueva, cierra la
+-- propuesta, deja bitácora y descarta las parecidas: aunque después se quite la página, ya no se proponen.
+do $sec$
+declare
+  k     uuid := pg_temp.notion_xg();
+  q     uuid;
+  r     record;
+begin
+  perform pg_temp.sistema();
+  q := pg_temp.comisionista('Homonimo Distinto');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_comisionista_afuera(k, q, null, null,
+    '[{"id": "1111aaaa2222bbbb3333cccc4444dddd", "nombre": "Homonimo Distinto Otro"}]', null);
+  select * into r from propuestas_notion() where persona_id = q;
+  perform pg_temp.igual(r.nombre || ' · ' || (r.candidatos -> 0 ->> 'nombre'), 'Homonimo Distinto · Homonimo Distinto Otro',
+    'La propuesta guarda la parecida para ofrecerla con un botón');
+
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar(format('select ligar_pagina_nueva_descartando(%L, %L, %L)', q, '9999aaaa2222bbbb3333cccc4444dddd', 'Homonimo Distinto'),
+    'Solo admin_org', 'Finanzas no lo hace');
+  perform pg_temp.debe_fallar('select * from propuestas_notion()', 'Solo admin_org', 'Ni ve las propuestas');
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform ligar_pagina_nueva_descartando(q, '9999AAAA-2222-BBBB-3333-CCCC4444DDDD', 'Homonimo Distinto');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select notion_pagina || ' · ' || notion_nombre || ' · ' || array_to_string(notion_descartadas, ',') || ' · ' || (notion_candidatos is null)
+                           from comisionistas where persona_id = q),
+    '9999aaaa2222bbbb3333cccc4444dddd · Homonimo Distinto · 1111aaaa2222bbbb3333cccc4444dddd · true',
+    'Liga la página nueva y guarda la parecida como descartada');
+  perform pg_temp.igual((select resolucion from alertas where tipo = 'notion_pagina_propuesta' and codigo = q::text),
+    'No es la misma persona: página nueva creada y ligada', 'Cierra la propuesta');
+  perform pg_temp.igual((select count(*) from bitacora where tabla = 'comisionistas'
+                           and motivo = 'Notion: no es la misma persona que "Homonimo Distinto Otro"; página nueva: Homonimo Distinto')::int, 1,
+    'Queda en la bitácora');
+
+  -- Aunque después se quite la página, la descartada ya no se propone (el sync la recibe como excluida).
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform ligar_pagina_notion(q, null, null);
+  perform pg_temp.igual((select '1111aaaa2222bbbb3333cccc4444dddd' = any (ligadas) from por_ligar_comisionistas_afuera(k) where persona_id = q), true,
+    'La coincidencia descartada no se vuelve a proponer');
+  perform pg_temp.sistema();
+end;
+$sec$;
+
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

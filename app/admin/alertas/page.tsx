@@ -7,6 +7,7 @@ import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { CerrarAlerta, LiberarTelefono } from "./liberar-telefono";
 import ResolverAlerta from "./resolver-alerta";
 import { CerrarAlertaCredito } from "./cerrar-credito";
+import { ConfirmarPaginaNotion } from "./confirmar-notion";
 
 export const metadata = { title: "Alertas — Tasa" };
 
@@ -76,6 +77,13 @@ export default async function Alertas({ searchParams }: { searchParams: Promise<
   const comisionistas = new Set(idsCupo.length
     ? ((await supabase.from("comisionistas").select("persona_id").in("persona_id", idsCupo)).data ?? []).map((c: { persona_id: string }) => c.persona_id)
     : []);
+  // Páginas de Notion por confirmar (0087): las parecidas de cada propuesta, para ligar o crear una nueva (solo admin_org).
+  const propuestas = new Map(
+    persona.rol === "admin_org" && alertas.some((a) => a.tipo === "notion_pagina_propuesta")
+      ? (((await supabase.rpc("propuestas_notion")).data ?? []) as { persona_id: string; nombre: string; candidatos: { id: string; nombre: string }[] }[])
+          .map((p) => [p.persona_id, p] as const)
+      : []
+  );
   const ligaCupo = (codigo: string | null) => {
     const pid = codigo?.split(":")[0] ?? "";
     return comisionistas.has(pid) ? `/admin/comisionistas/${pid}?tab=accesos` : `/admin/accesos/${pid}`;
@@ -126,11 +134,17 @@ export default async function Alertas({ searchParams }: { searchParams: Promise<
                   Mientras tanto, su tarjeta sigue con el perfil anterior.
                 </p>
               ) : a.tipo === "notion_pagina_propuesta" ? (
+                <>
                 <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
                   {persona.rol === "admin_org" ? "Confírmala en " : "La confirma Administración en "}
                   <Link href={`/admin/comisionistas/${a.codigo}`} className="font-semibold text-acento underline underline-offset-4">su ficha</Link>
                   {" "}(Página en Notion): busca su nombre y liga la que es, o créala. Se cierra sola al ligarla.
                 </p>
+                {a.codigo && propuestas.get(a.codigo) ? (
+                  <ConfirmarPaginaNotion personaId={a.codigo} nombre={propuestas.get(a.codigo)!.nombre}
+                    candidatos={propuestas.get(a.codigo)!.candidatos} />
+                ) : null}
+                </>
               ) : a.tipo === "notion_sin_pagina" ? (
                 <p className="mt-2 text-[0.9375rem] leading-6 text-secundario">
                   {persona.rol === "admin_org" ? "Lígalo en " : "Lo liga Administración en "}

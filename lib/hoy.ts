@@ -62,7 +62,7 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
     ...(staff ? [{ grupo: "decidir" as const, texto: "Solicitudes de alta", cuenta: p.altas, href: "/admin/altas" }] : []),
     { grupo: "decidir", texto: "Piden más cupo", cuenta: cuenta(TIPOS_CUPO), href: "/admin/alertas" },
     { grupo: "decidir", texto: "Páginas de Notion por confirmar", cuenta: cuenta(TIPOS_PROPUESTA), href: "/admin/alertas",
-      detalle: "Altas nuevas con un nombre parecido en Ext Comisionistas" },
+      detalle: "Comisionistas con un nombre parecido en Ext Comisionistas" },
     { grupo: "decidir", texto: "Créditos no aplicados", cuenta: cuenta(TIPOS_CREDITO), href: "/admin/alertas", detalle: "Pidieron pagar con crédito y no se pudo" },
     ...(persona.rol === "admin_org" ? [{ grupo: "decidir" as const, texto: "Testimonios por aprobar", cuenta: p.testimonios, href: "/admin/testimonios" }] : []),
     ...(staff && p.cierre.estado !== "aprobado"

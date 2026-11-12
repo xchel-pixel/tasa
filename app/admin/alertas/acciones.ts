@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirRol } from "@/lib/sesion";
+import { conectorDeLaOrg } from "@/lib/conectores/desde-app";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
 export type EstadoAlerta = { error: string | null; mensaje: string | null };
@@ -66,4 +67,38 @@ export async function cerrarAlerta(_previo: EstadoAlerta, formData: FormData): P
   if (error) return { error: error.message || "No se pudo cerrar.", mensaje: null };
   revalidatePath("/admin/alertas");
   return { error: null, mensaje: "Alerta cerrada." };
+}
+
+/**
+ * "Páginas de Notion por confirmar" (0087), solo admin_org:
+ *   · ligar: la parecida que sí es esa persona;
+ *   · nueva: no es la misma persona. Tasa crea la página con el nombre que tiene en Tasa (leído aquí, no del formulario),
+ *     la liga y descarta las parecidas para no volver a proponerlas.
+ */
+export async function confirmarPaginaNotion(_previo: EstadoAlerta, formData: FormData): Promise<EstadoAlerta> {
+  const yo = await exigirRol("admin_org");
+  const supabase = await crearClienteServidor();
+  const persona = String(formData.get("persona") ?? "");
+  if (formData.get("accion") === "ligar") {
+    const nombre = String(formData.get("nombre") ?? "");
+    const { error } = await supabase.rpc("ligar_pagina_notion", { p_persona: persona, p_pagina: String(formData.get("pagina") ?? ""), p_nombre: nombre });
+    if (error) return { error: error.message || "No se pudo ligar.", mensaje: null };
+    revalidatePath("/admin/alertas");
+    return { error: null, mensaje: `Ligado a "${nombre}" en Notion.` };
+  }
+  const { data: propuesta } = await supabase.rpc("propuestas_notion").eq("persona_id", persona)
+    .maybeSingle<{ persona_id: string; nombre: string; candidatos: unknown }>();
+  if (!propuesta) return { error: "Esa propuesta ya no está abierta.", mensaje: null };
+  const r = await conectorDeLaOrg(yo.organizacion.id);
+  if ("error" in r) return { error: r.error, mensaje: null };
+  let pagina: { id: string; nombre: string };
+  try {
+    pagina = await r.conector.crearComisionista(propuesta.nombre);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Notion no creó la página.", mensaje: null };
+  }
+  const { error } = await supabase.rpc("ligar_pagina_nueva_descartando", { p_persona: persona, p_pagina: pagina.id, p_nombre: pagina.nombre });
+  if (error) return { error: `Se creó "${pagina.nombre}" en Notion pero no se pudo ligar (${error.message}). Lígala en su ficha.`, mensaje: null };
+  revalidatePath("/admin/alertas");
+  return { error: null, mensaje: `Página nueva creada en Notion y ligada: "${pagina.nombre}". Las parecidas ya no se volverán a proponer.` };
 }
