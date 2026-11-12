@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import type { Map as MapaGL, GeoJSONSource, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { fechaLegible, seccionesDeFicha } from "@/lib/catastro/etiquetas";
-import { estiloMapa, ZOOM_PREDIOS } from "@/lib/catastro/estilo";
+import { detectarBusqueda, enQueretaro, SUBDIRECCIONES, textoDelTipo } from "@/lib/catastro/busqueda";
+import { CAPAS_NOMBRES, estiloMapa, ZOOM_PREDIOS } from "@/lib/catastro/estilo";
 import { caja, ligaMaps, ligaVisor, type Geometria } from "@/lib/catastro/geo";
 import { NOTA_FUENTE } from "@/lib/catastro/textos";
 import type { Ficha, Resultado } from "@/lib/catastro/servicio";
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import { PedirMasDxf } from "@/components/formularios-dxf";
-import { buscarClave, picarMapa } from "./acciones";
+import { buscarClave, buscarEnMapa, picarMapa, registrarBusquedaDomicilio, type ResultadoBusqueda } from "./acciones";
 
 const CENTRO: [number, number] = [-100.3899, 20.5888]; // Querétaro
 const ENTRADA = "w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento";
@@ -25,6 +26,27 @@ function token(nombre: string): string {
 
 const vacio = { type: "FeatureCollection" as const, features: [] };
 
+/** Una sugerencia de domicilio (Mapbox Geocoding v6): solo para centrar el mapa, no se guarda. */
+type Sugerencia = { id: string; nombre: string; detalle: string; lat: number; lon: number };
+const GUARDA_CALLES = "tasa.mapa.nombres_de_calles";
+
+/** Domicilios en Querétaro mientras escribe (con pausa: no pide con cada letra). Sin texto guardado en ningún lado. */
+async function sugerirDomicilios(texto: string, token: string, senal: AbortSignal): Promise<Sugerencia[]> {
+  const q = new URLSearchParams({ q: texto, autocomplete: "true", country: "mx", language: "es", limit: "5",
+    bbox: "-100.6,20.0,-99.0,21.7", proximity: "-100.3899,20.5888", access_token: token });
+  const r = await fetch(`https://api.mapbox.com/search/geocode/v6/forward?${q}`, { signal: senal });
+  if (!r.ok) throw new Error(`HTTP${r.status}`);
+  const j = (await r.json()) as { features?: { id?: string; properties?: { name?: string; place_formatted?: string; full_address?: string;
+    coordinates?: { latitude?: number; longitude?: number } } }[] };
+  return (j.features ?? []).flatMap((x, i) => {
+    const c = x.properties?.coordinates;
+    const lat = Number(c?.latitude);
+    const lon = Number(c?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !enQueretaro(lat, lon)) return [];
+    return [{ id: x.id ?? String(i), nombre: x.properties?.name ?? x.properties?.full_address ?? "", detalle: x.properties?.place_formatted ?? "", lat, lon }];
+  });
+}
+
 /** DXF (0065): si está autorizada y cuánto le queda; saldo nulo = sin límite. */
 type Dxf = { autorizado: boolean; sin_limite: boolean; saldo: number | null };
 
@@ -36,6 +58,11 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
   lineas: boolean;
 }) {
   const [verLineas, setVerLineas] = useState(true);
+  const [verCalles, setVerCalles] = useState(true);
+  const [subdireccion, setSubdireccion] = useState("14");
+  const [buscadas, setBuscadas] = useState<{ para: string; lista: Sugerencia[] }>({ para: "", lista: [] });
+  const [folioNoEncontrado, setFolioNoEncontrado] = useState(false);
+  const selectorSub = useRef<HTMLSelectElement>(null);
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaGL | null>(null);
   const marcador = useRef<Marker | null>(null);
@@ -91,6 +118,59 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
   const buscar = (forzar: boolean, texto = clave) =>
     empezar(async () => mostrar(await buscarClave(texto, forzar), true));
 
+  const tipo = detectarBusqueda(clave);
+
+  // La caja única: el domicilio va por sugerencias; lo demás lo resuelve el servidor.
+  function buscarCaja() {
+    setFolioNoEncontrado(false);
+    if (tipo.tipo === "domicilio") {
+      if (sugerencias[0]) elegir(sugerencias[0]);
+      else setError("No encontré ese domicilio en Querétaro. Revisa cómo está escrito o pica el terreno en el mapa.");
+      return;
+    }
+    empezar(async () => {
+      const r: ResultadoBusqueda = await buscarEnMapa(clave, subdireccion);
+      const m = mapa.current;
+      if (m && r.punto && enQueretaro(r.punto.lat, r.punto.lon)) {
+        marcador.current?.setLngLat([r.punto.lon, r.punto.lat]).addTo(m);
+        if (!r.ok) m.flyTo({ center: [r.punto.lon, r.punto.lat], zoom: 18 });
+      }
+      setFolioNoEncontrado(Boolean(r.folioNoEncontrado));
+      mostrar(r, true);
+    });
+  }
+
+  function elegir(s: Sugerencia) {
+    setBuscadas({ para: "", lista: [] });
+    setClave([s.nombre, s.detalle].filter(Boolean).join(", "));
+    setFicha(null);
+    setError(null);
+    setAviso("Toca el terreno para consultarlo.");
+    const m = mapa.current;
+    if (m) {
+      marcador.current?.setLngLat([s.lon, s.lat]).addTo(m);
+      m.flyTo({ center: [s.lon, s.lat], zoom: 18 });
+    }
+    registrarBusquedaDomicilio().catch(() => {});
+  }
+
+  // Sugerencias de domicilio mientras escribe: 3 letras o más y una pausa de 350 ms.
+  const textoDomicilio = tipo.tipo === "domicilio" && tipo.texto.length >= 3 ? tipo.texto : "";
+  // Solo se muestran las sugerencias del texto que está escrito (las de un texto anterior se ignoran).
+  const sugerencias = buscadas.para === textoDomicilio && textoDomicilio ? buscadas.lista : [];
+  useEffect(() => {
+    if (!textoDomicilio || !tokenMapbox) return;
+    const corte = new AbortController();
+    const espera = setTimeout(() => {
+      sugerirDomicilios(textoDomicilio, tokenMapbox, corte.signal)
+        .then((lista) => setBuscadas({ para: textoDomicilio, lista }), () => setBuscadas({ para: textoDomicilio, lista: [] }));
+    }, 350);
+    return () => {
+      clearTimeout(espera);
+      corte.abort();
+    };
+  }, [textoDomicilio, tokenMapbox]);
+
   useEffect(() => {
     let vivo = true;
     (async () => {
@@ -101,7 +181,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
         center: CENTRO,
         zoom: 13,
         maxZoom: 21,
-        // La atribución la pone la pantalla (solo © Mapbox © Maxar), sin el control de MapLibre.
+        // La atribución la pone la pantalla (© Mapbox © OpenStreetMap © Maxar), sin el control de MapLibre.
         attributionControl: false,
         style: estiloMapa({ token: tokenMapbox, lineas, origen: location.origin, contorno: token("--acento"), relleno: token("--mapa-relleno") }),
       });
@@ -116,6 +196,11 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
         empezar(async () => mostrar(await picarMapa(lat, lng), false));
       });
       m.on("load", () => {
+        try {
+          if (localStorage.getItem(GUARDA_CALLES) === "no") setVerCalles(false);
+        } catch {
+          // Sin almacenamiento (ventana privada): se queda encendido.
+        }
         mapa.current = m;
         setListo(true);
       });
@@ -134,6 +219,20 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
   useEffect(() => {
     if (listo && lineas) mapa.current?.setLayoutProperty("predios", "visibility", verLineas ? "visible" : "none");
   }, [listo, lineas, verLineas]);
+
+  // "Nombres de calles": encendido por omisión; la elección se recuerda en este navegador (se lee al cargar el mapa).
+  useEffect(() => {
+    if (!listo) return;
+    for (const capa of CAPAS_NOMBRES) mapa.current?.setLayoutProperty(capa, "visibility", verCalles ? "visible" : "none");
+  }, [listo, verCalles]);
+  function cambiarCalles(si: boolean) {
+    setVerCalles(si);
+    try {
+      localStorage.setItem(GUARDA_CALLES, si ? "si" : "no");
+    } catch {
+      // Sin almacenamiento: vale solo para esta visita.
+    }
+  }
 
   // ?clave= en la liga: se busca al abrir.
   const yaBuscada = useRef(false);
@@ -178,11 +277,35 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
 
   return (
     <section className="mt-4">
-      <form onSubmit={(e) => { e.preventDefault(); buscar(false); }} className="flex gap-2 px-2">
-        <label htmlFor="clave" className="sr-only">Clave catastral</label>
-        <input id="clave" value={clave} onChange={(e) => setClave(e.target.value)} inputMode="numeric" maxLength={30}
-          placeholder="Clave catastral (15 dígitos)" className={ENTRADA} />
-        <button type="submit" disabled={ocupado} className="min-h-11 shrink-0 rounded-lg bg-primario px-4 font-semibold text-sobre-primario disabled:opacity-60">Buscar</button>
+      <form onSubmit={(e) => { e.preventDefault(); buscarCaja(); }} className="relative px-2">
+        <div className="flex gap-2">
+          <label htmlFor="clave" className="sr-only">Buscar en el mapa</label>
+          <input id="clave" value={clave} onChange={(e) => { setClave(e.target.value); setFolioNoEncontrado(false); }} maxLength={2000}
+            autoComplete="off" enterKeyHint="search" placeholder="Clave, domicilio, coordenadas, liga de Maps o folio" className={ENTRADA} />
+          <button type="submit" disabled={ocupado} className="min-h-11 shrink-0 rounded-lg bg-primario px-4 font-semibold text-sobre-primario disabled:opacity-60">Buscar</button>
+        </div>
+        {sugerencias.length ? (
+          <ul className="absolute left-2 right-2 z-20 mt-1 overflow-hidden rounded-xl border border-linea bg-fondo shadow-lg" aria-label="Domicilios sugeridos">
+            {sugerencias.map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => elegir(s)} className="w-full border-b border-linea px-3 py-2 text-left">
+                  <span className="block text-[0.9375rem] font-semibold">{s.nombre}</span>
+                  {s.detalle ? <span className="block text-[0.8125rem] text-secundario">{s.detalle}</span> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {textoDelTipo(tipo) ? <p className="mt-1 text-[0.8125rem] text-secundario">Se busca como: {textoDelTipo(tipo)}</p> : null}
+        {tipo.tipo === "folio" ? (
+          <label className="mt-2 flex items-center gap-2 text-[0.9375rem]">
+            Subdirección
+            <select ref={selectorSub} value={subdireccion} onChange={(e) => { setSubdireccion(e.target.value); setFolioNoEncontrado(false); }}
+              className="min-h-11 flex-1 rounded-lg border border-borde-campo bg-fondo px-3 text-[1rem]">
+              {SUBDIRECCIONES.map((s) => <option key={s.clave} value={s.clave}>{s.nombre}</option>)}
+            </select>
+          </label>
+        ) : null}
       </form>
       <div className="mt-2 flex items-center justify-between gap-2 px-2">
         <button type="button" onClick={miUbicacion} className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mi ubicación</button>
@@ -190,6 +313,10 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
           {ocupado ? "Consultando…" : lineas && verLineas && zoom < ZOOM_PREDIOS ? "Acércate para ver las líneas" : zoom < 16 ? "Acércate y pica un terreno" : "Pica un terreno"}
         </span>
       </div>
+      <label className="mt-1 flex items-center gap-2 px-2 text-[0.9375rem]">
+        <input type="checkbox" checked={verCalles} onChange={(e) => cambiarCalles(e.target.checked)} className="h-5 w-5 accent-primario" />
+        Nombres de calles
+      </label>
       {lineas ? (
         <label className="mt-1 flex items-center gap-2 px-2 text-[0.9375rem]">
           <input type="checkbox" checked={verLineas} onChange={(e) => setVerLineas(e.target.checked)} className="h-5 w-5 accent-primario" />
@@ -199,12 +326,21 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
 
       <div className="relative mt-2">
         <div ref={contenedor} className="h-[60vh] min-h-80 w-full overflow-hidden rounded-xl border border-linea bg-alterno" aria-label="Mapa satelital" />
-        <span className="pointer-events-none absolute bottom-1 right-2 rounded bg-fondo/80 px-1.5 text-[0.6875rem] text-secundario">© Mapbox © Maxar</span>
+        <span className="absolute bottom-1 right-2 rounded bg-fondo/80 px-1.5 text-[0.6875rem] text-secundario">
+          <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener noreferrer">© Mapbox</a>{" "}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a> © Maxar
+        </span>
       </div>
       {!tokenMapbox ? <p className="mt-2 px-2 text-[0.875rem] text-error">Falta configurar el mapa satelital.</p> : null}
       <p className="mt-2 rounded-lg bg-tinte px-3 py-2 text-[0.875rem] font-semibold leading-5">{NOTA_FUENTE}</p>
 
       {error ? <p role="alert" className="mt-3 rounded-xl bg-error-fondo px-4 py-3 text-[0.9375rem] leading-6 text-error">{error}</p> : null}
+      {folioNoEncontrado ? (
+        <button type="button" onClick={() => { selectorSub.current?.scrollIntoView({ block: "center" }); selectorSub.current?.focus(); }}
+          className={`mt-2 w-full ${BOTON}`}>
+          Buscar en otra subdirección
+        </button>
+      ) : null}
       {aviso ? <p role="status" className="mt-3 rounded-xl bg-proceso-fondo px-4 py-3 text-[0.9375rem] leading-6 text-proceso">{aviso}</p> : null}
 
       {ficha ? (

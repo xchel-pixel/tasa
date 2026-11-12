@@ -32,7 +32,7 @@ export default async function MapaCatastralPagina({ searchParams }: { searchPara
             <VolverPortada />
             <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Mapa catastral</h1>
             <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
-              Pica un terreno o busca por clave.{equipo ? " Las líneas de los predios aparecen al acercarte a nivel de calle." : ""}
+              Pica un terreno o búscalo por clave, domicilio, coordenadas, liga de Google Maps o folio real.{equipo ? " Las líneas de los predios aparecen al acercarte a nivel de calle." : ""}
             </p>
             <p className="mt-1 text-[0.875rem] text-secundario">
               Consultas del mes: {textoCupo(cupo).replace(/^Te quedan/, "te quedan").replace(/^Sin límite/, "sin límite")}. Un predio ya guardado no cuenta.

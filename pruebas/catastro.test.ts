@@ -431,8 +431,8 @@ describe("Capa de predios solo para el equipo", () => {
   test("comisionista y admin_marca: el estilo del mapa no tiene la capa, así que el navegador nunca pide sus mosaicos", async () => {
     const { estiloMapa } = await import("@/lib/catastro/estilo");
     const e = estiloMapa({ ...base, lineas: false });
-    expect(Object.keys(e.sources)).toEqual(["satelite", "seleccion"]);
-    expect(e.layers.map((l) => l.id)).toEqual(["satelite", "seleccion-relleno", "seleccion-borde"]);
+    expect(Object.keys(e.sources)).toEqual(["satelite", "calles", "seleccion"]);
+    expect(e.layers.map((l) => l.id)).toEqual(["satelite", "nombres-colonias", "nombres-calles", "seleccion-relleno", "seleccion-borde"]);
     const texto = JSON.stringify(e);
     for (const x of ["/mapa-catastral/predios", "catastroedo", "IDECATQ", "attribution"]) expect(texto).not.toContain(x);
   });
@@ -451,10 +451,28 @@ describe("Capa de predios solo para el equipo", () => {
     expect(css).toMatch(/--mapa-relleno:\s*#5aa9e6/i);
   });
 
+  test("nombres de calles: solo etiquetas (sin dibujar calles), en español, calles desde zoom 15 y colonias desde 14, debajo del predio elegido", async () => {
+    const { estiloMapa } = await import("@/lib/catastro/estilo");
+    const e = estiloMapa({ ...base, lineas: true });
+    const deCalles = e.layers.filter((l) => "source" in l && l.source === "calles") as { id: string; type: string; minzoom?: number; layout: Record<string, unknown>;
+      paint: Record<string, unknown> }[];
+    expect(deCalles.map((l) => [l.id, l.type, l.minzoom])).toEqual([["nombres-colonias", "symbol", 14], ["nombres-calles", "symbol", 15]]);
+    for (const l of deCalles) {
+      expect(JSON.stringify(l.layout["text-field"])).toContain("name_es");
+      expect([l.paint["text-color"], l.paint["text-halo-color"]]).toEqual(["#ffffff", "rgba(0, 0, 0, 0.85)"]);
+    }
+    const ids = e.layers.map((l) => l.id);
+    expect(ids.indexOf("nombres-calles")).toBeGreaterThan(ids.indexOf("predios"));
+    expect(ids.indexOf("nombres-calles")).toBeLessThan(ids.indexOf("seleccion-relleno"));
+    // La fuente no pide mosaicos abajo de 14 ni arriba de 16.
+    expect(e.sources.calles).toMatchObject({ type: "vector", minzoom: 14, maxzoom: 16 });
+    expect(e.glyphs).toContain("api.mapbox.com/fonts/v1/mapbox/");
+  });
+
   test("la pantalla del mapa no nombra la fuente ni usa el control de atribución de MapLibre", () => {
     const pantalla = readFileSync(join(import.meta.dirname, "..", "app", "mapa-catastral", "mapa.tsx"), "utf8");
     expect(pantalla).not.toMatch(/catastroedo|IDECATQ|AttributionControl/);
-    expect(pantalla).toContain("© Mapbox © Maxar");
+    for (const x of ["© Mapbox", "© OpenStreetMap", "© Maxar"]) expect(pantalla).toContain(x);
     const pagina = readFileSync(join(import.meta.dirname, "..", "app", "mapa-catastral", "page.tsx"), "utf8");
     expect(pagina).not.toMatch(/IDECATQ|catastroedo|Consultas a catastro/);
   });

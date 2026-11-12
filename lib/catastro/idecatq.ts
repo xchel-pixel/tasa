@@ -98,3 +98,42 @@ export async function consultarExpediente(clave: string): Promise<RespuestaExped
     return { ok: false };
   }
 }
+
+/**
+ * Folio real → clave catastral (BuscaRPPC, la búsqueda por folio del visor público). La subdirección del Registro
+ * Público ("ads": 14 Querétaro, 16 San Juan del Río, 1 Amealco, 4 Cadereyta, 9 Jalpan) es lo que cuenta; el municipio
+ * no cambia el resultado. La respuesta trae propietario, colindancias y más: de ahí SOLO se toma la clave, lo demás se
+ * descarta aquí mismo, sin guardarlo ni escribirlo en registros.
+ */
+export type RespuestaFolio = { ok: true; clave: string | null } | { ok: false };
+
+export function folioDeRespuesta(json: unknown): RespuestaFolio {
+  if (!json || typeof json !== "object") return { ok: false };
+  const r = json as { ok?: unknown; clave_catastral?: unknown };
+  const clave = String(r.clave_catastral ?? "").replace(/[^0-9]/g, "");
+  return { ok: true, clave: r.ok === true && /^(0[1-9]|1[0-8])[0-9]{13}$/.test(clave) ? clave : null };
+}
+
+export async function buscarFolioReal(folio: string, subdireccion: string): Promise<RespuestaFolio> {
+  try {
+    const r = await fetch(`${BASE}/Qsig/BuscaRPPC`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
+      body: new URLSearchParams({ folio, mun: subdireccion.padStart(2, "0"), ads: subdireccion }),
+      signal: AbortSignal.timeout(LIMITE_MS),
+    });
+    if (!r.ok) throw new Error(`HTTP${r.status}`);
+    const texto = await r.text();
+    let json: unknown = null;
+    try {
+      json = JSON.parse(texto);
+    } catch {
+      throw new Error("NoJson");
+    }
+    return folioDeRespuesta(json);
+  } catch (e) {
+    falla("folio", e);
+    return { ok: false };
+  }
+}

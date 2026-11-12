@@ -6042,6 +6042,66 @@ end;
 $sec$;
 
 
+-- @@ Caja única del mapa: búsquedas, folio real y tope del día
+-- 0088: cada búsqueda queda en eventos_uso con su tipo (sin lo escrito). El folio se busca primero en lo guardado; ir
+-- a la fuente por un folio no gasta el cupo del mes pero sí cuenta para el tope de 200 al día.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  antes integer;
+begin
+  perform pg_temp.sistema();
+  update herramientas set activa = true where organizacion_id = xg and clave = 'mapa_catastral'; -- otra sección la apagó
+  insert into catastro_predios (clave, municipio, extra, consultado_en, consultado_org, demo)
+  values ('140100199999001', '14', '{"folio_real": "00123456, 765"}', now(), xg, false)
+  on conflict (clave) do update set extra = excluded.extra, demo = false;
+
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_folio_guardado('123456'), '140100199999001', 'El folio se encuentra en lo guardado (sin ceros a la izquierda)');
+  perform pg_temp.igual(catastro_folio_guardado('765'), '140100199999001', 'También el segundo folio de la lista');
+  perform pg_temp.igual(catastro_folio_guardado('999'), null::text, 'Uno que no está: nulo');
+
+  -- El registro: solo el tipo. Un tipo raro no entra.
+  perform catastro_registrar_busqueda('domicilio', null, 'ok');
+  perform pg_temp.debe_fallar($q$select catastro_registrar_busqueda('texto libre', null, 'ok')$q$, 'Búsqueda inválida', 'Solo los cinco tipos');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select codigo || ' ' || coalesce(clave, '-') || ' ' || coalesce(referencia, '-') from eventos_uso
+                          where persona_id = ana and evento = 'busqueda' order by id desc limit 1), 'domicilio - -',
+    'Queda el tipo, sin lo escrito');
+
+  -- Folio a la fuente: no gasta el cupo del mes, sí cuenta para el tope del día.
+  antes := (select usados from cupo_de(xg, ana, 'mapa_catastral'));
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform catastro_registrar_busqueda('folio', 'fuente', 'sin_predio', '16');
+  perform pg_temp.sistema();
+  -- Las pruebas fijan hoy_mx(): el evento se pasa a ese día.
+  update eventos_uso set creado_en = (hoy_mx() + time '12:00') at time zone 'America/Mexico_City'
+   where persona_id = ana and evento = 'busqueda' and codigo = 'folio';
+  perform pg_temp.igual((select usados from cupo_de(xg, ana, 'mapa_catastral')), antes, 'Buscar un folio no gasta el cupo del mes');
+  perform pg_temp.igual(catastro_folios_hoy(xg, ana), 1, 'Pero cuenta para el tope del día');
+  perform pg_temp.igual((select referencia from eventos_uso where persona_id = ana and codigo = 'folio' order by id desc limit 1), '16',
+    'Con su subdirección');
+
+  -- Con 199 consultas del día más ese folio, llega al tope: ni consulta ni busca folio.
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo, creado_en)
+  select xg, ana, 'mapa_catastral', 'consulta', (hoy_mx() + time '12:00') at time zone 'America/Mexico_City'
+    from generate_series(1, 199 - (select count(*)::int from usos_herramienta where persona_id = ana and herramienta = 'mapa_catastral'
+                                     and (creado_en at time zone 'America/Mexico_City')::date = hoy_mx()));
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_pedir_busqueda_folio(), 'Llegaste al tope de seguridad de 200 consultas al día. Mañana se reinicia.',
+    'Folio: se detiene en el tope del día');
+  perform pg_temp.igual(catastro_impedimento(), 'Llegaste al tope de seguridad de 200 consultas al día. Mañana se reinicia.',
+    'Y la consulta también (el folio contó)');
+  perform pg_temp.sistema();
+  delete from usos_herramienta where persona_id = ana and herramienta = 'mapa_catastral'
+     and (creado_en at time zone 'America/Mexico_City')::date = hoy_mx();
+  update herramientas set activa = false where organizacion_id = xg and clave = 'mapa_catastral';
+  delete from catastro_predios where clave = '140100199999001';
+end;
+$sec$;
+
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
