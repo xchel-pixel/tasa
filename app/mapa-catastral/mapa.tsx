@@ -386,7 +386,29 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
             ) : (
               <section key={s.id} className="rounded-xl border border-linea bg-fondo px-4 py-3">
                 <h3 className="font-semibold">{s.titulo}</h3>
-                {filas}
+                {s.tablas?.map((t, k) => (
+                  <div key={k} className="mt-2">
+                    {t.nota ? <p className="mb-2 whitespace-pre-line text-[0.875rem] text-secundario">{t.nota}</p> : null}
+                    <table className="w-full border-collapse text-left text-[0.875rem] leading-5">
+                      <thead>
+                        <tr className="border-b border-linea text-[0.8125rem] text-secundario">
+                          {t.encabezados.map((e) => <th key={e} scope="col" className="py-1 pr-2 font-semibold">{e}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {t.filas.map((fila, i) => (
+                          <tr key={i} className="border-b border-linea align-top last:border-b-0">
+                            {fila.map((celda, j) => (
+                              <td key={j} className={`py-1.5 pr-2 [overflow-wrap:anywhere] ${j === 0 ? "whitespace-nowrap" : ""}`}>{celda}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {t.pie ? <p className="mt-2 text-[0.875rem] font-semibold">{t.pie}</p> : null}
+                  </div>
+                ))}
+                {s.filas.length ? filas : null}
                 {maps}
               </section>
             );

@@ -1,6 +1,7 @@
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import type { Campo } from "./limpiar";
 import { superficieDelPoligono } from "./geo";
+import { ladosDelPoligono, leerColindancias, textoMedida } from "./colindancias";
 import type { Ficha } from "./servicio";
 
 /**
@@ -137,7 +138,10 @@ export function valorLegible(campo: string, valor: unknown): string | null {
   return String(valor).replace(/,?\s*CP\s*-+(?=,|$)/g, "").replace(/^\s*-+\s*$/, "").trim() || null;
 }
 
-export type IdSeccion = "identificacion" | "ubicacion" | "superficies" | "valores" | "medidas" | "registro" | "propietario" | "historial";
+export type IdSeccion = "identificacion" | "ubicacion" | "superficies" | "valores" | "medidas" | "poligono" | "registro" | "propietario" | "historial";
+
+/** Una tabla dentro de una sección (medidas y colindancias, lados del polígono). */
+export type TablaFicha = { encabezados: string[]; filas: string[][]; nota?: string | null; pie?: string | null };
 
 /** Las secciones de la ficha, en orden. `equipo`: se ve plegada por omisión (solo la ve quien tiene esos campos). */
 export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos: Campo[] }[] = [
@@ -150,7 +154,8 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
     campos: ["valor_terreno", "valor_construccion", "valor_catastral_total", "fecha_validez", "codigo_valor", "valor_terreno_privativo",
              "valor_terreno_comun", "valor_construccion_privativa", "valor_construccion_comun", "valor_terreno_anterior",
              "valor_construccion_anterior"] },
-  { id: "medidas", titulo: "Medidas y colindancias", equipo: false, campos: ["rppc_medid_colind", "rppc_medidas"] },
+  { id: "medidas", titulo: "Medidas y colindancias (Registro Público)", equipo: false, campos: ["rppc_medid_colind", "rppc_medidas"] },
+  { id: "poligono", titulo: "Medidas del polígono (catastro)", equipo: false, campos: [] },
   { id: "registro", titulo: "Datos del registro", equipo: true,
     campos: ["folio_real", "uso", "clasificacion", "clave_anterior", "clave_estandar", "clave_original", "tipo_predio", "estatus",
              "regimen", "tipo_condominio", "nombre_condominio", "fecha_alta", "fecha_mantenimiento", "manzana", "localidad", "calle",
@@ -164,6 +169,7 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
 
 export type SeccionLista = {
   id: IdSeccion; titulo: string; equipo: boolean; filas: [string, string][];
+  tablas?: TablaFicha[];
   /** Historial: cuántos ajustes del lector hay (se ocultan si no se pidió verlos). */
   ajustes?: number;
 };
@@ -190,8 +196,37 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
   const salida: SeccionLista[] = [];
   for (const s of SECCIONES) {
     let filas: [string, string][] = [];
+    const tablas: TablaFicha[] = [];
+    let titulo = s.titulo;
     let ajustes = 0;
-    if (s.id === "identificacion") {
+    if (s.id === "medidas") {
+      // Tabla Orientación | Medida | Colinda con si se puede leer con seguridad; si no, el texto completo, un renglón por lado.
+      const texto = (k: Campo) => (typeof c[k] === "string" ? (c[k] as string).trim() : "");
+      const mc = texto("rppc_medid_colind");
+      const m = texto("rppc_medidas");
+      const principal = mc || m;
+      if (principal) {
+        const r = leerColindancias(principal);
+        if (r.seguro) {
+          tablas.push({ encabezados: ["Orientación", "Medida (m)", "Colinda con"], nota: r.nota,
+            filas: r.filas.map((x) => [x.orientacion, textoMedida(x.medidas), x.colinda || "—"]) });
+        } else {
+          filas.push([ETIQUETAS[mc ? "rppc_medid_colind" : "rppc_medidas"][0], lineasDeColindancias(principal).join("\n")]);
+        }
+      }
+      // Las "medidas" sueltas solo si dicen algo distinto de las medidas y colindancias.
+      const igual = (a: string, b: string) => a.replaceAll(" ", "").toUpperCase() === b.replaceAll(" ", "").toUpperCase();
+      if (mc && m && !igual(mc, m)) filas.push([ETIQUETAS.rppc_medidas[0], lineasDeColindancias(m).join("\n")]);
+    } else if (s.id === "poligono") {
+      // De la geometría (UTM de la fuente; si no hay, convertida y marcada aproximada). Solo para quien ve las medidas.
+      const p = f.ve_medidas ? ladosDelPoligono(f.geometria, f.geometria_utm) : null;
+      if (p) {
+        if (p.aprox) titulo = `${s.titulo} (aprox.)`;
+        tablas.push({ encabezados: ["Lado", "Orientación", "Largo (m)"],
+          filas: p.lados.map((x) => [String(x.lado), x.orientacion, n2(x.largo)]),
+          pie: p.superficie ? `Superficie del polígono${p.aprox ? " (aprox.)" : ""}: ${n2(p.superficie)} m²` : null });
+      }
+    } else if (s.id === "identificacion") {
       filas = [["Clave catastral", f.clave], ["Municipio", municipioPorClave(f.clave) ?? f.municipio]];
     } else if (s.id === "ubicacion") {
       const dir = valorLegible("ubicacion", c.ubicacion) ?? direccionDePartes(c);
@@ -230,7 +265,9 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
         filas.splice(tras, 0, [p.aprox ? "Superficie del polígono (aprox.)" : "Superficie del polígono", `${n2(p.m2)} m²`]);
       }
     }
-    if (filas.length || ajustes) salida.push({ id: s.id, titulo: s.titulo, equipo: s.equipo, filas, ...(s.id === "historial" ? { ajustes } : {}) });
+    if (filas.length || tablas.length || ajustes) {
+      salida.push({ id: s.id, titulo, equipo: s.equipo, filas, ...(tablas.length ? { tablas } : {}), ...(s.id === "historial" ? { ajustes } : {}) });
+    }
   }
   return salida;
 }

@@ -336,7 +336,7 @@ describe("Punto del predio, secciones y prellenado", () => {
     const enSecciones = SECCIONES.flatMap((s) => s.campos);
     expect([...enSecciones].sort()).toEqual([...CAMPOS].sort());
     expect(new Set(enSecciones).size).toBe(enSecciones.length);
-    expect(SECCIONES.map((s) => s.titulo)).toEqual(["Identificación", "Ubicación", "Superficies", "Valores catastrales", "Medidas y colindancias",
+    expect(SECCIONES.map((s) => s.titulo)).toEqual(["Identificación", "Ubicación", "Superficies", "Valores catastrales", "Medidas y colindancias (Registro Público)", "Medidas del polígono (catastro)",
       "Datos del registro", "Propietario y operación", "Historial de cambios"]);
   });
 

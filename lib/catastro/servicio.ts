@@ -40,6 +40,8 @@ export type Ficha = {
   privados?: (Omit<Privados, "propietarios"> & { propietarios: Privados["propietarios"]; actualizado_en: string }) | null;
   /** tipo (0067): "ajuste_lector" = el lector de Tasa mejoró, sin cambio en la fuente. */
   historial?: { consultado_en: string; reemplazada_en: string; cambios: string[]; tipo?: "cambio" | "ajuste_lector" }[];
+  /** 0089: el rol ve medidas y colindancias (en pantalla o en PDF), aunque el predio no traiga el texto. */
+  ve_medidas?: boolean;
 };
 
 export type Resultado =

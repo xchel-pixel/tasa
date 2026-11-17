@@ -53,14 +53,15 @@ type Obj = Record<string, unknown>;
 const obj = (x: unknown): Obj => (x && typeof x === "object" && !Array.isArray(x) ? (x as Obj) : {});
 const lista = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
 
-/** Texto limpio, o nulo si viene vacío (los objetos y listas no son texto). */
+/** Texto limpio, o nulo si viene vacío (los objetos y listas no son texto). Sin tope de largo: antes se cortaba a 500
+ *  caracteres y las medidas y colindancias largas quedaban incompletas (nov-2026). */
 function txt(x: unknown): string | null {
   if (typeof x === "number" && Number.isFinite(x)) return String(x);
   if (typeof x !== "string") return null;
   const t = x.replace(/\s+/g, " ").trim();
   // "--" es como la fuente marca un dato vacío; un apóstrofo suelto ("'") también llega en vez de nada.
   const sinComillas = t.replaceAll("'", "").replaceAll("’", "").trim();
-  return t && t !== "null" && !/^-+$/.test(t) && sinComillas ? t.slice(0, 500) : null;
+  return t && t !== "null" && !/^-+$/.test(t) && sinComillas ? t : null;
 }
 
 /** Número (acepta "1,234.50"), o nulo. */
@@ -74,7 +75,7 @@ function num(x: unknown): number | null {
 /** Una lista de cosas sueltas, como texto ("a, b"): de los objetos, solo sus valores sueltos. */
 function textoDeLista(x: unknown): string | null {
   const partes = lista(x).flatMap((e) => (e && typeof e === "object" ? Object.values(e as Obj).map(txt) : [txt(e)])).filter(Boolean);
-  return partes.length ? [...new Set(partes)].join(", ").slice(0, 500) : txt(x);
+  return partes.length ? [...new Set(partes)].join(", ") : txt(x);
 }
 
 /** Solo las llaves pedidas de cada objeto de una lista. */

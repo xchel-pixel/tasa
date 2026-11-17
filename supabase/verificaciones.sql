@@ -3948,6 +3948,14 @@ begin
   perform pg_temp.igual((select string_agg(k, ',' order by k) from jsonb_object_keys(f->'campos') k), 'capa_area,rppc_medid_colind,sup_construccion,sup_terreno,ubicacion,valor_terreno',
     'El comisionista ve dirección, superficies, valores, medidas y colindancias y el área del polígono; no la colonia suelta');
   perform pg_temp.igual(f ? 'privados', false, 'El comisionista no recibe propietarios');
+  perform pg_temp.igual((f->>'ve_medidas')::boolean, true, '0089: la ficha dice que el comisionista ve medidas (para las del polígono)');
+  perform pg_temp.como('xchel@arqosuv.com');
+  update catastro_campos_visibles set en_pantalla = false where rol = 'comisionista' and campo in ('rppc_medid_colind', 'rppc_medidas');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((catastro_ficha('140100000000001')->>'ve_medidas')::boolean, false, '0089: sin medidas en su configuración, tampoco las del polígono');
+  perform pg_temp.como('xchel@arqosuv.com');
+  update catastro_campos_visibles set en_pantalla = true where rol = 'comisionista' and campo = 'rppc_medid_colind';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.igual(f::text like '%Propietaria Secreta%', false, 'El nombre del propietario no aparece en su ficha');
 
   -- Ni por la API directa: sin GRANT, ni select.

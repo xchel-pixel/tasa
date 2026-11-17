@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import type { FuentesPdf } from "@/lib/pdf-cotizacion";
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import { sinSimbolosFaltantes } from "@/lib/traslado/pdf";
-import { fechaLegible, seccionesDeFicha } from "./etiquetas";
+import { fechaLegible, seccionesDeFicha, type TablaFicha } from "./etiquetas";
 import { aUtm, geometriaValida, ligaMaps, type Geometria, type Punto } from "./geo";
 import type { Ficha } from "./servicio";
 import { NOTA_FUENTE } from "./textos";
@@ -28,7 +28,7 @@ export function contenidoPdf(f: Ficha) {
     subtitulo: `Clave catastral ${f.clave} · ${municipio}, Qro. · Consultado el ${fechaLegible(f.consultado_en)}${f.expediente === "pendiente" ? " · expediente incompleto" : ""}`,
     // Las mismas secciones y el mismo orden que la pantalla.
     // Sin los ajustes de lector (0067): un historial que solo tiene eso no sale.
-    secciones: seccionesDeFicha(f).filter((s) => s.filas.length),
+    secciones: seccionesDeFicha(f).filter((s) => s.filas.length || s.tablas?.length),
     croquis: "Croquis del polígono",
     sinPoligono: "Sin polígono disponible.",
     liga: punto ? ligaMaps(punto.lat, punto.lon) : null,
@@ -95,6 +95,40 @@ function tabla(l: Lienzo, filas: [string, string][]) {
     lineas.forEach((r, i) => l.pag.drawText(r, { x: MARGEN + colEtiqueta, y: l.y - tam - i * tam * 1.3, size: tam, font: l.R, color: TINTA }));
     l.y -= alto;
     l.pag.drawLine({ start: { x: MARGEN, y: l.y + 2 }, end: { x: MARGEN + W, y: l.y + 2 }, thickness: 0.4, color: LINEA });
+  }
+}
+
+/**
+ * Tabla de varias columnas (medidas y colindancias, lados del polígono): cada celda se parte en renglones; si una fila
+ * no cabe, pasa a la hoja siguiente y repite los encabezados. Nunca corta texto.
+ */
+function tablaColumnas(l: Lienzo, t: TablaFicha) {
+  const W = ANCHO - 2 * MARGEN, tam = 8.6, salto = tam * 1.3;
+  // Anchos: la última columna (colinda con / largo) toma lo que sobra.
+  const anchos = t.encabezados.length === 3 && t.encabezados[0] === "Lado" ? [50, 110, W - 160] : [85, 150, W - 235];
+  const xs = anchos.map((_, i) => MARGEN + anchos.slice(0, i).reduce((a, b) => a + b, 0));
+  const encabezado = () => {
+    if (l.y < MARGEN + 40) nuevaHoja(l);
+    t.encabezados.forEach((e, i) => l.pag.drawText(l.limpio(e), { x: xs[i], y: l.y - tam, size: tam, font: l.B, color: TENUE }));
+    l.y -= salto + 3;
+    l.pag.drawLine({ start: { x: MARGEN, y: l.y + 2 }, end: { x: MARGEN + W, y: l.y + 2 }, thickness: 0.6, color: LINEA });
+  };
+  if (t.nota) texto(l, t.nota, { tam: 8.2, color: TENUE });
+  encabezado();
+  for (const fila of t.filas) {
+    const celdas = fila.map((c, i) => partir(l.limpio(c), l.R, tam, anchos[i] - 8));
+    const alto = Math.max(...celdas.map((c) => c.length)) * salto + 4;
+    if (l.y - alto < MARGEN + 20) {
+      nuevaHoja(l);
+      encabezado();
+    }
+    celdas.forEach((renglones, i) => renglones.forEach((r, k) => l.pag.drawText(r, { x: xs[i], y: l.y - tam - k * salto, size: tam, font: l.R, color: TINTA })));
+    l.y -= alto;
+    l.pag.drawLine({ start: { x: MARGEN, y: l.y + 2 }, end: { x: MARGEN + W, y: l.y + 2 }, thickness: 0.4, color: LINEA });
+  }
+  if (t.pie) {
+    l.y -= 3;
+    texto(l, t.pie, { tam: 8.8, negrita: true });
   }
 }
 
@@ -190,7 +224,11 @@ export async function pdfPredio(f: Ficha, fuentes: FuentesPdf): Promise<Uint8Arr
     if (l.y < MARGEN + 60) nuevaHoja(l);
     texto(l, s.titulo, { tam: 10, negrita: true });
     l.y -= 2;
-    tabla(l, s.filas);
+    for (const t of s.tablas ?? []) {
+      tablaColumnas(l, t);
+      l.y -= 6;
+    }
+    if (s.filas.length) tabla(l, s.filas);
     l.y -= 10;
   }
   l.y -= 4;
