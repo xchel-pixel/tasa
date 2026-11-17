@@ -188,7 +188,9 @@ export async function pdfPredio(f: Ficha, fuentes: FuentesPdf): Promise<Uint8Arr
   const R = await pdf.embedFont(fuentes.regular, { subset: fuentes.subconjunto });
   const B = await pdf.embedFont(fuentes.negrita, { subset: fuentes.subconjunto });
   const glifos = new Set(R.getCharacterSet());
-  const limpio = (t: string) => sinSimbolosFaltantes(t, (ch) => glifos.has(ch));
+  // Renglón por renglón: el salto de línea no es un glifo de la fuente y, si no, se perdía ("14877.69Área…" pegado).
+  const SALTO = String.fromCharCode(10);
+  const limpio = (t: string) => t.split(SALTO).map((x) => sinSimbolosFaltantes(x, (ch) => glifos.has(ch))).join(SALTO);
   const l: Lienzo = { pdf, pag: pdf.addPage([ANCHO, ALTO]), y: ALTO - MARGEN, R, B, limpio };
   const W = ANCHO - 2 * MARGEN;
 
@@ -220,8 +222,8 @@ export async function pdfPredio(f: Ficha, fuentes: FuentesPdf): Promise<Uint8Arr
   l.y = arriba - altoCroquis - 16;
 
   for (const s of c.secciones) {
-    // Que el título no quede solo al pie de la hoja.
-    if (l.y < MARGEN + 60) nuevaHoja(l);
+    // Que el título (y, con tabla, sus encabezados y primeras filas) no quede solo al pie de la hoja.
+    if (l.y < MARGEN + (s.tablas?.length ? 150 : 60)) nuevaHoja(l);
     texto(l, s.titulo, { tam: 10, negrita: true });
     l.y -= 2;
     for (const t of s.tablas ?? []) {
