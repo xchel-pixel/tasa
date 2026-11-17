@@ -128,18 +128,21 @@ function tramos(rumbo: string, texto: string): FilaColindancia[] | null {
 function recorrido(texto: string): FilaColindancia[] | null {
   const T = texto.toUpperCase();
   if (!T.includes("RUMBO") || !T.includes("DISTANCIA")) return null;
-  // Cortes en "SE CONTINUA" (cada tramo del recorrido), sobre el texto original (mismas posiciones que en mayúsculas).
-  const cortes = [0, ...[...T.matchAll(/SE CONTIN[UÚ]A/g)].map((m) => m.index), texto.length];
+  // Cortes en "(SE) CONTINUA" (cada tramo del recorrido), sobre el texto original (mismas posiciones que en mayúsculas).
+  const cortes = [0, ...[...T.matchAll(/(?:SE )?CONTIN[UÚ]A/g)].map((m) => m.index), texto.length];
   const filas: FilaColindancia[] = [];
   for (let i = 0; i + 1 < cortes.length; i++) {
     const pieza = texto.slice(cortes[i], cortes[i + 1]);
     const P = pieza.toUpperCase();
-    const rumbo = P.match(new RegExp(`RUMBO[ ]+(${RUMBO})`));
-    const medida = P.match(new RegExp(`DISTANCIA[ ]+DE[ ]+(${NUMERO})[ ]*${UNIDAD}`));
+    // Un tramo puede quebrar ("HACE UN QUIEBRE CON RUMBO NORESTE… DISTANCIA DE 22.219 M"): un renglón por rumbo, en orden.
+    // La distancia va rotulada ("DISTANCIA DE 4.645 HASTA…"), así que la unidad puede faltar.
+    const rumbos = [...P.matchAll(new RegExp(`RUMBO[ ]+(${RUMBO})`, "g"))].map((m) => m[1]);
+    const medidas = [...P.matchAll(new RegExp(`DISTANCIA[ ]+DE[ ]+(${NUMERO})`, "g"))].map((m) => aNumero(m[1]));
+    if (!rumbos.length || rumbos.length !== medidas.length) return null;
+    // "SIENDO LOS LINDEROS… Y COLINDA CON…": lo dice una vez para todo el tramo, y vale para sus quiebres.
     const con = P.indexOf("COLINDA CON");
-    if (!rumbo || !medida) return null;
-    filas.push({ orientacion: nombreRumbo(rumbo[1]), medidas: [aNumero(medida[1])],
-      colinda: con >= 0 ? limpiarBordes(pieza.slice(con + "COLINDA CON".length)) : "" });
+    const colinda = con >= 0 ? limpiarBordes(pieza.slice(con + "COLINDA CON".length)) : "";
+    rumbos.forEach((r, k) => filas.push({ orientacion: nombreRumbo(r), medidas: [medidas[k]], colinda }));
   }
   return filas.length >= 2 ? filas : null;
 }
