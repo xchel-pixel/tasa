@@ -6110,6 +6110,43 @@ end;
 $sec$;
 
 
+-- @@ Tope de textos del catastro y kardex de textos completados
+-- 0090: un predio guardado con "(texto recortado por Tasa)" levanta una alerta (una por predio). Completar un texto
+-- que Tasa había cortado a 500 caracteres es ajuste de lector, no cambio de la fuente.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  corto text := repeat('AL NORTE 10.00 M CON LOTE 1; ', 18);
+begin
+  perform pg_temp.sistema();
+  insert into catastro_predios (clave, municipio, extra, consultado_en, consultado_org, demo)
+  values ('140100199999002', '14', jsonb_build_object('rppc_medid_colind', repeat('X', 10000) || ' (texto recortado por Tasa)'), now(), xg, false);
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'catastro_texto_recortado' and codigo = '140100199999002' and resuelta_en is null)::int, 1,
+    'Texto recortado por Tasa: alerta en Hoy');
+  update catastro_predios set extra = extra || '{"uso": "HABITACIONAL"}' where clave = '140100199999002';
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'catastro_texto_recortado' and codigo = '140100199999002')::int, 1,
+    'Una sola alerta abierta por predio');
+  perform pg_temp.igual((select mensaje like '%: rppc_medid_colind.%' from alertas where tipo = 'catastro_texto_recortado' and codigo = '140100199999002'), true,
+    'Dice qué campo');
+
+  -- Kardex: el texto cortado a 500 que se completa es ajuste de lector; si el texto cambió, es cambio.
+  corto := left(corto, 500);
+  perform pg_temp.igual(char_length(corto), 500, 'El texto viejo tiene 500');
+  perform pg_temp.igual(catastro_ajuste_lector(jsonb_build_object('rppc_medid_colind', corto),
+    jsonb_build_object('rppc_medid_colind', corto || ' Y MÁS TEXTO QUE ANTES SE PERDÍA'), array['rppc_medid_colind']), true,
+    'Completar un texto cortado a 500: ajuste de lector');
+  perform pg_temp.igual(catastro_ajuste_lector(jsonb_build_object('rppc_medid_colind', corto),
+    jsonb_build_object('rppc_medid_colind', 'AL SUR ' || corto), array['rppc_medid_colind']), false,
+    'Si el texto cambió: es cambio');
+  perform pg_temp.igual(catastro_ajuste_lector(jsonb_build_object('rppc_medid_colind', left(corto, 300)),
+    jsonb_build_object('rppc_medid_colind', corto), array['rppc_medid_colind']), false,
+    'Uno de menos de 500 que crece: es cambio (no lo cortó Tasa)');
+  delete from catastro_predios where clave = '140100199999002';
+  delete from alertas where codigo = '140100199999002';
+end;
+$sec$;
+
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

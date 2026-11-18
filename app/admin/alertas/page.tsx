@@ -14,7 +14,7 @@ export const metadata = { title: "Alertas — Tasa" };
 type Fila = {
   id: string;
   tipo: "cancelado_externo" | "externo_borrado" | "liga_inactiva" | "estimado_sin_final" | "liga_limite" | "pago_por_entregar" | "externo_solicitado" | "perfil_por_aprobar" | "conector"
-    | "externo_comision" | "notion_sin_pagina" | "notion_pagina_propuesta" | "notion_pago" | "parametros_fiscales" | "cupo_agotado" | "catastro" | "credito_no_aplicado"
+    | "externo_comision" | "notion_sin_pagina" | "notion_pagina_propuesta" | "catastro_texto_recortado" | "notion_pago" | "parametros_fiscales" | "cupo_agotado" | "catastro" | "credito_no_aplicado"
     | "externo_credito";
   codigo: string | null;
   mensaje: string;

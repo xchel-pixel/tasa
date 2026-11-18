@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { ladosDelPoligono, leerColindancias, rumboDeAzimut, textoMedida } from "@/lib/catastro/colindancias";
 import { seccionesDeFicha } from "@/lib/catastro/etiquetas";
-import { limpiarExpediente } from "@/lib/catastro/limpiar";
+import { limpiarExpediente, MARCA_RECORTE, TOPE_TEXTO } from "@/lib/catastro/limpiar";
 import type { Ficha } from "@/lib/catastro/servicio";
 
 /** Textos reales de predios guardados (nov-2026), con los nombres de personas cambiados por PERSONA A, B… */
@@ -95,6 +95,15 @@ describe("medidas y colindancias del Registro Público", () => {
     expect(s.filas).toEqual([]);
   });
 
+  test("tope de seguridad: más de 10,000 caracteres se guarda cortado y marcado", () => {
+    const enorme = "AL NORTE 10.00 M CON LOTE 1; ".repeat(500);
+    const r = limpiarExpediente({ predio: { claveCatastral: "140100141090006", datosRPPC: { medid_colind: enorme } } });
+    const v = String(r?.datos.rppc_medid_colind);
+    expect(v.endsWith(MARCA_RECORTE)).toBe(true);
+    expect(v.length).toBeLessThanOrEqual(TOPE_TEXTO + MARCA_RECORTE.length);
+    expect(enorme.startsWith(v.slice(0, -MARCA_RECORTE.length))).toBe(true);
+  });
+
   test("un texto de más de 500 caracteres de la fuente llega completo (antes se cortaba)", () => {
     const largo = Array.from({ length: 30 }, (_, i) => `AL NORTE ${i + 1}.00 M CON LOTE ${i + 1}`).join("; ");
     expect(largo.length).toBeGreaterThan(500);
@@ -103,7 +112,7 @@ describe("medidas y colindancias del Registro Público", () => {
   });
 });
 
-describe("medidas del polígono (catastro)", () => {
+describe("medidas del polígono (cartografía)", () => {
   test("rumbo por azimut, en ocho direcciones", () => {
     expect([0, 44, 46, 90, 135, 180, 225, 270, 315, 359].map(rumboDeAzimut)).toEqual(["N", "NE", "NE", "E", "SE", "S", "SO", "O", "NO", "N"]);
   });
@@ -117,6 +126,41 @@ describe("medidas del polígono (catastro)", () => {
     expect(Math.round(r.superficie!)).toBe(200);
   });
 
+  test("simplificados: lados casi en línea recta (menos de 3°) o de menos de 20 cm se juntan; el perímetro y la superficie no cambian", () => {
+    // Un rectángulo de 20 × 10 con el lado oeste partido en tres casi rectos (1° de desvío), un pedacito de 5 cm y un
+    // quiebre real de 10° en el lado este.
+    const utm = { type: "Polygon" as const, coordinates: [[
+      [350000, 2280000], [350000.1, 2280006], [350000.05, 2280012], [350000.05, 2280012.05], [350000, 2280020],
+      [350010, 2280020], [350010, 2280010], [350011.76, 2280000], [350000, 2280000]]] as [number, number][][] };
+    const r = ladosDelPoligono(null, utm)!;
+    expect(r.lados).toHaveLength(8);
+    expect(r.simplificados.map((l) => [l.lado, l.orientacion])).toEqual([[1, "N"], [2, "E"], [3, "S"], [4, "S"], [5, "O"]]);
+    const suma = (l: { largo: number }[]) => Math.round(l.reduce((a, b) => a + b.largo, 0) * 1000) / 1000;
+    expect(suma(r.simplificados)).toBe(suma(r.lados));
+    expect(r.simplificados[0].largo).toBeCloseTo(20, 1);
+  });
+
+  test("la ficha muestra los simplificados, con la nota de los originales y todas las filas para \"Ver todos los lados\"", () => {
+    const utm = { type: "Polygon" as const, coordinates: [[[350000, 2280000], [350000, 2280010], [350000, 2280020], [350010, 2280020], [350010, 2280000], [350000, 2280000]]] as [number, number][][] };
+    const f = { clave: "140100117387037", municipio: "14", consultado_en: "2026-11-06T18:00:00Z", expediente: "completo", geometria: null, geometria_utm: utm,
+      latitud: null, longitud: null, campos: {}, ve_medidas: true } as unknown as Ficha;
+    const c = seccionesDeFicha(f).find((x) => x.id === "poligono")!.compacto!;
+    expect(c.items).toEqual(["N 20.00", "E 10.00", "S 20.00", "O 10.00"]);
+    expect(c.todos).toHaveLength(5);
+    expect(c.resumen).toBe("Superficie 200.00 m² · Perímetro 60.00 m · 4 lados");
+    expect(c.nota).toBe("5 lados originales; el DXF conserva la geometría exacta.");
+  });
+
+  test("Copiar: \"AL NORTE: 20.00 m con …\" si está ordenado; el texto completo tal cual si no", () => {
+    const mc = "AL NORTE: EN LINEA QUEBRADA DE TRES TRAMOS DE 20.10 M, 1.50 M Y 26.60 M CON PERSONA A; AL SUR 8.00 M CON CALLE SOR JUANA; AL NORORIENTE CON LOTE 4";
+    const base = { clave: "140100117387037", municipio: "14", consultado_en: "2026-11-06T18:00:00Z", expediente: "completo", geometria: null, latitud: null,
+      longitud: null } as unknown as Ficha;
+    expect(seccionesDeFicha({ ...base, campos: { rppc_medid_colind: mc } }).find((x) => x.id === "medidas")!.copiar)
+      .toBe("AL NORTE: 20.10 + 1.50 + 26.60 = 48.20 m con PERSONA A\nAL SUR: 8.00 m con CALLE SOR JUANA\nAL NORORIENTE: con LOTE 4");
+    const desordenado = "AL NOROESTE MIDE 6.17 M VA AL NOROESTE EN 1.20 M LINDANDO CON PERSONA A AL SURESTE MIDE 2.43 BAJA EN 0.65 M LINDANDO CON PERSONA B";
+    expect(seccionesDeFicha({ ...base, campos: { rppc_medid_colind: desordenado } }).find((x) => x.id === "medidas")!.copiar).toBe(desordenado);
+  });
+
   test("sin la geometría UTM: de los grados, marcado aproximado; la ficha lo dice en el título y solo si el rol ve medidas", () => {
     const geo = { type: "Polygon" as const, coordinates: [[[-100.4, 20.6], [-100.4, 20.6002], [-100.3999, 20.6002], [-100.3999, 20.6], [-100.4, 20.6]]] as [number, number][][] };
     expect(ladosDelPoligono(geo, null)!.aprox).toBe(true);
@@ -124,10 +168,9 @@ describe("medidas del polígono (catastro)", () => {
       longitud: null, campos: {} } as unknown as Ficha;
     expect(seccionesDeFicha({ ...base, ve_medidas: false }).some((s) => s.id === "poligono")).toBe(false);
     const s = seccionesDeFicha({ ...base, ve_medidas: true }).find((x) => x.id === "poligono")!;
-    expect(s.titulo).toBe("Medidas del polígono (catastro) (aprox.)");
-    expect(s.tablas?.[0].encabezados).toEqual(["Lado", "Orientación", "Largo (m)"]);
-    expect(s.tablas?.[0].filas).toHaveLength(4);
-    expect(s.tablas?.[0].pie).toMatch(/^Superficie del polígono \(aprox\.\): /);
+    expect(s.titulo).toBe("Medidas del polígono (cartografía) (aprox.)");
+    expect(s.compacto?.items).toHaveLength(4);
+    expect(s.compacto?.resumen).toMatch(/^Superficie [0-9,.]+ m² · Perímetro [0-9,.]+ m · 4 lados$/);
     // Sin colindancias en esta sección.
     expect(JSON.stringify(s)).not.toContain("Colinda");
   });

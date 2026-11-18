@@ -1,7 +1,7 @@
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import type { Campo } from "./limpiar";
 import { superficieDelPoligono } from "./geo";
-import { ladosDelPoligono, leerColindancias, textoMedida } from "./colindancias";
+import { ladosDelPoligono, leerColindancias, textoMedida, textoParaCopiar } from "./colindancias";
 import type { Ficha } from "./servicio";
 
 /**
@@ -140,8 +140,15 @@ export function valorLegible(campo: string, valor: unknown): string | null {
 
 export type IdSeccion = "identificacion" | "ubicacion" | "superficies" | "valores" | "medidas" | "poligono" | "registro" | "propietario" | "historial";
 
+/** Lados del polígono, compactos: etiquetas en orden, todas sin simplificar ("Ver todos los lados"), resumen y nota. */
+export type LadosCompactos = { items: string[]; todos?: string[]; resumen: string; nota?: string | null };
+
 /** Una tabla dentro de una sección (medidas y colindancias, lados del polígono). */
-export type TablaFicha = { encabezados: string[]; filas: string[][]; nota?: string | null; pie?: string | null };
+export type TablaFicha = {
+  encabezados: string[]; filas: string[][]; nota?: string | null; pie?: string | null;
+  /** Todas las filas sin simplificar (lados del polígono): la pantalla ofrece "Ver todos los lados"; el PDF no. */
+  todas?: string[][];
+};
 
 /** Las secciones de la ficha, en orden. `equipo`: se ve plegada por omisión (solo la ve quien tiene esos campos). */
 export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos: Campo[] }[] = [
@@ -155,7 +162,7 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
              "valor_terreno_comun", "valor_construccion_privativa", "valor_construccion_comun", "valor_terreno_anterior",
              "valor_construccion_anterior"] },
   { id: "medidas", titulo: "Medidas y colindancias (Registro Público)", equipo: false, campos: ["rppc_medid_colind", "rppc_medidas"] },
-  { id: "poligono", titulo: "Medidas del polígono (catastro)", equipo: false, campos: [] },
+  { id: "poligono", titulo: "Medidas del polígono (cartografía)", equipo: false, campos: [] },
   { id: "registro", titulo: "Datos del registro", equipo: true,
     campos: ["folio_real", "uso", "clasificacion", "clave_anterior", "clave_estandar", "clave_original", "tipo_predio", "estatus",
              "regimen", "tipo_condominio", "nombre_condominio", "fecha_alta", "fecha_mantenimiento", "manzana", "localidad", "calle",
@@ -170,6 +177,10 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
 export type SeccionLista = {
   id: IdSeccion; titulo: string; equipo: boolean; filas: [string, string][];
   tablas?: TablaFicha[];
+  /** Medidas del polígono en formato compacto (etiquetas "N 20.10" en varias columnas). */
+  compacto?: LadosCompactos;
+  /** Texto plano para el botón "Copiar" (medidas y colindancias). */
+  copiar?: string;
   /** Historial: cuántos ajustes del lector hay (se ocultan si no se pidió verlos). */
   ajustes?: number;
 };
@@ -197,6 +208,8 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
   for (const s of SECCIONES) {
     let filas: [string, string][] = [];
     const tablas: TablaFicha[] = [];
+    let compacto: LadosCompactos | undefined;
+    let copiar: string | undefined;
     let titulo = s.titulo;
     let ajustes = 0;
     if (s.id === "medidas") {
@@ -210,8 +223,11 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
         if (r.seguro) {
           tablas.push({ encabezados: ["Orientación", "Medida (m)", "Colinda con"], nota: r.nota,
             filas: r.filas.map((x) => [x.orientacion, textoMedida(x.medidas), x.colinda || "—"]) });
+          copiar = textoParaCopiar(r);
         } else {
           filas.push([ETIQUETAS[mc ? "rppc_medid_colind" : "rppc_medidas"][0], lineasDeColindancias(principal).join("\n")]);
+          // Sin ordenar: se copia el texto completo tal cual.
+          copiar = principal;
         }
       }
       // Las "medidas" sueltas solo si dicen algo distinto de las medidas y colindancias.
@@ -222,9 +238,16 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
       const p = f.ve_medidas ? ladosDelPoligono(f.geometria, f.geometria_utm) : null;
       if (p) {
         if (p.aprox) titulo = `${s.titulo} (aprox.)`;
-        tablas.push({ encabezados: ["Lado", "Orientación", "Largo (m)"],
-          filas: p.lados.map((x) => [String(x.lado), x.orientacion, n2(x.largo)]),
-          pie: p.superficie ? `Superficie del polígono${p.aprox ? " (aprox.)" : ""}: ${n2(p.superficie)} m²` : null });
+        // Compacto: una etiqueta "Rumbo largo" por lado, en orden, y una línea de resumen.
+        const etiquetas = (l: typeof p.lados) => l.map((x) => `${x.orientacion} ${n2(x.largo)}`);
+        const juntados = p.simplificados.length < p.lados.length;
+        const perimetro = p.lados.reduce((a, x) => a + x.largo, 0);
+        compacto = {
+          items: etiquetas(p.simplificados),
+          ...(juntados ? { todos: etiquetas(p.lados), nota: `${p.lados.length} lados originales; el DXF conserva la geometría exacta.` } : {}),
+          resumen: [p.superficie ? `Superficie ${n2(p.superficie)} m²` : null, `Perímetro ${n2(perimetro)} m`, `${p.simplificados.length} lados`]
+            .filter(Boolean).join(" · "),
+        };
       }
     } else if (s.id === "identificacion") {
       filas = [["Clave catastral", f.clave], ["Municipio", municipioPorClave(f.clave) ?? f.municipio]];
@@ -265,8 +288,9 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
         filas.splice(tras, 0, [p.aprox ? "Superficie del polígono (aprox.)" : "Superficie del polígono", `${n2(p.m2)} m²`]);
       }
     }
-    if (filas.length || tablas.length || ajustes) {
-      salida.push({ id: s.id, titulo, equipo: s.equipo, filas, ...(tablas.length ? { tablas } : {}), ...(s.id === "historial" ? { ajustes } : {}) });
+    if (filas.length || tablas.length || compacto || ajustes) {
+      salida.push({ id: s.id, titulo, equipo: s.equipo, filas, ...(tablas.length ? { tablas } : {}), ...(compacto ? { compacto } : {}),
+        ...(copiar ? { copiar } : {}), ...(s.id === "historial" ? { ajustes } : {}) });
     }
   }
   return salida;

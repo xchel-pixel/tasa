@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import type { FuentesPdf } from "@/lib/pdf-cotizacion";
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import { sinSimbolosFaltantes } from "@/lib/traslado/pdf";
-import { fechaLegible, seccionesDeFicha, type TablaFicha } from "./etiquetas";
+import { fechaLegible, seccionesDeFicha, type LadosCompactos, type TablaFicha } from "./etiquetas";
 import { aUtm, geometriaValida, ligaMaps, type Geometria, type Punto } from "./geo";
 import type { Ficha } from "./servicio";
 import { NOTA_FUENTE } from "./textos";
@@ -28,7 +28,7 @@ export function contenidoPdf(f: Ficha) {
     subtitulo: `Clave catastral ${f.clave} · ${municipio}, Qro. · Consultado el ${fechaLegible(f.consultado_en)}${f.expediente === "pendiente" ? " · expediente incompleto" : ""}`,
     // Las mismas secciones y el mismo orden que la pantalla.
     // Sin los ajustes de lector (0067): un historial que solo tiene eso no sale.
-    secciones: seccionesDeFicha(f).filter((s) => s.filas.length || s.tablas?.length),
+    secciones: seccionesDeFicha(f).filter((s) => s.filas.length || s.tablas?.length || s.compacto),
     croquis: "Croquis del polígono",
     sinPoligono: "Sin polígono disponible.",
     liga: punto ? ligaMaps(punto.lat, punto.lon) : null,
@@ -132,6 +132,23 @@ function tablaColumnas(l: Lienzo, t: TablaFicha) {
   }
 }
 
+/** Lados del polígono compactos: etiquetas "N 20.10" en 6 columnas, en orden; el resumen y la nota abajo. */
+function compactoPdf(l: Lienzo, c: LadosCompactos) {
+  const W = ANCHO - 2 * MARGEN, columnas = 6, tam = 8.6, alto = tam * 1.9, ancho = W / columnas;
+  for (let i = 0; i < c.items.length; i += columnas) {
+    if (l.y - alto < MARGEN + 20) nuevaHoja(l);
+    c.items.slice(i, i + columnas).forEach((x, k) => {
+      const x0 = MARGEN + k * ancho;
+      l.pag.drawRectangle({ x: x0, y: l.y - alto + 2, width: ancho - 4, height: alto - 3, color: rgb(0.95, 0.96, 0.97) });
+      l.pag.drawText(l.limpio(x), { x: x0 + 5, y: l.y - tam - 3, size: tam, font: l.R, color: TINTA });
+    });
+    l.y -= alto;
+  }
+  l.y -= 3;
+  texto(l, c.resumen, { tam: 8.8, negrita: true });
+  if (c.nota) texto(l, c.nota, { tam: 8, color: TENUE });
+}
+
 /** Un número "redondo" (1, 2 o 5 × 10ⁿ) cercano a x, para la escala gráfica. */
 export function escalaRedonda(x: number): number {
   const p = 10 ** Math.floor(Math.log10(x));
@@ -223,13 +240,14 @@ export async function pdfPredio(f: Ficha, fuentes: FuentesPdf): Promise<Uint8Arr
 
   for (const s of c.secciones) {
     // Que el título (y, con tabla, sus encabezados y primeras filas) no quede solo al pie de la hoja.
-    if (l.y < MARGEN + (s.tablas?.length ? 150 : 60)) nuevaHoja(l);
+    if (l.y < MARGEN + (s.tablas?.length || s.compacto ? 150 : 60)) nuevaHoja(l);
     texto(l, s.titulo, { tam: 10, negrita: true });
     l.y -= 2;
     for (const t of s.tablas ?? []) {
       tablaColumnas(l, t);
       l.y -= 6;
     }
+    if (s.compacto) compactoPdf(l, s.compacto);
     if (s.filas.length) tabla(l, s.filas);
     l.y -= 10;
   }

@@ -159,6 +159,10 @@ la app las muestra, la base las hace cumplir.
   relación existente (`cotizaciones!cotizaciones_organizacion_id_solicitud_id_fkey(...)`) y, ya
   publicado, se aplica la migración. Al revés, las consultas sin nombre se vuelven ambiguas en el
   momento en que la migración entra y las pantallas fallan hasta que llega el código.
+- **Nunca hacer push si humo no pasa 12/12 (todas las pruebas).** Se espera a que humo termine y se
+  lee su resultado ANTES del push; nunca en el mismo comando que el push ni en segundo plano sin
+  esperarlo. Si una prueba falla, se revisa por qué; si fue algo de fuera (red, la fuente), se repite
+  esa prueba y solo con 12/12 se sube. (Nov-2026: un push salió con 11/12 porque el comando no esperó.)
 - **Antes de cada push a main, correr `npm run humo` y no subir si falla.** Entra a producción
   y abre todas las pantallas (solo lectura) en XG (admin_org y finanzas) y en DEMO (admin_org,
   finanzas, equipo y comisionista); lo que no le toca a un rol debe regresarlo al inicio. La lista

@@ -25,6 +25,7 @@ const TIPOS_FUENTE = ["catastro"];
 const TIPOS_CREDITO = ["credito_no_aplicado"];
 const TIPOS_SIN_PAGINA = ["notion_sin_pagina"];
 const TIPOS_PROPUESTA = ["notion_pagina_propuesta"];
+const TIPOS_RECORTE = ["catastro_texto_recortado"];
 const PREFIJO_SIN_PAGINA = "Comisionista sin página de Notion: ";
 
 export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
@@ -44,7 +45,7 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
 
   const tipos = (alertas.data ?? []).map((a) => a.tipo);
   const cuenta = (lista: string[]) => tipos.filter((t) => lista.includes(t)).length;
-  const otras = tipos.filter((t) => ![...TIPOS_CUPO, ...TIPOS_FUENTE, ...TIPOS_CREDITO, ...TIPOS_SIN_PAGINA, ...TIPOS_PROPUESTA].includes(t)).length;
+  const otras = tipos.filter((t) => ![...TIPOS_CUPO, ...TIPOS_FUENTE, ...TIPOS_CREDITO, ...TIPOS_SIN_PAGINA, ...TIPOS_PROPUESTA, ...TIPOS_RECORTE].includes(t)).length;
   // "Comisionista sin página de Notion: Nombre. …" (0084): los nombres, para verlos sin abrir Alertas.
   const sinPagina = (alertas.data ?? []).filter((a) => TIPOS_SIN_PAGINA.includes(a.tipo))
     .map((a) => (a.mensaje ?? "").split(PREFIJO_SIN_PAGINA)[1]?.split(". ")[0]).filter((n): n is string => !!n);
@@ -80,6 +81,8 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
       : []),
     { grupo: "vigilar", texto: "Comisionistas sin página de Notion", cuenta: cuenta(TIPOS_SIN_PAGINA), urgente: true, href: "/admin/alertas",
       detalle: sinPagina.length ? sinPagina.join(", ") : "Lígalos en su ficha: mientras, Tasa no toca su relación en Notion" },
+    { grupo: "vigilar", texto: "Textos del catastro recortados", cuenta: cuenta(TIPOS_RECORTE), href: "/admin/alertas",
+      detalle: "Más de 10,000 caracteres: se guardaron cortados" },
     { grupo: "vigilar", texto: "Fallas de la fuente catastral", cuenta: cuenta(TIPOS_FUENTE), href: "/admin/alertas" },
     ...(staff ? [
       { grupo: "vigilar" as const, texto: "Comisionistas por inactivarse", cuenta: porInactivarse, href: "/admin/estadisticas", detalle: "Sin trabajo cobrado en casi 6 meses" },

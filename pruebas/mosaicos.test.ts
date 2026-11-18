@@ -40,9 +40,11 @@ describe("La petición se arma en el servidor", () => {
 
 // ------------------------------------------------------------- la ruta, con la base y la fuente simuladas
 
-const { estado } = vi.hoisted(() => ({ estado: { permiso: "ok" as string | null } }));
+const { estado } = vi.hoisted(() => ({ estado: { permiso: "ok" as string | null, encabezado: false, huellaValida: false } }));
 vi.mock("@/lib/supabase/server", () => ({
-  crearClienteServidor: async () => ({ rpc: async (fn: string) => ({ data: fn === "catastro_permiso_mosaico" ? estado.permiso : null, error: null }) }),
+  crearClienteServidor: async () => ({ rpc: async (fn: string) => ({
+    data: fn === "catastro_permiso_mosaico" ? estado.permiso : fn === "es_humo" ? estado.huellaValida : null, error: null }) }),
+  encabezadoHumo: async () => (estado.encabezado ? { "x-tasa-humo": "x" } : null),
 }));
 
 describe("La ruta responde 400, 403, 429 o el mosaico", () => {
@@ -54,6 +56,8 @@ describe("La ruta responde 400, 403, 429 o el mosaico", () => {
   let fuente: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     estado.permiso = "ok";
+    estado.encabezado = false;
+    estado.huellaValida = false;
     fuente = vi.fn(async () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } }));
     vi.stubGlobal("fetch", fuente);
   });
@@ -64,6 +68,21 @@ describe("La ruta responde 400, 403, 429 o el mosaico", () => {
     expect(r.status).toBe(200);
     expect(r.headers.get("cache-control")).toBe("private, max-age=86400");
     expect(String(fuente.mock.calls[0][0])).toContain("srs=EPSG:3857");
+  });
+
+  test("humo (huella válida): mosaico vacío con los mismos encabezados, sin preguntar a la fuente; con huella inventada, normal", async () => {
+    estado.encabezado = true;
+    estado.huellaValida = true;
+    const r = await pedir();
+    expect([r.status, r.headers.get("content-type"), r.headers.get("cache-control")]).toEqual([200, "image/png", "private, max-age=86400"]);
+    expect(fuente).not.toHaveBeenCalled();
+    estado.huellaValida = false;
+    expect((await pedir()).status).toBe(200);
+    expect(fuente).toHaveBeenCalledTimes(1);
+    // Sin permiso, humo también recibe 403.
+    estado.huellaValida = true;
+    estado.permiso = "rol";
+    expect((await pedir()).status).toBe(403);
   });
 
   test("con parámetros o fuera de rango: 400 sin preguntar a la fuente", async () => {

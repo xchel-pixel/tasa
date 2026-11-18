@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Map as MapaGL, GeoJSONSource, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { fechaLegible, seccionesDeFicha } from "@/lib/catastro/etiquetas";
+import { fechaLegible, seccionesDeFicha, type LadosCompactos, type TablaFicha } from "@/lib/catastro/etiquetas";
 import { detectarBusqueda, enQueretaro, SUBDIRECCIONES, textoDelTipo } from "@/lib/catastro/busqueda";
 import { CAPAS_NOMBRES, estiloMapa, ZOOM_PREDIOS } from "@/lib/catastro/estilo";
 import { caja, ligaMaps, ligaVisor, type Geometria } from "@/lib/catastro/geo";
@@ -45,6 +45,104 @@ async function sugerirDomicilios(texto: string, token: string, senal: AbortSigna
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || !enQueretaro(lat, lon)) return [];
     return [{ id: x.id ?? String(i), nombre: x.properties?.name ?? x.properties?.full_address ?? "", detalle: x.properties?.place_formatted ?? "", lat, lon }];
   });
+}
+
+/**
+ * "Copiar" (medidas y colindancias): texto plano al portapapeles y "Copiado". Si el navegador no deja copiar, se
+ * muestra el texto ya seleccionado para copiarlo a mano.
+ */
+function BotonCopiar({ texto }: { texto: string }) {
+  const [estado, setEstado] = useState<"listo" | "copiado" | "a_mano">("listo");
+  const area = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (estado === "a_mano") {
+      area.current?.focus();
+      area.current?.select();
+    }
+  }, [estado]);
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setEstado("copiado");
+      setTimeout(() => setEstado("listo"), 2000);
+    } catch {
+      setEstado("a_mano");
+    }
+  }
+  return (
+    <div className="flex shrink-0 flex-col items-end">
+      <button type="button" onClick={copiar} className="text-[0.875rem] font-semibold text-acento underline underline-offset-4">
+        {estado === "copiado" ? "Copiado" : "Copiar"}
+      </button>
+      {estado === "a_mano" ? (
+        <div className="fixed inset-x-4 top-24 z-30 rounded-xl border border-linea bg-fondo p-3 shadow-lg">
+          <p className="text-[0.875rem] font-semibold">Este navegador no deja copiar solo: el texto ya está seleccionado, cópialo a mano.</p>
+          <textarea ref={area} readOnly value={texto} rows={8} className="mt-2 w-full rounded-lg border border-borde-campo bg-fondo p-2 text-[0.875rem]" />
+          <button type="button" onClick={() => setEstado("listo")} className="mt-2 text-[0.875rem] font-semibold text-acento underline underline-offset-4">Cerrar</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Lados del polígono compactos: etiquetas "N 20.10" en 2–4 columnas, el resumen y "Ver todos los lados". */
+function LadosCompactosDeFicha({ c }: { c: LadosCompactos }) {
+  const [todos, setTodos] = useState(false);
+  const items = todos && c.todos ? c.todos : c.items;
+  return (
+    <div className="mt-2">
+      <ul className="grid grid-cols-2 gap-1.5 min-[360px]:grid-cols-3 sm:grid-cols-4">
+        {items.map((x, i) => (
+          <li key={i} className="rounded-md bg-alterno px-2 py-1 text-[0.8125rem] tabular-nums">{x}</li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[0.875rem]">
+        {c.resumen}
+        {c.todos ? (
+          <>
+            {" "}
+            <button type="button" onClick={() => setTodos((v) => !v)} className="font-semibold text-acento underline underline-offset-4">
+              {todos ? "(Ver lados simplificados)" : "(Ver todos los lados)"}
+            </button>
+          </>
+        ) : null}
+      </p>
+      {c.nota ? <p className="mt-1 text-[0.8125rem] text-secundario">{c.nota}</p> : null}
+    </div>
+  );
+}
+
+/** Una tabla de la ficha (medidas y colindancias, lados del polígono). Con `todas`, ofrece "Ver todos los lados". */
+function TablaDeFicha({ t }: { t: TablaFicha }) {
+  const [todas, setTodas] = useState(false);
+  const filas = todas && t.todas ? t.todas : t.filas;
+  return (
+    <div className="mt-2">
+      {t.nota ? <p className="mb-2 whitespace-pre-line text-[0.875rem] text-secundario">{t.nota}</p> : null}
+      <table className="w-full border-collapse text-left text-[0.875rem] leading-5">
+        <thead>
+          <tr className="border-b border-linea text-[0.8125rem] text-secundario">
+            {t.encabezados.map((e) => <th key={e} scope="col" className="py-1 pr-2 font-semibold">{e}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((fila, i) => (
+            <tr key={i} className="border-b border-linea align-top last:border-b-0">
+              {fila.map((celda, j) => (
+                <td key={j} className={`py-1.5 pr-2 [overflow-wrap:anywhere] ${j === 0 ? "whitespace-nowrap" : ""}`}>{celda}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {t.todas ? (
+        <button type="button" onClick={() => setTodas((v) => !v)} className="mt-2 text-[0.875rem] font-semibold text-acento underline underline-offset-4">
+          {todas ? "Ver lados simplificados" : `Ver todos los lados (${t.todas.length})`}
+        </button>
+      ) : null}
+      {t.pie ? <p className="mt-2 text-[0.875rem] font-semibold">{t.pie}</p> : null}
+    </div>
+  );
 }
 
 /** DXF (0065): si está autorizada y cuánto le queda; saldo nulo = sin límite. */
@@ -385,29 +483,12 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
               </details>
             ) : (
               <section key={s.id} className="rounded-xl border border-linea bg-fondo px-4 py-3">
-                <h3 className="font-semibold">{s.titulo}</h3>
-                {s.tablas?.map((t, k) => (
-                  <div key={k} className="mt-2">
-                    {t.nota ? <p className="mb-2 whitespace-pre-line text-[0.875rem] text-secundario">{t.nota}</p> : null}
-                    <table className="w-full border-collapse text-left text-[0.875rem] leading-5">
-                      <thead>
-                        <tr className="border-b border-linea text-[0.8125rem] text-secundario">
-                          {t.encabezados.map((e) => <th key={e} scope="col" className="py-1 pr-2 font-semibold">{e}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {t.filas.map((fila, i) => (
-                          <tr key={i} className="border-b border-linea align-top last:border-b-0">
-                            {fila.map((celda, j) => (
-                              <td key={j} className={`py-1.5 pr-2 [overflow-wrap:anywhere] ${j === 0 ? "whitespace-nowrap" : ""}`}>{celda}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {t.pie ? <p className="mt-2 text-[0.875rem] font-semibold">{t.pie}</p> : null}
-                  </div>
-                ))}
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-semibold">{s.titulo}</h3>
+                  {s.copiar ? <BotonCopiar texto={s.copiar} /> : null}
+                </div>
+                {s.tablas?.map((t, k) => <TablaDeFicha key={`${s.id}-${k}`} t={t} />)}
+                {s.compacto ? <LadosCompactosDeFicha c={s.compacto} /> : null}
                 {s.filas.length ? filas : null}
                 {maps}
               </section>

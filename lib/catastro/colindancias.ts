@@ -176,7 +176,7 @@ export function textoMedida(medidas: number[]): string {
 }
 
 // ------------------------------------------------------------------
-// Medidas del polígono (catastro): de la geometría UTM, un renglón por lado.
+// Medidas del polígono (cartografía): de la geometría UTM, un renglón por lado.
 // ------------------------------------------------------------------
 
 const OCHO = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
@@ -188,28 +188,84 @@ export function rumboDeAzimut(grados: number): string {
 }
 
 export type LadoPoligono = { lado: number; orientacion: string; largo: number };
+type Vector = { dx: number; dy: number; largo: number; azimut: number; anillo: number };
+
+const azimut = (dx: number, dy: number) => (((Math.atan2(dx, dy) * 180) / Math.PI) % 360 + 360) % 360;
+const diferencia = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+
+/** Simplificación: lados consecutivos casi en línea recta (menos de 3° de diferencia) o de menos de 20 cm se juntan. */
+export const GRADOS_RECTA = 3;
+export const TRAMO_MINIMO = 0.2;
 
 /**
- * Los lados del anillo exterior de cada polígono, en orden. Con la geometría UTM de la fuente es exacto; si no hay,
- * se convierte desde grados y queda marcado como aproximado. Se omiten lados de menos de 1 cm (vértices repetidos).
+ * Junta lados consecutivos del mismo anillo: un lado se suma al grupo si su rumbo difiere menos de 3° del rumbo base
+ * del grupo (el de su primer lado de 20 cm o más; contra el base y no contra el último, para que una curva suave no se
+ * vuelva un solo lado) o si mide menos de 20 cm. El largo del grupo es la suma; la orientación, la de su resultante.
+ * El último y el primero se juntan si siguen la misma recta (el vértice de inicio del polígono es arbitrario).
+ */
+function simplificar(vectores: Vector[]): LadoPoligono[] {
+  type Grupo = { dx: number; dy: number; largo: number; base: number | null; anillo: number };
+  const grupos: Grupo[] = [];
+  for (const v of vectores) {
+    const g = grupos.at(-1);
+    const corto = v.largo < TRAMO_MINIMO;
+    if (g && g.anillo === v.anillo && (corto || g.base === null || diferencia(g.base, v.azimut) < GRADOS_RECTA)) {
+      g.dx += v.dx;
+      g.dy += v.dy;
+      g.largo += v.largo;
+      if (g.base === null && !corto) g.base = v.azimut;
+    } else {
+      grupos.push({ dx: v.dx, dy: v.dy, largo: v.largo, base: corto ? null : v.azimut, anillo: v.anillo });
+    }
+  }
+  // Cierre del anillo (solo con un polígono: en varios, cada anillo empieza en su propio vértice).
+  const primero = grupos[0], ultimo = grupos.at(-1);
+  if (grupos.length > 2 && primero && ultimo && primero.anillo === ultimo.anillo && new Set(grupos.map((g) => g.anillo)).size === 1
+      && (ultimo.base === null || primero.base === null || diferencia(ultimo.base, primero.base) < GRADOS_RECTA)) {
+    primero.dx += ultimo.dx;
+    primero.dy += ultimo.dy;
+    primero.largo += ultimo.largo;
+    grupos.pop();
+  }
+  return grupos.map((g, i) => ({ lado: i + 1, orientacion: rumboDeAzimut(azimut(g.dx, g.dy)), largo: g.largo }));
+}
+
+/**
+ * Los lados del anillo exterior de cada polígono, en orden: todos (`lados`) y simplificados (`simplificados`, lo que se
+ * muestra por omisión). Con la geometría UTM de la fuente es exacto; si no hay, se convierte desde grados y queda marcado
+ * como aproximado. Se omiten lados de menos de 1 cm (vértices repetidos). La superficie no depende de la simplificación.
  */
 export function ladosDelPoligono(geometria: Geometria | null | undefined, utm: Geometria | null | undefined):
-  { lados: LadoPoligono[]; superficie: number | null; aprox: boolean } | null {
+  { lados: LadoPoligono[]; simplificados: LadoPoligono[]; superficie: number | null; aprox: boolean } | null {
   const g = utm ?? geometria;
   if (!g) return null;
   const aprox = !utm;
   const pols: Punto[][][] = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
-  const lados: LadoPoligono[] = [];
-  for (const pol of pols) {
+  const vectores: Vector[] = [];
+  pols.forEach((pol, n) => {
     const anillo = (pol[0] ?? []).map((p) => (aprox ? aUtm(p[1], p[0]) : p));
     for (let i = 0; i + 1 < anillo.length; i++) {
       const [x0, y0] = anillo[i];
       const [x1, y1] = anillo[i + 1];
       const largo = Math.hypot(x1 - x0, y1 - y0);
       if (largo < 0.01) continue;
-      lados.push({ lado: lados.length + 1, orientacion: rumboDeAzimut((Math.atan2(x1 - x0, y1 - y0) * 180) / Math.PI), largo });
+      vectores.push({ dx: x1 - x0, dy: y1 - y0, largo, azimut: azimut(x1 - x0, y1 - y0), anillo: n });
     }
-  }
+  });
+  if (!vectores.length) return null;
+  const lados = vectores.map((v, i) => ({ lado: i + 1, orientacion: rumboDeAzimut(v.azimut), largo: v.largo }));
   const s = superficieDelPoligono(geometria ?? null, utm ?? null);
-  return lados.length ? { lados, superficie: s && s.m2 > 0 ? s.m2 : null, aprox } : null;
+  return { lados, simplificados: simplificar(vectores), superficie: s && s.m2 > 0 ? s.m2 : null, aprox };
+}
+
+/**
+ * Texto plano para copiar las medidas y colindancias ordenadas: un renglón por lado, "AL NORTE: 20.00 m con …"
+ * (rumbo completo en mayúsculas, medida con 2 decimales y "m"; varios tramos con su suma). La nota, si hay, va primero.
+ */
+export function textoParaCopiar(c: Colindancias): string {
+  const lado = (f: FilaColindancia) => {
+    const medida = !f.medidas.length ? "" : f.medidas.length === 1 ? `${dos(f.medidas[0])} m` : `${textoMedida(f.medidas)} m`;
+    return `AL ${f.orientacion.toUpperCase()}:${medida ? ` ${medida}` : ""}${f.colinda ? ` con ${f.colinda}` : ""}`;
+  };
+  return [c.nota, ...c.filas.map(lado)].filter(Boolean).join("\n");
 }

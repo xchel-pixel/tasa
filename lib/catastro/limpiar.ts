@@ -53,15 +53,22 @@ type Obj = Record<string, unknown>;
 const obj = (x: unknown): Obj => (x && typeof x === "object" && !Array.isArray(x) ? (x as Obj) : {});
 const lista = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
 
-/** Texto limpio, o nulo si viene vacío (los objetos y listas no son texto). Sin tope de largo: antes se cortaba a 500
- *  caracteres y las medidas y colindancias largas quedaban incompletas (nov-2026). */
+/** Tope de seguridad por campo (nov-2026): antes era 500 y cortaba medidas y colindancias reales; 10,000 no lo alcanza
+ *  ningún texto real. Si alguno lo pasa, se guarda cortado y marcado, y la base levanta una alerta en Hoy (0090). */
+export const TOPE_TEXTO = 10_000;
+export const MARCA_RECORTE = " (texto recortado por Tasa)";
+export function recortar(t: string): string {
+  return t.length > TOPE_TEXTO ? t.slice(0, TOPE_TEXTO).trimEnd() + MARCA_RECORTE : t;
+}
+
+/** Texto limpio, o nulo si viene vacío (los objetos y listas no son texto). Con el tope de seguridad. */
 function txt(x: unknown): string | null {
   if (typeof x === "number" && Number.isFinite(x)) return String(x);
   if (typeof x !== "string") return null;
   const t = x.replace(/\s+/g, " ").trim();
   // "--" es como la fuente marca un dato vacío; un apóstrofo suelto ("'") también llega en vez de nada.
   const sinComillas = t.replaceAll("'", "").replaceAll("’", "").trim();
-  return t && t !== "null" && !/^-+$/.test(t) && sinComillas ? t : null;
+  return t && t !== "null" && !/^-+$/.test(t) && sinComillas ? recortar(t) : null;
 }
 
 /** Número (acepta "1,234.50"), o nulo. */
@@ -75,7 +82,7 @@ function num(x: unknown): number | null {
 /** Una lista de cosas sueltas, como texto ("a, b"): de los objetos, solo sus valores sueltos. */
 function textoDeLista(x: unknown): string | null {
   const partes = lista(x).flatMap((e) => (e && typeof e === "object" ? Object.values(e as Obj).map(txt) : [txt(e)])).filter(Boolean);
-  return partes.length ? [...new Set(partes)].join(", ") : txt(x);
+  return partes.length ? recortar([...new Set(partes)].join(", ")) : txt(x);
 }
 
 /** Solo las llaves pedidas de cada objeto de una lista. */
