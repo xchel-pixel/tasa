@@ -72,6 +72,11 @@ export async function sincronizarConector(
         p_fecha_visita: l.fecha_visita,
       });
       if (error) throw new Error(error.message);
+      // 0091: la fecha de visita (con hora) y la fecha compromiso, para la Agenda y la ficha del trámite.
+      if (config.mapeo_campos.fecha_visita || config.mapeo_campos.fecha_compromiso) {
+        await registrar(supabase, "registrar_fechas_afuera", { p_conector: config.id, p_externo_id: l.externo_id,
+          p_visita: config.mapeo_campos.fecha_visita ? l.visita : null, p_compromiso: config.mapeo_campos.fecha_compromiso ? l.fecha_compromiso : null });
+      }
       resultado.leidos++;
       if (que === "actualizado" || que === "alerta") resultado.actualizados++;
     }

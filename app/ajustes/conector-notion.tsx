@@ -22,6 +22,7 @@ const CAMPOS: { clave: string; texto: string; lee?: boolean }[] = [
   { clave: "titulo", texto: "Título (de ahí sale el folio)", lee: true },
   { clave: "etapa", texto: "Etapa", lee: true },
   { clave: "fecha_visita", texto: "Fecha de visita", lee: true },
+  { clave: "fecha_compromiso", texto: "Fecha compromiso (entrega)", lee: true },
   { clave: "tipo_tramite", texto: "Tipo de trámite (el servicio)" },
   { clave: "clasificacion", texto: "Clasificación" },
   { clave: "medio", texto: "Medio de solicitud (también filtra qué se lee)" },

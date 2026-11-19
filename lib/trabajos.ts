@@ -58,6 +58,10 @@ export type Trabajo = {
   /** Mes al que cayó la comisión al quedar pagado (para saber si ya cerró). */
   mes_cierre: string | null;
   motivo_cancelacion: string | null;
+  /** 0091: de Notion. La visita trae hora solo si allá la tiene. */
+  visita_en: string | null;
+  visita_con_hora: boolean;
+  fecha_compromiso: string | null;
   creado_en: string;
   origen: string;
   comisionista_id: string | null;
@@ -139,7 +143,7 @@ export async function obtenerTrabajo(id: string): Promise<Trabajo | null> {
         `id, folio, tipo, estado, estatus_publico, inmueble_direccion, inmueble_municipio,
          inmueble_clave_catastral, inmueble_descripcion, calculo_traslado_id, cliente_nombre, cliente_telefono,
          cliente_correo, requiere_factura, monto_honorarios, monto_iva, monto_terceros,
-         monto_total, pagado_en, mes_cierre, motivo_cancelacion, creado_en,
+         monto_total, pagado_en, mes_cierre, motivo_cancelacion, creado_en, visita_en, visita_con_hora, fecha_compromiso,
          origen, comisionista_id, comision_regla, sin_comision_motivo, credito_honorarios, entrega_prioritaria,
          comisionistas(personas!comisionistas_persona_id_fkey(nombre:nombre_visible)),
          honorario_tipo, honorario_minimo, honorario_estimado, honorario_final_en,

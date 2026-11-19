@@ -121,6 +121,17 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
             <Etiqueta tono={estatus.tono}>{estatus.texto}</Etiqueta>
           </div>
           {t.entrega_prioritaria ? <p className="mt-2"><Etiqueta tono="proceso">Entrega prioritaria</Etiqueta></p> : null}
+          {/* 0091: fechas de Notion, para el equipo. */}
+          {persona.rol !== "comisionista" && (t.visita_en || t.fecha_compromiso) ? (
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 rounded-xl bg-alterno px-4 py-3 text-[0.9375rem]">
+              {t.visita_en ? (
+                <div><dt className="text-[0.8125rem] text-secundario">Visita</dt><dd>{fechaYHora(t.visita_en, t.visita_con_hora)}</dd></div>
+              ) : null}
+              {t.fecha_compromiso ? (
+                <div><dt className="text-[0.8125rem] text-secundario">Entrega comprometida</dt><dd>{fechaYHora(`${t.fecha_compromiso}T12:00:00-06:00`, false)}</dd></div>
+              ) : null}
+            </dl>
+          ) : null}
           {estatusAMano ? <CambiarEstatus solicitudId={t.id} actual={t.estatus_publico} /> : null}
 
           {t.estado === "tramite" && t.honorario.tipo !== "fijo" ? (
@@ -501,3 +512,11 @@ const ACCION_CORRECCION: Record<string, string> = {
   importar: "Traído de Notion",
   notion_solicitado: "Notion actualizado",
 };
+
+/** "jue 5 nov 2026, 10:15" (hora de México); sin hora si Notion no la trae. */
+function fechaYHora(iso: string, conHora: boolean): string {
+  return new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Mexico_City", weekday: "short", day: "numeric", month: "short", year: "numeric",
+    ...(conHora ? { hour: "2-digit", minute: "2-digit", hour12: false } : {}),
+  }).format(new Date(iso));
+}

@@ -20,6 +20,10 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
   const pre = calculo ? prellenadoDesdeCalculo(calculo, q.servicio ?? "hacendario") : null;
   // Desde el Mapa catastral (0059): ?clave=&municipio=&nota= (sin datos del cliente).
   const delMapa = pre ? null : inicialSolicitudDelMapa(q);
+  // Desde la Agenda (0091): ?desde=agenda&cliente=&telefono=&direccion=&clave= (lo que el comisionista anotó).
+  const deAgenda = pre || delMapa || q.desde !== "agenda" ? null : {
+    cliente_nombre: (q.cliente ?? "").slice(0, 120) || undefined, cliente_telefono: (q.telefono ?? "").slice(0, 30) || undefined,
+    direccion: (q.direccion ?? "").slice(0, 300) || undefined };
   await exigirRol("comisionista");
   const supabase = await crearClienteServidor();
   const servicios =
@@ -58,7 +62,7 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
               Viene del Mapa catastral: ya llenamos la clave, el municipio y la ubicación. Revisa la dirección y agrega el servicio y al cliente.
             </p>
           ) : null}
-          <FormularioSolicitud servicios={servicios} credito={credito} inicial={delMapa ?? (pre ? {
+          <FormularioSolicitud servicios={servicios} credito={credito} inicial={delMapa ?? deAgenda ?? (pre ? {
             servicio_id: servicios.find((s) => s.nombre.toLowerCase().includes(pre.servicio))?.id,
             municipio: pre.municipio,
             clave: pre.clave,

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { csv, filtrosDe, parametros, tablaActividad, tablas, tablasCredito, type ActividadComisionista, type Estadisticas, type EstadisticasCredito } from "@/lib/estadisticas";
+import { csv, filtrosDe, parametros, tablaActividad, tablaAgenda, tablas, tablasCredito, type ActividadComisionista, type UsoAgenda, type Estadisticas, type EstadisticasCredito } from "@/lib/estadisticas";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -17,6 +17,14 @@ export async function GET(request: NextRequest) {
     const t = tablasCredito(cred as EstadisticasCredito)[q.tabla];
     return new NextResponse(csv(t), {
       headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="estadisticas-${q.tabla}-${f.desde}-a-${f.hasta}.csv"`,
+        "Cache-Control": "private, no-store" },
+    });
+  }
+  if (q.tabla === "agenda") {
+    const { data: ag, error: errAg } = await supabase.rpc("agenda_metricas", { p_desde: f.desde, p_hasta: f.hasta });
+    if (errAg) return new NextResponse(errAg.message, { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    return new NextResponse(csv(tablaAgenda((ag ?? []) as UsoAgenda[])), {
+      headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="estadisticas-agenda-${f.desde}-a-${f.hasta}.csv"`,
         "Cache-Control": "private, no-store" },
     });
   }

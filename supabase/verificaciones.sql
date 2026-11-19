@@ -325,8 +325,8 @@ begin
      and not has_table_privilege('authenticated', c.oid, 'select');
   -- Excepciones a propósito: los datos catastrales solo se leen por función (catastro_ficha, 0059), nunca directo;
   -- la huella de la clave de humo (0072) no la lee nadie, solo es_humo(); las sesiones de humo (0076), solo al_entrar y Accesos.
-  perform pg_temp.igual(v, 'catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones, humo_huella, sesiones_humo'::text,
-    'authenticated puede leer todas las tablas (el RLS filtra las filas), salvo las catastrales y la huella de humo');
+  perform pg_temp.igual(v, 'calendario_ligas, catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones, humo_huella, sesiones_humo'::text,
+    'authenticated puede leer todas las tablas (el RLS filtra las filas), salvo las catastrales, la huella de humo y las ligas de calendario (0091: solo por función)');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -3579,9 +3579,9 @@ declare
   nv  uuid;
 begin
   perform pg_temp.sistema();
-  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 7::bigint, 'Cada organización nace con sus herramientas');
-  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from herramientas where organizacion_id = xg and activa), 'mi_tarjeta,para_tus_clientes,invitar',
-    'Activas: Mi tarjeta, Para tus clientes e Invita (la calculadora aún no)');
+  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 8::bigint, 'Cada organización nace con sus herramientas');
+  perform pg_temp.igual((select string_agg(clave, ',' order by orden) from herramientas where organizacion_id = xg and activa), 'mi_tarjeta,para_tus_clientes,invitar,agenda',
+    'Activas: Mi tarjeta, Para tus clientes, Invita y la Agenda (solo admin_org, 0091); la calculadora aún no');
 
   perform pg_temp.como('xchel+ana@arqosuv.com');
   perform pg_temp.igual((select string_agg(clave, ',') from mis_herramientas()), 'mi_tarjeta,para_tus_clientes,invitar', 'El comisionista ve sus tres herramientas');
@@ -6143,6 +6143,140 @@ begin
     'Uno de menos de 500 que crece: es cambio (no lo cortó Tasa)');
   delete from catastro_predios where clave = '140100199999002';
   delete from alertas where codigo = '140100199999002';
+end;
+$sec$;
+
+
+-- @@ Agenda privada, fechas de Notion y liga de calendario
+-- 0091: la agenda es solo de su dueño (ni staff ni "ver como" la leen); nace apagada; los eventos de Tasa salen de sus
+-- trámites; la liga de calendario lleva folio y municipio, nunca el cliente; administración solo ve conteos.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  ana   uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  b0    solicitudes%rowtype;
+  t1    uuid;
+  k1    uuid;
+  token text;
+  viejo text;
+  r     record;
+  v     uuid;
+begin
+  perform pg_temp.sistema();
+  -- Nace apagada para comisionistas: en XG solo admin_org.
+  perform pg_temp.igual((select activa::text || ' ' || array_to_string(roles, ',') from herramientas where organizacion_id = xg and clave = 'agenda'),
+    'true admin_org', 'En XG, solo admin_org tiene la agenda');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$insert into agenda_tareas (texto, fecha) values ('No debería', hoy_mx())$q$, 'row-level security',
+    'Apagada para comisionistas: no escribe');
+
+  -- La encendemos para comisionistas (solo esta prueba).
+  perform pg_temp.sistema();
+  update herramientas set roles = array['admin_org', 'comisionista'] where organizacion_id = xg and clave = 'agenda';
+
+  -- 1b. Fechas de Notion.
+  select * into b0 from solicitudes where organizacion_id = xg and marca_id is not null and cuenta_receptora_id is not null limit 1;
+  insert into solicitudes (comisionista_id, tipo, origen, servicio_id, inmueble_direccion, inmueble_municipio, cliente_nombre, marca_id,
+                           cuenta_receptora_id, requiere_factura, monto_honorarios, estado, estatus_publico, aceptada_en, externo_id, folio)
+  values (ana, 'tramite_directo', 'admin', b0.servicio_id, 'Calle Agenda 1', 'Corregidora', 'Cliente Secreto Agenda', b0.marca_id,
+          b0.cuenta_receptora_id, false, 3000, 'tramite', 'visita_agendada', now(), 'aaaa1111aaaa1111aaaa1111aaaa1111', 'MGP-2026-0991')
+  returning id into t1;
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_fechas_afuera(pg_temp.notion_xg(), 'aaaa1111-aaaa-1111-aaaa-1111aaaa1111', (hoy_mx() + 1)::text || 'T10:15:00.000-06:00', hoy_mx() + 4);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select to_char(visita_en at time zone 'America/Mexico_City', 'HH24:MI') || ' ' || visita_con_hora || ' ' || (fecha_compromiso - hoy_mx())
+                           from solicitudes where id = t1), '10:15 true 4', 'Visita con hora y fecha compromiso desde Notion (id con o sin guiones)');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_fechas_afuera(pg_temp.notion_xg(), 'aaaa1111aaaa1111aaaa1111aaaa1111', hoy_mx()::text, null);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select to_char(visita_en at time zone 'America/Mexico_City', 'HH24:MI') || ' ' || visita_con_hora || ' ' || coalesce(fecha_compromiso::text, '-')
+                           from solicitudes where id = t1), '00:00 false -', 'Solo fecha: sin hora; y si allá la borran, aquí también');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform registrar_fechas_afuera(pg_temp.notion_xg(), 'aaaa1111aaaa1111aaaa1111aaaa1111', (hoy_mx() + 1)::text || 'T10:15:00-06:00', hoy_mx() + 4);
+
+  -- 1a. Ana escribe su agenda.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  insert into agenda_contactos (nombre, telefono, seguimiento_en) values ('Contacto de Ana', '4420000000', hoy_mx()) returning id into k1;
+  insert into agenda_citas (inicia, titulo, contacto_id, solicitud_id) values (now() + interval '2 hours', 'Cita privada de Ana', k1, t1);
+  insert into agenda_tareas (texto, fecha) values ('Tarea de ayer', hoy_mx() - 1), ('Tarea de hoy', hoy_mx());
+  perform pg_temp.igual((select count(*) from agenda_tareas)::int, 2, 'Ana ve sus tareas');
+
+  -- Lo ligado tiene que ser suyo.
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.sistema();
+  update herramientas set roles = array['admin_org', 'comisionista'] where organizacion_id = xg and clave = 'agenda';
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.debe_fallar(format($q$insert into agenda_citas (inicia, titulo, contacto_id) values (now(), 'x', %L)$q$, k1), 'no es tuyo',
+    'No se liga el contacto de otra persona');
+  perform pg_temp.debe_fallar(format($q$insert into agenda_tareas (texto, solicitud_id) values ('x', %L)$q$, t1), 'no es tuyo',
+    'Ni un trámite que no es suyo');
+
+  -- Privada: otro comisionista, staff y "ver como" no la ven.
+  perform pg_temp.igual((select count(*) from agenda_citas)::int + (select count(*) from agenda_contactos)::int, 0, 'Otro comisionista no ve nada');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from agenda_citas where titulo = 'Cita privada de Ana')::int, 0, 'admin_org no ve la agenda de Ana');
+  perform pg_temp.como('gaby@tasa.test');
+  v := iniciar_ver_como(ana);
+  perform set_config('request.headers', json_build_object('x-tasa-ver-como', ana)::text, true);
+  perform pg_temp.igual(mi_persona_id(), ana, 'En "ver como" la base responde como Ana…');
+  perform pg_temp.igual((select count(*) from agenda_citas)::int + (select count(*) from agenda_tareas)::int, 0, '…pero su agenda no aparece');
+  perform pg_temp.igual((select count(*) from agenda_eventos_tasa(hoy_mx() - 5, hoy_mx() + 30))::int, 0, 'Ni sus eventos');
+  perform set_config('request.headers', '', true);
+  perform cerrar_ver_como();
+
+  -- Eventos de Tasa: visita con hora y entrega, sin el cliente en el título; por cobrar; cierre y pago.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  select * into r from agenda_eventos_tasa(hoy_mx() + 1, hoy_mx() + 1) where tipo = 'visita' and solicitud_id = t1;
+  perform pg_temp.igual(r.titulo || ' · ' || r.hora::text, 'Visita MGP-2026-0991 · Corregidora · 10:15:00', 'La visita con su hora');
+  perform pg_temp.igual(r.detalle, 'Cliente Secreto Agenda', 'El cliente solo como detalle (en Tasa)');
+  perform pg_temp.igual((select titulo from agenda_eventos_tasa(hoy_mx() + 4, hoy_mx() + 4) where tipo = 'entrega' and solicitud_id = t1),
+    'Entrega MGP-2026-0991 · Corregidora', 'La entrega comprometida');
+  perform pg_temp.igual((select count(*) from agenda_eventos_tasa(mes_de(hoy_mx()), (mes_de(hoy_mx()) + interval '1 month' - interval '1 day')::date)
+                           where tipo = 'cierre')::int, 1, 'El cierre del mes');
+  -- admin_org ve las visitas de toda la organización (para la oficina).
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from agenda_eventos_tasa(hoy_mx() + 1, hoy_mx() + 1) where solicitud_id = t1)::int, 1,
+    'admin_org ve la visita en su agenda');
+
+  -- 1c. Liga de calendario: el token una vez; la base solo guarda la huella; lleva folio y municipio, no el cliente.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  token := generar_liga_calendario();
+  perform pg_temp.igual(token ~ '^[0-9a-f]{64}$', true, 'Token de 64 caracteres');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from calendario_ligas where token_huella = token)::int, 0, 'No se guarda el token, solo su huella');
+  perform pg_temp.igual((select count(*) from agenda_ics(token) where titulo = 'Visita MGP-2026-0991 · Corregidora')::int, 1, 'La liga trae la visita');
+  perform pg_temp.igual((select count(*) from agenda_ics(token) where titulo like '%Secreto%')::int, 0, 'Sin el nombre del cliente');
+  perform pg_temp.igual((select count(*) from agenda_ics(token) where tipo = 'cobrar')::int, 0, 'Ni "por cobrar" (no tiene fecha)');
+  perform pg_temp.igual((select ultimo_uso_en is not null from calendario_ligas where persona_id = ana and revocada_en is null), true, 'Se anota el último uso');
+  viejo := token;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select * from agenda_ics(%L)', viejo), 'permission denied', 'Con sesión no se lee la liga (solo el servidor)');
+  token := generar_liga_calendario();
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from agenda_ics(viejo))::int, 0, 'Al regenerar, la liga anterior ya no da nada');
+  perform pg_temp.igual((select count(*) from agenda_ics(token))::int > 0, true, 'La nueva sí');
+  -- Con la herramienta apagada, la liga tampoco da nada.
+  update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave = 'agenda';
+  perform pg_temp.igual((select count(*) from agenda_ics(token))::int, 0, 'Apagada la agenda, la liga queda vacía');
+  update herramientas set roles = array['admin_org', 'comisionista'] where organizacion_id = xg and clave = 'agenda';
+
+  -- Métricas: solo administración y solo conteos.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar(format('select * from agenda_metricas(%L, %L)', hoy_mx() - 30, hoy_mx() + 30), 'Solo administración', 'El comisionista no ve métricas');
+  perform pg_temp.como('gaby@tasa.test');
+  select * into r from agenda_metricas(hoy_mx() - 30, hoy_mx() + 30) where persona_id = ana;
+  perform pg_temp.igual(r.citas || ' ' || r.tareas || ' ' || r.contactos, '1 2 1', 'Finanzas ve cuántas citas, tareas y contactos (sin contenido)');
+
+  -- Limpieza: tareas hechas y citas de hace más de 12 meses.
+  perform pg_temp.sistema();
+  insert into agenda_tareas (organizacion_id, persona_id, texto, fecha, hecha_en) values (xg, ana, 'Vieja', hoy_mx() - 400, now() - interval '13 months');
+  insert into agenda_citas (organizacion_id, persona_id, inicia, titulo) values (xg, ana, now() - interval '13 months', 'Cita vieja');
+  perform limpiar_agenda();
+  perform pg_temp.igual((select count(*) from agenda_tareas where texto = 'Vieja')::int + (select count(*) from agenda_citas where titulo = 'Cita vieja')::int, 0,
+    'Lo de hace más de 12 meses se borra');
+  perform pg_temp.igual((select count(*) from agenda_tareas where persona_id = ana)::int, 2, 'Lo reciente se queda');
+
+  update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave = 'agenda';
 end;
 $sec$;
 

@@ -129,6 +129,12 @@ const PANTALLAS: Record<string, Pantalla> = {
   "/calculadora": { rutas: () => ["/calculadora"], espera: TODOS },
   // Mapa catastral (0059): nace apagado; en DEMO, encendido para todos. Abrir la pantalla no consulta IDECATQ.
   "/mapa-catastral": { rutas: () => ["/mapa-catastral"], espera: TODOS, herramienta: "mapa_catastral" },
+  // Agenda (0091): herramienta del catálogo; apagada salvo admin_org de XG y DEMO (admin_org y comisionistas).
+  "/agenda": { rutas: () => ["/agenda"], espera: TODOS, herramienta: "agenda" },
+  "/agenda/calendario": { rutas: () => ["/agenda/calendario"], espera: TODOS, herramienta: "agenda" },
+  "/agenda/cita/[id]": { rutas: () => ["/agenda/cita/nueva"], espera: TODOS, herramienta: "agenda" },
+  "/agenda/contactos": { rutas: () => ["/agenda/contactos"], espera: TODOS, herramienta: "agenda" },
+  "/agenda/contactos/[id]": { rutas: () => ["/agenda/contactos/nuevo"], espera: TODOS, herramienta: "agenda" },
   // Portada solo con herramientas (0056): cada tarjeta abre su pantalla.
   "/panel": { rutas: () => ["/panel"], espera: { admin_org: "inicio", finanzas: "inicio", admin_marca: "inicio", equipo: "abre", comisionista: "abre" } },
   "/admin": { rutas: () => ["/admin"], espera: OPERACION },

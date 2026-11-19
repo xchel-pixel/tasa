@@ -7,7 +7,9 @@ import { crearSolicitud, type EstadoSolicitud } from "./acciones";
 const ENTRADA =
   "mt-2 w-full rounded-lg border border-borde-campo bg-fondo px-4 py-3 text-[1.0625rem] focus:border-acento";
 
-export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string; calculo?: string; direccion?: string; desde?: "mapa" };
+export type InicialSolicitud = { servicio_id?: string; municipio?: string; clave?: string; descripcion?: string; calculo?: string; direccion?: string; desde?: "mapa";
+  /** Desde la Agenda (0091): el cliente de la cita o del contacto. */
+  cliente_nombre?: string; cliente_telefono?: string };
 
 /** `inicial`: lo que trae la liga de la calculadora de traslado (servicio, municipio, clave y notas). */
 export default function FormularioSolicitud({ servicios, inicial = {}, credito = 0 }: { servicios: { id: string; nombre: string }[]; inicial?: InicialSolicitud; credito?: number }) {
@@ -66,8 +68,8 @@ export default function FormularioSolicitud({ servicios, inicial = {}, credito =
 
       <fieldset className="flex flex-col gap-4">
         <legend className="text-[1.125rem] font-bold">Cliente</legend>
-        <Campo id="cliente_nombre" etiqueta="Nombre" requerido />
-        <Campo id="cliente_telefono" etiqueta="Teléfono" opcional tipo="tel" />
+        <Campo id="cliente_nombre" etiqueta="Nombre" requerido inicial={inicial.cliente_nombre} />
+        <Campo id="cliente_telefono" etiqueta="Teléfono" opcional tipo="tel" inicial={inicial.cliente_telefono} />
         <Campo id="cliente_correo" etiqueta="Correo" opcional tipo="email" />
       </fieldset>
 

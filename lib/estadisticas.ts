@@ -123,6 +123,17 @@ export function tablaActividad(a: ActividadComisionista[]): Tabla {
   };
 }
 
+export type UsoAgenda = { persona_id: string; nombre: string; rol: string; citas: number; tareas: number; contactos: number; ultimo_uso: string | null };
+
+/** Agenda (0091): solo conteos, nunca el contenido (la agenda es privada). */
+export function tablaAgenda(a: UsoAgenda[]): Tabla {
+  return {
+    titulo: "Uso de la Agenda (sin contenido)",
+    columnas: ["Persona", "Citas en el periodo", "Tareas creadas en el periodo", "Contactos", "Último uso"],
+    filas: a.map((x) => [x.nombre, x.citas, x.tareas, x.contactos, fechaMx(x.ultimo_uso)]),
+  };
+}
+
 /** Las cinco tablas, listas para pantalla o CSV. */
 export function tablas(e: Estadisticas): Record<"uso" | "personas" | "embudo" | "zonas" | "salud", Tabla> {
   const u = e.uso;

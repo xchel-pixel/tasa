@@ -47,6 +47,7 @@ export default async function MapaCatastralPagina({ searchParams }: { searchPara
           <MapaCatastral
             token={process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ""}
             claveInicial={q.clave ?? null}
+            textoInicial={q.buscar ?? null}
             puedeCotizar={persona.rol === "comisionista"}
             calculadora={calculadora}
             veVisor={equipo}

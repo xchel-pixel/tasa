@@ -144,11 +144,14 @@ export function leerPagina(pagina: PaginaNotion, mapeo: Record<string, string>):
   const titulo = prop("titulo") as { title?: { plain_text: string }[] } | undefined;
   const etapa = prop("etapa") as { select?: { name: string } | null; status?: { name: string } | null } | undefined;
   const visita = prop("fecha_visita") as { date?: { start: string } | null } | undefined;
+  const compromiso = prop("fecha_compromiso") as { date?: { start: string } | null } | undefined;
   return {
     externo_id: pagina.id,
     titulo: (titulo?.title ?? []).map((t) => t.plain_text).join(""),
     etapa: etapa?.select?.name ?? etapa?.status?.name ?? null,
     fecha_visita: visita?.date?.start?.slice(0, 10) ?? null,
+    visita: visita?.date?.start ?? null,
+    fecha_compromiso: compromiso?.date?.start?.slice(0, 10) ?? null,
   };
 }
 
@@ -290,6 +293,7 @@ export function conectorNotion(config: ConfigConector, credencial: string, llama
         ["titulo", ["title"]],
         ["etapa", ["select", "status"]],
         ["fecha_visita", ["date"]],
+        ["fecha_compromiso", ["date"]],
       ];
       for (const [clave, tipos] of esperados) {
         const nombre = mapeo[clave];

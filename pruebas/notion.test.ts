@@ -69,7 +69,12 @@ describe("conector Notion", () => {
       },
       config.mapeo_campos
     );
-    expect(l).toEqual({ externo_id: "p1", titulo: "MGP-2026-0701 Laura Méndez", etapa: "En proceso", fecha_visita: "2026-11-03" });
+    expect(l).toEqual({ externo_id: "p1", titulo: "MGP-2026-0701 Laura Méndez", etapa: "En proceso", fecha_visita: "2026-11-03",
+      visita: "2026-11-03T10:00:00.000-06:00", fecha_compromiso: null });
+    // 0091: con "Fecha compromiso" en el mapeo, se lee también.
+    const conCompromiso = leerPagina({ id: "p2", properties: { "Fecha compromiso": { type: "date", date: { start: "2026-11-11" } } } },
+      { ...config.mapeo_campos, fecha_compromiso: "Fecha compromiso" });
+    expect(conCompromiso.fecha_compromiso).toBe("2026-11-11");
   });
 
   test("traduce los errores de Notion a fallas que admin_org entiende", () => {

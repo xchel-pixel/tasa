@@ -72,6 +72,9 @@ export type Lectura = {
   titulo: string;
   etapa: string | null;
   fecha_visita: string | null;
+  /** 0091: la visita tal como viene (con hora si la trae) y la fecha compromiso de entrega. */
+  visita: string | null;
+  fecha_compromiso: string | null;
 };
 
 export interface Conector {

@@ -148,8 +148,10 @@ function TablaDeFicha({ t }: { t: TablaFicha }) {
 /** DXF (0065): si está autorizada y cuánto le queda; saldo nulo = sin límite. */
 type Dxf = { autorizado: boolean; sin_limite: boolean; saldo: number | null };
 
-export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, calculadora, veVisor, lineas, dxf }: {
-  token: string; claveInicial: string | null; puedeCotizar: boolean; calculadora: boolean; dxf: Dxf;
+export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial = null, puedeCotizar, calculadora, veVisor, lineas, dxf }: {
+  token: string; claveInicial: string | null;
+  /** ?buscar= (desde la Agenda): se escribe en la caja, sin buscar solo. */
+  textoInicial?: string | null; puedeCotizar: boolean; calculadora: boolean; dxf: Dxf;
   /** El visor de la fuente: solo admin_org, finanzas y equipo. */
   veVisor: boolean;
   /** Líneas y claves de los predios: solo admin_org, finanzas y equipo (la ruta de mosaicos también lo revisa). */
@@ -169,7 +171,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, puedeCotizar, 
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [clave, setClave] = useState(claveInicial ?? "");
+  const [clave, setClave] = useState(claveInicial ?? (textoInicial ?? "").slice(0, 300));
   const [ocupado, empezar] = useTransition();
   const router = useRouter();
   const [verAjustes, setVerAjustes] = useState(false);

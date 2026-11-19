@@ -1,5 +1,5 @@
 import { PantallaAdmin } from "@/components/pantalla-admin";
-import { filtrosDe, HERRAMIENTAS_FILTRO, parametros, queryDe, tablaActividad, tablas, tablasCredito, type ActividadComisionista, type Estadisticas, type EstadisticasCredito, type Tabla } from "@/lib/estadisticas";
+import { filtrosDe, HERRAMIENTAS_FILTRO, parametros, queryDe, tablaActividad, tablaAgenda, tablas, tablasCredito, type ActividadComisionista, type UsoAgenda, type Estadisticas, type EstadisticasCredito, type Tabla } from "@/lib/estadisticas";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { NOMBRE_HERRAMIENTA } from "@/lib/uso";
@@ -48,6 +48,7 @@ export default async function EstadisticasPagina({ searchParams }: { searchParam
     supabase.rpc("inactividad_org"),
   ]);
   const credito = await supabase.rpc("estadisticas_credito", { p_desde: f.desde, p_hasta: f.hasta });
+  const agenda = await supabase.rpc("agenda_metricas", { p_desde: f.desde, p_hasta: f.hasta });
   const tc = credito.data ? tablasCredito(credito.data as EstadisticasCredito) : null;
   if (datos.error) throw new Error(`No se pudieron calcular las estadísticas: ${datos.error.message}`);
   const t = tablas(datos.data as Estadisticas);
@@ -92,6 +93,7 @@ export default async function EstadisticasPagina({ searchParams }: { searchParam
       {tc ? <VerTabla t={tc.ventas} csv={ligaCsv("ventas")} vacio="Sin paquetes vendidos en el periodo." /> : null}
       {tc ? <VerTabla t={tc.credito} csv={ligaCsv("credito")} vacio="Sin movimientos de crédito." /> : null}
       <VerTabla t={tablaActividad((actividad.data ?? []) as ActividadComisionista[])} csv={ligaCsv("actividad")} vacio="Sin comisionistas activos." />
+      <VerTabla t={tablaAgenda((agenda.data ?? []) as UsoAgenda[])} csv={ligaCsv("agenda")} vacio="Nadie ha usado la Agenda." />
     </PantallaAdmin>
   );
 }

@@ -15,7 +15,8 @@ const RUTA_ACCESO = "/entrar";
  * secreto (CRON_SECRET), no con sesión. `anon` no puede leer ninguna
  * tabla: abrir una ruta no abre los datos.
  */
-const RUTAS_ABIERTAS = [RUTA_ACCESO, "/alta/", "/s/", "/t/", "/privacidad", "/api/cron"];
+// /api/calendario/: la liga de calendario de la Agenda (0091), que se protege con su propio token.
+const RUTAS_ABIERTAS = [RUTA_ACCESO, "/alta/", "/s/", "/t/", "/privacidad", "/api/cron", "/api/calendario/"];
 
 export async function proxy(request: NextRequest) {
   let respuesta = NextResponse.next({ request });

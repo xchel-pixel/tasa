@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
     // Privacidad: el resumen de la IP (límite de envíos) se borra a los 30 días.
     const { error: errorIp } = await supabase.rpc("limpiar_datos_tecnicos");
     if (errorIp) console.error(`[tasa] No se pudo limpiar el resumen de IP: ${errorIp.message}`);
+    // Agenda (0091): tareas hechas y citas de hace más de 12 meses; contactos de cuentas suspendidas; ligas revocadas.
+    const { error: errorAgenda } = await supabase.rpc("limpiar_agenda");
+    if (errorAgenda) console.error(`[tasa] No se pudo limpiar la agenda: ${errorAgenda.message}`);
     // Inactividad de comisionistas (0075): aviso a 15 días, inactiva a los 6 meses sin trabajo cobrado, reactivación.
     const { data: inactividad, error: errorInact } = await supabase.rpc("revisar_inactividad");
     if (errorInact) console.error(`[tasa] No se pudo revisar la inactividad: ${errorInact.message}`);

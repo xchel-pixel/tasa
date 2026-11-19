@@ -724,3 +724,55 @@ begin
    limit 1;
 end;
 $$;
+
+-- 15. Agenda (0091): visitas y entregas de ejemplo en trámites de Ana, y su agenda (tareas, citas y contactos) y la de la
+--     admin DEMO. Se borra y se vuelve a crear en cada corrida (solo DEMO). Datos inventados.
+do $$
+declare
+  v_demo uuid := (select id from organizaciones where slug = 'demo');
+  v_ana  uuid := (select id from personas where correo = 'xchel+demo-ana@arqosuv.com');
+  v_adm  uuid := (select id from personas where correo = 'xchel+demo-admin@arqosuv.com');
+  v_hoy  date := hoy_mx();
+  v_t    uuid[];
+  k1 uuid; k2 uuid;
+  v_quien uuid;
+begin
+  if v_demo is null or v_ana is null then return; end if;
+  -- Fechas de visita y compromiso: dos trámites de Ana en proceso.
+  v_t := array(select s.id from solicitudes s where s.organizacion_id = v_demo and s.comisionista_id = v_ana and s.estado = 'tramite'
+                  and s.estatus_publico not in ('entregado', 'pagado') order by s.creado_en limit 2);
+  if array_length(v_t, 1) >= 1 then
+    update solicitudes set visita_en = (v_hoy + time '11:00') at time zone 'America/Mexico_City', visita_con_hora = true,
+                           fecha_compromiso = v_hoy + 3 where id = v_t[1];
+  end if;
+  if array_length(v_t, 1) >= 2 then
+    update solicitudes set visita_en = (v_hoy + 1 + time '17:30') at time zone 'America/Mexico_City', visita_con_hora = true,
+                           fecha_compromiso = v_hoy + 6 where id = v_t[2];
+  end if;
+
+  delete from agenda_tareas where organizacion_id = v_demo;
+  delete from agenda_citas where organizacion_id = v_demo;
+  delete from agenda_contactos where organizacion_id = v_demo;
+  delete from calendario_ligas where organizacion_id = v_demo;
+  foreach v_quien in array array_remove(array[v_ana, v_adm], null) loop
+    insert into agenda_contactos (organizacion_id, persona_id, nombre, telefono, nota, seguimiento_en)
+    values (v_demo, v_quien, 'Laura Demo', '4421000001', 'Le interesa un avalúo comercial para vender', v_hoy) returning id into k1;
+    insert into agenda_contactos (organizacion_id, persona_id, nombre, telefono, nota, seguimiento_en)
+    values (v_demo, v_quien, 'Notaría Demo 7', '4421000002', 'Pedir lista de escrituras de la semana', v_hoy - 2) returning id into k2;
+    insert into agenda_contactos (organizacion_id, persona_id, nombre, telefono, seguimiento_en)
+    values (v_demo, v_quien, 'Pedro Demo', '4421000003', v_hoy + 5);
+    insert into agenda_citas (organizacion_id, persona_id, inicia, termina, titulo, lugar, contacto_id, alarma_min, estatus)
+    values (v_demo, v_quien, (v_hoy + time '09:30') at time zone 'America/Mexico_City', (v_hoy + time '10:00') at time zone 'America/Mexico_City',
+            'Llamar a la notaría', null, k2, 15, 'pendiente'),
+           (v_demo, v_quien, (v_hoy + time '13:00') at time zone 'America/Mexico_City', null,
+            'Ver casa con Laura', 'Av. Constituyentes 20, Centro', k1, 60, 'pendiente'),
+           (v_demo, v_quien, (v_hoy - 1 + time '16:00') at time zone 'America/Mexico_City', null,
+            'Entregar avalúo en persona', null, null, null, 'hecha');
+    insert into agenda_tareas (organizacion_id, persona_id, texto, fecha, hecha_en)
+    values (v_demo, v_quien, 'Mandar cotización a Laura', v_hoy - 1, null),
+           (v_demo, v_quien, 'Pedir predial del cliente', v_hoy, null),
+           (v_demo, v_quien, 'Revisar pagos de la semana', v_hoy, now()),
+           (v_demo, v_quien, 'Actualizar mi tarjeta', null, null);
+  end loop;
+end;
+$$;
