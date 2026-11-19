@@ -42,7 +42,7 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<R
           <div className="mt-3 flex items-center justify-between rounded-xl border border-linea bg-fondo px-2 py-2">
             <Link href={`/agenda?dia=${sumarDias(dia, -1)}`} aria-label="Día anterior" className="flex min-h-11 min-w-11 items-center justify-center text-[1.25rem]">‹</Link>
             <div className="text-center">
-              <h1 className="text-[1.125rem] font-bold capitalize">{esHoy ? `Hoy, ${diaLegible(dia)}` : diaLegible(dia)}</h1>
+              <h1 className="text-[1.125rem] font-bold">{esHoy ? `Hoy, ${diaLegible(dia)}` : mayuscula(diaLegible(dia))}</h1>
               <p className="text-[0.8125rem] text-secundario">
                 {d.citas.length} cita{d.citas.length === 1 ? "" : "s"} · {pendientes} tarea{pendientes === 1 ? "" : "s"} pendiente{pendientes === 1 ? "" : "s"}
                 {esHoy ? null : <> · <Link href="/agenda" className="font-semibold text-acento">Ir a hoy</Link></>}
@@ -182,6 +182,11 @@ function ListaTareas({ tareas, dia, hoy, despues = false }: { tareas: Tarea[]; d
       ))}
     </ul>
   );
+}
+
+/** "jueves 19 de noviembre" → "Jueves 19 de noviembre". */
+function mayuscula(t: string): string {
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 function AgendaPrivada() {

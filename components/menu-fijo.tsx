@@ -30,12 +30,14 @@ export function MenuFijo({ entradas, lugar }: { entradas: EntradaMenu[]; lugar: 
     );
   }
 
+  // Con más de 6 entradas no caben legibles en un celular: se desliza de lado y cada una conserva su ancho.
+  const muchas = entradas.length > 6;
   return (
     <nav aria-label="Menú" data-menu-fijo className="fixed inset-x-0 bottom-0 z-20 border-t border-linea bg-fondo md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-      <ul className="mx-auto flex max-w-md">
+      <ul className={`mx-auto flex max-w-md ${muchas ? "overflow-x-auto" : ""}`}>
         {entradas.map((e) => (
-          <li key={e.href} className="min-w-0 flex-1">
+          <li key={e.href} className={muchas ? "w-[4.75rem] shrink-0" : "min-w-0 flex-1"}>
             <Link href={e.href} aria-current={activa(e.href) ? "page" : undefined}
               className={`flex min-h-14 items-center justify-center px-1 text-center text-[0.8125rem] font-semibold leading-tight ${
                 activa(e.href) ? "text-primario" : "text-secundario"}`}>
