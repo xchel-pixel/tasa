@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
-import { diaMx, diaValido, horaMx, hoyMx, ligaWhatsApp, type Cita, type Contacto } from "@/lib/agenda";
+import { diaMx, diaValido, horaMx, horaValida, hoyMx, ligaWhatsApp, type Cita, type Contacto } from "@/lib/agenda";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
@@ -79,7 +79,7 @@ export default async function CitaAgenda({ params, searchParams }: {
           ) : null}
 
           <FormaCita contactos={(contactos.data ?? []).map((k) => ({ id: k.id, nombre: k.nombre }))} c={{
-            id: c?.id, dia, hora: c ? horaMx(c.inicia) : "09:00", hora_fin: c?.termina ? horaMx(c.termina) : "", titulo: c?.titulo ?? "",
+            id: c?.id, dia, hora: c ? horaMx(c.inicia) : horaValida(q.hora) ?? "09:00", hora_fin: c?.termina ? horaMx(c.termina) : "", titulo: c?.titulo ?? "",
             lugar: c?.lugar ?? "", clave: c?.clave_catastral ?? "", contacto_id: c?.contacto_id ?? contactoInicial, solicitud_id: c?.solicitud_id ?? "",
             alarma: c?.alarma_min === null || c?.alarma_min === undefined ? "" : String(c.alarma_min), notas: c?.notas ?? "",
           }} />

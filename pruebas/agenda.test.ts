@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { construirIcs, escaparIcs, plegar } from "@/lib/agenda-ics";
-import { diaValido, instanteMx, ligaWhatsApp, sumarDias } from "@/lib/agenda";
+import { acomodar, diaValido, horaValida, instanteMx, ligaWhatsApp, minutosMx, sumarDias } from "@/lib/agenda";
 
 describe("Agenda (0091)", () => {
   test("días y horas de México", () => {
@@ -10,6 +10,30 @@ describe("Agenda (0091)", () => {
     expect(sumarDias("2026-11-30", 1)).toBe("2026-12-01");
     expect(sumarDias("2026-01-01", -1)).toBe("2025-12-31");
     expect(instanteMx("2026-11-19", "10:15")).toBe("2026-11-19T16:15:00.000Z");
+  });
+
+  test("jornada (0092): las citas encimadas van lado a lado; las separadas, a todo lo ancho", () => {
+    const r = acomodar([
+      { id: "a", desde: 780, hasta: 840 },  // 13:00–14:00
+      { id: "b", desde: 810, hasta: 870 },  // 13:30–14:30, se encima con a
+      { id: "c", desde: 840, hasta: 900 },  // 14:00–15:00, se encima con b: toma la columna libre de a
+      { id: "d", desde: 960, hasta: 990 },  // 16:00, sola
+    ]);
+    const de = (id: string) => r.find((b) => b.id === id)!;
+    expect([de("a").columna, de("a").columnas]).toEqual([0, 2]);
+    expect([de("b").columna, de("b").columnas]).toEqual([1, 2]);
+    expect([de("c").columna, de("c").columnas]).toEqual([0, 2]);
+    expect([de("d").columna, de("d").columnas]).toEqual([0, 1]);
+    // Tres a la misma hora: tres columnas.
+    expect(acomodar([{ id: "x", desde: 600, hasta: 660 }, { id: "y", desde: 600, hasta: 630 }, { id: "z", desde: 600, hasta: 660 }])
+      .map((b) => b.columnas)).toEqual([3, 3, 3]);
+  });
+
+  test("hora de México y hora válida", () => {
+    expect(minutosMx("2026-11-19T16:15:00Z")).toBe(10 * 60 + 15);
+    expect(horaValida("07:30")).toBe("07:30");
+    expect(horaValida("24:00")).toBeNull();
+    expect(horaValida("7:30")).toBeNull();
   });
 
   test("WhatsApp: 10 dígitos de México llevan el 52", () => {

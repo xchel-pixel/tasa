@@ -78,15 +78,87 @@ export async function leerDia(dia: string) {
           .eq("seguimiento_en", dia).returns<Contacto[]>(),
     supabase.rpc("agenda_eventos_tasa", { p_desde: dia, p_hasta: dia }).returns<EventoTasa[]>(),
   ]);
+  const { data: ajustes } = await supabase.from("agenda_ajustes").select("jornada_inicia, jornada_termina")
+    .maybeSingle<{ jornada_inicia: number; jornada_termina: number }>();
   return {
     // Para saber qué citas ya pasaron (se calcula aquí y no al pintar).
     ahora: Date.now(),
+    jornada: { inicia: ajustes?.jornada_inicia ?? JORNADA.inicia, termina: ajustes?.jornada_termina ?? JORNADA.termina },
     tareas: tareas.data ?? [],
     despues: despues.data ?? [],
     citas: citas.data ?? [],
     seguimientos: seguimientos.data ?? [],
     eventos: ((eventos.data ?? []) as EventoTasa[]).sort((a, b) => (a.hora ?? "99").localeCompare(b.hora ?? "99")),
   };
+}
+
+/** Horario de la jornada por omisión (0092): de 7:00 a 21:00. */
+export const JORNADA = { inicia: 7, termina: 21 };
+
+/** Minutos desde la medianoche (México) de un instante. */
+export function minutosMx(iso: string | number): number {
+  const [h, m] = new Intl.DateTimeFormat("en-GB", { timeZone: ZONA, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .format(new Date(iso)).split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** "HH:MM" válida o nula. */
+export function horaValida(texto: string | null | undefined): string | null {
+  if (!texto || !/^[0-9]{2}:[0-9]{2}$/.test(texto)) return null;
+  const [h, m] = texto.split(":").map(Number);
+  return h < 24 && m < 60 ? texto : null;
+}
+
+export type Bloque = { id: string; desde: number; hasta: number };
+export type BloqueAcomodado<T extends Bloque> = T & { columna: number; columnas: number };
+
+/**
+ * Acomoda los bloques de la jornada: los que se enciman van lado a lado. Cada grupo de bloques encimados (directa o
+ * indirectamente) se reparte en columnas; cada bloque toma la primera columna libre. desde/hasta en minutos.
+ */
+export function acomodar<T extends Bloque>(bloques: T[]): BloqueAcomodado<T>[] {
+  const orden = [...bloques].sort((a, b) => a.desde - b.desde || b.hasta - a.hasta);
+  const salida: BloqueAcomodado<T>[] = [];
+  let grupo: BloqueAcomodado<T>[] = [];
+  let finGrupo = -1;
+  let finales: number[] = [];
+  const cerrar = () => {
+    for (const b of grupo) b.columnas = finales.length;
+    salida.push(...grupo);
+    grupo = [];
+    finales = [];
+  };
+  for (const b of orden) {
+    if (grupo.length && b.desde >= finGrupo) cerrar();
+    let columna = finales.findIndex((fin) => fin <= b.desde);
+    if (columna === -1) {
+      columna = finales.length;
+      finales.push(b.hasta);
+    } else finales[columna] = b.hasta;
+    grupo.push({ ...b, columna, columnas: 0 });
+    finGrupo = Math.max(grupo.length === 1 ? -1 : finGrupo, b.hasta);
+  }
+  if (grupo.length) cerrar();
+  return salida;
+}
+
+/** Los días de un mes ("AAAA-MM") con citas propias o visitas de Tasa: llevan un punto en el calendario del mes. */
+export async function diasConCitas(mes: string): Promise<string[]> {
+  if (!/^[0-9]{4}-[0-9]{2}$/.test(mes) || !diaValido(`${mes}-01`)) return [];
+  const supabase = await crearClienteServidor();
+  const primero = `${mes}-01`;
+  const ultimo = sumarDias(primero.slice(0, 8) + "28", 4).slice(0, 8) + "01";
+  const fin = sumarDias(ultimo, -1);
+  const [citas, eventos] = await Promise.all([
+    supabase.from("agenda_citas").select("inicia")
+      .gte("inicia", new Date(`${primero}T00:00:00-06:00`).toISOString()).lt("inicia", new Date(`${ultimo}T00:00:00-06:00`).toISOString())
+      .returns<{ inicia: string }[]>(),
+    supabase.rpc("agenda_eventos_tasa", { p_desde: primero, p_hasta: fin }).returns<EventoTasa[]>(),
+  ]);
+  const dias = new Set<string>();
+  for (const c of citas.data ?? []) dias.add(diaMx(c.inicia));
+  for (const e of (eventos.data ?? []) as EventoTasa[]) if (e.tipo === "visita") dias.add(e.dia);
+  return [...dias].sort();
 }
 
 /** Teléfono para la liga de WhatsApp (México: 10 dígitos → 52…). */

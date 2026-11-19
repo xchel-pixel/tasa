@@ -14,8 +14,8 @@ export function MenuFijo({ entradas, lugar }: { entradas: EntradaMenu[]; lugar: 
 
   if (lugar === "arriba") {
     return (
-      <nav aria-label="Menú" className="hidden md:block">
-        <ul className="flex items-center gap-1">
+      <nav aria-label="Menú" className="hidden min-w-0 md:block">
+        <ul className="flex items-center gap-1 overflow-x-auto">
           {entradas.map((e) => (
             <li key={e.href}>
               <Link href={e.href} aria-current={activa(e.href) ? "page" : undefined}

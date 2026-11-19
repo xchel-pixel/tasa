@@ -754,6 +754,7 @@ begin
   delete from agenda_citas where organizacion_id = v_demo;
   delete from agenda_contactos where organizacion_id = v_demo;
   delete from calendario_ligas where organizacion_id = v_demo;
+  delete from agenda_ajustes where organizacion_id = v_demo;
   foreach v_quien in array array_remove(array[v_ana, v_adm], null) loop
     insert into agenda_contactos (organizacion_id, persona_id, nombre, telefono, nota, seguimiento_en)
     values (v_demo, v_quien, 'Laura Demo', '4421000001', 'Le interesa un avalúo comercial para vender', v_hoy) returning id into k1;
@@ -767,7 +768,12 @@ begin
            (v_demo, v_quien, (v_hoy + time '13:00') at time zone 'America/Mexico_City', null,
             'Ver casa con Laura', 'Av. Constituyentes 20, Centro', k1, 60, 'pendiente'),
            (v_demo, v_quien, (v_hoy - 1 + time '16:00') at time zone 'America/Mexico_City', null,
-            'Entregar avalúo en persona', null, null, null, 'hecha');
+            'Entregar avalúo en persona', null, null, null, 'hecha'),
+           -- 0092: una cita encimada (lado a lado) y una antes de la jornada.
+           (v_demo, v_quien, (v_hoy + time '13:30') at time zone 'America/Mexico_City', (v_hoy + time '14:30') at time zone 'America/Mexico_City',
+            'Llamada con Pedro', null, null, null, 'pendiente'),
+           (v_demo, v_quien, (v_hoy + time '06:30') at time zone 'America/Mexico_City', null,
+            'Revisar ruta de visitas', null, null, null, 'pendiente');
     insert into agenda_tareas (organizacion_id, persona_id, texto, fecha, hecha_en)
     values (v_demo, v_quien, 'Mandar cotización a Laura', v_hoy - 1, null),
            (v_demo, v_quien, 'Pedir predial del cliente', v_hoy, null),

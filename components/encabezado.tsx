@@ -38,7 +38,8 @@ export async function Encabezado() {
       ) : null}
       <header className="border-b border-linea bg-fondo px-6 py-3">
         <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3 md:max-w-3xl">
-          <div className="min-w-0">
+          {/* El logo no se encoge: con muchas entradas en el menú, el que se desliza es el menú. */}
+          <div className="min-w-0 shrink-0">
             <Link href="/" className="toque">
               <Marca alto={44} />
             </Link>

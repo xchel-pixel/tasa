@@ -6281,6 +6281,29 @@ end;
 $sec$;
 
 
+-- @@ Horario de la jornada (0092)
+-- Cada persona ajusta su jornada; es privada como el resto de la agenda; al menos 4 horas.
+do $sec$
+declare
+  xg uuid := pg_temp.xg();
+begin
+  perform pg_temp.sistema();
+  update herramientas set roles = array['admin_org', 'comisionista'] where organizacion_id = xg and clave = 'agenda';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  insert into agenda_ajustes (jornada_inicia, jornada_termina) values (8, 19);
+  perform pg_temp.igual((select jornada_inicia || '-' || jornada_termina from agenda_ajustes), '8-19', 'Ana guarda su horario');
+  perform pg_temp.debe_fallar($q$update agenda_ajustes set jornada_inicia = 17$q$, 'check', 'La jornada dura al menos 4 horas');
+  perform pg_temp.como('xchel+beto@arqosuv.com');
+  perform pg_temp.igual((select count(*) from agenda_ajustes)::int, 0, 'Otro comisionista no ve el horario de Ana');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual((select count(*) from agenda_ajustes)::int, 0, 'admin_org tampoco');
+  perform pg_temp.sistema();
+  update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave = 'agenda';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from agenda_ajustes)::int, 0, 'Con la agenda apagada, ni ella');
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

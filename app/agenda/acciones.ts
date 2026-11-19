@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { diaValido, instanteMx } from "@/lib/agenda";
+import { diaValido, diasConCitas, instanteMx } from "@/lib/agenda";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
@@ -156,4 +156,21 @@ export async function quitarLiga(): Promise<void> {
   if (await puede()) return;
   await (await crearClienteServidor()).rpc("revocar_liga_calendario");
   revalidatePath("/agenda/calendario");
+}
+
+/** Horario de la jornada (0092): horas enteras; al menos 4 horas. */
+export async function guardarJornada(f: FormData): Promise<void> {
+  if (await puede()) return;
+  const inicia = Number(texto(f, "inicia"));
+  const termina = Number(texto(f, "termina"));
+  if (!Number.isInteger(inicia) || !Number.isInteger(termina) || inicia < 0 || termina > 24 || termina - inicia < 4) return;
+  await (await crearClienteServidor()).from("agenda_ajustes")
+    .upsert({ jornada_inicia: inicia, jornada_termina: termina, actualizado_en: new Date().toISOString() }, { onConflict: "organizacion_id,persona_id" });
+  revalidatePath("/agenda", "layout");
+}
+
+/** Los días del mes con citas (para los puntos del calendario del mes). */
+export async function diasDelMes(mes: string): Promise<string[]> {
+  if (await puede()) return [];
+  return diasConCitas(mes);
 }
