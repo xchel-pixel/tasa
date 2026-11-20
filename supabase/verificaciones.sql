@@ -6304,6 +6304,35 @@ begin
 end;
 $sec$;
 
+-- @@ Agenda: palomear no borra; borrar se puede deshacer (0093)
+do $sec$
+declare
+  xg uuid := pg_temp.xg();
+  t1 uuid;
+  t2 uuid;
+begin
+  perform pg_temp.sistema();
+  update herramientas set roles = array['admin_org', 'comisionista'] where organizacion_id = xg and clave = 'agenda';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  insert into agenda_tareas (texto, fecha) values ('Para después 0093', null) returning id into t1;
+  insert into agenda_tareas (texto, fecha) values ('Para hoy 0093', hoy_mx()) returning id into t2;
+  update agenda_tareas set hecha_en = now() where id in (t1, t2);
+  perform pg_temp.igual((select count(*) from agenda_tareas where id in (t1, t2) and hecha_en is not null)::int, 2, 'Palomear (en las dos listas) deja la tarea, solo hecha');
+  update agenda_tareas set eliminada_en = now() where id = t1;
+  perform pg_temp.igual((select count(*) from agenda_tareas where id = t1)::int, 1, 'Borrar solo la marca eliminada');
+  update agenda_tareas set eliminada_en = null where id = t1;
+  perform pg_temp.igual((select eliminada_en is null from agenda_tareas where id = t1), true, 'Deshacer la regresa');
+  perform pg_temp.sistema();
+  update agenda_tareas set eliminada_en = now() - interval '31 days' where id = t1;
+  update agenda_tareas set eliminada_en = now() - interval '5 days' where id = t2;
+  perform limpiar_agenda();
+  perform pg_temp.igual((select count(*) from agenda_tareas where id = t1)::int, 0, 'A los 30 días la limpieza la quita');
+  perform pg_temp.igual((select count(*) from agenda_tareas where id = t2)::int, 1, 'Antes de 30 días sigue recuperable');
+  delete from agenda_tareas where id = t2;
+  update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave = 'agenda';
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

@@ -62,13 +62,17 @@ export async function leerDia(dia: string) {
   const desde = new Date(`${dia}T00:00:00-06:00`).toISOString();
   const hasta = new Date(`${sumarDias(dia, 1)}T00:00:00-06:00`).toISOString();
 
-  let tareasQ = supabase.from("agenda_tareas").select("id, texto, fecha, hecha_en, contacto_id, solicitud_id").not("fecha", "is", null);
+  // Las eliminadas (0093) no se muestran: se pueden deshacer y la limpieza las quita a los 30 días.
+  let tareasQ = supabase.from("agenda_tareas").select("id, texto, fecha, hecha_en, contacto_id, solicitud_id").not("fecha", "is", null)
+    .is("eliminada_en", null);
   // Hoy: lo de hoy y lo pendiente de antes; otro día: solo lo de ese día.
   tareasQ = esHoy ? tareasQ.or(`fecha.eq.${dia},and(fecha.lt.${dia},hecha_en.is.null)`) : tareasQ.eq("fecha", dia);
+  // "Para después": las pendientes y las que se palomearon hoy (tachadas, como en "Para hoy"); al día siguiente se van.
+  const inicioHoy = new Date(`${hoy}T00:00:00-06:00`).toISOString();
   const [tareas, despues, citas, seguimientos, eventos] = await Promise.all([
     tareasQ.order("fecha").order("creado_en").returns<Tarea[]>(),
-    supabase.from("agenda_tareas").select("id, texto, fecha, hecha_en, contacto_id, solicitud_id").is("fecha", null).is("hecha_en", null)
-      .order("creado_en").returns<Tarea[]>(),
+    supabase.from("agenda_tareas").select("id, texto, fecha, hecha_en, contacto_id, solicitud_id").is("fecha", null).is("eliminada_en", null)
+      .or(`hecha_en.is.null,hecha_en.gte.${inicioHoy}`).order("creado_en").returns<Tarea[]>(),
     supabase.from("agenda_citas").select("id, inicia, termina, titulo, lugar, clave_catastral, contacto_id, solicitud_id, alarma_min, estatus, notas")
       .gte("inicia", desde).lt("inicia", hasta).order("inicia").returns<Cita[]>(),
     esHoy
@@ -90,6 +94,25 @@ export async function leerDia(dia: string) {
     seguimientos: seguimientos.data ?? [],
     eventos: ((eventos.data ?? []) as EventoTasa[]).sort((a, b) => (a.hora ?? "99").localeCompare(b.hora ?? "99")),
   };
+}
+
+export type CambioTarea = "hecha" | "pendiente" | "hoy" | "despues" | "borrar" | "restaurar";
+
+/**
+ * Qué le pasa a la tarea con cada botón. Nada borra de verdad: "borrar" la marca como eliminada (0093) y "restaurar"
+ * la regresa. La casilla de cualquier lista solo cambia hecha_en.
+ */
+export function cambioDeTarea(que: string, dia: string | null, ahora = new Date()): Record<string, string | null> | null {
+  const sello = ahora.toISOString();
+  switch (que) {
+    case "hecha": return { hecha_en: sello };
+    case "pendiente": return { hecha_en: null };
+    case "hoy": return dia ? { fecha: dia } : null;
+    case "despues": return { fecha: null };
+    case "borrar": return { eliminada_en: sello };
+    case "restaurar": return { eliminada_en: null };
+    default: return null;
+  }
 }
 
 /** Horario de la jornada por omisión (0092): de 7:00 a 21:00. */

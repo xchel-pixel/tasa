@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { diaValido, diasConCitas, instanteMx } from "@/lib/agenda";
+import { cambioDeTarea, diaValido, diasConCitas, instanteMx } from "@/lib/agenda";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
@@ -41,19 +41,18 @@ export async function agregarTarea(_p: EstadoAgenda, f: FormData): Promise<Estad
   return listo(error, "Tarea agregada.");
 }
 
-/** Palomita, mover a hoy / para después, o borrar. Sin estado de regreso: la pantalla se vuelve a pintar. */
-export async function cambiarTarea(f: FormData): Promise<void> {
-  if (await puede()) return;
+/**
+ * Palomita, mover a hoy / para después, borrar (marca eliminada, 0093) o restaurar. Nunca borra de verdad.
+ * Regresa si se pudo, para que la pantalla ofrezca "Deshacer".
+ */
+export async function cambiarTarea(f: FormData): Promise<boolean> {
+  if (await puede()) return false;
   const id = uuidO(texto(f, "id"));
-  if (!id) return;
-  const supabase = await crearClienteServidor();
-  const que = texto(f, "que");
-  if (que === "hecha") await supabase.from("agenda_tareas").update({ hecha_en: new Date().toISOString() }).eq("id", id);
-  else if (que === "pendiente") await supabase.from("agenda_tareas").update({ hecha_en: null }).eq("id", id);
-  else if (que === "hoy") await supabase.from("agenda_tareas").update({ fecha: diaValido(texto(f, "dia")) }).eq("id", id);
-  else if (que === "despues") await supabase.from("agenda_tareas").update({ fecha: null }).eq("id", id);
-  else if (que === "borrar") await supabase.from("agenda_tareas").delete().eq("id", id);
+  const cambio = cambioDeTarea(texto(f, "que"), diaValido(texto(f, "dia")));
+  if (!id || !cambio) return false;
+  const { error } = await (await crearClienteServidor()).from("agenda_tareas").update(cambio).eq("id", id);
   revalidatePath("/agenda", "layout");
+  return !error;
 }
 
 /** Cita nueva o editada. */

@@ -9,7 +9,8 @@ import {
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import { verComoId } from "@/lib/supabase/server";
-import { cambiarCita, cambiarContacto, cambiarTarea, guardarJornada } from "./acciones";
+import { cambiarCita, cambiarContacto, guardarJornada } from "./acciones";
+import { AvisosDeshacer, FilaTarea } from "./tareas";
 import { AgregarTarea } from "./formularios";
 import { FechaConCalendario, VistaAgenda } from "./vista";
 
@@ -45,6 +46,7 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<R
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col pt-3 lg:pb-10">
+        <AvisosDeshacer>
         <div className="mx-auto w-full max-w-6xl px-4 lg:px-6">
           <div className="flex items-center justify-between px-1">
             <VolverPortada />
@@ -76,6 +78,7 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<R
           lista={<Lista d={d} dia={dia} hoy={hoy} esHoy={esHoy} />}
           jornada={<Jornada dia={dia} citas={d.citas} conHora={conHora} deDia={deDia} ini={ini} fin={fin} ahora={d.ahora}
             ahoraMin={ahoraMin} ahoraY={ahoraY} jornada={d.jornada} />} />
+        </AvisosDeshacer>
       </main>
     </>
   );
@@ -287,35 +290,8 @@ function ListaTareas({ tareas, dia, hoy, despues = false }: { tareas: Tarea[]; d
   if (!tareas.length) return <p className="mt-2 text-[0.9375rem] text-secundario">{despues ? "Nada para después." : "Sin tareas."}</p>;
   return (
     <ul className="flex flex-col">
-      {tareas.map((t) => (
-        <li key={t.id} className="flex items-start gap-2 border-b border-linea py-2 last:border-b-0">
-          <form action={cambiarTarea}>
-            <input type="hidden" name="id" value={t.id} />
-            <input type="hidden" name="que" value={t.hecha_en ? "pendiente" : "hecha"} />
-            <button aria-label={t.hecha_en ? "Marcar como pendiente" : "Marcar como hecha"}
-              className={`flex h-6 w-6 items-center justify-center rounded-sm border-2 text-[0.875rem] ${t.hecha_en ? "border-primario bg-primario text-sobre-primario" : "border-borde-campo bg-fondo"}`}>
-              {t.hecha_en ? "✓" : ""}
-            </button>
-          </form>
-          <span className={`min-w-0 flex-1 text-[0.9375rem] ${t.hecha_en ? "text-secundario line-through" : ""}`}>
-            {t.texto}
-            {t.fecha && t.fecha < hoy && !t.hecha_en ? <span className="ml-1 text-[0.8125rem] text-error">(desde el {t.fecha.slice(8, 10)}/{t.fecha.slice(5, 7)})</span> : null}
-          </span>
-          {!t.hecha_en ? (
-            <form action={cambiarTarea}>
-              <input type="hidden" name="id" value={t.id} />
-              <input type="hidden" name="que" value={despues ? "hoy" : "despues"} />
-              <input type="hidden" name="dia" value={dia} />
-              <button className={BOTON_CHICO}>{despues ? "A este día" : "Después"}</button>
-            </form>
-          ) : null}
-          <form action={cambiarTarea}>
-            <input type="hidden" name="id" value={t.id} />
-            <input type="hidden" name="que" value="borrar" />
-            <button aria-label="Borrar tarea" className="px-1 text-[0.9375rem] text-secundario">×</button>
-          </form>
-        </li>
-      ))}
+      {/* La misma fila en las dos listas: la casilla solo palomea; el × marca eliminada (0093). */}
+      {tareas.map((t) => <FilaTarea key={t.id} t={t} dia={dia} hoy={hoy} despues={despues} />)}
     </ul>
   );
 }
