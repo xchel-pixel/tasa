@@ -47,7 +47,12 @@ export async function proxy(request: NextRequest) {
   // fía de la cookie.
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
+  // Diagnóstico (humo): una falla que no es "no hay sesión" se anota con su causa.
+  if (error && error.name !== "AuthSessionMissingError") {
+    console.error(`[tasa] proxy getUser falló en ${request.nextUrl.pathname}: ${error.name} ${error.status ?? ""} ${error.message}`);
+  }
 
   const ruta = request.nextUrl.pathname;
   const enAcceso = ruta.startsWith(RUTA_ACCESO);

@@ -163,6 +163,13 @@ la app las muestra, la base las hace cumplir.
   lee su resultado ANTES del push; nunca en el mismo comando que el push ni en segundo plano sin
   esperarlo. Si una prueba falla, se revisa por qué; si fue algo de fuera (red, la fuente), se repite
   esa prueba y solo con 12/12 se sube. (Nov-2026: un push salió con 11/12 porque el comando no esperó.)
+- **Humo carga la base (tamaño Micro, CPU compartido): entre corrida y corrida, 15 minutos de reposo.**
+  Dos corridas seguidas (unos 20 min de carga) agotan la reserva de CPU y todo se vuelve 3-4 veces más
+  lento; una prueba de 1 min llega a 4 y se corta (diagnóstico de 0094, 19-nov-2026). Una prueba que se
+  queda sin tiempo se detiene sola y dice en qué página iba y cuáles fueron lentas; el reporte lista toda
+  página de más de 5 s. **Repetir una prueba se dice con su motivo:**
+  `npm run humo -- -g "DEMO finanzas" --repite "motivo"`; el reporte lo marca como REPETICIÓN (y una corrida
+  con `-g` sin `--repite`, como PARCIAL).
 - **Antes de cada push a main, correr `npm run humo` y no subir si falla.** Entra a producción
   y abre todas las pantallas (solo lectura) en XG (admin_org y finanzas) y en DEMO (admin_org,
   finanzas, equipo y comisionista); lo que no le toca a un rol debe regresarlo al inicio. La lista

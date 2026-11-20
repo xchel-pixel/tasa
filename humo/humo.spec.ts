@@ -310,6 +310,8 @@ async function sinMosaicos(contexto: BrowserContext) {
  * PC (net::ERR_NETWORK_*: Windows suspendió la red, cambió de red…), se reintenta UNA vez y queda anotado en el
  * reporte. Cualquier otra falla (de Tasa) no se reintenta.
  */
+const LENTA_MS = 5000;
+
 async function ir(pagina: Page, ruta: string) {
   const abrir = () => pagina.goto(ruta, { waitUntil: "domcontentloaded", timeout: 45_000 });
   try {
@@ -371,7 +373,11 @@ async function organizacionActiva(correo: string): Promise<string | null> {
 
 /** Abre una ruta y devuelve el problema, o nulo si se comportó como se esperaba. */
 async function revisar(pagina: Page, ruta: string, espera: Espera): Promise<string | null> {
+  const inicio = Date.now();
   const r = await ir(pagina, ruta);
+  const ms = Date.now() - inicio;
+  // Una página lenta queda en el reporte con su tiempo (para saber dónde se va el tiempo de la prueba).
+  if (ms > LENTA_MS) test.info().annotations.push({ type: "página lenta", description: `${ruta}: ${(ms / 1000).toFixed(1)} s` });
   const status = r?.status() ?? 0;
   if (status >= 400) return `${ruta}: respondió ${status}`;
   const donde = new URL(pagina.url()).pathname;
@@ -451,6 +457,11 @@ for (const q of QUIENES) {
     const misHerramientas = (((await sesion.rpc("mis_herramientas")).data ?? []) as { clave: string }[]).map((h) => h.clave);
     const problemas: string[] = [];
     let abiertas = 0;
+    // Si la prueba se va a quedar sin tiempo, se detiene ella misma y dice en qué página iba. Antes, Playwright la
+    // cortaba a los 4 min pero el recorrido seguía "de fondo"; al final humo cerraba las sesiones y las páginas que le
+    // faltaban salían "sin sesión", lo que confundía la causa real (la lentitud).
+    const limite = Date.now() + 215_000;
+    let sinTiempo = false;
     try {
       const pagina = await contexto.newPage();
       if (q.rol === "admin_org" || q.rol === "finanzas") {
@@ -458,12 +469,18 @@ for (const q of QUIENES) {
         const ligas = pagina.locator('main a[href^="/admin/altas/"]:not([href="/admin/altas/nueva"])');
         datos.alta = (await ligas.count()) > 0 ? ((await ligas.first().getAttribute("href"))?.split("/").pop() ?? null) : null;
       }
-      for (const [patron, p] of Object.entries(PANTALLAS)) {
+      recorrido: for (const [patron, p] of Object.entries(PANTALLAS)) {
         if (p.publica) continue;
         for (const ruta of p.rutas(datos)) {
           if (!ruta) {
             test.info().annotations.push({ type: "sin datos", description: patron });
             continue;
+          }
+          if (Date.now() > limite) {
+            sinTiempo = true;
+            const lentas = test.info().annotations.filter((a) => a.type === "página lenta").map((a) => a.description);
+            problemas.push(`Se acabó el tiempo antes de ${ruta} (${abiertas} páginas abiertas). Lentas: ${lentas.join("; ") || "ninguna sobre 5 s"}`);
+            break recorrido;
           }
           const espera = (p.soloSuperPlataforma && q.org !== "XG") || (p.herramienta && !misHerramientas.includes(p.herramienta)) ? "inicio" : p.espera[q.rol];
           const problema = await revisar(pagina, ruta, espera);
@@ -471,7 +488,7 @@ for (const q of QUIENES) {
           if (problema) problemas.push(problema);
         }
       }
-      test.info().annotations.push({ type: "pantallas", description: String(abiertas) });
+      test.info().annotations.push({ type: "pantallas", description: `${abiertas}${sinTiempo ? " (se detuvo por tiempo)" : ""}` });
 
       // Mosaicos de líneas de predios (pasan por Tasa): solo el equipo con el mapa; a los demás, 403 desde el servidor.
       // Mosaico del centro de Querétaro, zoom 18. Nunca en la caché compartida: private.

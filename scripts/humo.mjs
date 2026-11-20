@@ -41,8 +41,22 @@ const despierta = process.platform === "win32"
   ? spawn("powershell", ["-NoProfile", "-NonInteractive", "-Command", DESPIERTA], { stdio: "ignore" })
   : null;
 
+// Repetir una prueba se dice con su motivo: npm run humo -- -g "DEMO finanzas" --repite "se pasó de tiempo a las 00:15".
+// Queda al principio y al final del reporte; una corrida con -g sin --repite se marca como parcial.
+const args = process.argv.slice(2);
+const iRepite = args.indexOf("--repite");
+const motivo = iRepite >= 0 ? (args[iRepite + 1] ?? "sin motivo") : null;
+if (iRepite >= 0) args.splice(iRepite, 2);
+const iFiltro = args.indexOf("-g");
+const filtro = iFiltro >= 0 ? args[iFiltro + 1] : null;
+const encabezado = motivo
+  ? `REPETICIÓN de "${filtro ?? "todas"}" · motivo: ${motivo}`
+  : filtro ? `Corrida PARCIAL (solo "${filtro}"): no cuenta como humo completo` : "Corrida completa";
+console.log(encabezado);
+salida.write(`${encabezado}\n`);
+
 // Playwright con el mismo node, sin shell: los argumentos (p. ej. -g "DEMO equipo") llegan tal cual.
-const playwright = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test", ...process.argv.slice(2)], {
+const playwright = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test", ...args], {
   env: { ...process.env, HUMO_SALIDA: carpeta },
 });
 for (const flujo of [playwright.stdout, playwright.stderr]) {
@@ -55,7 +69,7 @@ for (const flujo of [playwright.stdout, playwright.stderr]) {
 playwright.on("close", (codigo) => {
   despierta?.kill();
   salida.end();
-  const lineas = [`\nSalida completa: ${carpeta}/salida.txt`];
+  const lineas = [`\n${encabezado}`, `Salida completa: ${carpeta}/salida.txt`];
   const archivo = `${carpeta}/reporte.json`;
   if (existsSync(archivo)) {
     const reporte = JSON.parse(readFileSync(archivo, "utf8"));
@@ -63,7 +77,10 @@ playwright.on("close", (codigo) => {
     const recorrer = (s) => { for (const x of s.suites ?? []) recorrer(x); for (const e of s.specs ?? []) for (const p of e.tests ?? []) pruebas.push({ titulo: e.title, p }); };
     for (const s of reporte.suites ?? []) recorrer(s);
     for (const { titulo, p } of pruebas) {
-      for (const a of p.annotations ?? []) if (a.type === "reintento por red") lineas.push(`Reintento por red · ${titulo} · ${a.description}`);
+      for (const a of p.annotations ?? []) {
+        if (a.type === "reintento por red") lineas.push(`Reintento por red · ${titulo} · ${a.description}`);
+        if (a.type === "página lenta") lineas.push(`Página lenta · ${titulo} · ${a.description}`);
+      }
       const r = p.results?.at(-1);
       if (r && r.status !== "passed" && r.status !== "skipped") {
         lineas.push(`FALLÓ · ${titulo} · ${(r.error?.message ?? r.status).split("\n")[0]}`);

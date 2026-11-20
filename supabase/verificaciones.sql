@@ -6333,6 +6333,32 @@ begin
 end;
 $sec$;
 
+-- @@ Bitácora en páginas de 100 (0094)
+do $sec$
+declare
+  xg uuid := pg_temp.xg();
+  p1 jsonb;
+  p2 jsonb;
+begin
+  perform pg_temp.sistema();
+  insert into bitacora (accion, tabla, registro_id, despues, creado_en)
+  select 'INSERT', 'prueba_paginas', g::text, jsonb_build_object('organizacion_id', xg, 'n', g),
+         (hoy_mx() + time '12:00') at time zone 'America/Mexico_City' from generate_series(1, 130) g;
+  perform pg_temp.como('xchel@arqosuv.com');
+  p1 := bitacora_org(hoy_mx(), hoy_mx(), null, 'prueba_paginas');
+  perform pg_temp.igual(jsonb_array_length(p1->'filas'), 100, 'Primera página: 100 cambios');
+  perform pg_temp.igual((p1->>'hay_mas')::boolean, true, 'Avisa que hay más');
+  p2 := bitacora_org(hoy_mx(), hoy_mx(), null, 'prueba_paginas', ((p1->'filas'->99)->>'id')::bigint);
+  perform pg_temp.igual(jsonb_array_length(p2->'filas'), 30, 'La segunda página trae los 30 restantes');
+  perform pg_temp.igual((p2->>'hay_mas')::boolean, false, 'Y ya no hay más');
+  perform pg_temp.igual((select count(*) from jsonb_array_elements(p1->'filas') a, jsonb_array_elements(p2->'filas') b where a->>'id' = b->>'id')::int, 0,
+    'Ningún cambio se repite entre páginas');
+  perform pg_temp.igual((p1->'tablas') ? 'prueba_paginas', true, 'La lista de tablas sale del índice');
+  perform pg_temp.sistema();
+  delete from bitacora where tabla = 'prueba_paginas';
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

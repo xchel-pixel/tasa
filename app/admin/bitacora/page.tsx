@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PantallaAdmin } from "@/components/pantalla-admin";
 import { haceDiasMx, hoyMx } from "@/lib/estadisticas";
 import { exigirRol } from "@/lib/sesion";
@@ -26,13 +27,15 @@ export default async function Bitacora({ searchParams }: { searchParams: Promise
   const hasta = esFecha(q.hasta) ? q.hasta! : hoy;
   const persona = q.persona && q.persona.length === 36 ? q.persona : null;
   const tabla = q.tabla && q.tabla.length <= 60 ? q.tabla : null;
+  const antes = q.antes && /^[0-9]{1,15}$/.test(q.antes) ? Number(q.antes) : null;
+  const filtros: Record<string, string> = { desde, hasta, ...(persona ? { persona } : {}), ...(tabla ? { tabla } : {}) };
   const supabase = await crearClienteServidor();
   const [datos, gente] = await Promise.all([
-    supabase.rpc("bitacora_org", { p_desde: desde, p_hasta: hasta < desde ? desde : hasta, p_persona: persona, p_tabla: tabla }),
+    supabase.rpc("bitacora_org", { p_desde: desde, p_hasta: hasta < desde ? desde : hasta, p_persona: persona, p_tabla: tabla, p_antes: antes }),
     supabase.from("membresias").select("persona_id, personas(nombre)").returns<{ persona_id: string; personas: { nombre: string } | null }[]>(),
   ]);
   if (datos.error) throw new Error(`No se pudo leer la bitácora: ${datos.error.message}`);
-  const { filas, tablas } = datos.data as { filas: Fila[]; tablas: string[] };
+  const { filas, tablas, hay_mas } = datos.data as { filas: Fila[]; tablas: string[]; hay_mas: boolean };
   const personas = (oExplota(gente, "las personas") ?? []).map((g) => ({ id: g.persona_id, nombre: g.personas?.nombre ?? "—" }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
@@ -56,7 +59,8 @@ export default async function Bitacora({ searchParams }: { searchParams: Promise
         <button type="submit" className="col-span-2 min-h-11 rounded-lg bg-primario px-4 font-semibold text-sobre-primario md:col-span-4">Ver</button>
       </form>
       <p className="mt-2 text-[0.875rem] text-secundario">
-        {filas.length === 300 ? "Se muestran los 300 cambios más recientes; acota el periodo para ver más." : `${filas.length} cambio${filas.length === 1 ? "" : "s"}.`}
+        {antes ? "Cambios más antiguos. " : ""}
+        {hay_mas ? `Se muestran ${filas.length} cambios; hay más abajo.` : `${filas.length} cambio${filas.length === 1 ? "" : "s"}.`}
         {" "}Persona filtra a quien hizo el cambio o a quien afectó.
       </p>
 
@@ -83,6 +87,14 @@ export default async function Bitacora({ searchParams }: { searchParams: Promise
           </li>
         ))}
       </ul>
+      {/* Páginas de 100 (0094): la siguiente empieza después del último cambio de esta. */}
+      <div className="mt-4 flex flex-wrap gap-4">
+        {antes ? <Link href={`/admin/bitacora?${new URLSearchParams(filtros)}`} className="text-[0.9375rem] font-semibold text-acento">Lo más reciente</Link> : null}
+        {hay_mas && filas.length ? (
+          <Link href={`/admin/bitacora?${new URLSearchParams({ ...filtros, antes: String(filas[filas.length - 1].id) })}`}
+            className="text-[0.9375rem] font-semibold text-acento">Ver más antiguos →</Link>
+        ) : null}
+      </div>
     </PantallaAdmin>
   );
 }
