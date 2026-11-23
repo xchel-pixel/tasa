@@ -24,6 +24,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Next 16 genera los tipos de rutas (PageProps, LayoutProps) en .next; en GitHub no existe esa carpeta.
+      - run: npx next typegen
       - run: npx tsc --noEmit -p .
       - run: npm run lint
       - run: npm test
