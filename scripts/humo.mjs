@@ -1,7 +1,10 @@
 /**
  * Corre humo (Playwright) y deja todo guardado:
  *
- *   npm run humo                         → humo contra producción (o HUMO_URL)
+ *   npm run humo                         → humo COMPLETO contra la versión local (http://localhost:3200, o HUMO_URL)
+ *                                          con la base real: `npx next build` y `npx next start -p 3200` antes
+ *   npm run humo:prod                    → en producción, UNA prueba corta (entra, abre el mapa y el PDF);
+ *                                          el completo en producción gasta consumo de Vercel compartido
  *   npm run humo -- -g "DEMO equipo"     → solo esa prueba (lo que sigue de -- va tal cual a Playwright)
  *   npm run humo:fuente                  → la revisión de la fuente externa (aparte; solo cuando se pida)
  *
@@ -44,6 +47,16 @@ const despierta = process.platform === "win32"
 // Repetir una prueba se dice con su motivo: npm run humo -- -g "DEMO finanzas" --repite "se pasó de tiempo a las 00:15".
 // Queda al principio y al final del reporte; una corrida con -g sin --repite se marca como parcial.
 const args = process.argv.slice(2);
+// Producción solo con --prod y solo una prueba corta (nov-2026: Vercel compartido, consumo por funciones).
+const iProd = args.indexOf("--prod");
+if (iProd >= 0) {
+  args.splice(iProd, 1);
+  process.env.HUMO_URL ??= "https://tasa.xgplataform.com";
+  if (!args.includes("-g")) args.push("-g", "DEMO comisionista en el Mapa catastral");
+} else {
+  process.env.HUMO_URL ??= "http://localhost:3200";
+}
+console.log(`Humo contra ${process.env.HUMO_URL}`);
 const iRepite = args.indexOf("--repite");
 const motivo = iRepite >= 0 ? (args[iRepite + 1] ?? "sin motivo") : null;
 if (iRepite >= 0) args.splice(iRepite, 2);
@@ -51,7 +64,8 @@ const iFiltro = args.indexOf("-g");
 const filtro = iFiltro >= 0 ? args[iFiltro + 1] : null;
 const encabezado = motivo
   ? `REPETICIÓN de "${filtro ?? "todas"}" · motivo: ${motivo}`
-  : filtro ? `Corrida PARCIAL (solo "${filtro}"): no cuenta como humo completo` : "Corrida completa";
+  : iProd >= 0 ? `Producción: prueba corta ("${filtro}")`
+  : filtro ? `Corrida PARCIAL (solo "${filtro}"): no cuenta como humo completo` : "Corrida completa (local)";
 console.log(encabezado);
 salida.write(`${encabezado}\n`);
 

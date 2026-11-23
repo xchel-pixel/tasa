@@ -1,0 +1,47 @@
+# Publicar Tasa en Vercel (equipo devarqosuv's projects) al hacer push a main, SOLO si pasan las pruebas.
+# El repositorio vive en xchel-pixel y el Vercel de ese equipo no lo ve, por eso se publica con la CLI y un token.
+# Secretos del repositorio (Settings → Secrets and variables → Actions): VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
+# Las variables de entorno de la app NO van aquí: se leen de Vercel con `vercel pull`.
+name: Pruebas y publicación
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publicar-produccion
+  cancel-in-progress: false
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit -p .
+      - run: npm run lint
+      - run: npm test
+
+  publicar:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx --yes vercel@66.6.0 pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - run: npx --yes vercel@66.6.0 build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: npx --yes vercel@66.6.0 deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

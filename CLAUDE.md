@@ -170,14 +170,22 @@ la app las muestra, la base las hace cumplir.
   página de más de 5 s. **Repetir una prueba se dice con su motivo:**
   `npm run humo -- -g "DEMO finanzas" --repite "motivo"`; el reporte lo marca como REPETICIÓN (y una corrida
   con `-g` sin `--repite`, como PARCIAL).
-- **Antes de cada push a main, correr `npm run humo` y no subir si falla.** Entra a producción
-  y abre todas las pantallas (solo lectura) en XG (admin_org y finanzas) y en DEMO (admin_org,
-  finanzas, equipo y comisionista); lo que no le toca a un rol debe regresarlo al inicio. La lista
-  sale de las rutas reales: una ruta nueva sin su expectativa en `humo/humo.spec.ts` hace fallar la
-  prueba, así que al crear una pantalla se agrega ahí (con su espera para los cuatro roles). Usa
-  Microsoft Edge en esta PC y necesita `SUPABASE_SECRET_KEY` en `.env.local`. Como prueba lo que ya
-  está publicado, después del push (cuando Vercel termine) se corre otra vez para confirmar lo nuevo.
-- **Humo antes de publicar una ruta nueva:** como humo prueba lo publicado, una pantalla nueva da 404 hasta el despliegue. Antes del push se corre contra la versión compilada en local (`npx next start -p 3200` y `HUMO_URL=http://localhost:3200 npm run humo`); usa la base de producción y solo lee. Humo elige la organización que prueba con `elegir_organizacion` y al terminar deja la que la persona tenía activa: Xchel, como super_plataforma, puede tener DEMO activa.
+- **Humo completo SOLO contra la versión local; en producción, una prueba corta (nov-2026).** Vercel
+  ahora es el equipo Pro compartido con otros proyectos: cada corrida completa en producción eran ~500
+  páginas en funciones. Antes de cada push: `npx next build`, `npx next start -p 3200` y `npm run humo`
+  (ya apunta a localhost:3200; usa la base real y solo lee). Abre todas las pantallas en XG (admin_org y
+  finanzas) y en DEMO (admin_org, finanzas, admin_marca, equipo y comisionista); lo que no le toca a un rol
+  debe regresarlo al inicio. La lista sale de las rutas reales: una ruta nueva sin su expectativa en
+  `humo/humo.spec.ts` hace fallar la prueba, así que al crear una pantalla se agrega ahí. Usa Microsoft
+  Edge en esta PC y necesita `SUPABASE_SECRET_KEY` en `.env.local`. Después de publicar, solo
+  `npm run humo:prod` (una prueba: entra, abre el Mapa catastral y su PDF). Humo elige la organización
+  con `elegir_organizacion` y al terminar deja la que la persona tenía activa.
+- **Publicación (nov-2026): GitHub Actions, no la integración de Git de Vercel.** El proyecto vive en el
+  equipo Pro "devarqosuv's projects" (cuenta devarqosuv), cuyo GitHub no ve `xchel-pixel/tasa`.
+  `.github/workflows/desplegar.yml` corre tipos, lint y pruebas, y solo si pasan publica con la CLI
+  (secretos del repo VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID). Las variables de la app viven en
+  Vercel (`vercel pull`), nunca en el workflow. El proyecto viejo (cuenta xchel-1896, Hobby) quedó sin
+  Git: ya no publica. La sesión de la CLI de devarqosuv vive en la terminal de Xchel, no en la de Claude.
 - **DEMO es la organización de datos sintéticos** para que humo pruebe con datos. Se regenera con
   `npm run demo` (solo toca DEMO). Toda función nueva que haga algo hacia afuera (correos,
   conectores, cron) debe excluir las organizaciones con `demo = true` (ver 0043), y todo correo

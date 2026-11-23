@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "humo": "node scripts/humo.mjs",
+    "humo:prod": "node scripts/humo.mjs --prod",
     "humo:fuente": "node scripts/humo.mjs -c playwright.fuente.config.ts",
     "demo": "node scripts/demo.mjs",
     "db:push": "node scripts/db.mjs push",
