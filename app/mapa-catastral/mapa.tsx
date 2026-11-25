@@ -460,6 +460,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
                     <dt className="text-[0.8125rem] text-secundario">{etiqueta}</dt>
                     <dd className="whitespace-pre-line text-[0.9375rem]">
                       {valor}
+                      {s.calculadas?.includes(i) ? <span className="ml-2 text-[0.8125rem] text-secundario">calculado</span> : null}
                       {s.id === "identificacion" && i === 0 ? (
                         <button type="button" onClick={() => copiar(ficha.clave)} className="ml-2 align-middle text-[0.8125rem] font-semibold text-acento underline underline-offset-4">
                           {copiada ? "Copiada" : "Copiar"}

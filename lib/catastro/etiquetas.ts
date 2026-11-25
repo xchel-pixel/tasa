@@ -119,6 +119,55 @@ export function lineasDeColindancias(texto: string): string[] {
 
 const n2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** Un valor unitario calculado: va justo después del valor del que sale (`tras`). `porM2` nulo = superficie en 0 o vacía ("—"). */
+export type Unitario = { tras: Campo; etiqueta: string; porM2: number | null };
+
+/** "$1,234.56/m²", o "—" sin superficie. */
+export const unitarioLegible = (u: Unitario) => (u.porM2 === null ? "—" : `$${n2(u.porM2)}/m²`);
+
+/**
+ * Valores unitarios calculados (valor ÷ superficie). Solo con lo que trae la ficha (ya filtrada por rol): si el rol no
+ * ve el valor o la superficie, no hay unitario. Nada se inventa:
+ * · Predio normal: terreno (valor de terreno ÷ superficie de terreno) y construcción "promedio" (valor de construcción ÷
+ *   superficie construida; puede mezclar varios tipos). Baldío (construcción en 0 o sin ella): sin unitario de construcción.
+ * · Condominio (trae terreno privativo o indiviso): el de terreno PRIVATIVO (valor privativo ÷ superficie privativa) y el
+ *   de construcción privativa. El "proporcional" (valor de terreno ÷ terreno privativo + común) solo si el valor de
+ *   terreno es la suma de privativo y común: la fuente a veces trae solo el privativo, y dividirlo entre todo el
+ *   terreno daría un unitario falso.
+ * · Superficie en 0 o vacía con valor: "—" (no se divide).
+ */
+export function unitariosCatastrales(c: Record<string, unknown>): Unitario[] {
+  const num = (k: string): number | null => {
+    const v = c[k];
+    if (v === null || v === undefined || v === "") return null;
+    const n = typeof v === "number" ? v : Number(String(v).replaceAll(",", ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  const dividir = (valor: number, sup: number | null) => (sup && sup > 0 ? Math.round((valor / sup) * 100) / 100 : null);
+  const salida: Unitario[] = [];
+  const vt = num("valor_terreno"), vc = num("valor_construccion");
+  const st = num("sup_terreno"), sc = num("sup_construccion");
+  const condominio = num("sup_terreno_privativa") !== null || num("indiviso") !== null || num("valor_terreno_privativo") !== null;
+
+  if (!condominio) {
+    if (vt !== null && vt > 0) salida.push({ tras: "valor_terreno", etiqueta: "Valor unitario de terreno", porM2: dividir(vt, st) });
+    if (vc !== null && vc > 0) salida.push({ tras: "valor_construccion", etiqueta: "Valor unitario de construcción (promedio)", porM2: dividir(vc, sc) });
+    return salida;
+  }
+  const vtp = num("valor_terreno_privativo"), vtc = num("valor_terreno_comun"), stp = num("sup_terreno_privativa");
+  const vcp = num("valor_construccion_privativa"), scp = num("sup_construccion_privativa");
+  if (vt !== null && vt > 0 && vtp !== null && vtc !== null && Math.abs(vt - (vtp + vtc)) <= 1) {
+    salida.push({ tras: "valor_terreno", etiqueta: "Valor unitario de terreno proporcional (privativo + común)", porM2: dividir(vt, st) });
+  }
+  if (vtp !== null && vtp > 0) {
+    salida.push({ tras: "valor_terreno_privativo", etiqueta: "Valor unitario de terreno privativo", porM2: dividir(vtp, stp) });
+  }
+  if (vcp !== null && vcp > 0) {
+    salida.push({ tras: "valor_construccion_privativa", etiqueta: "Valor unitario de construcción privativa (promedio)", porM2: dividir(vcp, scp) });
+  }
+  return salida;
+}
+
 /** El valor listo para leerse; nulo si no hay. */
 export function valorLegible(campo: string, valor: unknown): string | null {
   if (valor === null || valor === undefined || valor === "") return null;
@@ -179,8 +228,10 @@ export type SeccionLista = {
   tablas?: TablaFicha[];
   /** Medidas del polígono en formato compacto (etiquetas "N 20.10" en varias columnas). */
   compacto?: LadosCompactos;
-  /** Texto plano para el botón "Copiar" (medidas y colindancias). */
+  /** Texto plano para el botón "Copiar" (medidas y colindancias, valores). */
   copiar?: string;
+  /** Índices de las filas calculadas por Tasa (valores unitarios): se marcan "calculado". */
+  calculadas?: number[];
   /** Historial: cuántos ajustes del lector hay (se ocultan si no se pidió verlos). */
   ajustes?: number;
 };
@@ -212,6 +263,7 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
     let copiar: string | undefined;
     let titulo = s.titulo;
     let ajustes = 0;
+    const calculadas: number[] = [];
     if (s.id === "medidas") {
       // Tabla Orientación | Medida | Colinda con si se puede leer con seguridad; si no, el texto completo, un renglón por lado.
       const texto = (k: Campo) => (typeof c[k] === "string" ? (c[k] as string).trim() : "");
@@ -282,6 +334,19 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
         if (v) filas.push([ETIQUETAS[campo][0], v]);
       }
       // La del polígono, después de la de catastro: exacta con la geometría UTM; "aprox." si salió de los grados.
+      // Valores unitarios calculados, cada uno junto al valor del que sale; se copian con la sección.
+      if (s.id === "valores" && filas.length) {
+        for (const u of unitariosCatastrales(c)) {
+          const i = filas.findIndex(([e]) => e === ETIQUETAS[u.tras][0]);
+          if (i < 0) continue;
+          let tras = i + 1;
+          while (calculadas.includes(tras)) tras++;
+          filas.splice(tras, 0, [u.etiqueta, unitarioLegible(u)]);
+          for (let k = 0; k < calculadas.length; k++) if (calculadas[k] >= tras) calculadas[k]++;
+          calculadas.push(tras);
+        }
+        copiar = filas.map(([e, v], k) => `${e}: ${v}${calculadas.includes(k) ? " (calculado)" : ""}`).join("\n");
+      }
       const p = s.id === "superficies" ? superficieDelPoligono(f.geometria, f.geometria_utm) : null;
       if (p && p.m2 > 0) {
         const tras = filas.findIndex(([e]) => e === ETIQUETAS.sup_terreno[0]) + 1;
@@ -290,7 +355,7 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
     }
     if (filas.length || tablas.length || compacto || ajustes) {
       salida.push({ id: s.id, titulo, equipo: s.equipo, filas, ...(tablas.length ? { tablas } : {}), ...(compacto ? { compacto } : {}),
-        ...(copiar ? { copiar } : {}), ...(s.id === "historial" ? { ajustes } : {}) });
+        ...(copiar ? { copiar } : {}), ...(calculadas.length ? { calculadas } : {}), ...(s.id === "historial" ? { ajustes } : {}) });
     }
   }
   return salida;

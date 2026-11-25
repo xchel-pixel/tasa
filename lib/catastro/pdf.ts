@@ -248,7 +248,7 @@ export async function pdfPredio(f: Ficha, fuentes: FuentesPdf): Promise<Uint8Arr
       l.y -= 6;
     }
     if (s.compacto) compactoPdf(l, s.compacto);
-    if (s.filas.length) tabla(l, s.filas);
+    if (s.filas.length) tabla(l, s.filas.map(([e, v], i): [string, string] => [e, s.calculadas?.includes(i) ? `${v} (calculado)` : v]));
     l.y -= 10;
   }
   l.y -= 4;

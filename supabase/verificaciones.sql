@@ -3075,9 +3075,11 @@ begin
   perform pg_temp.debe_fallar(format($q$insert into pagos (solicitud_id, via, monto, fecha_pago, nota, reportado_por, recibio_asesor)
     values (%L, 'aviso', 3000, hoy_mx(), 'Me pagó', %L, true)$q$, s, ana), 'comprobante de la transferencia', 'Lo recibí yo: no basta un aviso');
   insert into pagos (solicitud_id, via, monto, fecha_pago, recibido_por, reportado_por, recibio_asesor)
-  values (s, 'efectivo', 3000, hoy_mx() - 10, 'Ana', ana, true) returning id into p;
+  -- 40 días antes: la fecha en cuenta sale del reloj real (entregado_en = now()); con -10 coincidía con el día real
+  -- (25-nov-2026) y la prueba de "no con la del cobro" fallaba ese día.
+  values (s, 'efectivo', 3000, hoy_mx() - 40, 'Ana', ana, true) returning id into p;
   perform pg_temp.sistema();
-  perform pg_temp.igual((select entregar_antes from pagos where id = p), sumar_dias_habiles(hoy_mx() - 10, 2),
+  perform pg_temp.igual((select entregar_antes from pagos where id = p), sumar_dias_habiles(hoy_mx() - 40, 2),
     'Lo recibí yo: queda por entregar en 2 días hábiles');
 
   perform pg_temp.sistema();
