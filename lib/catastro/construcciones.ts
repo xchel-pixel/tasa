@@ -1,3 +1,4 @@
+import { avisarSiBloqueo } from "./aviso-fuente";
 import { CONSTRUCCIONES_ROTAS } from "./capas";
 import { contiene, geometriaValida, puntoInterior, type Geometria, type Punto } from "./geo";
 import { LIMITE_MS } from "./idecatq";
@@ -78,7 +79,10 @@ export async function consultarConstrucciones(municipio: string, predioUtm: Geom
   if (construccionesRotas(municipio)) return { estado: "rota" };
   try {
     const r = await fetch(urlConstrucciones(municipio, cajaUtm(predioUtm)), { cache: "no-store", signal: AbortSignal.timeout(LIMITE_MS) });
-    if (!r.ok) throw new Error(`HTTP${r.status}`);
+    if (!r.ok) {
+      await avisarSiBloqueo("construcciones", r.status);
+      throw new Error(`HTTP${r.status}`);
+    }
     // La capa rota responde 200 con un error XML ("Internal error occurred"), no JSON.
     if (!(r.headers.get("content-type") ?? "").includes("json")) return { estado: "rota" };
     return { estado: "ok", construcciones: construccionesDelPredio(await r.json(), municipio, predioUtm) };

@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
-import { fijarUltimoFolio, guardarAjustes, guardarLimiteEquipos, guardarPrefijo, usarConectorManual, type EstadoAjustes } from "./acciones";
+import { fijarUltimoFolio, guardarAjustes, guardarLimiteEquipos, guardarPrefijo, guardarZonaEquipo, usarConectorManual, type EstadoAjustes } from "./acciones";
 
 const INICIAL: EstadoAjustes = { mensaje: null, error: null };
 const ENTRADA =
@@ -269,6 +269,25 @@ export function VolverAManual() {
   return (
     <form action={enviar} className="mt-3 flex flex-col gap-2">
       <BotonEnviar variante="secundario">Usar el conector manual</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
+
+/** DXF por zona (0098): abrirla al equipo. Apagado por omisión. */
+export function FormularioZonaEquipo({ activa }: { activa: boolean }) {
+  const [estado, enviar] = useActionState(guardarZonaEquipo, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-3">
+      <p className="text-[0.9375rem] leading-6 text-secundario">
+        Hasta 25 ha por zona, 5 zonas al día por persona y 20 por la organización. Cada zona cuesta 10 DXF del saldo de la
+        persona. Los comisionistas nunca la tienen.
+      </p>
+      <label className="flex items-center gap-2 text-[0.9375rem] font-semibold">
+        <input type="checkbox" name="zona_dxf_equipo" defaultChecked={activa} className="h-5 w-5 accent-primario" />
+        El equipo puede bajar DXF por zona
+      </label>
+      <BotonEnviar variante="secundario">Guardar</BotonEnviar>
       <Aviso estado={estado} />
     </form>
   );

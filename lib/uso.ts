@@ -22,6 +22,7 @@ export const NOMBRE_HERRAMIENTA: Record<string, string> = {
   mapa_catastral: "Mapa catastral",
   mapa_catastral_pdf: "PDF del mapa",
   mapa_catastral_dxf: "DXF del mapa",
+  mapa_catastral_zona: "DXF por zona",
   mapa_catastral_mosaicos: "Capa de predios",
   calculadora_traslado: "Calculadora rápida",
   calculadora_traslado_completa: "Calculadora completa",
@@ -35,6 +36,7 @@ export const MOTIVO_DENEGACION: Record<string, string> = {
   sin_cupo: "sin cupo del mes",
   sin_saldo: "sin saldo",
   tope_dia: "tope de seguridad del día",
+  tope_dia_org: "tope del día de la organización",
   limite_mosaicos: "límite de mosaicos por hora",
   no_autorizado: "sin autorización",
 };

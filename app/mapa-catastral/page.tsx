@@ -8,7 +8,9 @@ import { miDxf } from "@/lib/dxf-saldo";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import { ROLES_CON_LINEAS } from "@/lib/catastro/estilo";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { MapaCatastral } from "./mapa";
+import type { EstadoZona } from "./zona";
 
 export const metadata = { title: "Mapa catastral — Tasa" };
 // Cada consulta a la fuente tiene 12 s de límite y puede haber dos seguidas (mapa y expediente): margen arriba.
@@ -21,7 +23,11 @@ export default async function MapaCatastralPagina({ searchParams }: { searchPara
   const q = await searchParams;
   // Líneas de predios y visor de la fuente: solo admin_org, finanzas y equipo.
   const equipo = (ROLES_CON_LINEAS as readonly string[]).includes(persona.rol);
-  const [cupo, cupoPdf, calculadora, dxf] = await Promise.all([miCupo("mapa_catastral"), miCupo("mapa_catastral_pdf"), tengoHerramienta("calculadora_traslado"), miDxf()]);
+  const [cupo, cupoPdf, calculadora, dxf, zona] = await Promise.all([miCupo("mapa_catastral"), miCupo("mapa_catastral_pdf"), tengoHerramienta("calculadora_traslado"), miDxf(),
+    // DXF por zona (0098): lo decide la base (admin_org; el equipo, si admin_org lo prende en Ajustes).
+    persona.rol === "admin_org" || persona.rol === "equipo"
+      ? crearClienteServidor().then((s) => s.rpc("catastro_zona_estado")).then(({ data }) => (data as EstadoZona | null) ?? null)
+      : Promise.resolve(null)]);
 
   return (
     <>
@@ -53,6 +59,7 @@ export default async function MapaCatastralPagina({ searchParams }: { searchPara
             veVisor={equipo}
             lineas={equipo}
             dxf={dxf}
+            zona={zona}
           />
         </div>
       </main>

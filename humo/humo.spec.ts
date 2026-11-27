@@ -659,6 +659,9 @@ test("humo: XG PRUEBA comisionista en el Mapa catastral", async ({ browser, base
     expect([200, 403], "DXF del comisionista").toContain(dxf.status());
     expect(dxf.headers()["x-construcciones"], "sin construcciones").toBeUndefined();
     expect(await dxf.text()).not.toContain("CONST_");
+    // DXF por zona (0098): nunca para comisionistas, ni en pantalla ni en la ruta.
+    await expect(pagina.getByRole("region", { name: "Descarga por zona" })).toHaveCount(0);
+    expect((await pagina.request.get("/mapa-catastral/zona?x0=349400&y0=2289000&x1=349600&y1=2289200")).status(), "zona").toBe(403);
   } finally {
     await contexto.close();
   }

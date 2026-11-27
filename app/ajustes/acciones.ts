@@ -148,3 +148,14 @@ export async function fijarUltimoFolio(_previo: EstadoAjustes, formData: FormDat
   revalidatePath("/ajustes");
   return { mensaje: "Guardado: el siguiente folio será " + String(ultimo + 1).padStart(4, "0") + ".", error: null };
 }
+
+/** DXF por zona (0098): el interruptor para abrirla al equipo. Apagado = solo admin_org. Queda en la bitácora. */
+export async function guardarZonaEquipo(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
+  await exigirRol("admin_org");
+  const activa = formData.get("zona_dxf_equipo") === "on";
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("guardar_zona_dxf_equipo", { p_activa: activa });
+  if (error) return { mensaje: null, error: error.message || "No se pudo guardar." };
+  revalidatePath("/ajustes");
+  return { mensaje: activa ? "Guardado: el equipo ya puede bajar zonas (con su saldo de DXF)." : "Guardado: solo administración baja zonas.", error: null };
+}

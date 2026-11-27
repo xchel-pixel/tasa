@@ -6506,6 +6506,98 @@ begin
 end;
 $sec$;
 
+-- @@ Descarga por zona y alerta de bloqueo de la fuente (0098)
+-- Solo admin_org; el equipo con el interruptor de Ajustes; nunca comisionistas. 500 m por lado. Una a la vez por
+-- organización. 5 al día por persona y 20 por organización. 10 DXF por zona (se devuelven si falla). 403/429 de la fuente:
+-- alerta al momento, una sola abierta.
+do $sec$
+declare
+  xg  uuid := pg_temp.xg();
+  ana uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  eq  uuid := (select id from personas where correo = 'xchel+equipo-mos@arqosuv.com');
+  yo  uuid := (select id from personas where correo = 'xchel@arqosuv.com');
+  r   jsonb;
+  z   uuid;
+begin
+  perform pg_temp.sistema();
+  insert into membresias (persona_id, organizacion_id, rol) values (eq, xg, 'equipo') on conflict do nothing;
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  delete from catastro_zonas;
+
+  -- admin_org: sí, sin cobro. Lados de más de 500 m o fuera de Querétaro: no.
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_zona_estado()->>'puede', 'true', 'admin_org puede bajar zonas');
+  perform pg_temp.igual(catastro_zona_pedir(350000, 2287000, 350501, 2287100)->>'estado', '400', 'Un lado de más de 500 m: no');
+  perform pg_temp.igual(catastro_zona_pedir(100000, 2287000, 100400, 2287400)->>'estado', '400', 'Fuera de Querétaro: no');
+  r := catastro_zona_pedir(350000, 2287000, 350500, 2287500);
+  z := (r->>'id')::uuid;
+  perform pg_temp.igual(z is not null, true, 'admin_org: 500 x 500 m (25 ha) sí');
+  perform pg_temp.igual((select hectareas || '/' || dxf_cobrados from catastro_zonas where id = z), '25.0000/0', '25 ha, admin_org sin cobro');
+  perform pg_temp.igual(catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'estado', '429', 'Una zona a la vez por organización');
+  perform catastro_zona_terminar(z, true, null, 120, 80, 4000);
+  perform pg_temp.igual((select estado || '/' || predios from catastro_zonas where id = z), 'ok/120', 'Termina con sus conteos');
+  perform pg_temp.igual((select count(*) from eventos_uso where herramienta = 'mapa_catastral_zona' and persona_id = yo and resultado = 'ok'),
+    1::bigint, 'Queda en la bitácora de uso aunque sea admin_org');
+
+  -- Comisionista: nunca. Equipo: no hasta prender el interruptor; luego cuesta 10 DXF y se devuelven si falla.
+  perform dxf_autorizar(ana, 30, 'Prueba 0098');
+  perform dxf_autorizar(eq, 15, 'Prueba 0098');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'estado', '403', 'Comisionista: no');
+  perform pg_temp.como('xchel+equipo-mos@arqosuv.com');
+  perform pg_temp.igual(catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'estado', '403', 'Equipo con el interruptor apagado: no');
+  perform pg_temp.debe_fallar($q$select guardar_zona_dxf_equipo(true)$q$, 'Solo admin_org', 'Solo admin_org mueve el interruptor');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform guardar_zona_dxf_equipo(true);
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'estado', '403', 'Comisionista sigue sin zonas con el interruptor prendido');
+  perform pg_temp.como('xchel+equipo-mos@arqosuv.com');
+  z := (catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'id')::uuid;
+  perform pg_temp.igual((select saldo from dxf_autorizaciones where persona_id = eq), 5, 'La zona cuesta 10 DXF');
+  perform catastro_zona_terminar(z, false, 'paso_2_tiempo');
+  perform pg_temp.igual((select saldo from dxf_autorizaciones where persona_id = eq), 15, 'Si la fuente falla, se devuelven');
+  z := (catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'id')::uuid;
+  perform catastro_zona_terminar(z, true, null, 10, 5);
+  perform pg_temp.igual(catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'estado', '429', 'Con 5 DXF no alcanza para otra zona');
+
+  -- Topes del día: 5 por persona (cuenta cada intento), 20 por organización.
+  perform pg_temp.sistema();
+  insert into catastro_zonas (organizacion_id, persona_id, x0, y0, x1, y1, hectareas, estado)
+  select xg, yo, 350000, 2287000, 350100, 2287100, 1, 'ok' from generate_series(1, 4);
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'estado', '429', 'Quinto intento del día de la persona: tope');
+  perform pg_temp.sistema();
+  update catastro_zonas set persona_id = null where persona_id = yo;
+  insert into catastro_zonas (organizacion_id, persona_id, x0, y0, x1, y1, hectareas, estado)
+  select xg, null, 350000, 2287000, 350100, 2287100, 1, 'ok' from generate_series(1, 13);
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_zona_pedir(350000, 2287000, 350100, 2287100)->>'error',
+    'Tu organización llegó al tope de 20 zonas al día. Mañana se reinicia.', 'Tope de 20 por organización');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from catastro_zonas_por_dia(current_date - 1)) >= 1, true, 'Reporte de consumo de zonas');
+
+  -- 403/429 de la fuente: alerta al momento, una sola abierta; otra falla no.
+  delete from alertas where tipo = 'catastro_bloqueo';
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform catastro_aviso_fuente('mosaicos', 500);
+  perform catastro_aviso_fuente('mapa', 429);
+  perform catastro_aviso_fuente('zona', 403);
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'catastro_bloqueo' and resuelta_en is null), 1::bigint,
+    'Un 403/429 abre una alerta de bloqueo (una sola)');
+  perform pg_temp.igual((select mensaje like 'La fuente catastral respondió 429%' from alertas where tipo = 'catastro_bloqueo'), true,
+    'La alerta dice qué respondió');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual((select count(*) from catastro_zonas), 0::bigint, 'El comisionista no ve zonas ajenas');
+  perform pg_temp.sistema();
+  delete from alertas where tipo = 'catastro_bloqueo';
+  delete from catastro_zonas;
+  update ajustes set zona_dxf_equipo = false where organizacion_id = xg;
+  update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

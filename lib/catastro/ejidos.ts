@@ -1,3 +1,4 @@
+import { avisarSiBloqueo } from "./aviso-fuente";
 import { aUtm, contiene, geometriaValida } from "./geo";
 import { capaPorId } from "./capas";
 
@@ -56,7 +57,10 @@ export async function consultarParcela(lat: number, lon: number): Promise<Respue
   const [x, y] = aUtm(lat, lon);
   try {
     const r = await fetch(urlParcela(lat, lon), { cache: "no-store", signal: AbortSignal.timeout(LIMITE_MS) });
-    if (!r.ok) throw new Error(`HTTP${r.status}`);
+    if (!r.ok) {
+      await avisarSiBloqueo("parcela", r.status);
+      throw new Error(`HTTP${r.status}`);
+    }
     const j = (await r.json()) as { features?: { id?: unknown; geometry?: unknown; properties?: unknown }[] };
     const delEjido = (j.features ?? []).filter((f) => /^RAN_M(0[1-9]|1[0-8])[.]/.test(String(f.id ?? "")));
     const elegida = delEjido.find((f) => { const g = geometriaValida(f.geometry); return g && contiene(g, [x, y]); });

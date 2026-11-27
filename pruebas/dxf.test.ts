@@ -100,7 +100,7 @@ describe("DXF del predio", () => {
     expect(t[0]).toBe("Clave catastral: 149999990000001");
     // La del polígono guardado (≈ 600 m² del rectángulo original, con el margen del guardado).
     // Sin geometría UTM (predio guardado antes): calculada desde grados, con "aprox.".
-    expect(t[1]).toBe(`Superficie del polígono (aprox.): ${superficieUtm(anillosUtm(POLIGONO)).toFixed(2)} m²`);
+    expect(t[1]).toBe(`Superficie del polígono (aprox.): ${superficieUtm(anillosUtm(POLIGONO)).toFixed(2)} m2`);
     expect(Math.abs(superficieUtm(anillosUtm(POLIGONO)) / 600 - 1)).toBeLessThan(0.005);
     expect(t[2]).toBe("Fecha de consulta: 09/11/2026");
     expect(t[3]).toBe("Información sin validez oficial");
@@ -128,10 +128,11 @@ describe("DXF del predio", () => {
     expect(dxf).not.toMatch(/^ *999$/m);
   });
 
-  test("Windows-1252: acentos y ² en un byte", () => {
+  test('Windows-1252: acentos en un byte; "m2" en lugar de "²" (la fuente txt de AutoCAD no lo tiene)', () => {
     const b = bytesDxf(dxfDePredio({ clave: "149999990000001", geometria: POLIGONO, consultadoEn: "2026-11-09T18:00:00Z" }));
     expect(b.includes(Buffer.from([0xf3]))).toBe(true); // ó
-    expect(b.includes(Buffer.from([0xb2]))).toBe(true); // ²
+    expect(b.includes(Buffer.from([0xb2]))).toBe(false); // sin ²
+    expect(b.toString("latin1")).toMatch(/[0-9] m2/);
     expect(b.toString("latin1")).toContain("$DWGCODEPAGE\r\n  3\r\nANSI_1252");
   });
 });
@@ -156,7 +157,7 @@ describe("Geometría UTM de la fuente (0066)", () => {
     const { anillos, textos } = leer(dxf);
     expect(anillos).toEqual([(FUENTE as { coordinates: Punto[][] }).coordinates[0].slice(0, -1)]);
     expect(textos("COTAS")).toEqual(["20.00", "30.00", "20.00", "30.00"]);
-    expect(textos("TEXTO")[1]).toBe("Superficie del polígono: 600.00 m²");
+    expect(textos("TEXTO")[1]).toBe("Superficie del polígono: 600.00 m2");
   });
 
   test("sin geometria_utm (guardados antes), se convierte desde grados como hasta hoy", () => {
@@ -169,7 +170,7 @@ describe("Geometría UTM de la fuente (0066)", () => {
       [[[100, 0], [103, 0], [103, 5], [100, 5], [100, 0]]]].map((p) => p.map((a) => a.map(([x, y]) => [352000 + x, 2280000 + y] as Punto))) };
     const { anillos, textos } = leer(dxfDePredio({ clave: "149999990000002", geometria: utmAGeografica(multi), geometriaUtm: multi, consultadoEn: "2026-11-09" }));
     expect(anillos.length).toBe(3);
-    expect(textos("TEXTO")[1]).toBe("Superficie del polígono: 1,515.00 m²");
+    expect(textos("TEXTO")[1]).toBe("Superficie del polígono: 1,515.00 m2");
   });
 });
 
@@ -268,8 +269,8 @@ describe("DXF del equipo con construcciones (0097)", () => {
     // Coordenadas exactas de la construcción, tal cual.
     expect(d.anillos).toContainEqual([[352002, 2280002], [352012, 2280002], [352012, 2280010], [352002, 2280010]]);
     const t = d.textos("TEXTO");
-    expect(t).toEqual(expect.arrayContaining(["N1 80.00 m²", "N1 20.00 m²", "N2 80.00 m²", "Clave catastral: 140100141090006",
-      "Construcciones: 3, 180.00 m² en total, 2 niveles", "  Nivel 1: 2, 100.00 m²", "  Nivel 2: 1, 80.00 m²"]));
+    expect(t).toEqual(expect.arrayContaining(["N1 80.00 m2", "N1 20.00 m2", "N2 80.00 m2", "Clave catastral: 140100141090006",
+      "Construcciones: 3, 180.00 m2 en total, 2 niveles", "  Nivel 1: 2, 100.00 m2", "  Nivel 2: 1, 80.00 m2"]));
   });
   test("sin construcciones en la cartografía, rota o sin respuesta: solo el predio y TEXTO lo dice", () => {
     for (const [c, linea] of [

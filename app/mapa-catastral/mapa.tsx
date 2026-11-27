@@ -15,6 +15,7 @@ import { NOTA_FUENTE, SIN_DATO } from "@/lib/catastro/textos";
 import type { Ficha, Resultado } from "@/lib/catastro/servicio";
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import { PedirMasDxf } from "@/components/formularios-dxf";
+import { DescargaZona, type EstadoZona } from "./zona";
 import { buscarClave, buscarEnMapa, picarMapa, picarParcela, registrarBusquedaDomicilio, type ResultadoBusqueda } from "./acciones";
 
 const CENTRO: [number, number] = [-100.3899, 20.5888]; // Querétaro
@@ -160,8 +161,10 @@ export function avisoDeConstrucciones(valor: string | null): { error: boolean; t
   return null;
 }
 
-export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial = null, puedeCotizar, calculadora, veVisor, lineas, dxf }: {
+export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial = null, puedeCotizar, calculadora, veVisor, lineas, dxf, zona = null }: {
   token: string; claveInicial: string | null;
+  /** DXF por zona (0098): solo si la base dice que puede (admin_org; el equipo con el interruptor de Ajustes). */
+  zona?: EstadoZona | null;
   /** ?buscar= (desde la Agenda): se escribe en la caja, sin buscar solo. */
   textoInicial?: string | null; puedeCotizar: boolean; calculadora: boolean; dxf: Dxf;
   /** El visor de la fuente: solo admin_org, finanzas y equipo. */
@@ -173,6 +176,8 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
     () => Object.fromEntries(CAPAS.map((c) => [c.id, c.encendida])) as Record<IdCapa, boolean>);
   // El clic del mapa se arma una vez: lee "Ejidos" de aquí.
   const ejidosPrendida = useRef(false);
+  // Mientras se dibuja una zona, tocar el mapa no consulta predios.
+  const dibujandoZona = useRef(false);
   const [parcela, setParcela] = useState<Parcela | null>(null);
   // Aviso de los límites de mosaicos (429): por hora y capa, o el tope del día.
   const [avisoCapas, setAvisoCapas] = useState<string | null>(null);
@@ -343,6 +348,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
           : `Llegaste al límite de 600 mosaicos por hora${capa ? ` de la capa ${capa.nombre}` : ""}. Espera un rato o apaga esa capa; se reinicia en la siguiente hora.`));
       });
       m.on("click", (e) => {
+        if (dibujandoZona.current) return;
         if (m.getZoom() < 16) {
           m.flyTo({ center: e.lngLat, zoom: 18 });
           return;
@@ -482,6 +488,10 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
       </label>
       {lineas && avisoCapas ? (
         <p role="status" className="mt-2 rounded-xl bg-proceso-fondo px-4 py-3 text-[0.9375rem] leading-6 text-proceso">{avisoCapas}</p>
+      ) : null}
+      {zona?.puede ? (
+        <DescargaZona mapa={mapa} listo={listo} alDibujar={(si) => { dibujandoZona.current = si; }} estado={zona} sinLimite={dxf.sin_limite} saldo={dxf.saldo}
+          color={listo ? token("--acento") : "#006db3"} />
       ) : null}
       {lineas ? (
         <details className="mt-1 rounded-lg border border-linea bg-fondo px-2 py-1">

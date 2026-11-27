@@ -1,6 +1,7 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { crearClienteServidor, encabezadoHumo } from "@/lib/supabase/server";
+import { avisarSiBloqueo } from "./aviso-fuente";
 import { capaPorId } from "./capas";
 import { CACHE_MOSAICO_S, mosaicoDeCapa } from "./mosaicos";
 
@@ -49,6 +50,7 @@ export async function servirMosaico(idCapa: string, p: { z: string; x: string; y
     const r = await fetch(mosaico.url, { signal: AbortSignal.timeout(12_000), next: { revalidate: CACHE_MOSAICO_S, tags: [mosaico.etiqueta] } });
     if (!r.ok || !(r.headers.get("content-type") ?? "").startsWith("image/png")) {
       revalidateTag(mosaico.etiqueta, { expire: 0 });
+      await avisarSiBloqueo("mosaicos", r.status);
       throw new Error(`HTTP${r.status}`);
     }
     return new NextResponse(await r.arrayBuffer(), { headers: PNG });

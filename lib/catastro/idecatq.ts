@@ -1,3 +1,4 @@
+import { avisarSiBloqueo } from "./aviso-fuente";
 import { aUtm, contiene, geometriaValida, utmAGeografica, type Geometria } from "./geo";
 import { datosDeCapa, type Datos } from "./limpiar";
 
@@ -62,7 +63,10 @@ type Candidato = { f: { properties?: Record<string, unknown> }; municipio: strin
 async function candidatos(lat: number, lon: number, capas: string, tipo: "PA" | "PRA"): Promise<Candidato[]> {
   const [x, y] = aUtm(lat, lon);
   const r = await fetch(urlMapa(lat, lon, capas), { cache: "no-store", signal: AbortSignal.timeout(LIMITE_MS) });
-  if (!r.ok) throw new Error(`HTTP${r.status}`);
+  if (!r.ok) {
+    await avisarSiBloqueo("mapa", r.status);
+    throw new Error(`HTTP${r.status}`);
+  }
   const j = (await r.json()) as { features?: { id?: unknown; geometry?: unknown; properties?: Record<string, unknown> }[] };
   return (j.features ?? []).map((f) => {
     const capa = /^M(0[1-9]|1[0-8])_(PA|PRA)[.]/.exec(String(f.id ?? ""));
@@ -116,7 +120,10 @@ export async function consultarExpediente(clave: string): Promise<RespuestaExped
   try {
     const { url, init } = pedidoExpediente(clave);
     const r = await fetch(url, { ...init, signal: AbortSignal.timeout(LIMITE_MS) });
-    if (!r.ok) throw new Error(`HTTP${r.status}`);
+    if (!r.ok) {
+      await avisarSiBloqueo("expediente", r.status);
+      throw new Error(`HTTP${r.status}`);
+    }
     const json: unknown = await r.json();
     const predio = (json as { predio?: { claveCatastral?: unknown } } | null)?.predio;
     if (!predio || String(predio.claveCatastral ?? "").replace(/\D/g, "") !== clave) throw new Error("SinPredio");
@@ -151,7 +158,10 @@ export async function buscarFolioReal(folio: string, subdireccion: string): Prom
       body: new URLSearchParams({ folio, mun: subdireccion.padStart(2, "0"), ads: subdireccion }),
       signal: AbortSignal.timeout(LIMITE_MS),
     });
-    if (!r.ok) throw new Error(`HTTP${r.status}`);
+    if (!r.ok) {
+      await avisarSiBloqueo("folio", r.status);
+      throw new Error(`HTTP${r.status}`);
+    }
     const texto = await r.text();
     let json: unknown = null;
     try {

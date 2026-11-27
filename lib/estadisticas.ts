@@ -8,7 +8,7 @@ import { NOMBRE_HERRAMIENTA } from "@/lib/uso";
 
 export type Filtros = { desde: string; hasta: string; persona: string | null; nivel: string | null; herramienta: string | null };
 
-export const HERRAMIENTAS_FILTRO = ["mapa_catastral", "mapa_catastral_pdf", "mapa_catastral_dxf", "calculadora_traslado",
+export const HERRAMIENTAS_FILTRO = ["mapa_catastral", "mapa_catastral_pdf", "mapa_catastral_dxf", "mapa_catastral_zona", "calculadora_traslado",
   "calculadora_traslado_completa"] as const;
 
 const esFecha = (s: string | undefined) => Boolean(s && s.length === 10 && !Number.isNaN(Date.parse(`${s}T12:00:00Z`)));
