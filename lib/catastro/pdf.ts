@@ -17,6 +17,8 @@ import { NOTA_FUENTE } from "./textos";
  */
 
 const TINTA = rgb(0.122, 0.161, 0.2), TENUE = rgb(0.42, 0.455, 0.502), LINEA = rgb(0.875, 0.89, 0.91);
+// Ámbar de la pantalla (--proceso #78350f sobre --proceso-fondo #fef3c7).
+const AMBAR = rgb(0.471, 0.208, 0.059), AMBAR_FONDO = rgb(0.996, 0.953, 0.78);
 const ANCHO = 612, ALTO = 792, MARGEN = 56;
 
 /** Todo el texto del PDF, en orden (también lo usa la prueba de glifos). */
@@ -84,15 +86,18 @@ function texto(l: Lienzo, t: string, { tam = 9, negrita = false, color = TINTA, 
 }
 
 /** Renglones etiqueta/valor; el valor puede ocupar varias líneas. */
-function tabla(l: Lienzo, filas: [string, string][]) {
+/** Etiqueta y valor por fila. `alertas`: índices de las filas que van en ámbar (fondo claro y texto oscuro, en negrita). */
+function tabla(l: Lienzo, filas: [string, string][], alertas: number[] = []) {
   const W = ANCHO - 2 * MARGEN, colEtiqueta = 175, tam = 8.8;
-  for (const [etiqueta, valor] of filas) {
+  for (const [k, [etiqueta, valor]] of filas.entries()) {
+    const ambar = alertas.includes(k);
     const lineas = partir(l.limpio(valor), l.R, tam, W - colEtiqueta);
     const lineasEtiqueta = partir(l.limpio(etiqueta), l.R, tam, colEtiqueta - 10);
     const alto = Math.max(1, lineas.length, lineasEtiqueta.length) * tam * 1.3 + 4;
     if (l.y - alto < MARGEN + 20) nuevaHoja(l);
-    lineasEtiqueta.forEach((r, i) => l.pag.drawText(r, { x: MARGEN, y: l.y - tam - i * tam * 1.3, size: tam, font: l.R, color: TENUE }));
-    lineas.forEach((r, i) => l.pag.drawText(r, { x: MARGEN + colEtiqueta, y: l.y - tam - i * tam * 1.3, size: tam, font: l.R, color: TINTA }));
+    if (ambar) l.pag.drawRectangle({ x: MARGEN - 3, y: l.y - alto + 3, width: W + 6, height: alto - 2, color: AMBAR_FONDO });
+    lineasEtiqueta.forEach((r, i) => l.pag.drawText(r, { x: MARGEN, y: l.y - tam - i * tam * 1.3, size: tam, font: l.R, color: ambar ? AMBAR : TENUE }));
+    lineas.forEach((r, i) => l.pag.drawText(r, { x: MARGEN + colEtiqueta, y: l.y - tam - i * tam * 1.3, size: tam, font: ambar ? l.B : l.R, color: ambar ? AMBAR : TINTA }));
     l.y -= alto;
     l.pag.drawLine({ start: { x: MARGEN, y: l.y + 2 }, end: { x: MARGEN + W, y: l.y + 2 }, thickness: 0.4, color: LINEA });
   }
@@ -248,7 +253,7 @@ export async function pdfPredio(f: Ficha, fuentes: FuentesPdf): Promise<Uint8Arr
       l.y -= 6;
     }
     if (s.compacto) compactoPdf(l, s.compacto);
-    if (s.filas.length) tabla(l, s.filas.map(([e, v], i): [string, string] => [e, s.calculadas?.includes(i) ? `${v} (calculado)` : v]));
+    if (s.filas.length) tabla(l, s.filas.map(([e, v], i): [string, string] => [e, s.calculadas?.includes(i) ? `${v} (calculado)` : v]), s.alertas);
     l.y -= 10;
   }
   l.y -= 4;

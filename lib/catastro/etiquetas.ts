@@ -249,9 +249,28 @@ export type SeccionLista = {
   copiar?: string;
   /** Índices de las filas calculadas por Tasa (valores unitarios): se marcan "calculado". */
   calculadas?: number[];
+  /** Índices de las filas que se marcan en ámbar (p. ej. polígono y cartografía difieren más de 1 %). */
+  alertas?: number[];
   /** Historial: cuántos ajustes del lector hay (se ocultan si no se pidió verlos). */
   ajustes?: number;
 };
+
+/**
+ * ¿La ficha es de admin_org, finanzas o equipo? La base solo les manda el historial (catastro_veo_privados(), por rol);
+ * a los demás, ni la llave.
+ */
+export function fichaDelEquipo(f: Pick<Ficha, "historial">): boolean {
+  return Array.isArray(f.historial);
+}
+
+/** Diferencia del polígono contra la cartografía ("+1,234.56 m² (+2.10 %)", sobre la de cartografía); nula si es de 1 % o menos. */
+export function diferenciaDeSuperficies(poligono: number, cartografia: number): string | null {
+  const d = poligono - cartografia;
+  const pct = (d / cartografia) * 100;
+  if (!(Math.abs(pct) > 1)) return null;
+  const signo = d > 0 ? "+" : "−";
+  return `${signo}${n2(Math.abs(d))} m² (${signo}${Math.abs(pct).toFixed(2)} %)`;
+}
 
 /** Dirección armada con las piezas, cuando el rol no tiene la dirección completa pero sí sus partes. */
 function direccionDePartes(c: Record<string, unknown>): string | null {
@@ -284,6 +303,7 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
     let titulo = s.titulo;
     let ajustes = 0;
     const calculadas: number[] = [];
+    const alertas: number[] = [];
     if (s.id === "medidas") {
       // Tabla Orientación | Medida | Colinda con si se puede leer con seguridad; si no, el texto completo, un renglón por lado.
       const texto = (k: Campo) => (typeof c[k] === "string" ? (c[k] as string).trim() : "");
@@ -369,14 +389,25 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
         copiar = filas.map(([e, v], k) => `${e}: ${v}${calculadas.includes(k) ? " (calculado)" : ""}`).join("\n");
       }
       const p = s.id === "superficies" ? superficieDelPoligono(f.geometria, f.geometria_utm) : null;
-      if (p && p.m2 > 0) {
+      const carto = Number(c.capa_area);
+      const hayCarto = c.capa_area != null && Number.isFinite(carto) && carto > 0;
+      // Fuera del equipo, con "Superficie según cartografía" basta: la del polígono sería un duplicado.
+      if (p && p.m2 > 0 && (fichaDelEquipo(f) || !hayCarto)) {
         const tras = filas.findIndex(([e]) => e === ETIQUETAS.sup_terreno[0]) + 1;
         filas.splice(tras, 0, [p.aprox ? "Superficie del polígono (aprox.)" : "Superficie del polígono", `${n2(p.m2)} m²`]);
+        // Equipo: si las dos difieren más de 1 %, una fila en ámbar con la diferencia, tras la de cartografía.
+        const d = hayCarto ? diferenciaDeSuperficies(p.m2, carto) : null;
+        if (d) {
+          const i = filas.findIndex(([e]) => e === ETIQUETAS.capa_area[0]) + 1;
+          filas.splice(i, 0, ["Diferencia polígono vs. cartografía", d]);
+          alertas.push(i);
+        }
       }
     }
     if (filas.length || tablas.length || compacto || ajustes) {
       salida.push({ id: s.id, titulo, equipo: s.equipo, filas, ...(tablas.length ? { tablas } : {}), ...(compacto ? { compacto } : {}),
-        ...(copiar ? { copiar } : {}), ...(calculadas.length ? { calculadas } : {}), ...(s.id === "historial" ? { ajustes } : {}) });
+        ...(copiar ? { copiar } : {}), ...(calculadas.length ? { calculadas } : {}), ...(alertas.length ? { alertas } : {}),
+        ...(s.id === "historial" ? { ajustes } : {}) });
     }
   }
   return salida;

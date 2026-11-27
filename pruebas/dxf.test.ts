@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { aLonLat, aUtm, superficieDelPoligono, utmAGeografica, type Geometria, type Punto } from "@/lib/catastro/geo";
 import { anillosDe, anillosUtm, bytesDxf, dxfDePredio, superficieUtm } from "@/lib/catastro/dxf";
-import { seccionesDeFicha } from "@/lib/catastro/etiquetas";
+import { diferenciaDeSuperficies, seccionesDeFicha } from "@/lib/catastro/etiquetas";
 import type { Ficha } from "@/lib/catastro/servicio";
 
 /**
@@ -213,6 +213,28 @@ describe("Superficies en la ficha", () => {
     const filas = sup({ ...base, geometria: utmAGeografica(UTM), geometria_utm: null });
     expect(filas[1][0]).toBe("Superficie del polígono (aprox.)");
     expect(Math.abs(Number(filas[1][1].replace(" m²", "").replaceAll(",", "")) - 600)).toBeLessThan(0.01);
+  });
+  test("comisionista (sin historial) con cartografía: solo 'Superficie según cartografía', sin la del polígono", () => {
+    const filas = sup({ ...base, campos: { sup_terreno: 159.04, capa_area: 640 }, geometria: utmAGeografica(UTM), geometria_utm: UTM });
+    expect(filas).toEqual([["Superficie de terreno (catastro)", "159.04 m²"], ["Superficie según cartografía", "640.00 m²"]]);
+  });
+  test("equipo (con historial): las dos; si difieren más de 1 %, la diferencia en ámbar tras la de cartografía", () => {
+    const secc = seccionesDeFicha({ ...base, historial: [], campos: { sup_terreno: 159.04, capa_area: 640 }, geometria: utmAGeografica(UTM),
+      geometria_utm: UTM } as unknown as Ficha).find((s) => s.id === "superficies")!;
+    expect(secc.filas).toEqual([["Superficie de terreno (catastro)", "159.04 m²"], ["Superficie del polígono", "600.00 m²"],
+      ["Superficie según cartografía", "640.00 m²"], ["Diferencia polígono vs. cartografía", "−40.00 m² (−6.25 %)"]]);
+    expect(secc.alertas).toEqual([3]);
+  });
+  test("equipo: con 1 % o menos de diferencia, sin fila ni ámbar", () => {
+    const secc = seccionesDeFicha({ ...base, historial: [], campos: { sup_terreno: 159.04, capa_area: 595 }, geometria: utmAGeografica(UTM),
+      geometria_utm: UTM } as unknown as Ficha).find((s) => s.id === "superficies")!;
+    expect(secc.filas.map(([e]) => e)).toEqual(["Superficie de terreno (catastro)", "Superficie del polígono", "Superficie según cartografía"]);
+    expect(secc.alertas).toBeUndefined();
+  });
+  test("diferenciaDeSuperficies: signo, m² y % sobre la de cartografía; el 1 % exacto no se marca", () => {
+    expect(diferenciaDeSuperficies(727013.64, 690976)).toBe("+36,037.64 m² (+5.22 %)");
+    expect(diferenciaDeSuperficies(101, 100)).toBeNull();
+    expect(diferenciaDeSuperficies(101.01, 100)).toBe("+1.01 m² (+1.01 %)");
   });
   test("sin polígono no hay superficie del polígono; sin Registro Público (otro rol) no sale", () => {
     const filas = sup({ ...base, campos: { sup_terreno: 159.04 }, geometria: null });

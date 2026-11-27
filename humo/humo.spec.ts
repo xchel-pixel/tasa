@@ -651,6 +651,9 @@ test("humo: XG PRUEBA comisionista en el Mapa catastral", async ({ browser, base
     expect(ficha).not.toMatch(PROHIBIDO);
     expect(ficha, "rústico: superficie en hectáreas").toMatch(/69[.]0976 ha/);
     expect(ficha, "rústico: unitario por hectárea").toMatch(/[/]ha/);
+    expect(ficha, "superficie según cartografía, sin la del polígono duplicada").toContain("Superficie según cartografía");
+    expect(ficha).not.toContain("Superficie del polígono");
+    expect(ficha).not.toContain("Diferencia polígono");
   } finally {
     await contexto.close();
   }

@@ -525,7 +525,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
                 {s.filas.map(([etiqueta, valor], i) => (
                   <div key={i} className={valor.length > 60 || valor.includes("\n") ? "sm:col-span-2" : ""}>
                     <dt className="text-[0.8125rem] text-secundario">{etiqueta}</dt>
-                    <dd className="whitespace-pre-line text-[0.9375rem]">
+                    <dd className={`whitespace-pre-line text-[0.9375rem]${s.alertas?.includes(i) ? " inline-block rounded bg-proceso-fondo px-2 font-semibold text-proceso" : ""}`}>
                       {valor === SIN_DATO ? <span className="text-secundario">{SIN_DATO}</span> : valor}
                       {s.calculadas?.includes(i) ? <span className="ml-2 text-[0.8125rem] text-secundario">calculado</span> : null}
                       {s.id === "identificacion" && i === 0 ? (
