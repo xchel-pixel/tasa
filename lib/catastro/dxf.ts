@@ -1,21 +1,49 @@
-import { aUtm, type Geometria, type Punto } from "./geo";
+import type { Construccion } from "./construcciones";
+import { aUtm, puntoInterior, type Geometria, type Punto } from "./geo";
 
 /**
  * El DXF de un predio guardado: el polígono en UTM zona 14 norte (EPSG:32614), en metros, sin pasar a grados.
  * Si el predio trae geometria_utm (0066), las coordenadas son exactamente las de la fuente; si no (guardados
  * antes), se convierten desde los grados guardados (~10 cm de precisión).
- * Formato DXF ASCII de AutoCAD R12 (AC1009), sin dependencias. Cuatro capas:
+ * Formato DXF ASCII de AutoCAD R12 (AC1009), sin dependencias. Capas:
  *   PREDIO    polilínea cerrada por anillo (en condominio, una por cada parte; los huecos, también cerrados)
+ *   CONST_N1…CONST_N5  (solo en el DXF del equipo) cada construcción dentro del predio, en la capa de su nivel
  *   VERTICES  número de cada vértice
  *   COTAS     longitud de cada lado en metros, 2 decimales
- *   TEXTOS    clave, superficie del polígono, fecha de consulta y "Información sin validez oficial"
+ *   TEXTO     clave, superficie de terreno, construcciones (superficie de cada una y niveles), fecha de consulta y
+ *             "Información sin validez oficial"
  * Solo lleva la geometría y la clave: nada de propietario, operación ni de dónde salió el dato (ni en capas,
  * comentarios o encabezado).
  */
 
-export type PredioDxf = { clave: string; geometria: Geometria; geometriaUtm?: Geometria | null; consultadoEn: string | Date };
+/**
+ * `construcciones`: sin la llave (comisionista, finanzas), el DXF de solo polígono como siempre. Con ella (equipo):
+ * las del predio, o "rota" / "falla" si no se pudieron leer (el archivo lo dice en TEXTO).
+ */
+export type ConstruccionesDxf = { estado: "ok"; construcciones: Construccion[] } | { estado: "rota" } | { estado: "falla" };
+export type PredioDxf = {
+  clave: string; geometria: Geometria; geometriaUtm?: Geometria | null; consultadoEn: string | Date; construcciones?: ConstruccionesDxf;
+};
 
-const CAPAS: [string, number][] = [["PREDIO", 7], ["VERTICES", 1], ["COTAS", 3], ["TEXTOS", 5]];
+/** Color AutoCAD por nivel de construcción (1 rojo, 2 amarillo, 3 verde, 4 cian, 5 magenta). */
+const COLOR_NIVEL = [1, 2, 3, 4, 6];
+export const capaDeNivel = (n: number) => `CONST_N${n}`;
+
+/** Las líneas de TEXTO sobre las construcciones: cuántas, superficie por nivel y niveles. */
+export function textoConstrucciones(c: ConstruccionesDxf): string[] {
+  if (c.estado === "rota") return ["Construcciones: no disponibles en la cartografía de este municipio"];
+  if (c.estado === "falla") return ["Construcciones: no se pudieron leer; intenta de nuevo más tarde"];
+  if (!c.construcciones.length) return ["Construcciones: ninguna en la cartografía"];
+  const niveles = [...new Set(c.construcciones.map((x) => x.nivel))].sort((a, b) => a - b);
+  const total = c.construcciones.reduce((s, x) => s + x.m2, 0);
+  return [
+    `Construcciones: ${c.construcciones.length}, ${miles(total)} m² en total, ${niveles.length === 1 ? "1 nivel" : `${niveles.length} niveles`}`,
+    ...niveles.map((n) => {
+      const de = c.construcciones.filter((x) => x.nivel === n);
+      return `  Nivel ${n}: ${de.length}, ${miles(de.reduce((s, x) => s + x.m2, 0))} m²`;
+    }),
+  ];
+}
 
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 const num = (n: number) => r3(n).toFixed(3);
@@ -55,8 +83,11 @@ export function superficieUtm(pols: Punto[][][]): number {
 
 const miles = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn }: PredioDxf): string {
+export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn, construcciones }: PredioDxf): string {
   const pols = anillosDe({ geometria, geometriaUtm });
+  const obras = construcciones?.estado === "ok" ? construcciones.construcciones : [];
+  const capasNivel = [...new Set(obras.map((x) => x.nivel))].sort((a, b) => a - b).map((n): [string, number] => [capaDeNivel(n), COLOR_NIVEL[n - 1] ?? 7]);
+  const CAPAS: [string, number][] = [["PREDIO", 7], ...capasNivel, ["VERTICES", 1], ["COTAS", 3], ["TEXTO", 5]];
   const todos = pols.flat(2);
   const xs = todos.map((p) => p[0]), ys = todos.map((p) => p[1]);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
@@ -65,8 +96,8 @@ export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn }: Pr
 
   const salida: string[] = [];
   const g = (codigo: number, valor: string | number) => salida.push(String(codigo).padStart(3), String(valor));
-  const texto = (capa: string, x: number, y: number, t: string, angulo = 0, centrado = false) => {
-    g(0, "TEXT"); g(8, capa); g(10, num(x)); g(20, num(y)); g(30, "0.0"); g(40, num(h)); g(1, t);
+  const texto = (capa: string, x: number, y: number, t: string, angulo = 0, centrado = false, alto = h) => {
+    g(0, "TEXT"); g(8, capa); g(10, num(x)); g(20, num(y)); g(30, "0.0"); g(40, num(alto)); g(1, t);
     if (angulo) g(50, angulo.toFixed(4));
     if (centrado) { g(72, 1); g(11, num(x)); g(21, num(y)); g(31, "0.0"); g(73, 2); }
   };
@@ -76,7 +107,7 @@ export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn }: Pr
   g(9, "$ACADVER"); g(1, "AC1009");
   g(9, "$DWGCODEPAGE"); g(3, "ANSI_1252");
   g(9, "$INSBASE"); g(10, "0.0"); g(20, "0.0"); g(30, "0.0");
-  g(9, "$EXTMIN"); g(10, num(x0)); g(20, num(y0 - 8 * h)); g(30, "0.0");
+  g(9, "$EXTMIN"); g(10, num(x0)); g(20, num(y0 - (4 + 1.7 * (4 + (construcciones ? textoConstrucciones(construcciones).length : 0))) * h)); g(30, "0.0");
   g(9, "$EXTMAX"); g(10, num(x1)); g(20, num(y1)); g(30, "0.0");
   g(0, "ENDSEC");
 
@@ -124,14 +155,28 @@ export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn }: Pr
     }
   }
 
+  // Construcciones: polilínea cerrada por anillo en la capa de su nivel; su superficie y nivel, en TEXTO, al centro.
+  for (const c of obras) {
+    for (const pol of c.anillos) for (const anillo of pol) {
+      const capa = capaDeNivel(c.nivel);
+      g(0, "POLYLINE"); g(8, capa); g(66, 1); g(10, "0.0"); g(20, "0.0"); g(30, "0.0"); g(70, 1);
+      for (const [x, y] of anillo) { g(0, "VERTEX"); g(8, capa); g(10, coord(x)); g(20, coord(y)); g(30, "0.0"); }
+      g(0, "SEQEND"); g(8, capa);
+    }
+    const [cx, cy] = puntoInterior({ type: "MultiPolygon", coordinates: c.anillos });
+    // Un renglón por nivel: la planta alta suele repetir la huella de la baja y las etiquetas no se enciman.
+    texto("TEXTO", cx, cy - (c.nivel - 1) * h * 0.8, `N${c.nivel} ${miles(c.m2)} m²`, 0, true, h * 0.6);
+  }
+
   const fecha = new Date(consultadoEn).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Mexico_City" });
   [
     `Clave catastral: ${clave}`,
     // Exacta con la geometría UTM de la fuente; "aprox." si se calculó desde los grados.
     `Superficie del polígono${geometriaUtm ? "" : " (aprox.)"}: ${miles(superficieUtm(pols))} m²`,
+    ...(construcciones ? textoConstrucciones(construcciones) : []),
     `Fecha de consulta: ${fecha}`,
     "Información sin validez oficial",
-  ].forEach((t, i) => texto("TEXTOS", x0, y0 - 2.5 * h - i * 1.7 * h, t));
+  ].forEach((t, i) => texto("TEXTO", x0, y0 - 2.5 * h - i * 1.7 * h, t));
   g(0, "ENDSEC");
   g(0, "EOF");
   return salida.join("\r\n") + "\r\n";

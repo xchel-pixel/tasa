@@ -11,7 +11,7 @@ const MUNICIPIOS = Array.from({ length: 18 }, (_, i) => String(i + 1).padStart(2
 const porMunicipio = (f: (m: string) => string[]) => MUNICIPIOS.flatMap(f).map((c) => `queretaro:${c}`).join(",");
 
 // Capas de construcciones que la fuente no puede dibujar (nov-2026: "Rendering process failed"; con una sola en la lista
-// falla el mosaico entero): Amealco nivel 2, Colón, Corregidora y Huimilpan nivel 1.
+// falla el mosaico entero): Amealco nivel 2; Cadereyta, Colón y Huimilpan nivel 1.
 export const CONSTRUCCIONES_ROTAS = ["M01_CIA_N02", "M04_CIA_N01", "M05_CIA_N01", "M08_CIA_N01"];
 
 export type IdCapa = "predios" | "construcciones" | "uso_suelo" | "colonias" | "ejidos" | "manzanas";
@@ -51,7 +51,7 @@ export const CAPAS: Capa[] = [
   {
     id: "construcciones", nombre: "Construcciones por nivel", zoomMin: 17, color: "#f27c41", encendida: false,
     fuente: porMunicipio((m) => [1, 2, 3, 4, 5].map((n) => `M${m}_CIA_N0${n}`).filter((c) => !CONSTRUCCIONES_ROTAS.includes(c))),
-    leyenda: "Huella de lo construido en cada nivel (1 a 5), con su tipo de construcción. La fuente no dibuja el nivel 1 de Colón, Corregidora y Huimilpan ni el 2 de Amealco.",
+    leyenda: "Huella de lo construido en cada nivel (1 a 5), con su tipo de construcción. La fuente no dibuja el nivel 1 de Cadereyta, Colón y Huimilpan ni el 2 de Amealco.",
   },
   {
     id: "predios", nombre: "Predios", zoomMin: 17, color: "#009900", encendida: true,

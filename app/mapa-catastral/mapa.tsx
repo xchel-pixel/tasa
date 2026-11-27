@@ -150,6 +150,16 @@ function TablaDeFicha({ t }: { t: TablaFicha }) {
 /** DXF (0065): si está autorizada y cuánto le queda; saldo nulo = sin límite. */
 type Dxf = { autorizado: boolean; sin_limite: boolean; saldo: number | null };
 
+/** Qué decirle al equipo según el encabezado X-Construcciones del DXF; sin encabezado (DXF de solo polígono), nada. */
+export function avisoDeConstrucciones(valor: string | null): { error: boolean; texto: string } | null {
+  if (!valor) return null;
+  if (valor === "rota") return { error: false, texto: "La cartografía de construcciones de este municipio falla: el DXF salió solo con el predio." };
+  if (valor === "falla") return { error: false, texto: "No se pudieron leer las construcciones: el DXF salió solo con el predio. Puedes bajarlo otra vez; el mismo predio no gasta otro DXF." };
+  const n = Number(valor.replace("ok:", ""));
+  if (!n) return { error: false, texto: "El DXF salió sin construcciones: este predio no tiene ninguna dibujada en la cartografía." };
+  return null;
+}
+
 export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial = null, puedeCotizar, calculadora, veVisor, lineas, dxf }: {
   token: string; claveInicial: string | null;
   /** ?buscar= (desde la Agenda): se escribe en la caja, sin buscar solo. */
@@ -186,6 +196,34 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
   const sinDxf = !dxf.sin_limite && (dxf.saldo ?? 0) <= 0;
   const textoDxf = dxf.sin_limite ? "DXF sin límite" : dxf.saldo === 1 ? "Te queda 1 DXF" : `Te quedan ${dxf.saldo ?? 0} DXF`;
   const [copiada, setCopiada] = useState(false);
+  const [dxfAviso, setDxfAviso] = useState<{ error: boolean; texto: string } | null>(null);
+  const [bajandoDxf, setBajandoDxf] = useState(false);
+
+  /** Baja el DXF aquí mismo (sin abrir otra pestaña) para poder decir cómo salieron las construcciones (0097). */
+  async function bajarDxf(clave: string) {
+    setDxfAviso(null);
+    setBajandoDxf(true);
+    try {
+      const r = await fetch(`/mapa-catastral/dxf?clave=${clave}`);
+      if (!r.ok) {
+        setDxfAviso({ error: true, texto: (await r.text()).split(String.fromCharCode(10))[0] || "No se pudo bajar el DXF." });
+        return;
+      }
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${clave}.dxf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setDxfAviso(avisoDeConstrucciones(r.headers.get("X-Construcciones")));
+      // El saldo se actualiza (el mismo predio otra vez no resta).
+      router.refresh();
+    } catch {
+      setDxfAviso({ error: true, texto: "No se pudo bajar el DXF. Revisa tu conexión e intenta de nuevo." });
+    } finally {
+      setBajandoDxf(false);
+    }
+  }
 
   function copiar(texto: string) {
     navigator.clipboard?.writeText(texto).then(() => {
@@ -581,12 +619,17 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
                   {sinDxf ? (
                     <button type="button" disabled className={`${BOTON} cursor-not-allowed text-secundario`}>Descargar DXF</button>
                   ) : (
-                    // Al volver, el saldo se actualiza (el mismo predio otra vez no resta).
-                    <a href={`/mapa-catastral/dxf?clave=${ficha.clave}`} target="_blank" rel="noopener" onClick={() => setTimeout(() => router.refresh(), 2500)}
-                      className={BOTON}>Descargar DXF</a>
+                    <button type="button" disabled={bajandoDxf} onClick={() => bajarDxf(ficha.clave)} className={BOTON}>
+                      {bajandoDxf ? "Preparando DXF…" : "Descargar DXF"}
+                    </button>
                   )}
                   <span className="text-[0.875rem] text-secundario">{textoDxf}</span>
                 </div>
+                {dxfAviso ? (
+                  <p role="status" className={`rounded px-3 py-2 text-[0.875rem] ${dxfAviso.error ? "bg-error-fondo text-error" : "bg-proceso-fondo text-proceso"}`}>
+                    {dxfAviso.texto}
+                  </p>
+                ) : null}
                 {sinDxf ? <PedirMasDxf /> : null}
               </div>
             ) : null}

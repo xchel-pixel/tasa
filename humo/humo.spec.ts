@@ -654,6 +654,11 @@ test("humo: XG PRUEBA comisionista en el Mapa catastral", async ({ browser, base
     expect(ficha, "superficie según cartografía, sin la del polígono duplicada").toContain("Superficie según cartografía");
     expect(ficha).not.toContain("Superficie del polígono");
     expect(ficha).not.toContain("Diferencia polígono");
+    // DXF (0097): el comisionista nunca recibe construcciones (403 sin autorización; si la tiene, solo el polígono).
+    const dxf = await pagina.request.get("/mapa-catastral/dxf?clave=140211165140013");
+    expect([200, 403], "DXF del comisionista").toContain(dxf.status());
+    expect(dxf.headers()["x-construcciones"], "sin construcciones").toBeUndefined();
+    expect(await dxf.text()).not.toContain("CONST_");
   } finally {
     await contexto.close();
   }

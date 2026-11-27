@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { aLonLat, aUtm, superficieDelPoligono, utmAGeografica, type Geometria, type Punto } from "@/lib/catastro/geo";
-import { anillosDe, anillosUtm, bytesDxf, dxfDePredio, superficieUtm } from "@/lib/catastro/dxf";
+import { anillosDe, anillosUtm, bytesDxf, dxfDePredio, superficieUtm, type ConstruccionesDxf } from "@/lib/catastro/dxf";
 import { diferenciaDeSuperficies, seccionesDeFicha } from "@/lib/catastro/etiquetas";
 import type { Ficha } from "@/lib/catastro/servicio";
 
@@ -87,7 +87,7 @@ describe("DXF del predio", () => {
   test("capas, cotas, vértices y textos", () => {
     const dxf = dxfDePredio({ clave: "149999990000001", geometria: POLIGONO, consultadoEn: "2026-11-09T18:00:00Z" });
     const { capas, textos } = leer(dxf);
-    expect([...capas].sort()).toEqual(["0", "COTAS", "PREDIO", "TEXTOS", "VERTICES"]);
+    expect([...capas].sort()).toEqual(["0", "COTAS", "PREDIO", "TEXTO", "VERTICES"]);
     expect(textos("VERTICES")).toEqual(["1", "2", "3", "4"]);
     // Cada cota = el lado del polígono guardado en UTM. (El guardado en grados a 6 decimales ya se aleja
     // hasta ~10 cm del rectángulo de 20 × 30 original: eso viene del guardado, no del DXF.)
@@ -96,7 +96,7 @@ describe("DXF del predio", () => {
     expect(cotas).toEqual(a.map(([x, y], i) => Number(Math.hypot(a[(i + 1) % 4][0] - x, a[(i + 1) % 4][1] - y).toFixed(2))));
     [20, 30, 20, 30].forEach((m, i) => expect(Math.abs(cotas[i] - m)).toBeLessThan(0.15));
     textos("COTAS").forEach((t) => expect(t).toMatch(/^\d+\.\d{2}$/));
-    const t = textos("TEXTOS");
+    const t = textos("TEXTO");
     expect(t[0]).toBe("Clave catastral: 149999990000001");
     // La del polígono guardado (≈ 600 m² del rectángulo original, con el margen del guardado).
     // Sin geometría UTM (predio guardado antes): calculada desde grados, con "aprox.".
@@ -156,7 +156,7 @@ describe("Geometría UTM de la fuente (0066)", () => {
     const { anillos, textos } = leer(dxf);
     expect(anillos).toEqual([(FUENTE as { coordinates: Punto[][] }).coordinates[0].slice(0, -1)]);
     expect(textos("COTAS")).toEqual(["20.00", "30.00", "20.00", "30.00"]);
-    expect(textos("TEXTOS")[1]).toBe("Superficie del polígono: 600.00 m²");
+    expect(textos("TEXTO")[1]).toBe("Superficie del polígono: 600.00 m²");
   });
 
   test("sin geometria_utm (guardados antes), se convierte desde grados como hasta hoy", () => {
@@ -169,7 +169,7 @@ describe("Geometría UTM de la fuente (0066)", () => {
       [[[100, 0], [103, 0], [103, 5], [100, 5], [100, 0]]]].map((p) => p.map((a) => a.map(([x, y]) => [352000 + x, 2280000 + y] as Punto))) };
     const { anillos, textos } = leer(dxfDePredio({ clave: "149999990000002", geometria: utmAGeografica(multi), geometriaUtm: multi, consultadoEn: "2026-11-09" }));
     expect(anillos.length).toBe(3);
-    expect(textos("TEXTOS")[1]).toBe("Superficie del polígono: 1,515.00 m²");
+    expect(textos("TEXTO")[1]).toBe("Superficie del polígono: 1,515.00 m²");
   });
 });
 
@@ -246,5 +246,45 @@ describe("Superficies en la ficha", () => {
     expect(Math.abs(exacta.m2 - 600)).toBeLessThan(1e-6);
     expect(superficieDelPoligono(utmAGeografica(UTM), null)!.aprox).toBe(true);
     expect(superficieDelPoligono(null, null)).toBeNull();
+  });
+});
+
+describe("DXF del equipo con construcciones (0097)", () => {
+  const predio = anillosUtm(POLIGONO);
+  const utm: Geometria = { type: "Polygon", coordinates: predio[0].map((a) => [...a, a[0]]) };
+  const caja = (x: number, y: number, w: number, h: number): Punto[][][] => [[[[x, y], [x + w, y], [x + w, y + h], [x, y + h]]]];
+  const obras = [
+    { nivel: 1, anillos: caja(352002, 2280002, 10, 8), m2: 80 },
+    { nivel: 1, anillos: caja(352014, 2280002, 4, 5), m2: 20 },
+    { nivel: 2, anillos: caja(352002, 2280002, 10, 8), m2: 80 },
+  ];
+  const base = { clave: "140100141090006", geometria: POLIGONO, geometriaUtm: utm, consultadoEn: "2026-11-27T16:00:00Z" };
+
+  test("capas PREDIO, CONST_N1, CONST_N2 y TEXTO; cada construcción en la capa de su nivel, con su superficie", () => {
+    const d = leer(dxfDePredio({ ...base, construcciones: { estado: "ok", construcciones: obras } }));
+    expect([...d.capas].sort()).toEqual(["0", "CONST_N1", "CONST_N2", "COTAS", "PREDIO", "TEXTO", "VERTICES"]);
+    const polis = (capa: string) => d.entidades.filter((e) => e.tipo === "POLYLINE" && e.g.get(8)![0] === capa).length;
+    expect([polis("PREDIO"), polis("CONST_N1"), polis("CONST_N2")]).toEqual([1, 2, 1]);
+    // Coordenadas exactas de la construcción, tal cual.
+    expect(d.anillos).toContainEqual([[352002, 2280002], [352012, 2280002], [352012, 2280010], [352002, 2280010]]);
+    const t = d.textos("TEXTO");
+    expect(t).toEqual(expect.arrayContaining(["N1 80.00 m²", "N1 20.00 m²", "N2 80.00 m²", "Clave catastral: 140100141090006",
+      "Construcciones: 3, 180.00 m² en total, 2 niveles", "  Nivel 1: 2, 100.00 m²", "  Nivel 2: 1, 80.00 m²"]));
+  });
+  test("sin construcciones en la cartografía, rota o sin respuesta: solo el predio y TEXTO lo dice", () => {
+    for (const [c, linea] of [
+      [{ estado: "ok", construcciones: [] }, "Construcciones: ninguna en la cartografía"],
+      [{ estado: "rota" }, "Construcciones: no disponibles en la cartografía de este municipio"],
+      [{ estado: "falla" }, "Construcciones: no se pudieron leer; intenta de nuevo más tarde"],
+    ] as const) {
+      const d = leer(dxfDePredio({ ...base, construcciones: c as ConstruccionesDxf }));
+      expect([...d.capas].some((x) => x.startsWith("CONST_"))).toBe(false);
+      expect(d.textos("TEXTO")).toContain(linea);
+    }
+  });
+  test("DXF de solo polígono (comisionista, finanzas): sin capas ni texto de construcciones", () => {
+    const dxf = dxfDePredio(base);
+    expect([...leer(dxf).capas].sort()).toEqual(["0", "COTAS", "PREDIO", "TEXTO", "VERTICES"]);
+    expect(dxf).not.toMatch(/Construcci|CONST_/);
   });
 });

@@ -6473,6 +6473,39 @@ begin
 end;
 $sec$;
 
+-- @@ DXF con construcciones solo para admin_org y equipo (0097)
+-- catastro_dxf dice si el archivo lleva construcciones: sí a admin_org y equipo; no a comisionista ni finanzas, aunque
+-- estén autorizados. El saldo y el tope siguen igual.
+do $sec$
+declare
+  xg   uuid := pg_temp.xg();
+  ana  uuid := (select id from personas where correo = 'xchel+ana@arqosuv.com');
+  gaby uuid := (select id from personas where correo = 'gaby@tasa.test');
+  eq   uuid := (select id from personas where correo = 'xchel+equipo-mos@arqosuv.com');
+  geo  jsonb := '{"type":"Polygon","coordinates":[[[-100.3923,20.5928],[-100.3921,20.5928],[-100.3921,20.59295],[-100.3923,20.59295],[-100.3923,20.5928]]]}';
+begin
+  perform pg_temp.sistema();
+  insert into membresias (persona_id, organizacion_id, rol) values (eq, xg, 'equipo') on conflict do nothing;
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  insert into catastro_predios (clave, municipio, geometria, consultado_en) values ('140100000000081', '14', geo, now());
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_dxf('140100000000081')->>'construcciones', 'true', 'admin_org: con construcciones');
+  perform dxf_autorizar(ana, 2, 'Prueba 0097');
+  perform dxf_autorizar(gaby, 2, 'Prueba 0097');
+  perform dxf_autorizar(eq, 2, 'Prueba 0097');
+  perform pg_temp.como('xchel+equipo-mos@arqosuv.com');
+  perform pg_temp.igual(catastro_dxf('140100000000081')->>'construcciones', 'true', 'equipo autorizado: con construcciones');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_dxf('140100000000081')->>'construcciones', 'false', 'comisionista autorizado: solo polígono');
+  perform pg_temp.igual((select saldo from dxf_autorizaciones where persona_id = ana), 1, 'El comisionista sigue gastando su saldo (1 por descarga)');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(catastro_dxf('140100000000081')->>'construcciones', 'false', 'finanzas autorizada: solo polígono');
+  perform pg_temp.sistema();
+  update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 
