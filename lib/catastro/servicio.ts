@@ -1,7 +1,7 @@
 import { crearClienteServidor, encabezadoHumo, verComoId } from "@/lib/supabase/server";
 import { clienteDeServicio } from "@/lib/supabase/servicio";
 import { aLonLat, caja, contiene, geometriaValida, puntoInterior, type Geometria } from "./geo";
-import { consultarExpediente, consultarMapa, type PredioDeCapa } from "./idecatq";
+import { consultarExpediente, consultarMapa, consultarPorClave, type PredioDeCapa } from "./idecatq";
 import { centroideDelExpediente, limpiarExpediente, type Datos, type Privados } from "./limpiar";
 
 /**
@@ -257,7 +257,9 @@ export async function consultarClave(quien: Quien, texto: string, forzar: boolea
   const c = centroideDelExpediente(exp.ok ? exp.json : null);
   if (c) {
     const [lon, lat] = aLonLat(c[0], c[1]);
-    const mapa = await consultarMapa(lat, lon);
+    let mapa = await consultarMapa(lat, lon);
+    // Otra clave en el centroide (p. ej. cae en el hueco de un predio con hueco): se pide el polígono por la clave.
+    if (mapa.ok && mapa.predio?.clave !== clave) mapa = await consultarPorClave(clave, c);
     if (!mapa.ok) await registrarFalla(quien, "mapa");
     else if (mapa.predio?.clave === clave) {
       geometria = mapa.predio.geometria;

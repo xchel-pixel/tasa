@@ -115,6 +115,43 @@ export async function consultarMapa(lat: number, lon: number): Promise<Respuesta
   };
 }
 
+/**
+ * El polígono de una clave, filtrado por la clave misma (CQL_FILTER), cuando el centroide del expediente cae en otro
+ * predio (un predio con hueco: el centroide cae en el hueco). Caja de 6 × 6 km alrededor del centroide, con margen que
+ * la cubre; urbanos y rústicos del municipio de la clave. Una sola consulta y solo en ese caso.
+ */
+export function urlPorClave(clave: string, [x, y]: [number, number]): string | null {
+  if (!/^(0[1-9]|1[0-8])[0-9]{13}$/.test(clave) || !(x > 100000 && y > 2000000)) return null;
+  const m = clave.slice(0, 2);
+  const capas = `queretaro:M${m}_PA,queretaro:M${m}_PRA`;
+  const filtro = encodeURIComponent(`DGR_CVECAT='${clave}';DGR_CVECAT='${clave}'`);
+  const L = 3000;
+  const bbox = [x - L, y - L, x + L, y + L].map((v) => v.toFixed(2)).join(",");
+  return `${BASE}/geoserver/queretaro/wms?service=WMS&version=1.1.1&request=GetFeatureInfo&layers=${capas}&query_layers=${capas}`
+    + `&srs=EPSG:32614&bbox=${bbox}&width=101&height=101&x=50&y=50&info_format=application/json&feature_count=5&buffer=51&CQL_FILTER=${filtro}`;
+}
+
+export async function consultarPorClave(clave: string, centro: [number, number]): Promise<RespuestaMapa> {
+  const url = urlPorClave(clave, centro);
+  if (!url) return { ok: true, predio: null };
+  try {
+    const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(LIMITE_MS) });
+    if (!r.ok) {
+      await avisarSiBloqueo("mapa", r.status);
+      throw new Error(`HTTP${r.status}`);
+    }
+    const j = (await r.json()) as { features?: { id?: unknown; geometry?: unknown; properties?: Record<string, unknown> }[] };
+    const f = (j.features ?? []).find((z) => String(z.properties?.DGR_CVECAT ?? "").replace(/[^0-9]/g, "") === clave);
+    const capa = f ? /^M(0[1-9]|1[0-8])_(PA|PRA)[.]/.exec(String(f.id ?? "")) : null;
+    const utm = f ? geometriaValida(f.geometry) : null;
+    if (!f || !capa || !utm) return { ok: true, predio: null };
+    return { ok: true, predio: { clave, municipio: capa[1], geometria: utmAGeografica(utm), geometriaUtm: utm, datos: datosDeCapa(f.properties) } };
+  } catch (e) {
+    falla("mapa", e);
+    return { ok: false };
+  }
+}
+
 /** BuscaDatos: el expediente completo de una clave. Falla si no trae el predio. */
 export async function consultarExpediente(clave: string): Promise<RespuestaExpediente> {
   try {

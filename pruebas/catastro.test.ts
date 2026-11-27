@@ -268,6 +268,52 @@ describe("Si BuscaDatos falla", () => {
   });
 });
 
+describe("Predio con hueco: el centroide del expediente cae en otro predio", () => {
+  const [x, y] = [352000.5, 2271000.25];
+  const cuadro = (cx: number, cy: number, l: number) => [[[cx - l, cy - l], [cx + l, cy - l], [cx + l, cy + l], [cx - l, cy + l], [cx - l, cy - l]]];
+  // En el centroide está una casa (en el hueco); el predio buscado es el que la rodea.
+  const casa = { features: [{ id: "M06_PA.1", geometry: { type: "Polygon", coordinates: cuadro(x, y, 5) }, properties: { DGR_CVECAT: "060102801101099" } }] };
+  const conHueco = { features: [{ id: "M06_PA.2", geometry: { type: "Polygon", coordinates: [...cuadro(x, y, 60), ...cuadro(x, y, 20)] },
+    properties: { DGR_CVECAT: "060102801101026", SHAPE_AREA: 12800 } }] };
+  beforeEach(() => { llamadas.length = 0; fichaGuardada = null; vi.spyOn(console, "warn").mockImplementation(() => {}); });
+  afterEach(() => vi.restoreAllMocks());
+
+  test("se pide el polígono por la clave (un pedido más) y se guarda con su hueco", async () => {
+    const urls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      urls.push(String(url));
+      if (String(url).includes("BuscaDatos")) return new Response(JSON.stringify(normal), { status: 200 });
+      return new Response(JSON.stringify(String(url).includes("CQL_FILTER") ? conHueco : casa), { status: 200 });
+    });
+    const { consultarClave } = await import("@/lib/catastro/servicio");
+    const r = await consultarClave(QUIEN, "060102801101026", false);
+    expect(r.ok && r.aviso).toBe(null);
+    const porClave = urls.find((u) => u.includes("CQL_FILTER"))!;
+    expect(decodeURIComponent(porClave)).toContain("DGR_CVECAT='060102801101026';DGR_CVECAT='060102801101026'");
+    expect(new URL(porClave).searchParams.get("query_layers")).toBe("queretaro:M06_PA,queretaro:M06_PRA");
+    const guardado = llamadas.find((l) => l.fn === "catastro_guardar")!;
+    expect((guardado.args.p_geometria_utm as { coordinates: unknown[] }).coordinates).toHaveLength(2);
+    // Los urbanos en el centroide (la casa lo contiene: no se piden rústicos) y la consulta por clave: nada de más.
+    expect(urls.filter((u) => u.includes("GetFeatureInfo"))).toHaveLength(2);
+  });
+  test("si el centroide ya da la clave, no hay pedido extra", async () => {
+    const urls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      urls.push(String(url));
+      if (String(url).includes("BuscaDatos")) return new Response(JSON.stringify(normal), { status: 200 });
+      return new Response(JSON.stringify(conHueco), { status: 200 });
+    });
+    const { consultarClave } = await import("@/lib/catastro/servicio");
+    await consultarClave(QUIEN, "060102801101026", false);
+    expect(urls.some((u) => u.includes("CQL_FILTER"))).toBe(false);
+  });
+  test("la clave va al filtro solo si son 15 dígitos válidos", async () => {
+    const { urlPorClave } = await import("@/lib/catastro/idecatq");
+    expect(urlPorClave("06010280110102x", [x, y])).toBeNull();
+    expect(urlPorClave("060102801101026", [0, 0])).toBeNull();
+  });
+});
+
 describe("La llave de servicio no llega al navegador", () => {
   test("ningún archivo \"use client\" importa el cliente de servicio ni el código que lo usa (solo tipos)", async () => {
     const { readdirSync, statSync } = await import("node:fs");
