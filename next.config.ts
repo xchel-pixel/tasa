@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
   // esto Vercel no las sube y el PDF falla solo en producción.
   outputFileTracingIncludes: {
     "/admin/solicitudes/[id]": ["./assets/fuentes/**"],
+    // Las herramientas de asesor (0100) se leen del disco al servirlas; no son archivos públicos.
+    "/h/[herramienta]": ["./assets/herramientas/**"],
   },
 };
 

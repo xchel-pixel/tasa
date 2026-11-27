@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checklist de documentos por operación</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--navy:#0B3A6E;--navy2:#0E4C8F;--bg:#F7F9FC;--card:#F3F6FA;--line:#D9E1EC;--ink:#1B2533;--mute:#5E6B7D;--ok:#1F7A4D;--warn:#A15C00;--err:#B3261E}
+*{box-sizing:border-box}
+body{margin:0;font-family:"DM Sans",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+header{background:var(--navy);color:#fff;padding:18px 24px}
+header h1{margin:0;font-size:20px;font-weight:700}header p{margin:4px 0 0;font-size:13px;opacity:.85}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px 60px}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.steps button{flex:1 1 150px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 10px;font:inherit;font-size:13px;color:var(--mute);cursor:pointer;text-align:left}
+.steps button b{display:block;color:var(--ink);font-size:13px}
+.steps button.on{background:var(--navy);border-color:var(--navy);color:#cfe0f5}.steps button.on b{color:#fff}
+section.step{display:none}section.step.on{display:block}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{margin:0 0 4px;font-size:17px}.card h3{margin:16px 0 8px;font-size:14px;color:var(--navy)}
+.hint{color:var(--mute);font-size:13px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.grid .full{grid-column:1/-1}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin-bottom:4px}
+input,select,textarea{width:100%;font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid #9DC0EA;border-color:var(--navy2)}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:14px;color:var(--ink);cursor:pointer;margin:0;background:#fff;font-weight:500}
+.seg input{width:auto;margin:0}.seg label:has(input:checked){border-color:var(--navy);background:#E8F0FA;font-weight:600}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:10px;padding:10px 16px;border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
+.btn:hover{background:var(--navy2)}.btn.sec{background:#fff;color:var(--navy)}.btn.sec:hover{background:var(--card)}.btn.sm{padding:6px 10px;font-size:13px;border-radius:8px}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:6px}
+.hide{display:none!important}
+.alert{border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:8px;display:flex;gap:10px}
+.alert.r{background:#FDECEA;border:1px solid #F1B9B3;color:#7A1C15}.alert.a{background:#FFF8EA;border:1px solid #F0D9A8;color:#6B4A00}.alert.b{background:#EEF4FB;border:1px solid #C9DAF0;color:#173E6B}
+.prog{display:flex;align-items:center;gap:12px;margin:4px 0 14px}
+.bar{flex:1;height:10px;background:#E6EBF2;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .3s}
+.grp{margin-bottom:14px}
+.grp h3{display:flex;justify-content:space-between;align-items:center;margin:0 0 6px;padding:8px 12px;background:var(--card);border-radius:10px;font-size:14.5px;color:var(--navy)}
+.grp h3 small{color:var(--mute);font-weight:600}
+.it{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:9px 6px;border-bottom:1px solid #EEF1F5}
+.it input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:var(--ok);cursor:pointer}
+.it .t{font-size:14.5px}.it .n{font-size:12.5px;color:var(--mute);margin-top:2px}
+.it.ok .t{color:var(--mute);text-decoration:line-through}.it.na{opacity:.45}.it.na .t{text-decoration:line-through}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.tag.mgp{background:#0B3A6E;color:#fff}.tag.not{background:#EEF1F5;color:var(--mute)}.tag.crit{background:#FDECEA;color:var(--err)}
+.na-b{border:1px solid var(--line);background:#fff;border-radius:7px;font:inherit;font-size:11.5px;color:var(--mute);padding:3px 7px;cursor:pointer;white-space:nowrap}
+.it.na .na-b{background:#EEF1F5;color:var(--ink)}
+.rev{background:#EEF4FB;border:1px solid #C9DAF0;color:#173E6B;border-radius:10px;padding:9px 12px;font-size:13.5px;margin-bottom:14px}
+.rqg{font-weight:700;color:var(--navy);margin:12px 0 4px;font-size:14px}
+.rq{display:flex;gap:10px;padding:7px 4px;border-bottom:1px solid #EEF1F5;font-size:14px}.rq .n{font-size:12.5px;color:var(--mute);margin-top:2px}
+.rq.bad{background:#FFF5F4}.rq.warn{background:#FFFBF2}
+.msgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.copybox{white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13.5px;max-height:300px;overflow:auto;margin-bottom:8px}
+.status{font-size:13px;margin-top:6px;color:var(--mute)}.status.ok{color:var(--ok)}
+.small{font-size:12px;color:var(--mute)}
+footer{text-align:center;font-size:12px;color:var(--mute);margin-top:30px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.borrar{font:inherit;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;border-radius:9px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+.borrar:hover{background:rgba(255,255,255,.12)}.borrar.conf{background:#B3261E;border-color:#B3261E}
+</style>
+</head>
+<body>
+<header>
+  <div>
+  <h1>Checklist de documentos por operación</h1>
+  <p>Querétaro · Compraventa (contado o con crédito) y arrendamiento · Lista según el caso, avance y mensajes para pedir documentos</p>
+  </div>
+  <button class="borrar" id="borrar" title="Borra el borrador guardado en este navegador">🗑 Borrar datos de este equipo</button>
+</header>
+<div class="wrap">
+  <div class="rev">📅 Requisitos revisados al <b>27 de noviembre de 2026</b> (Infonavit, Fovissste, bancos y traslado de dominio en Querétaro). Confírmalos con la institución y la notaría si pasaron varios meses.</div>
+  <div class="steps" id="steps"></div>
+
+  <!-- 1 OPERACIÓN -->
+  <section class="step" data-title="1. La operación" data-sub="Responde unas preguntas">
+    <div class="card">
+      <div class="grid">
+        <div class="full"><label>Nombre del expediente</label><input data-k="exp" placeholder="Ej. Casa Arboledas – Pérez a Gómez"></div>
+      </div>
+      <h3>¿Qué operación es?</h3>
+      <div class="seg"><label><input type="radio" name="op" value="compraventa" checked> Compraventa</label><label><input type="radio" name="op" value="arrendamiento"> Arrendamiento</label></div>
+      <div class="cv">
+        <h3>¿Cómo se paga?</h3>
+        <div class="seg">
+          <label><input type="radio" name="pago" value="contado" checked> Contado (recursos propios)</label>
+          <label><input type="radio" name="pago" value="infonavit"> Infonavit</label>
+          <label><input type="radio" name="pago" value="cofinavit"> Cofinavit / Infonavit + banco</label>
+          <label><input type="radio" name="pago" value="fovissste"> Fovissste</label>
+          <label><input type="radio" name="pago" value="bancario"> Crédito bancario</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="cv">Inmueble</h2><h2 class="ar hide">Inmueble y garantía</h2>
+      <div class="grid">
+        <div><label>Tipo</label><select data-k="tipo"><option>Casa</option><option>Departamento</option><option>Terreno</option><option>Local / oficina</option><option>Bodega / nave</option></select></div>
+        <div><label>¿Está en condominio?</label><select data-k="cond"><option>No</option><option>Sí, régimen constituido</option><option>Es condominio pero sin régimen constituido</option><option>No sabe</option></select></div>
+        <div class="cv"><label>¿Tiene hipoteca o crédito vigente?</label><select data-k="hip"><option>No</option><option>Sí, Infonavit/Fovissste</option><option>Sí, bancario</option><option>No sabe</option></select></div>
+        <div class="cv"><label>¿Tiene construcciones o ampliaciones no registradas?</label><select data-k="ampl"><option>No</option><option>Sí</option><option>No sabe</option></select></div>
+        <div class="cv"><label>Origen de la propiedad</label><select data-k="orig"><option>Compraventa / escritura normal</option><option>Herencia (ya adjudicada y escriturada)</option><option>Herencia (sucesión sin concluir)</option><option>Ejidal / sin escritura</option><option>Donación</option></select></div>
+        <div class="cr"><label>¿Vivienda nueva o usada?</label><select data-k="viv"><option>Usada</option><option>Nueva (primera venta de desarrolladora)</option></select></div>
+        <div class="cr"><label>Antigüedad aproximada (años)</label><input type="number" min="0" data-k="antig" placeholder="Ej. 15"></div>
+        <div class="cr"><label>Construcción (m²)</label><input type="number" min="0" data-k="m2c" placeholder="Ej. 85"></div>
+        <div class="cr"><label>Niveles construidos</label><input type="number" min="1" data-k="niv" placeholder="Ej. 2"></div>
+        <div class="cr"><label>Recámaras</label><input type="number" min="0" data-k="recs" placeholder="Ej. 2"></div>
+        <div class="cr"><label>¿Tiene local, dos viviendas, dos accesos o dos medidores de luz?</label><select data-k="mixto"><option>No</option><option>Sí</option></select></div>
+        <div class="cr"><label>¿Está 100 % terminada?</label><select data-k="term"><option>Sí</option><option>No</option></select></div>
+        <div class="ar hide"><label>Garantía del arrendamiento</label><select data-k="gar"><option>Obligado solidario</option><option>Fiador con inmueble</option><option>Póliza jurídica</option><option>Solo depósito</option></select></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="cv">Vendedor</span><span class="ar hide">Arrendador</span></h2>
+      <div class="grid">
+        <div><label>Tipo de persona</label><select data-k="v_tipo"><option>Persona física</option><option>Persona moral (empresa)</option></select></div>
+        <div class="vpf"><label>Estado civil</label><select data-k="v_civil"><option>Soltero(a)</option><option>Casado(a) – sociedad conyugal</option><option>Casado(a) – separación de bienes</option><option>Divorciado(a)</option><option>Viudo(a)</option><option>Unión libre</option></select></div>
+        <div><label>¿Hay varios propietarios?</label><select data-k="v_varios"><option>No</option><option>Sí</option></select></div>
+        <div><label>¿Firma por medio de apoderado?</label><select data-k="v_pod"><option>No</option><option>Sí</option></select></div>
+        <div class="vpf"><label>¿Es extranjero?</label><select data-k="v_ext"><option>No</option><option>Sí</option></select></div>
+        <div class="cv vpf"><label>¿Es su casa habitación (vive ahí)?</label><select data-k="v_casa"><option>Sí</option><option>No</option><option>No sabe</option></select></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="cv">Comprador</span><span class="ar hide">Arrendatario</span></h2>
+      <div class="grid">
+        <div><label>Tipo de persona</label><select data-k="c_tipo"><option>Persona física</option><option>Persona moral (empresa)</option></select></div>
+        <div class="cpf"><label>Estado civil</label><select data-k="c_civil"><option>Soltero(a)</option><option>Casado(a) – sociedad conyugal</option><option>Casado(a) – separación de bienes</option><option>Divorciado(a)</option><option>Viudo(a)</option><option>Unión libre</option></select></div>
+        <div class="cpf"><label>¿Es extranjero?</label><select data-k="c_ext"><option>No</option><option>Sí</option></select></div>
+        <div class="ar hide cpf"><label>Ingresos</label><select data-k="c_ing"><option>Asalariado</option><option>Independiente / negocio propio</option></select></div>
+        <div class="cv cpf bk hide"><label>Ingresos</label><select data-k="c_ing2"><option>Asalariado</option><option>Independiente / negocio propio</option></select></div>
+        <div class="cr cpf"><label>Edad del comprador</label><input type="number" min="18" data-k="c_edad" placeholder="Ej. 34"></div>
+        <div class="cv cpf bk hide"><label>Plazo del crédito (años)</label><input type="number" min="1" data-k="plazo" placeholder="Ej. 20"></div>
+        <div class="cr cpf"><label>¿Junta crédito con otra persona? (Unamos Créditos, coacreditado)</label><select data-k="coac"><option>No</option><option>Sí</option></select></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" id="ej">Cargar ejemplo</button><button class="btn" data-next>Ver checklist →</button></div>
+  </section>
+
+  <!-- 2 CHECKLIST -->
+  <section class="step" data-title="2. Checklist" data-sub="Marca lo recibido">
+    <div class="card hide" id="reqs"></div>
+    <div class="card">
+      <div id="alerts"></div>
+      <div class="prog"><div class="bar"><i id="barf"></i></div><b id="progt"></b></div>
+      <p class="hint">Marca cada documento cuando lo recibas. Usa <b>No aplica</b> para quitar lo que no corresponde a este caso. <span class="tag mgp">MGP</span> = lo puede hacer MGP. <span class="tag not">NOTARÍA</span> = normalmente lo tramita la notaría.</p>
+      <div id="lista"></div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Cambiar respuestas</button><button class="btn" data-next>Pedir documentos y PDF →</button></div>
+  </section>
+
+  <!-- 3 EXPORTAR -->
+  <section class="step" data-title="3. Pedir y compartir" data-sub="Mensajes y PDF">
+    <div class="card">
+      <h2>Mensajes para pedir lo que falta</h2>
+      <p class="hint">Solo incluyen lo pendiente de cada persona. Cópialos y mándalos por WhatsApp o correo.</p>
+      <div class="msgs" id="msgs"></div>
+    </div>
+    <div class="card">
+      <h2>Checklist en PDF</h2>
+      <p class="hint">Para el expediente o para entregar a las partes, con el estado de cada documento.</p>
+      <div class="seg" style="margin-bottom:10px"><label><input type="radio" name="pdfm" value="todo" checked> Todo el checklist</label><label><input type="radio" name="pdfm" value="pend"> Solo lo pendiente</label></div>
+      <button class="btn" id="dl">Descargar PDF</button><div class="status" id="dl_st"></div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Checklist</button><button class="btn sec" id="reset">Empezar uno nuevo</button></div>
+  </section>
+
+  <footer>Los requisitos pueden cambiar: confírmalos en Mi Cuenta Infonavit, con Fovissste, con el banco y con la notaría.<br>Lista orientativa para asesores. Cada notaría, institución de crédito o arrendador puede pedir documentos adicionales o con vigencias específicas; confírmalos con ellos.</footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const REV="27 de noviembre de 2026";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hoy=()=>{const d=new Date(),p=n=>String(n).padStart(2,"0");return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`;};
+
+/* ---------- estado ---------- */
+let ST={};// id -> "ok" | "na"
+function S(){const o={};$$("[data-k]").forEach(e=>o[e.dataset.k]=e.value);o.op=($("input[name=op]:checked")||{}).value;o.pago=($("input[name=pago]:checked")||{}).value;return o;}
+function setS(o){for(const k in o){const e=$(`[data-k="${k}"]`);if(e)e.value=o[k];}["op","pago"].forEach(n=>{if(o[n]){const r=$(`input[name=${n}][value=${o[n]}]`);if(r)r.checked=true;}});sync();}
+const LS="mgp_checklist_v1";
+function save(){try{localStorage.setItem(LS,JSON.stringify({s:S(),st:ST}));}catch(e){}}
+function load(){try{const o=JSON.parse(localStorage.getItem(LS)||"null");if(o){setS(o.s);ST=o.st||{};}}catch(e){}}
+function asesor(){let a=window.TASA_asesor||null;if(!a){try{a=JSON.parse(localStorage.getItem("mgp_asesor_v1")||"null");}catch(e){}}return a||{};}
+
+/* ---------- condicionales ---------- */
+function sync(){const s=S(),cv=s.op==="compraventa";
+  $$(".cv").forEach(e=>e.classList.toggle("hide",!cv));$$(".ar").forEach(e=>e.classList.toggle("hide",cv));
+  $$(".cr").forEach(e=>{if(!e.classList.contains("cpf"))e.classList.toggle("hide",!(cv&&["infonavit","cofinavit","fovissste","bancario"].includes(s.pago)));});
+  $$(".vpf").forEach(e=>e.classList.toggle("hide",s.v_tipo!=="Persona física"||(e.classList.contains("cv")&&!cv)));
+  $$(".cpf").forEach(e=>{const pf=s.c_tipo==="Persona física";let h=!pf;if(e.classList.contains("ar")&&cv)h=true;if(e.classList.contains("cv")&&!cv)h=true;
+    if(e.classList.contains("bk")&&!["bancario","cofinavit"].includes(s.pago))h=true;
+    if(e.classList.contains("cr")&&!(cv&&["infonavit","cofinavit","fovissste","bancario"].includes(s.pago)))h=true;e.classList.toggle("hide",h);});}
+document.addEventListener("change",e=>{if(e.target.closest("#lista"))return;sync();save();});
+document.addEventListener("input",e=>{if(e.target.dataset.k==="exp")save();});
+
+/* ---------- catálogo de documentos ----------
+   q: quién (V vendedor/arrendador, C comprador/arrendatario, G garante, I inmueble, F crédito, N notaría/impuestos)
+   c: condición (s)=>bool · m: MGP · n: notaría · k: crítico */
+const casado=c=>/^Casado/.test(c),conyugal=c=>/sociedad conyugal/.test(c);
+const credito=s=>["infonavit","cofinavit","fovissste","bancario"].includes(s.pago);
+const DOCS=[
+ // ===== COMPRAVENTA · VENDEDOR =====
+ {id:"v_ine",q:"V",t:"INE vigente (de cada propietario)",c:s=>s.op==="compraventa"},
+ {id:"v_acta",q:"V",t:"Acta de nacimiento (copia certificada reciente)",n:"Con crédito, muchas notarías la piden con menos de 3 meses de expedida.",c:s=>s.op==="compraventa"&&s.v_tipo==="Persona física"&&s.v_ext==="No"},
+ {id:"v_curp",q:"V",t:"CURP",c:s=>s.op==="compraventa"&&s.v_tipo==="Persona física"&&s.v_ext==="No"},
+ {id:"v_csf",q:"V",t:"Constancia de situación fiscal (RFC) actualizada",n:"La notaría la usa para el cálculo y retención del ISR.",c:s=>s.op==="compraventa"},
+ {id:"v_dom",q:"V",t:"Comprobante de domicilio reciente",c:s=>s.op==="compraventa"},
+ {id:"v_mat",q:"V",t:"Acta de matrimonio",n:"Indica el régimen; define si el cónyuge debe firmar.",c:s=>s.op==="compraventa"&&s.v_tipo==="Persona física"&&casado(s.v_civil)},
+ {id:"v_cony",q:"V",t:"INE, acta de nacimiento, CURP y RFC del cónyuge (comparece a firmar)",k:1,c:s=>s.op==="compraventa"&&s.v_tipo==="Persona física"&&conyugal(s.v_civil)},
+ {id:"v_div",q:"V",t:"Acta de divorcio y, en su caso, convenio o sentencia de liquidación de la sociedad conyugal",n:"Si el inmueble se compró durante el matrimonio, el excónyuge puede tener derechos.",c:s=>s.op==="compraventa"&&s.v_tipo==="Persona física"&&s.v_civil==="Divorciado(a)"},
+ {id:"v_viu",q:"V",t:"Acta de defunción del cónyuge y adjudicación de su parte (sucesión)",k:1,n:"Si estaban en sociedad conyugal, la mitad pertenece a la sucesión del cónyuge.",c:s=>s.op==="compraventa"&&s.v_tipo==="Persona física"&&s.v_civil==="Viudo(a)"},
+ {id:"v_pod",q:"V",t:"Poder notarial vigente para actos de dominio e INE del apoderado",k:1,c:s=>s.v_pod==="Sí"},
+ {id:"v_ext",q:"V",t:"Pasaporte vigente y documento migratorio",c:s=>s.v_tipo==="Persona física"&&s.v_ext==="Sí"},
+ {id:"v_pm",q:"V",t:"Acta constitutiva con sus reformas inscritas",c:s=>s.op==="compraventa"&&s.v_tipo!=="Persona física"},
+ {id:"v_pm2",q:"V",t:"Poder del representante (actos de dominio) e INE del representante",k:1,c:s=>s.op==="compraventa"&&s.v_tipo!=="Persona física"},
+ {id:"v_isr1",q:"V",t:"Para la exención de ISR: INE con el domicilio del inmueble, recibos de luz o teléfono fijo, o estados de cuenta a su nombre con ese domicilio",n:"La exención por casa habitación aplica hasta 700 mil UDIS y si no la usó en los últimos 3 años.",c:s=>s.op==="compraventa"&&s.v_tipo==="Persona física"&&s.v_casa!=="No"},
+ {id:"v_isr2",q:"V",t:"Escritura de adquisición y facturas (CFDI) de construcción, mejoras o ampliaciones",n:"Sirven para deducir y reducir el ISR cuando no aplica la exención.",c:s=>s.op==="compraventa"&&(s.v_casa!=="Sí"||s.v_tipo!=="Persona física")},
+ {id:"v_clabe",q:"V",t:"Carátula de estado de cuenta bancario del vendedor con CLABE (menor a 3 meses)",n:"La institución deposita ahí el crédito.",c:s=>s.op==="compraventa"&&credito(s)},
+ // ===== COMPRAVENTA · INMUEBLE =====
+ {id:"i_esc",q:"I",t:"Escritura pública inscrita en el Registro Público (copia completa)",k:1,c:s=>s.op==="compraventa"},
+ {id:"i_pred",q:"I",t:"Boleta predial del año en curso pagada",c:s=>s.op==="compraventa"},
+ {id:"i_agua",q:"I",t:"Constancia de no adeudo de agua (CEA o el organismo del municipio)",c:s=>s.op==="compraventa"&&s.tipo!=="Terreno"},
+ {id:"i_clg",q:"I",t:"Certificado de libertad de gravamen",n:"Vigencia corta: pídelo cerca de la firma. MGP lo tramita.",mgp:1,c:s=>s.op==="compraventa"},
+ {id:"i_aval",q:"I",t:"Avalúo fiscal (hacendario) para el traslado de dominio, por perito valuador con registro en el Estado de Querétaro",n:"Lo pide Catastro en toda compraventa, aunque haya avalúo del crédito. Vale un año si el inmueble no cambia.",mgp:1,c:s=>s.op==="compraventa"},
+ {id:"i_cat",q:"I",t:"Revisar el valor catastral (si está por encima del mercado, se puede pedir revisión de valor)",mgp:1,c:s=>s.op==="compraventa"},
+ {id:"i_mant",q:"I",t:"Constancia de no adeudo de cuotas de mantenimiento, firmada por el administrador",c:s=>s.op==="compraventa"&&/^Sí/.test(s.cond)},
+ {id:"i_regl",q:"I",t:"Reglamento del condominio",c:s=>/^Sí/.test(s.cond)},
+ {id:"i_rcon",q:"I",t:"Constituir el régimen en condominio (plano, memoria descriptiva, indivisos y plantilla RPPC)",k:1,mgp:1,n:"Sin régimen, la unidad no puede escriturarse por separado.",c:s=>s.op==="compraventa"&&(s.cond==="Es condominio pero sin régimen constituido"||s.cond==="No sabe")},
+ {id:"i_hip",q:"I",t:"Carta saldo o carta de instrucción de la hipoteca vigente",k:1,n:"El saldo se liquida en la firma y después se cancela la hipoteca.",c:s=>s.op==="compraventa"&&/^Sí/.test(s.hip)},
+ {id:"i_hip2",q:"I",t:"Verificar si hay hipoteca o gravamen (certificado de libertad de gravamen, lo tramita MGP)",mgp:1,c:s=>s.op==="compraventa"&&s.hip==="No sabe"},
+ {id:"i_lic",q:"I",t:"Regularizar ante catastro y licencias las construcciones o ampliaciones no registradas",n:"Diferencias entre lo construido y lo registrado pueden frenar el crédito o el avalúo.",c:s=>s.op==="compraventa"&&s.ampl!=="No"},
+ {id:"i_suc",q:"I",t:"Escritura de adjudicación por herencia inscrita en el Registro Público",k:1,c:s=>s.op==="compraventa"&&/^Herencia/.test(s.orig)},
+ {id:"i_don",q:"I",t:"Escritura de donación inscrita y comprobante del ISR o de su exención en la donación",c:s=>s.op==="compraventa"&&s.orig==="Donación"},
+ {id:"i_plano",q:"I",t:"Plano o deslinde del terreno (si las medidas no coinciden con la escritura)",mgp:1,c:s=>s.op==="compraventa"&&s.tipo==="Terreno"},
+ // ===== COMPRAVENTA · COMPRADOR =====
+ {id:"c_ine",q:"C",t:"INE vigente",c:s=>s.op==="compraventa"&&s.c_tipo==="Persona física"&&s.c_ext==="No"},
+ {id:"c_acta",q:"C",t:"Acta de nacimiento (copia certificada reciente)",n:"Con crédito, muchas notarías la piden con menos de 3 meses de expedida.",c:s=>s.op==="compraventa"&&s.c_tipo==="Persona física"&&s.c_ext==="No"},
+ {id:"c_curp",q:"C",t:"CURP",c:s=>s.op==="compraventa"&&s.c_tipo==="Persona física"&&s.c_ext==="No"},
+ {id:"c_csf",q:"C",t:"Constancia de situación fiscal (RFC)",c:s=>s.op==="compraventa"},
+ {id:"c_dom",q:"C",t:"Comprobante de domicilio reciente",c:s=>s.op==="compraventa"},
+ {id:"c_mat",q:"C",t:"Acta de matrimonio (define si el cónyuge adquiere también)",c:s=>s.op==="compraventa"&&s.c_tipo==="Persona física"&&casado(s.c_civil)},
+ {id:"c_ext",q:"C",t:"Pasaporte vigente y documento migratorio",c:s=>s.op==="compraventa"&&s.c_tipo==="Persona física"&&s.c_ext==="Sí"},
+ {id:"c_pm",q:"C",t:"Acta constitutiva, poder del representante, su INE y constancia de situación fiscal de la empresa",c:s=>s.op==="compraventa"&&s.c_tipo!=="Persona física"},
+ {id:"c_rec",q:"C",t:"Comprobante del origen de los recursos y del pago (estado de cuenta, transferencia o cheque)",n:"Por ley antilavado la notaría identifica los recursos y el efectivo tiene límites; Catastro también pide el comprobante del pago para el traslado de dominio.",c:s=>s.op==="compraventa"},
+ // ===== CRÉDITO =====
+ {id:"f_inf1",q:"F",t:"Precalificación y monto en Mi Cuenta Infonavit",c:s=>["infonavit","cofinavit"].includes(s.pago)},
+ {id:"f_inf2",q:"F",t:"Constancia del curso \"Saber más para decidir mejor\"",k:1,c:s=>["infonavit","cofinavit"].includes(s.pago)},
+ {id:"f_inf3",q:"F",t:"Solicitud de inscripción de crédito",c:s=>["infonavit","cofinavit"].includes(s.pago)},
+ {id:"f_inf4",q:"F",t:"Documentos del expediente según Mi Cuenta Infonavit (cambiaron en agosto de 2026; la CURP biométrica por ahora es opcional)",n:"Confírmalos en Mi Cuenta Infonavit antes de integrar el expediente.",c:s=>["infonavit","cofinavit"].includes(s.pago)},
+ {id:"f_fov",q:"F",t:"Folio o constancia de crédito Fovissste vigente y documentos que pida el instituto",c:s=>s.pago==="fovissste"},
+ {id:"f_ban1",q:"F",t:"Solicitud de crédito y autorización de consulta al Buró de Crédito",c:s=>["bancario","cofinavit"].includes(s.pago)},
+ {id:"f_ban2",q:"F",t:"Comprobantes de ingresos: últimos recibos de nómina y estados de cuenta",c:s=>["bancario","cofinavit"].includes(s.pago)&&s.c_ing2!=="Independiente / negocio propio"},
+ {id:"f_ban3",q:"F",t:"Comprobantes de ingresos: declaraciones anuales y estados de cuenta del negocio",c:s=>["bancario","cofinavit"].includes(s.pago)&&s.c_ing2==="Independiente / negocio propio"},
+ {id:"f_ban4",q:"F",t:"Carta de aprobación o autorización del crédito",c:s=>["bancario","cofinavit"].includes(s.pago)},
+ {id:"f_aval",q:"F",t:"Avalúo por unidad de valuación autorizada por la institución (lo solicita el comprador)",k:1,c:s=>credito(s)&&!(["infonavit","cofinavit"].includes(s.pago)&&s.viv==="Usada")},
+ {id:"f_dtc",q:"F",t:"Avalúo y Dictamen Técnico de Calidad Infonavit (aprobatorio: 70 puntos o más)",k:1,n:"Lo hace una unidad de valuación autorizada; revisa la vida útil remanente (mínimo 30 años) y las condiciones de la vivienda.",c:s=>["infonavit","cofinavit"].includes(s.pago)&&s.viv==="Usada"},
+ {id:"f_cuv",q:"F",t:"Clave Única de Vivienda (CUV) registrada en el RUV y seguro de calidad de la vivienda",k:1,n:"Los entrega la desarrolladora.",c:s=>["infonavit","cofinavit"].includes(s.pago)&&s.viv!=="Usada"},
+ {id:"f_cuvf",q:"F",t:"Clave Única de Vivienda (CUV) registrada (vivienda nueva)",n:"La entrega la desarrolladora.",c:s=>s.pago==="fovissste"&&s.viv!=="Usada"},
+ {id:"f_prec",q:"F",t:"Precalificación impresa y constancia de crédito vigente",c:s=>["infonavit","cofinavit"].includes(s.pago)},
+ {id:"f_fov2",q:"F",t:"Carta de entrega-recepción de la vivienda firmada por comprador y vendedor",c:s=>s.pago==="fovissste"},
+ {id:"f_seg",q:"F",t:"Seguros de vida y de daños al inmueble (se contratan con el crédito)",c:s=>["bancario","cofinavit"].includes(s.pago)},
+ {id:"f_coac",q:"F",t:"Documentos completos de la otra persona que junta crédito (identificación, actas, CURP, RFC, precalificación)",k:1,c:s=>credito(s)&&s.coac==="Sí"},
+ {id:"i_ban",q:"I",t:"Licencia de construcción, planos, alineamiento y número oficial",n:"Los bancos suelen pedirlos para el avalúo y la autorización.",c:s=>["bancario","cofinavit"].includes(s.pago)},
+ {id:"i_5a",q:"I",t:"Boletas de predial y recibos de agua de los últimos años (algunas instituciones y notarías piden hasta 5)",c:s=>s.op==="compraventa"&&credito(s)},
+ // ===== NOTARÍA =====
+ {id:"n_not",q:"N",t:"Elegir notaría y pedir el presupuesto de gastos de escrituración",c:s=>s.op==="compraventa"},
+ {id:"n_prom",q:"N",t:"Contrato de promesa o carta oferta firmada y recibo de apartado",c:s=>s.op==="compraventa"},
+ // ===== ARRENDAMIENTO =====
+ {id:"ra_ine",q:"V",t:"INE vigente",c:s=>s.op==="arrendamiento"&&s.v_tipo==="Persona física"},
+ {id:"ra_esc",q:"V",t:"Escritura o predial a su nombre (acredita la propiedad)",k:1,c:s=>s.op==="arrendamiento"},
+ {id:"ra_dom",q:"V",t:"Comprobante de domicilio para notificaciones",c:s=>s.op==="arrendamiento"},
+ {id:"ra_clabe",q:"V",t:"Datos bancarios (CLABE) para recibir la renta",c:s=>s.op==="arrendamiento"},
+ {id:"ra_csf",q:"V",t:"Constancia de situación fiscal (si va a facturar la renta)",c:s=>s.op==="arrendamiento"},
+ {id:"ra_cony",q:"V",t:"Datos e INE del cónyuge (se recomienda que firme)",c:s=>s.op==="arrendamiento"&&s.v_tipo==="Persona física"&&conyugal(s.v_civil)},
+ {id:"ra_pm",q:"V",t:"Acta constitutiva, poder del representante y su INE",c:s=>s.op==="arrendamiento"&&s.v_tipo!=="Persona física"},
+ {id:"rt_ine",q:"C",t:"INE vigente (o pasaporte y documento migratorio si es extranjero)",c:s=>s.op==="arrendamiento"&&s.c_tipo==="Persona física"},
+ {id:"rt_dom",q:"C",t:"Comprobante de domicilio actual",c:s=>s.op==="arrendamiento"},
+ {id:"rt_ing1",q:"C",t:"Comprobantes de ingresos de los últimos 3 meses (recibos de nómina)",c:s=>s.op==="arrendamiento"&&s.c_tipo==="Persona física"&&s.c_ing!=="Independiente / negocio propio"},
+ {id:"rt_ing2",q:"C",t:"Estados de cuenta de los últimos 3 meses o declaración anual",c:s=>s.op==="arrendamiento"&&(s.c_tipo!=="Persona física"||s.c_ing==="Independiente / negocio propio")},
+ {id:"rt_ref",q:"C",t:"Referencias personales y laborales (o del arrendador anterior)",c:s=>s.op==="arrendamiento"},
+ {id:"rt_pm",q:"C",t:"Acta constitutiva, poder del representante, su INE y constancia de situación fiscal",c:s=>s.op==="arrendamiento"&&s.c_tipo!=="Persona física"},
+ {id:"rg_ine",q:"G",t:"INE y comprobante de domicilio del aval",c:s=>s.op==="arrendamiento"&&["Obligado solidario","Fiador con inmueble"].includes(s.gar)},
+ {id:"rg_ing",q:"G",t:"Comprobantes de ingresos del obligado solidario",c:s=>s.op==="arrendamiento"&&s.gar==="Obligado solidario"},
+ {id:"rg_esc",q:"G",t:"Escritura del inmueble del fiador y certificado de libertad de gravamen (MGP lo tramita)",k:1,c:s=>s.op==="arrendamiento"&&s.gar==="Fiador con inmueble"},
+ {id:"rg_pol",q:"G",t:"Póliza jurídica contratada (investigación del inquilino aprobada)",c:s=>s.op==="arrendamiento"&&s.gar==="Póliza jurídica"},
+ {id:"ri_inv",q:"I",t:"Inventario con fotos para el acta de entrega-recepción",c:s=>s.op==="arrendamiento"},
+ {id:"ri_serv",q:"I",t:"Últimos recibos de luz, agua y mantenimiento pagados (para entregar al corriente)",c:s=>s.op==="arrendamiento"},
+ {id:"ri_just",q:"I",t:"Justipreciación de rentas (si hay duda sobre el monto de la renta)",mgp:1,c:s=>s.op==="arrendamiento"},
+];
+const GRUPOS=s=>s.op==="compraventa"
+  ?[["V","Vendedor"],["I","Inmueble"],["C","Comprador"],["F","Crédito"],["N","Notaría y cierre"]]
+  :[["V","Arrendador"],["C","Arrendatario"],["G","Aval o garantía"],["I","Inmueble"]];
+function activos(s){return DOCS.filter(d=>d.c(s));}
+/* requisitos del inmueble y del comprador según el crédito
+   estado: ok | warn | bad | chk (verificar) */
+function requisitos(s){if(s.op!=="compraventa"||!credito(s))return[];
+  const R=[],add=(st,t,n)=>R.push({st,t,n}),num=v=>v===""||v===undefined?null:Number(v);
+  const an=num(s.antig),m2=num(s.m2c),nv=num(s.niv),rc=num(s.recs),ed=num(s.c_edad),pl=num(s.plazo);
+  const inf=["infonavit","cofinavit"].includes(s.pago),fov=s.pago==="fovissste",ban=["bancario","cofinavit"].includes(s.pago),usada=s.viv==="Usada";
+  const grp=t=>R.push({g:t});
+  if(inf){grp(s.pago==="cofinavit"?"Infonavit (Cofinavit)":"Infonavit");
+    if(usada){
+      add(an===null?"chk":an>=40?"warn":"ok","Vida útil remanente de al menos 30 años (la determina el avalúo)",an===null?"Captura la antigüedad para estimarlo.":an>=40?`Con ${an} años de antigüedad, confirma con el valuador antes de avanzar: el avalúo podría no alcanzar 30 años de vida útil remanente.`:`Con ${an} años de antigüedad normalmente no hay problema, si el estado de conservación es bueno.`);
+      add("chk","Dictamen Técnico de Calidad con 70 puntos o más","Lo emite la unidad de valuación junto con el avalúo.");
+      add(m2===null?"chk":m2<38?"bad":m2<40?"warn":m2<60?"ok":"ok","Superficie construida mínima",m2===null?"Captura los m² construidos. Las fuentes citan 38 a 40 m² como mínimo; en Vivienda para el Bienestar, 60 m².":m2<38?`${m2} m²: por debajo del mínimo que suele aceptarse (38–40 m²).`:m2<40?`${m2} m²: en el límite (algunas fuentes piden 40 m²). Confírmalo con la unidad de valuación.`:`${m2} m² construidos.`);
+      add("chk","Distribución mínima: sala-comedor, cocina, al menos una recámara y un baño completo");
+      add(s.mixto==="Sí"?"bad":"ok","Una sola vivienda: sin dos accesos, sin dos unidades rentables ni escalera exterior",s.mixto==="Sí"?"Con local, dos viviendas o dos medidores, el avalúo Infonavit normalmente no la acepta.":"");
+      add("chk","Servicios en operación (agua, drenaje o fosa séptica y luz), número oficial visible y fuera de zona de riesgo");
+      add("chk","Estado de conservación bueno en general");
+    }else{
+      add("chk","Clave Única de Vivienda (CUV) registrada en el RUV","La desarrolladora la proporciona.");
+      add("chk","Seguro de calidad de la vivienda emitido por aseguradora autorizada","Obligatorio para vivienda nueva con crédito Infonavit.");
+    }}
+  if(fov){grp("Fovissste");
+    add(s.term==="No"?"bad":"ok","Vivienda 100 % terminada y con servicios completos",s.term==="No"?"Fovissste no financia viviendas sin terminar.":"");
+    add(an===null?"chk":an>=40?"warn":"ok","Vida útil remanente de al menos 30 años",an!==null&&an>=40?`Con ${an} años, confírmalo con el valuador.`:"");
+    add(m2===null?"chk":m2<40&&s.tipo==="Casa"?"bad":"ok","Si es casa: al menos 40 m²",m2===null?"Captura los m² construidos.":`${m2} m² construidos.`);
+    add(nv===null?"chk":nv>3&&s.tipo==="Casa"?"bad":"ok","Si es casa: máximo 3 niveles construidos");
+    add(rc===null?"chk":rc<2?"bad":"ok","Al menos 2 recámaras, cocina con tarja, baño, sala-comedor y área de lavado",rc!==null&&rc<2?"Con menos de 2 recámaras no cumple.":"");
+    add(s.mixto==="Sí"?"bad":"ok","Una sola vivienda: una cocina, un medidor de luz, sin local comercial");
+    add("chk","Calentador instalado y recubrimientos en baños y cocina");
+    add(/^Sí/.test(s.hip)?"warn":"ok","Escritura inscrita y libre de gravamen",/^Sí/.test(s.hip)?"Tiene hipoteca: debe liquidarse y cancelarse; confírmalo con Fovissste y la notaría.":"");
+    add("chk","Avalúo de unidad de valuación registrada ante Fovissste");}
+  if(ban){grp(s.pago==="cofinavit"?"Banco (Cofinavit)":"Crédito bancario");
+    if(an!==null&&pl!==null){
+      add(an>20||an+pl>60?"warn":"ok","Vida útil remanente suficiente para el plazo del crédito",`Antigüedad ${an} años + plazo ${pl} años.${an>20?" Algunos bancos limitan la edad aparente a 20 años.":""} Los bancos piden que la vida útil remanente sea igual o mayor al plazo; algunos, 1.5 veces el plazo o una edad aparente máxima de 20 años. Confírmalo con el banco y el valuador.`);}
+    else add("chk","Vida útil remanente suficiente para el plazo del crédito","Captura antigüedad y plazo para revisarlo. Algunos bancos piden 1.5 veces el plazo o edad aparente máxima de 20 años.");
+    add(s.mixto==="Sí"?"bad":"ok","Uso exclusivamente habitacional (sin local ni dos medidores)");
+    add(s.term==="No"?"bad":"ok","Construcción terminada");
+    add("chk","Libre de juicios, embargos y procesos de regularización");
+    if(ed!==null){add(ed<21?"warn":pl!==null&&ed+pl>=80?"warn":"ok","Edad del comprador y plazo",`${ed} años${pl!==null?` + ${pl} de plazo = ${ed+pl} al terminar`:""}. Cada banco fija una edad mínima y una máxima al terminar de pagar (por ejemplo, 26 años mínimo y terminar antes de los 85 en BBVA).`);}
+    else add("chk","Edad del comprador y plazo","Cada banco fija una edad mínima y una máxima al terminar de pagar.");}
+  return R;}
+function alertas(s){const A=[],r=(x,c="r")=>A.push([c,x]);
+  if(s.op==="compraventa"){
+    if(s.orig==="Herencia (sucesión sin concluir)")r("La sucesión no está concluida: el heredero todavía no puede vender. Primero debe terminarse el juicio o trámite sucesorio y escriturarse la adjudicación.");
+    if(s.orig==="Ejidal / sin escritura")r("Inmueble ejidal o sin escritura: no puede venderse con escritura pública ni con crédito hasta regularizarlo (dominio pleno o titulación). Consúltalo con la notaría antes de avanzar.");
+    if(s.cond==="Es condominio pero sin régimen constituido")r("El condominio no tiene régimen constituido: la unidad no puede escriturarse por separado. MGP realiza el régimen en condominio.");
+    if(conyugal(s.v_civil)&&s.v_tipo==="Persona física")r("Vendedor casado por sociedad conyugal: el cónyuge debe firmar la escritura.","a");
+    if(s.v_civil==="Viudo(a)"&&s.v_tipo==="Persona física")r("Vendedor viudo: si el inmueble era de la sociedad conyugal, primero debe adjudicarse la parte del cónyuge fallecido.","a");
+    if(s.v_varios==="Sí")r("Varios propietarios: todos deben firmar o dar poder para actos de dominio.","a");
+    if(/^Sí/.test(s.hip))r("Hipoteca vigente: el saldo se liquida en la firma y la notaría tramita la cancelación. Pide la carta saldo con anticipación.","a");
+    if(credito(s)&&s.ampl!=="No")r("Con crédito, el avalúo debe coincidir con lo registrado: construcciones no regularizadas pueden bajar el valor o frenar el crédito.","a");
+    if(s.v_casa==="No"&&s.v_tipo==="Persona física")r("No es su casa habitación: no aplica la exención de ISR; conviene reunir facturas para deducir.","b");
+  }else{
+    if(s.gar==="Solo depósito")r("Solo hay depósito como garantía: considera pedir obligado solidario o póliza jurídica.","a");
+    r("Con estos datos puedes generar el contrato en la herramienta Contrato de arrendamiento.","b");
+  }
+  return A;}
+
+/* ---------- checklist ---------- */
+function rLista(){const s=S(),act=activos(s);
+  const RQ=requisitos(s),ico={ok:"✅",warn:"⚠️",bad:"⛔",chk:"🔎"};
+  $("#reqs").innerHTML=RQ.length?`<h2 style="margin:0 0 4px;font-size:17px">¿El inmueble califica para el crédito?</h2><p class="hint">Revisión rápida con los datos capturados. ✅ cumple · ⚠️ revisar · ⛔ no cumple · 🔎 verificar en visita o con el valuador.</p>`+
+    RQ.map(r=>r.g?`<div class="rqg">${esc(r.g)}</div>`:`<div class="rq ${r.st}"><span>${ico[r.st]}</span><div><div>${esc(r.t)}</div>${r.n?`<div class="n">${esc(r.n)}</div>`:""}</div></div>`).join(""):"";
+  $("#reqs").classList.toggle("hide",!RQ.length);
+  $("#alerts").innerHTML=alertas(s).map(([c,x])=>`<div class="alert ${c}"><span>${c==="r"?"⛔":c==="a"?"⚠️":"ℹ️"}</span><span>${esc(x)}</span></div>`).join("");
+  $("#lista").innerHTML=GRUPOS(s).map(([q,n])=>{const it=act.filter(d=>d.q===q);if(!it.length)return"";
+    const ok=it.filter(d=>ST[d.id]==="ok").length,cnt=it.filter(d=>ST[d.id]!=="na").length;
+    return `<div class="grp"><h3>${n}<small>${ok} de ${cnt}</small></h3>${it.map(d=>`<div class="it ${ST[d.id]||""}">
+      <input type="checkbox" data-id="${d.id}" ${ST[d.id]==="ok"?"checked":""} ${ST[d.id]==="na"?"disabled":""}>
+      <div><div class="t">${esc(d.t)}${d.k?'<span class="tag crit">CLAVE</span>':""}${d.mgp?'<span class="tag mgp">MGP</span>':""}${d.not?'<span class="tag not">NOTARÍA</span>':""}</div>${d.n?`<div class="n">${esc(d.n)}</div>`:""}</div>
+      <button class="na-b" data-na="${d.id}">${ST[d.id]==="na"?"Sí aplica":"No aplica"}</button></div>`).join("")}</div>`;}).join("");
+  const tot=act.filter(d=>ST[d.id]!=="na"),ok=tot.filter(d=>ST[d.id]==="ok").length,p=tot.length?Math.round(ok/tot.length*100):0;
+  $("#barf").style.width=p+"%";$("#progt").textContent=`${ok} de ${tot.length} · ${p}%`;}
+$("#lista").addEventListener("change",e=>{const id=e.target.dataset.id;if(!id)return;if(e.target.checked)ST[id]="ok";else delete ST[id];save();rLista();});
+$("#lista").addEventListener("click",e=>{const b=e.target.closest("[data-na]");if(!b)return;const id=b.dataset.na;if(ST[id]==="na")delete ST[id];else ST[id]="na";save();rLista();});
+
+/* ---------- mensajes ---------- */
+function mensajes(){const s=S(),act=activos(s).filter(d=>!ST[d.id]),a=asesor(),cv=s.op==="compraventa";
+  const dest=cv?[["V","vendedor",["V","I"]],["C","comprador",["C","F"]]]:[["V","arrendador",["V","I"]],["C","arrendatario",["C"]],["G","aval",["G"]]];
+  return dest.map(([k,n,qs])=>{const it=act.filter(d=>qs.includes(d.q)&&!(d.not&&!d.mgp)&&!d.mgp&&d.id!=="i_cat");if(!it.length)return null;
+    const txt=`Hola, buen día. Para avanzar con ${cv?"la compraventa":"el arrendamiento"}${s.exp?` (${s.exp})`:""}, me apoyas por favor con estos documentos:\n\n${it.map(d=>"• "+d.t).join("\n")}\n\nPuedes mandarlos en foto o PDF por este medio. Cualquier duda, aquí estoy.${a.nombre?`\n\n${a.nombre}${a.telefono?" · "+a.telefono:""}`:""}`;
+    return {n,txt};}).filter(Boolean);}
+function rMsgs(){const m=mensajes();$("#msgs").innerHTML=m.length?m.map((x,i)=>`<div><h3 style="margin:0 0 6px;font-size:14px;color:var(--navy)">Para el ${x.n}</h3><div class="copybox" id="m${i}">${esc(x.txt)}</div><button class="btn sec sm" data-copy="m${i}">Copiar</button> <span class="status" id="m${i}s"></span></div>`).join(""):`<div class="alert b">No hay documentos pendientes por pedir. 🎉</div>`;}
+document.addEventListener("click",async e=>{const b=e.target.closest("[data-copy]");if(!b)return;const id=b.dataset.copy;
+  try{await navigator.clipboard.writeText($("#"+id).textContent);$("#"+id+"s").className="status ok";$("#"+id+"s").textContent="Copiado.";}
+  catch(err){const r=document.createRange();r.selectNodeContents($("#"+id));const sl=getSelection();sl.removeAllRanges();sl.addRange(r);$("#"+id+"s").textContent="Selecciónalo y copia con Ctrl+C.";}});
+
+/* ---------- PDF ---------- */
+function pdf(){const s=S(),soloP=($("input[name=pdfm]:checked")||{}).value==="pend",{jsPDF}=window.jspdf,doc=new jsPDF({unit:"pt",format:"letter"});
+  const M=50,W=612-2*M;let y=54;const cache={};
+  const tw=(str,f)=>{const fs=doc.getFontSize();let t=0;for(const ch of String(str)){const k=f+fs+ch;if(cache[k]===undefined){doc.setFont("helvetica",f);cache[k]=doc.getTextWidth(ch);}t+=cache[k];}return t;};
+  const wrap=(t,w,f)=>{const o=[];let l="";String(t).split(/\s+/).filter(Boolean).forEach(x=>{const z=l?l+" "+x:x;if(tw(z,f)>w&&l){o.push(l);l=x;}else l=z;});if(l)o.push(l);return o;};
+  const ens=h=>{if(y+h>792-50){doc.addPage();y=50;}};
+  doc.setFillColor(11,58,110);doc.rect(0,0,612,6,"F");
+  doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("Checklist de documentos",M,y);
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(94,107,125);doc.text(hoy(),612-M,y,{align:"right"});y+=16;
+  const desc=s.op==="compraventa"?`Compraventa · ${{contado:"Contado",infonavit:"Crédito Infonavit",cofinavit:"Cofinavit",fovissste:"Crédito Fovissste",bancario:"Crédito bancario"}[s.pago]} · ${s.tipo}`:`Arrendamiento · ${s.tipo} · Garantía: ${s.gar}`;
+  doc.setFontSize(10.5);doc.setTextColor(27,37,51);if(s.exp){doc.setFont("helvetica","bold");doc.text(s.exp,M,y);y+=14;doc.setFont("helvetica","normal");}doc.text(desc,M,y);y+=12;
+  const act=activos(s),tot=act.filter(d=>ST[d.id]!=="na"),ok=tot.filter(d=>ST[d.id]==="ok").length;
+  doc.setFontSize(9);doc.setTextColor(94,107,125);doc.text(`Avance: ${ok} de ${tot.length} documentos recibidos  ·  Requisitos revisados al ${REV}`,M,y);y+=8;
+  doc.setFillColor(230,235,242);doc.rect(M,y,W,5,"F");doc.setFillColor(31,122,77);doc.rect(M,y,tot.length?W*ok/tot.length:0,5,"F");y+=20;
+  const al=alertas(s).filter(a=>a[0]!=="b");if(al.length){al.forEach(([c,x])=>{const ls=wrap(x,W-20,"normal");ens(ls.length*12+10);doc.setFillColor(c==="r"?253:255,c==="r"?236:248,c==="r"?234:234);doc.rect(M,y-10,W,ls.length*12+8,"F");
+    doc.setTextColor(c==="r"?122:107,c==="r"?28:74,c==="r"?21:0);doc.setFontSize(9);ls.forEach((l,i)=>doc.text(l,M+10,y+i*12));y+=ls.length*12+8;});y+=6;}
+  const RQ=requisitos(s);if(RQ.length){ens(30);y+=4;doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(11,58,110);doc.text("Requisitos del inmueble para el crédito",M,y);y+=14;
+    const lab={ok:"CUMPLE",warn:"REVISAR",bad:"NO CUMPLE",chk:"VERIFICAR"},col={ok:[31,122,77],warn:[161,92,0],bad:[179,38,30],chk:[11,58,110]};
+    RQ.forEach(r=>{if(r.g){ens(18);doc.setFont("helvetica","bold");doc.setFontSize(9.5);doc.setTextColor(27,37,51);doc.text(r.g,M,y+4);y+=15;return;}
+      doc.setFontSize(9);const ls=wrap(r.t,W-80,"normal"),ns=r.n?wrap(r.n,W-80,"normal"):[];ens(ls.length*11.5+ns.length*10.5+5);
+      doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...col[r.st]);doc.text(lab[r.st],M+6,y);
+      doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(27,37,51);ls.forEach((l,i)=>doc.text(l,M+72,y+i*11.5));let yy=y+ls.length*11.5;
+      if(ns.length){doc.setFontSize(8);doc.setTextColor(110,120,135);ns.forEach((l,i)=>doc.text(l,M+72,yy-1+i*10.5));yy+=ns.length*10.5;}y=yy+4;});y+=10;}
+  GRUPOS(s).forEach(([q,n])=>{let it=act.filter(d=>d.q===q&&ST[d.id]!=="na");if(soloP)it=it.filter(d=>ST[d.id]!=="ok");if(!it.length)return;
+    ens(40);y+=4;doc.setFillColor(236,241,247);doc.rect(M,y-11,W,17,"F");doc.setFont("helvetica","bold");doc.setFontSize(10.5);doc.setTextColor(11,58,110);doc.text(n,M+8,y+1);
+    doc.setFontSize(8.5);doc.setTextColor(94,107,125);doc.text(`${it.filter(d=>ST[d.id]==="ok").length} de ${it.length}`,612-M-8,y+1,{align:"right"});y+=20;
+    it.forEach(d=>{doc.setFontSize(9.5);const ls=wrap(d.t+(d.mgp?"  [MGP]":"")+(d.not?"  [Notaría]":""),W-30,"normal"),ns=d.n?wrap(d.n,W-30,"normal"):[];const h=ls.length*12.5+ns.length*11+6;ens(h);
+      const okd=ST[d.id]==="ok";doc.setDrawColor(130);doc.setLineWidth(.7);doc.rect(M+6,y-8.5,10,10);
+      if(okd){doc.setDrawColor(31,122,77);doc.setLineWidth(1.6);doc.line(M+8,y-3.5,M+10.5,y-1);doc.line(M+10.5,y-1,M+14.5,y-7.5);doc.setLineWidth(.7);}
+      doc.setFont("helvetica",d.k?"bold":"normal");doc.setTextColor(okd?120:27,okd?130:37,okd?140:51);ls.forEach((l,i)=>doc.text(l,M+24,y+i*12.5));
+      let yy=y+ls.length*12.5;if(ns.length){doc.setFont("helvetica","normal");doc.setFontSize(8.3);doc.setTextColor(110,120,135);ns.forEach((l,i)=>doc.text(l,M+24,yy-1+i*11));yy+=ns.length*11;}
+      y=yy+6;});y+=6;});
+  ens(40);y+=8;doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(110,120,135);
+  wrap("Lista orientativa. La notaría, la institución de crédito o el arrendador pueden pedir documentos adicionales o con vigencias específicas.",W,"normal").forEach(l=>{doc.text(l,M,y);y+=10;});
+  const a=asesor();if(a.nombre){y+=4;doc.setTextColor(27,37,51);doc.setFont("helvetica","bold");doc.text(`${a.nombre}${a.empresa?" · "+a.empresa:""}${a.telefono?" · "+a.telefono:""}`,M,y);}
+  const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(120);doc.setFont("helvetica","normal");doc.text(`Página ${i} de ${n}`,612-M,792-28,{align:"right"});}
+  return doc.output("blob");}
+async function guardar(nombre,blob){const st=$("#dl_st");st.className="status";
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  st.className="status ok";st.textContent="Descargado: "+nombre+". El borrador de este equipo se borró.";limpiarBorrador();}
+const slug=x=>(x||"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50);
+$("#dl").onclick=async()=>{if(!window.jspdf)return;const s=S();await guardar(`Checklist-${slug(s.exp)||s.op}.pdf`,pdf());};
+
+/* ---------- pasos ---------- */
+const steps=$$("section.step");let cur=0;
+function go(i){cur=Math.max(0,Math.min(steps.length-1,i));steps.forEach((x,j)=>x.classList.toggle("on",j===cur));
+  $("#steps").innerHTML=steps.map((x,j)=>`<button data-go="${j}" class="${j===cur?"on":""}"><b>${x.dataset.title}</b>${x.dataset.sub}</button>`).join("");
+  if(cur===1)rLista();if(cur===2)rMsgs();window.scrollTo({top:0,behavior:"smooth"});}
+document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;if(t.dataset.go!==undefined)go(+t.dataset.go);if(t.hasAttribute("data-next"))go(cur+1);if(t.hasAttribute("data-prev"))go(cur-1);});
+$("#reset").onclick=()=>{try{localStorage.removeItem(LS);}catch(e){}location.reload();};
+$("#ej").onclick=()=>{setS({exp:"Casa Arboledas – Pérez a Gómez",op:"compraventa",pago:"infonavit",tipo:"Casa",cond:"No",hip:"Sí, Infonavit/Fovissste",ampl:"No sabe",orig:"Compraventa / escritura normal",
+  v_tipo:"Persona física",v_civil:"Casado(a) – sociedad conyugal",v_varios:"No",v_pod:"No",v_ext:"No",v_casa:"Sí",c_tipo:"Persona física",c_civil:"Soltero(a)",c_ext:"No",
+  viv:"Usada",antig:"42",m2c:"78",niv:"2",recs:"2",mixto:"No",term:"Sí",c_edad:"34",coac:"No"});ST={v_ine:"ok",v_acta:"ok",i_esc:"ok",c_ine:"ok"};save();};
+
+/* ---------- borrador y borrado ---------- */
+function limpiarBorrador(){try{localStorage.removeItem(LS);}catch(e){}}
+let _bt=null;$("#borrar").addEventListener("click",()=>{const b=$("#borrar");
+  if(!b.classList.contains("conf")){b.classList.add("conf");b.textContent="¿Borrar todo? Toca otra vez";_bt=setTimeout(()=>{b.classList.remove("conf");b.textContent="🗑 Borrar datos de este equipo";},5000);return;}
+  clearTimeout(_bt);try{[LS].forEach(k=>localStorage.removeItem(k));}catch(e){}location.reload();});
+
+load();if(window.TASA_prellenar)setS(window.TASA_prellenar);sync();go(0);
+</script>
+</body>
+</html>

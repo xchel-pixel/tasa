@@ -1,5 +1,5 @@
 import { Encabezado } from "@/components/encabezado";
-import { inicialSolicitudDelMapa } from "@/lib/catastro/prellenado";
+import { inicialSolicitudDelMapa, inicialSolicitudDeHerramienta } from "@/lib/catastro/prellenado";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { prellenadoDesdeCalculo } from "@/lib/traslado/prellenado";
@@ -18,7 +18,7 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
   const calculo = q.calculo && /^[0-9a-f-]{36}$/.test(q.calculo) ? await leerCalculo(q.calculo) : null;
   const pre = calculo ? prellenadoDesdeCalculo(calculo, q.servicio ?? "hacendario") : null;
   // Desde el Mapa catastral (0059): ?clave=&municipio=&nota= (sin datos del cliente).
-  const delMapa = pre ? null : inicialSolicitudDelMapa(q);
+  const delMapa = pre || q.desde === "herramienta" ? null : inicialSolicitudDelMapa(q);
   // Desde la Agenda (0091): ?desde=agenda&cliente=&telefono=&direccion=&clave= (lo que el comisionista anotó).
   const deAgenda = pre || delMapa || q.desde !== "agenda" ? null : {
     cliente_nombre: (q.cliente ?? "").slice(0, 120) || undefined, cliente_telefono: (q.telefono ?? "").slice(0, 30) || undefined,
@@ -35,6 +35,9 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
         .returns<{ id: string; nombre: string }[]>(),
       "los servicios"
     ) ?? [];
+
+  // Desde una herramienta de asesor (0100): el servicio del consejo, ya elegido.
+  const deHerramienta = pre ? null : inicialSolicitudDeHerramienta(q, servicios);
 
   // Monedero (0077): con saldo vigente puede pedir que el trámite se pague con su crédito.
   const { data: paquetes } = await supabase.rpc("mis_paquetes");
@@ -58,7 +61,7 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
               Viene del Mapa catastral: ya llenamos la clave, el municipio y la ubicación. Revisa la dirección y agrega el servicio y al cliente.
             </p>
           ) : null}
-          <FormularioSolicitud servicios={servicios} credito={credito} inicial={delMapa ?? deAgenda ?? (pre ? {
+          <FormularioSolicitud servicios={servicios} credito={credito} inicial={deHerramienta ?? delMapa ?? deAgenda ?? (pre ? {
             servicio_id: servicios.find((s) => s.nombre.toLowerCase().includes(pre.servicio))?.id,
             municipio: pre.municipio,
             clave: pre.clave,

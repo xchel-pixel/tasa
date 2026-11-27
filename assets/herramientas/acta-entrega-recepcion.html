@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acta de entrega-recepción · Querétaro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--navy:#0B3A6E;--navy2:#0E4C8F;--bg:#F7F9FC;--card:#F3F6FA;--line:#D9E1EC;--ink:#1B2533;--mute:#5E6B7D;--ok:#1F7A4D;--warn:#A15C00;--err:#B3261E}
+*{box-sizing:border-box}
+body{margin:0;font-family:"DM Sans",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+header{background:var(--navy);color:#fff;padding:18px 24px}
+header h1{margin:0;font-size:20px;font-weight:700}
+header p{margin:4px 0 0;font-size:13px;opacity:.85}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.steps button{flex:1 1 110px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 8px;font:inherit;font-size:13px;color:var(--mute);cursor:pointer;text-align:left}
+.steps button b{display:block;color:var(--ink);font-size:13px}
+.steps button.on{background:var(--navy);border-color:var(--navy);color:#cfe0f5}
+.steps button.on b{color:#fff}
+.steps button.done b::after{content:" ✓";color:var(--ok)}
+.steps button.on.done b::after{color:#9fe0bd}
+section.step{display:none}section.step.on{display:block}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{margin:0 0 4px;font-size:17px}
+.card h3{margin:14px 0 8px;font-size:14px;color:var(--navy)}
+.hint{color:var(--mute);font-size:13px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.grid .full{grid-column:1/-1}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin-bottom:4px}
+input,select,textarea{width:100%;font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+textarea{min-height:70px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid #9DC0EA;border-color:var(--navy2)}
+.req label::after{content:" *";color:var(--err)}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:10px;padding:10px 16px;border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
+.btn:hover{background:var(--navy2)}
+.btn.sec{background:#fff;color:var(--navy)}.btn.sec:hover{background:var(--card)}
+.btn.sm{padding:6px 10px;font-size:13px;border-radius:8px}
+.btn.del{border-color:#E7B4AF;color:var(--err);background:#fff}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:6px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:14px;color:var(--ink);cursor:pointer;margin:0;background:#fff}
+.seg input{width:auto;margin:0}
+.seg label:has(input:checked){border-color:var(--navy);background:#E8F0FA}
+.hide{display:none!important}
+.note{font-size:13px;background:#FFF8EA;border:1px solid #F0D9A8;border-radius:10px;padding:10px 12px;color:#6B4A00;margin-bottom:12px}
+.note.blue{background:#EEF4FB;border-color:#C9DAF0;color:#173E6B}
+.status{font-size:13px;margin-top:8px;color:var(--mute)}.status.ok{color:var(--ok)}.status.err{color:var(--err)}
+table.rows{width:100%;border-collapse:collapse;font-size:14px}
+table.rows th{text-align:left;font-size:12px;color:var(--mute);font-weight:600;padding:4px 6px;border-bottom:1px solid var(--line)}
+table.rows td{padding:4px 4px;vertical-align:top}
+table.rows input,table.rows select{padding:7px 8px}
+.area{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:#FCFDFE}
+.area .top{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.area .top input{flex:1 1 200px;font-weight:600}
+.els{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:8px 12px}
+.el{display:flex;flex-direction:column}
+.el span{font-size:12.5px;font-weight:600;color:var(--mute);margin-bottom:3px}
+.est{display:flex;gap:4px}
+.est button{flex:1;font:inherit;font-size:12px;padding:6px 2px;border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer;color:var(--mute)}
+.est button.on[data-v="Bueno"]{background:#E6F4EC;border-color:#8CC9A6;color:var(--ok);font-weight:700}
+.est button.on[data-v="Regular"]{background:#FFF4E0;border-color:#E9C27A;color:var(--warn);font-weight:700}
+.est button.on[data-v="Malo"]{background:#FDECEA;border-color:#E39B95;color:var(--err);font-weight:700}
+.est button.on[data-v="N/A"]{background:#EEF1F5;border-color:#C4CDD9;color:var(--ink);font-weight:700}
+.fotos{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:flex-end}
+.fotos figure{margin:0;position:relative}
+.fotos img{height:90px;width:120px;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:block}
+.fotos figure button{position:absolute;top:3px;right:3px;border:0;background:rgba(0,0,0,.55);color:#fff;border-radius:6px;font-size:11px;cursor:pointer;padding:1px 5px}
+.fotos label.add{display:flex;align-items:center;justify-content:center;height:90px;width:120px;border:1px dashed #9DB4D1;border-radius:8px;color:var(--navy);font-size:12.5px;cursor:pointer;margin:0;text-align:center;background:#fff}
+.fotos label.add input{display:none}
+.tot{display:grid;grid-template-columns:1fr auto;gap:6px 20px;max-width:440px;font-size:14.5px;margin-top:10px}
+.tot b{text-align:right}.tot .big{font-size:16px;border-top:1px solid var(--line);padding-top:6px}
+.preview{background:#fff;border:1px solid var(--line);border-radius:12px;padding:30px 36px;max-height:620px;overflow:auto;font-family:Georgia,"Times New Roman",serif;font-size:13px;line-height:1.5;text-align:justify}
+.preview .t{text-align:center;font-weight:700;margin-bottom:12px}
+.preview .s{font-weight:700;margin:14px 0 6px}
+.preview table{width:100%;border-collapse:collapse;margin:4px 0 10px;font-size:12px;text-align:left}
+.preview th,.preview td{border:1px solid #bbb;padding:3px 6px;vertical-align:top}
+.preview th{background:#EEF2F7}
+.preview .sig{display:grid;grid-template-columns:1fr 1fr;gap:34px 30px;margin-top:40px;text-align:center}
+.preview .sig div{border-top:1px solid #333;padding-top:6px;font-size:12px}
+.preview .ph{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.preview .ph figure{margin:0;font-size:11px;text-align:center}
+.preview .ph img{width:100%;border:1px solid #ccc}
+.pend{list-style:none;padding:0;margin:0}
+.pend li{padding:7px 0;border-bottom:1px solid #EEF1F5;display:flex;gap:10px;font-size:14px}
+.pend li span.k{flex:0 0 auto;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;height:fit-content;margin-top:2px}
+.k.falta{background:#FDECEA;color:var(--err)}.k.verif{background:#EEF4FB;color:var(--navy)}.k.tip{background:#FFF4E0;color:var(--warn)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.small{font-size:12px;color:var(--mute)}
+footer{text-align:center;font-size:12px;color:var(--mute);margin-top:30px}
+@media (max-width:600px){.preview{padding:18px}.preview .sig{grid-template-columns:1fr}}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.borrar{font:inherit;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;border-radius:9px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+.borrar:hover{background:rgba(255,255,255,.12)}.borrar.conf{background:#B3261E;border-color:#B3261E}
+</style>
+</head>
+<body>
+<header>
+  <div>
+  <h1>Acta de entrega-recepción del inmueble</h1>
+  <p>Estado de Querétaro · Al inicio o al término del arrendamiento · Con anexo fotográfico</p>
+  </div>
+  <button class="borrar" id="borrar" title="Borra el borrador guardado en este navegador">🗑 Borrar datos de este equipo</button>
+</header>
+<div class="wrap">
+  <div class="steps" id="steps"></div>
+
+  <!-- 1 GENERALES -->
+  <section class="step" data-title="Generales" data-sub="Tipo, partes, inmueble">
+    <div class="card">
+      <h2>¿Qué acta vas a levantar?</h2>
+      <div class="seg" style="margin-top:8px">
+        <label><input type="radio" name="modo" value="entrega" checked> Entrega al inicio de la renta</label>
+        <label><input type="radio" name="modo" value="devolucion"> Devolución al terminar la renta</label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Datos generales</h2>
+      <div class="grid">
+        <div class="req"><label>Fecha del acta</label><input type="date" data-k="ac_fecha"></div>
+        <div class="req"><label>Hora</label><input type="time" data-k="ac_hora"></div>
+        <div class="req"><label>Municipio</label><select data-k="ac_mun" id="ac_mun"></select></div>
+        <div><label>Tipo de inmueble</label><select data-k="ac_tipo" id="ac_tipo"><option>Casa habitación</option><option>Departamento</option><option>Local comercial</option><option>Oficina</option><option>Bodega</option></select></div>
+        <div class="full req"><label>Domicilio del inmueble</label><input data-k="ac_dom"></div>
+        <div><label>Clave catastral</label><input data-k="ac_cat"></div>
+        <div><label>Fecha del contrato de arrendamiento</label><input type="date" data-k="ac_fcon"></div>
+      </div>
+      <h3>Personas que intervienen</h3>
+      <div class="grid">
+        <div class="full req"><label>Arrendador (nombre o razón social)</label><input data-k="ac_arr"></div>
+        <div class="full"><label>Quien comparece por el arrendador (si no es él mismo)</label><input data-k="ac_arr_rep" placeholder="Ej. representante, apoderado o asesor autorizado"></div>
+        <div class="full req"><label>Arrendatario (nombre o razón social)</label><input data-k="ac_art"></div>
+        <div class="full"><label>Quien comparece por el arrendatario (si no es él mismo)</label><input data-k="ac_art_rep"></div>
+        <div><label>Asesor inmobiliario (opcional)</label><input data-k="ac_ase"></div>
+        <div><label>Testigo (opcional)</label><input data-k="ac_tes"></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" data-load>Cargar ejemplo</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- 2 LLAVES Y MEDIDORES -->
+  <section class="step" data-title="Llaves y medidores" data-sub="Accesos y lecturas">
+    <div class="card">
+      <h2>Llaves, controles y accesos</h2>
+      <p class="hint" id="llaves_hint">Lo que se entrega al arrendatario.</p>
+      <table class="rows"><thead><tr><th style="width:70%">Descripción</th><th>Cantidad</th><th></th></tr></thead><tbody id="llaves"></tbody></table>
+      <button class="btn sec sm" data-add="llaves" style="margin-top:8px">+ Agregar</button>
+    </div>
+    <div class="card">
+      <h2>Lecturas de medidores</h2>
+      <p class="hint">Anota la lectura del día; sirve para cortar los consumos entre arrendador y arrendatario.</p>
+      <table class="rows"><thead><tr><th>Servicio</th><th>No. de medidor / contrato</th><th>Lectura</th><th>Observaciones</th></tr></thead>
+      <tbody>
+        <tr><td><b>Energía eléctrica (CFE)</b></td><td><input data-k="m_luz_no"></td><td><input data-k="m_luz"></td><td><input data-k="m_luz_ob"></td></tr>
+        <tr><td><b>Agua</b></td><td><input data-k="m_agua_no"></td><td><input data-k="m_agua"></td><td><input data-k="m_agua_ob"></td></tr>
+        <tr><td><b>Gas</b></td><td><input data-k="m_gas_no" placeholder="Estacionario / natural"></td><td><input data-k="m_gas" placeholder="Ej. 60 % del tanque"></td><td><input data-k="m_gas_ob"></td></tr>
+      </tbody></table>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- 3 ÁREAS -->
+  <section class="step" data-title="Estado por área" data-sub="Revisión y fotos">
+    <div class="card">
+      <h2>Estado del inmueble por área</h2>
+      <p class="hint">Marca el estado de cada elemento y agrega fotos: son la mejor prueba si después hay diferencias. Las fotos van en el anexo fotográfico del PDF con su fecha.</p>
+      <div id="areas"></div>
+      <div class="actions"><button class="btn sec sm" data-add="area">+ Agregar área</button><button class="btn sec sm" id="areas_reset">Restablecer áreas según el tipo de inmueble</button></div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- 4 INVENTARIO -->
+  <section class="step" data-title="Inventario" data-sub="Muebles y equipo">
+    <div class="card">
+      <h2>Mobiliario, equipo y accesorios</h2>
+      <p class="hint">Lo que se queda con el inmueble (estufa, calentador, cortinas, closets, aire acondicionado, etc.).</p>
+      <table class="rows"><thead><tr><th style="width:44%">Descripción</th><th style="width:10%">Cant.</th><th style="width:16%">Estado</th><th>Observaciones</th><th></th></tr></thead><tbody id="inv"></tbody></table>
+      <button class="btn sec sm" data-add="inv" style="margin-top:8px">+ Agregar</button>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- 5 CIERRE -->
+  <section class="step" data-title="Cierre" data-sub="Adeudos y observaciones">
+    <div class="card dev">
+      <h2>Servicios y adeudos</h2>
+      <p class="hint">Revisa los últimos recibos pagados. Todo lo que quede pendiente se descuenta del depósito.</p>
+      <table class="rows"><thead><tr><th>Servicio</th><th>¿Al corriente?</th><th>Último recibo pagado / observaciones</th></tr></thead><tbody id="servs"></tbody></table>
+      <h3>Cargos al arrendatario</h3>
+      <p class="hint">Rentas pendientes, servicios, daños, faltantes o limpieza.</p>
+      <table class="rows"><thead><tr><th style="width:62%">Concepto</th><th>Monto (MXN)</th><th></th></tr></thead><tbody id="cargos"></tbody></table>
+      <button class="btn sec sm" data-add="cargos" style="margin-top:8px">+ Agregar cargo</button>
+      <h3>Liquidación del depósito</h3>
+      <div class="grid">
+        <div><label>Depósito en garantía recibido (MXN)</label><input type="number" min="0" step="0.01" data-k="dep"></div>
+        <div><label>Fecha límite para devolver el saldo</label><input type="date" data-k="dep_fecha"></div>
+        <div><label>¿El arrendatario acepta los cargos?</label><select data-k="acepta"><option>Sí, los acepta</option><option>Los acepta con observaciones</option><option>No los acepta</option></select></div>
+      </div>
+      <div class="tot" id="tot"></div>
+    </div>
+    <div class="card">
+      <h2>Observaciones de las partes</h2>
+      <div class="grid">
+        <div class="full"><label>Observaciones del arrendador</label><textarea data-k="ob_arr"></textarea></div>
+        <div class="full"><label>Observaciones del arrendatario</label><textarea data-k="ob_art"></textarea></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Revisar y generar →</button></div>
+  </section>
+
+  <!-- 6 GENERAR -->
+  <section class="step" data-title="Generar" data-sub="Revisar y descargar">
+    <div class="card">
+      <h2>Tu acta</h2>
+      <div id="aviso"></div>
+      <div class="actions"><button class="btn" id="dl">Descargar acta (PDF)</button></div>
+      <div class="status" id="dl_st"></div>
+      <div class="preview" id="preview"></div>
+    </div>
+    <div class="card">
+      <h2>Antes de firmar</h2>
+      <ul class="pend" id="pend"></ul>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn sec" id="reset">Empezar una nueva</button></div>
+  </section>
+
+  <footer>Formato de apoyo para asesores. El contenido del acta y la revisión del inmueble corresponden a quienes la firman. Las fotos se procesan en este equipo y no se envían a ningún servidor ni se guardan en el navegador. El borrador se borra al descargar el PDF.</footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const MUN=["Amealco de Bonfil","Arroyo Seco","Cadereyta de Montes","Colón","Corregidora","El Marqués","Ezequiel Montes","Huimilpan","Jalpan de Serra","Landa de Matamoros","Pedro Escobedo","Peñamiller","Pinal de Amoles","Querétaro","San Joaquín","San Juan del Río","Tequisquiapan","Tolimán"];
+const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const B=(v,n=24)=>(v&&String(v).trim())?String(v).trim():"_".repeat(n);
+const fechaLarga=iso=>{if(!iso)return"____ de __________ de ______";const[y,m,d]=iso.split("-").map(Number);return `${d} de ${MESES[m-1]} de ${y}`;};
+const hoyLocal=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const money=n=>Number(n||0).toLocaleString("es-MX",{style:"currency",currency:"MXN"});
+const ELEM=["Pisos","Muros y pintura","Techo / plafón","Puertas y chapas","Ventanas y cancelería","Instalación eléctrica","Instalación hidráulica y sanitaria"];
+const ESTADOS=["Bueno","Regular","Malo","N/A"];
+const AREAS_HAB=["Fachada y acceso","Cochera","Sala","Comedor","Cocina","Recámara 1","Recámara 2","Baño 1","Patio de servicio"];
+const AREAS_COM=["Fachada y acceso","Área principal","Baño","Bodega / área de servicio"];
+const esCom=t=>["Local comercial","Oficina","Bodega"].includes(t);
+$("#ac_mun").innerHTML=MUN.map(m=>`<option${m==="Querétaro"?" selected":""}>${m}</option>`).join("");
+
+/* ---------- estado ---------- */
+let D={llaves:[],areas:[],inv:[],servs:[],cargos:[]};
+const nuevaArea=n=>({nombre:n,el:Object.fromEntries(ELEM.map(e=>[e,""])),obs:"",fotos:[]});
+function areasDefault(){D.areas=(esCom($("#ac_tipo").value)?AREAS_COM:AREAS_HAB).map(nuevaArea);}
+function servsDefault(){D.servs=["Energía eléctrica","Agua","Gas","Cuota de mantenimiento","Internet / teléfono"].map(n=>({n,ok:"Sí",ob:""}));}
+function llavesDefault(){D.llaves=[{d:"Llaves de puerta principal",c:""},{d:"Control de portón / acceso",c:""}];}
+const modo=()=>($("input[name=modo]:checked")||{}).value||"entrega";
+function S(){const o={};$$("[data-k]").forEach(e=>o[e.dataset.k]=e.value.trim());o.modo=modo();return o;}
+function setS(o){for(const k in o){const e=$(`[data-k="${k}"]`);if(e&&typeof o[k]!=="object")e.value=o[k];}
+  if(o.modo){const r=$(`input[name=modo][value=${o.modo}]`);if(r)r.checked=true;}}
+const LS="mgp_acta_er_v1";
+function save(){try{const keep={...D,areas:D.areas.map(a=>({...a,fotos:[]}))};localStorage.setItem(LS,JSON.stringify({s:S(),d:keep}));}catch(e){}}
+function load(){try{const o=JSON.parse(localStorage.getItem(LS)||"null");if(!o)return false;setS(o.s);D=Object.assign(D,o.d);return true;}catch(e){return false;}}
+
+/* ---------- listas dinámicas ---------- */
+function rLlaves(){$("#llaves").innerHTML=D.llaves.map((r,i)=>`<tr><td><input data-l="llaves:${i}:d" value="${esc(r.d)}"></td><td><input data-l="llaves:${i}:c" value="${esc(r.c)}" inputmode="numeric"></td><td><button class="btn del sm" data-del="llaves:${i}">✕</button></td></tr>`).join("");}
+function rInv(){$("#inv").innerHTML=D.inv.map((r,i)=>`<tr><td><input data-l="inv:${i}:d" value="${esc(r.d)}"></td><td><input data-l="inv:${i}:c" value="${esc(r.c)}"></td><td><select data-l="inv:${i}:e">${["","Bueno","Regular","Malo","Faltante"].map(v=>`<option${v===r.e?" selected":""}>${v}</option>`).join("")}</select></td><td><input data-l="inv:${i}:o" value="${esc(r.o)}"></td><td><button class="btn del sm" data-del="inv:${i}">✕</button></td></tr>`).join("");}
+function rServs(){$("#servs").innerHTML=D.servs.map((r,i)=>`<tr><td><input data-l="servs:${i}:n" value="${esc(r.n)}"></td><td><select data-l="servs:${i}:ok">${["Sí","No","No aplica"].map(v=>`<option${v===r.ok?" selected":""}>${v}</option>`).join("")}</select></td><td><input data-l="servs:${i}:ob" value="${esc(r.ob)}"></td></tr>`).join("");}
+function rCargos(){$("#cargos").innerHTML=D.cargos.map((r,i)=>`<tr><td><input data-l="cargos:${i}:d" value="${esc(r.d)}"></td><td><input type="number" min="0" step="0.01" data-l="cargos:${i}:m" value="${esc(r.m)}"></td><td><button class="btn del sm" data-del="cargos:${i}">✕</button></td></tr>`).join("");rTot();}
+function liq(){const s=S(),dep=Number(s.dep||0),car=D.cargos.reduce((a,c)=>a+Number(c.m||0),0);return{dep,car,saldo:dep-car};}
+function rTot(){const{dep,car,saldo}=liq();$("#tot").innerHTML=`<span>Depósito recibido</span><b>${money(dep)}</b><span>Menos cargos</span><b>− ${money(car)}</b><span class="big">${saldo>=0?"Saldo a devolver al arrendatario":"Saldo a cargo del arrendatario"}</span><b class="big">${money(Math.abs(saldo))}</b>`;}
+function rAreas(){
+  $("#areas").innerHTML=D.areas.map((a,i)=>`<div class="area">
+    <div class="top"><input data-a="${i}:nombre" value="${esc(a.nombre)}"><button class="btn sec sm" data-all="${i}">Todo bueno</button><button class="btn del sm" data-del="areas:${i}">Quitar área</button></div>
+    <div class="els">${ELEM.map(e=>`<div class="el"><span>${e}</span><div class="est">${ESTADOS.map(v=>`<button data-est="${i}|${e}" data-v="${v}" class="${a.el[e]===v?"on":""}">${v}</button>`).join("")}</div></div>`).join("")}</div>
+    <div style="margin-top:10px"><label>Observaciones del área</label><input data-a="${i}:obs" value="${esc(a.obs)}" placeholder="Ej. mancha de humedad en muro norte; rayón en piso junto a la ventana"></div>
+    <div class="fotos">${a.fotos.map((f,j)=>`<figure><img src="${f.url}" alt=""><button data-fdel="${i}:${j}">✕</button></figure>`).join("")}
+      <label class="add">📷 Agregar fotos<input type="file" accept="image/*" multiple data-fadd="${i}"></label></div>
+  </div>`).join("");
+}
+function rAll(){rLlaves();rInv();rServs();rCargos();rAreas();}
+
+document.addEventListener("input",e=>{const t=e.target;
+  if(t.dataset.l){const[l,i,k]=t.dataset.l.split(":");D[l][+i][k]=t.value;if(l==="cargos")rTot();}
+  if(t.dataset.a){const[i,k]=t.dataset.a.split(":");D.areas[+i][k]=t.value;}
+  if(t.dataset.k==="dep")rTot();
+  save();});
+document.addEventListener("change",e=>{const t=e.target;
+  if(t.dataset.l){const[l,i,k]=t.dataset.l.split(":");D[l][+i][k]=t.value;}
+  if(t.name==="modo")syncModo();
+  if(t.dataset.fadd!==undefined)addFotos(+t.dataset.fadd,[...t.files]);
+  save();});
+document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;
+  if(t.dataset.go!==undefined)go(+t.dataset.go);
+  if(t.hasAttribute("data-next"))go(cur+1);
+  if(t.hasAttribute("data-prev"))go(cur-1);
+  if(t.hasAttribute("data-load"))ejemplo();
+  if(t.dataset.add){const a=t.dataset.add;
+    if(a==="llaves")D.llaves.push({d:"",c:""});if(a==="inv")D.inv.push({d:"",c:"1",e:"",o:""});
+    if(a==="cargos")D.cargos.push({d:"",m:""});if(a==="area")D.areas.push(nuevaArea("Área "+(D.areas.length+1)));rAll();save();}
+  if(t.dataset.del){const[l,i]=t.dataset.del.split(":");D[l].splice(+i,1);rAll();save();}
+  if(t.dataset.est){const[i,el]=t.dataset.est.split("|"),a=D.areas[+i];a.el[el]=a.el[el]===t.dataset.v?"":t.dataset.v;
+    t.parentElement.querySelectorAll("button").forEach(b=>b.classList.toggle("on",a.el[el]===b.dataset.v));save();}
+  if(t.dataset.all!==undefined){const a=D.areas[+t.dataset.all];ELEM.forEach(e=>{if(!a.el[e])a.el[e]="Bueno";});rAreas();save();}
+  if(t.dataset.fdel){const[i,j]=t.dataset.fdel.split(":");D.areas[+i].fotos.splice(+j,1);rAreas();}
+});
+$("#areas_reset").onclick=()=>{areasDefault();rAreas();save();};
+$("#reset").onclick=()=>{try{localStorage.removeItem(LS);}catch(e){}location.reload();};
+
+function toJpeg(file,max=1300){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{
+  const sc=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement("canvas");c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+  const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
+  URL.revokeObjectURL(img.src);res({url:c.toDataURL("image/jpeg",.8),w:c.width,h:c.height});};img.onerror=()=>rej(new Error("imagen"));img.src=URL.createObjectURL(file);});}
+function fechaHora(ms){const d=new Date(ms);const p=n=>String(n).padStart(2,"0");return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;}
+async function addFotos(i,files){for(const f of files){try{const j=await toJpeg(f);j.fecha=fechaHora(f.lastModified||Date.now());D.areas[i].fotos.push(j);}catch(e){}}rAreas();}
+
+/* ---------- modo ---------- */
+function syncModo(){const dev=modo()==="devolucion";
+  $$(".dev").forEach(e=>e.classList.toggle("hide",!dev));
+  $("#llaves_hint").textContent=dev?"Lo que el arrendatario devuelve al arrendador.":"Lo que se entrega al arrendatario.";
+  steps[4].dataset.sub=dev?"Adeudos y depósito":"Observaciones";renderSteps();}
+
+/* ---------- pasos ---------- */
+const steps=$$("section.step");let cur=0;
+function renderSteps(){$("#steps").innerHTML=steps.map((s,i)=>`<button data-go="${i}" class="${i===cur?"on":""} ${i<cur?"done":""}"><b>${i+1}. ${s.dataset.title}</b>${s.dataset.sub}</button>`).join("");}
+function go(i){cur=Math.max(0,Math.min(steps.length-1,i));steps.forEach((s,j)=>s.classList.toggle("on",j===cur));renderSteps();
+  if(cur===steps.length-1)render();window.scrollTo({top:0,behavior:"smooth"});}
+
+/* ---------- acta ---------- */
+function acta(s){
+  const dev=s.modo==="devolucion",bl=[],P=x=>bl.push({t:"p",x}),H=x=>bl.push({t:"s",x});
+  const arr=B(s.ac_arr,30).toUpperCase(),art=B(s.ac_art,30).toUpperCase();
+  bl.push({t:"t",x:`ACTA DE ENTREGA-RECEPCIÓN DEL INMUEBLE ARRENDADO\n${dev?"(DEVOLUCIÓN AL TÉRMINO DEL ARRENDAMIENTO)":"(ENTREGA AL INICIO DEL ARRENDAMIENTO)"}`});
+  const compA=s.ac_arr_rep?`, representado en este acto por ${s.ac_arr_rep.toUpperCase()}`:"",compT=s.ac_art_rep?`, representado en este acto por ${s.ac_art_rep.toUpperCase()}`:"";
+  const otros=[s.ac_ase?`del asesor inmobiliario ${s.ac_ase.toUpperCase()}`:"",s.ac_tes?`del testigo ${s.ac_tes.toUpperCase()}`:""].filter(Boolean).join(" y ");
+  P(`En ${s.ac_mun}, Querétaro, siendo las ${B(s.ac_hora,5)} horas del día ${fechaLarga(s.ac_fecha)}, en el inmueble ubicado en ${B(s.ac_dom,40)}${s.ac_cat?", con clave catastral "+s.ac_cat:""} (en adelante "EL INMUEBLE"), se reúnen ${arr}${compA}, en su carácter de "EL ARRENDADOR", y ${art}${compT}, en su carácter de "EL ARRENDATARIO"${otros?", con la presencia "+otros:""}, con el objeto de hacer constar ${dev?"la devolución de EL INMUEBLE por parte de EL ARRENDATARIO a EL ARRENDADOR al término":"la entrega de EL INMUEBLE por parte de EL ARRENDADOR a EL ARRENDATARIO al inicio"} del contrato de arrendamiento celebrado entre ellos${s.ac_fcon?" el "+fechaLarga(s.ac_fcon):""}, haciendo constar lo siguiente:`);
+  let n=0;const R=["I","II","III","IV","V","VI","VII","VIII"];const sec=t=>H(`${R[n++]}. ${t}`);
+  sec("LLAVES, CONTROLES Y ACCESOS");
+  const ll=D.llaves.filter(r=>r.d);
+  if(ll.length){P(`${dev?"EL ARRENDATARIO devuelve":"EL ARRENDADOR entrega"} los siguientes elementos:`);bl.push({t:"tab",h:["Descripción","Cantidad"],w:[.8,.2],r:ll.map(r=>[r.d,r.c||"—"])});}
+  else P("No se relacionan llaves ni accesos.");
+  sec("LECTURAS DE MEDIDORES");
+  const med=[["Energía eléctrica",s.m_luz_no,s.m_luz,s.m_luz_ob],["Agua",s.m_agua_no,s.m_agua,s.m_agua_ob],["Gas",s.m_gas_no,s.m_gas,s.m_gas_ob]];
+  bl.push({t:"tab",h:["Servicio","Medidor / contrato","Lectura","Observaciones"],w:[.22,.24,.18,.36],r:med.map(m=>[m[0],m[1]||"—",m[2]||"—",m[3]||""])});
+  P(`Los consumos ${dev?"hasta":"a partir de"} estas lecturas corren por cuenta de EL ARRENDATARIO.`);
+  sec("ESTADO DEL INMUEBLE POR ÁREA");
+  P(`Las partes recorrieron EL INMUEBLE y hacen constar su estado conforme a lo siguiente (B = bueno, R = regular, M = malo, N/A = no aplica):`);
+  const ab={Bueno:"B",Regular:"R",Malo:"M","N/A":"N/A","":"—"};
+  bl.push({t:"tab",h:["Área",...ELEM.map(e=>e.replace(" y "," y\n").replace("Instalación ","Inst. "))],w:[.23,...ELEM.map(()=>.77/ELEM.length)],center:true,r:D.areas.map(a=>[a.nombre,...ELEM.map(e=>ab[a.el[e]||""])])});
+  const obs=D.areas.filter(a=>a.obs);
+  if(obs.length){P("Observaciones por área:");obs.forEach(a=>bl.push({t:"li",x:`${a.nombre}: ${a.obs}`}));}
+  const sinRev=D.areas.filter(a=>ELEM.some(e=>!a.el[e])).length;
+  if(D.areas.some(a=>a.fotos.length))P(`Las fotografías del Anexo Fotográfico de esta acta forman parte de ella y muestran el estado de EL INMUEBLE en esta fecha.`);
+  sec("MOBILIARIO, EQUIPO Y ACCESORIOS");
+  const inv=D.inv.filter(r=>r.d);
+  if(inv.length)bl.push({t:"tab",h:["Descripción","Cant.","Estado","Observaciones"],w:[.42,.1,.14,.34],r:inv.map(r=>[r.d,r.c||"—",r.e||"—",r.o||""])});
+  else P("EL INMUEBLE se entrega sin mobiliario ni equipo adicional.");
+  if(dev){
+    sec("SERVICIOS, CARGOS Y LIQUIDACIÓN DEL DEPÓSITO");
+    bl.push({t:"tab",h:["Servicio","¿Al corriente?","Observaciones"],w:[.32,.18,.5],r:D.servs.filter(r=>r.n).map(r=>[r.n,r.ok,r.ob||""])});
+    const car=D.cargos.filter(c=>c.d||Number(c.m)),{dep,saldo}=liq();
+    if(car.length){P("Se determinan los siguientes cargos a EL ARRENDATARIO:");bl.push({t:"tab",h:["Concepto","Monto"],w:[.75,.25],right:1,r:[...car.map(c=>[c.d||"—",money(c.m)]),["Total de cargos",money(liq().car)]]});}
+    else P("No se determinan cargos a EL ARRENDATARIO.");
+    P(`EL ARRENDADOR recibió de EL ARRENDATARIO un depósito en garantía por ${money(dep)}. Aplicados los cargos anteriores, ${saldo>=0?`resulta un saldo a favor de EL ARRENDATARIO por ${money(saldo)}, que EL ARRENDADOR le devolverá a más tardar el ${fechaLarga(s.dep_fecha)}`:`resulta un saldo a cargo de EL ARRENDATARIO por ${money(-saldo)}, que este pagará a EL ARRENDADOR a más tardar el ${fechaLarga(s.dep_fecha)}`}.`);
+    if(car.length)P(s.acepta==="Sí, los acepta"?"EL ARRENDATARIO manifiesta su conformidad con los cargos señalados.":s.acepta==="No los acepta"?"EL ARRENDATARIO manifiesta que no está conforme con los cargos señalados, por las razones que expresa en el apartado de observaciones.":"EL ARRENDATARIO acepta los cargos señalados, con las observaciones que expresa en el apartado correspondiente.");
+  }
+  sec("OBSERVACIONES DE LAS PARTES");
+  P(`De EL ARRENDADOR: ${s.ob_arr||"Ninguna."}`);P(`De EL ARRENDATARIO: ${s.ob_art||"Ninguna."}`);
+  sec("CONFORMIDAD");
+  P(dev?`Con la firma de esta acta, EL ARRENDADOR recibe la posesión de EL INMUEBLE en el estado aquí descrito${D.cargos.some(c=>Number(c.m))?", quedando pendientes únicamente los cargos y la liquidación señalados":""}. Esta acta no implica renuncia de las partes a reclamar daños ocultos no detectados en esta revisión.`
+       :`Con la firma de esta acta, EL ARRENDATARIO recibe la posesión de EL INMUEBLE en el estado aquí descrito, el cual servirá de referencia para su devolución al término del arrendamiento, salvo el deterioro natural por el uso. Esta acta forma parte del contrato de arrendamiento.`);
+  P(`Leída que fue la presente acta y conformes con su contenido, la firman las partes por duplicado en el lugar y fecha señalados.`);
+  const sg=[{l:dev?"RECIBE · EL ARRENDADOR":"ENTREGA · EL ARRENDADOR",n:s.ac_arr_rep?`${arr} · ${s.ac_arr_rep.toUpperCase()}`:arr},{l:dev?"ENTREGA · EL ARRENDATARIO":"RECIBE · EL ARRENDATARIO",n:s.ac_art_rep?`${art} · ${s.ac_art_rep.toUpperCase()}`:art}];
+  if(s.ac_ase)sg.push({l:"ASESOR INMOBILIARIO",n:s.ac_ase.toUpperCase()});if(s.ac_tes)sg.push({l:"TESTIGO",n:s.ac_tes.toUpperCase()});
+  bl.push({t:"sig",items:sg});
+  const fa=D.areas.filter(a=>a.fotos.length);
+  if(fa.length){bl.push({t:"pb"});bl.push({t:"t",x:"ANEXO FOTOGRÁFICO"});
+    fa.forEach(a=>bl.push({t:"fotos",l:a.nombre,f:a.fotos}));}
+  return {bl,sinRev};
+}
+
+/* ---------- pendientes ---------- */
+function pendientes(s){const L=[],add=(k,x)=>L.push({k,x}),dev=s.modo==="devolucion";
+  [["ac_fecha","Fecha del acta"],["ac_hora","Hora"],["ac_dom","Domicilio del inmueble"],["ac_arr","Arrendador"],["ac_art","Arrendatario"]].forEach(([k,l])=>{if(!s[k])add("FALTA",`Capturar: ${l}.`);});
+  const sr=D.areas.filter(a=>ELEM.some(e=>!a.el[e])).map(a=>a.nombre);if(sr.length)add("FALTA",`Áreas con elementos sin revisar: ${sr.join(", ")}.`);
+  const sf=D.areas.filter(a=>!a.fotos.length).map(a=>a.nombre);if(sf.length)add("TIP",`Áreas sin fotos: ${sf.join(", ")}. Las fotos son la mejor prueba en caso de diferencias.`);
+  if(!s.m_luz&&!s.m_agua)add("FALTA","Anotar las lecturas de medidores.");
+  add("VERIFICAR","Probar cada llave y control antes de firmar.");
+  if(dev){add("VERIFICAR","Revisar los recibos originales de luz, agua, gas y mantenimiento.");
+    if(!s.dep)add("FALTA","Capturar el depósito recibido para calcular la liquidación.");
+    if(D.cargos.some(c=>Number(c.m))&&s.acepta!=="Sí, los acepta")add("TIP","Hay cargos no aceptados por completo: que el arrendatario escriba sus razones en observaciones.");}
+  else add("VERIFICAR","Comparar con el inventario del Anexo A del contrato.");
+  add("VERIFICAR","Firmar dos tantos y rubricar todas las hojas, incluido el anexo fotográfico.");
+  return L;}
+
+/* ---------- vista previa ---------- */
+function render(){const s=S(),{bl}=acta(s);
+  $("#preview").innerHTML=bl.map(b=>{
+    if(b.t==="t")return `<div class="t">${esc(b.x).replace(/\n/g,"<br>")}</div>`;
+    if(b.t==="s")return `<div class="s">${esc(b.x)}</div>`;
+    if(b.t==="li")return `<div style="margin-left:14px">• ${esc(b.x)}</div>`;
+    if(b.t==="tab")return `<table><tr>${b.h.map(h=>`<th>${esc(h).replace(/\n/g," ")}</th>`).join("")}</tr>${b.r.map(r=>`<tr>${r.map((c,i)=>`<td style="${b.center&&i?"text-align:center":""}${b.right===i?"text-align:right":""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</table>`;
+    if(b.t==="pb")return `<div style="border-top:1px dashed #bbb;margin:20px 0"></div>`;
+    if(b.t==="sig")return `<div class="sig">${b.items.map(i=>`<div>${esc(i.l)}<br><b>${esc(i.n)}</b></div>`).join("")}</div>`;
+    if(b.t==="fotos")return `<div class="s">${esc(b.l)}</div><div class="ph">${b.f.map((f,j)=>`<figure><img src="${f.url}"><figcaption>${esc(b.l)} · foto ${j+1} · ${esc(f.fecha)}</figcaption></figure>`).join("")}</div>`;
+    return `<p>${esc(b.x)}</p>`;}).join("");
+  const L=pendientes(s),lab={FALTA:"falta",VERIFICAR:"verif",TIP:"tip"};
+  $("#pend").innerHTML=L.map(i=>`<li><span class="k ${lab[i.k]}">${i.k}</span><span>${esc(i.x)}</span></li>`).join("");
+  const f=L.filter(i=>i.k==="FALTA").length;
+  $("#aviso").innerHTML=f?`<div class="note">Hay ${f} punto(s) por completar (ver "Antes de firmar"). Puedes descargarla así y completar a mano.</div>`:`<div class="note blue">Acta completa. Revísala con las partes antes de imprimir.</div>`;}
+
+/* ---------- PDF ---------- */
+function pdfWriter(){
+  const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"pt",format:"letter"});
+  const M=56,W=612-2*M,TOP=62,BOT=792-60;let y=TOP;
+  const nl=h=>{if(y+h>BOT){doc.addPage();y=TOP;return true;}return false;};
+  const cache={};
+  const tw=(str,font)=>{const fs=doc.getFontSize();let t=0;for(const ch of str){const k=font+fs+ch;if(cache[k]===undefined){doc.setFont("helvetica",font);cache[k]=doc.getTextWidth(ch);}t+=cache[k];}return t;};
+  function wrap(text,width,font){const out=[];String(text).split("\n").forEach(par=>{let line="";par.split(/\s+/).filter(Boolean).forEach(w=>{const tst=line?line+" "+w:w;if(tw(tst,font)>width&&line){out.push(line);line=w;}else line=tst;});out.push(line);});return out;}
+  function rich(runs,{size=9.5,lead=13.2,after=6,indent=0}={}){
+    doc.setFontSize(size);const words=[];runs.forEach(r=>String(r.x).split(/\s+/).filter(Boolean).forEach(w=>words.push({w,b:r.b})));
+    const sp=tw(" ","normal"),width=w=>tw(w.w,w.b?"bold":"normal");const lines=[];let line=[],lw=0;
+    words.forEach(w=>{const ww=width(w),add=line.length?sp+ww:ww;if(lw+add>W-indent&&line.length){lines.push(line);line=[w];lw=ww;}else{line.push(w);lw+=add;}});if(line.length)lines.push(line);
+    lines.forEach((ln,i)=>{nl(lead);const last=i===lines.length-1,t=ln.reduce((a,w)=>a+width(w),0),gap=(last||ln.length<2)?sp:(W-indent-t)/(ln.length-1);
+      let cx=M+indent;ln.forEach(w=>{doc.setFont("helvetica",w.b?"bold":"normal");doc.text(w.w,cx,y);cx+=width(w)+gap;});y+=lead;});y+=after;}
+  function center(x,{size=11,bold=true,after=10}={}){doc.setFontSize(size);doc.setFont("helvetica",bold?"bold":"normal");wrap(x,W,bold?"bold":"normal").forEach(l=>{nl(size+5);doc.text(l,306,y,{align:"center"});y+=size+4;});y+=after;}
+  function table(h,rows,ws,{center:cen=false,right=-1}={}){
+    const fs=8.2,ld=10.2,pad=4,cw=ws.map(w=>w*W);doc.setFontSize(fs);
+    const draw=(cells,bold,fill)=>{const lines=cells.map((c,i)=>wrap(c,cw[i]-2*pad,bold?"bold":"normal"));const rh=Math.max(...lines.map(l=>l.length))*ld+2*pad-2;
+      const broke=nl(rh);if(broke&&!bold)draw(h,true,true);
+      let x=M;doc.setDrawColor(170);doc.setLineWidth(.5);
+      lines.forEach((ls,i)=>{if(fill){doc.setFillColor(236,241,247);doc.rect(x,y,cw[i],rh,"FD");}else doc.rect(x,y,cw[i],rh);
+        doc.setFont("helvetica",bold?"bold":"normal");
+        ls.forEach((l,k)=>{const ty=y+pad+7+k*ld;if((cen&&i>0)||bold&&cen&&i>0)doc.text(l,x+cw[i]/2,ty,{align:"center"});else if(i===right)doc.text(l,x+cw[i]-pad,ty,{align:"right"});else doc.text(l,x+pad,ty);});
+        x+=cw[i];});y+=rh;};
+    draw(h,true,true);rows.forEach(r=>draw(r,false,false));y+=10;}
+  function sig(items){const colW=(W-40)/2,rows=Math.ceil(items.length/2);nl(110);y+=40;
+    for(let r=0;r<rows;r++){nl(70);for(let c=0;c<2;c++){const it=items[r*2+c];if(!it)continue;const x=M+c*(colW+40);
+      doc.setLineWidth(.6);doc.setDrawColor(0);doc.line(x,y,x+colW,y);doc.setFontSize(8);doc.setFont("helvetica","normal");doc.text(it.l,x+colW/2,y+11,{align:"center"});
+      doc.setFont("helvetica","bold");wrap(it.n,colW,"bold").slice(0,3).forEach((l,i)=>doc.text(l,x+colW/2,y+22+i*10,{align:"center"}));}y+=74;}}
+  function fotos(label,list){const gap=14,cw=(W-gap)/2,maxH=200;
+    rich([{x:label,b:true}],{after:4,size:10});
+    for(let i=0;i<list.length;i+=2){const pair=list.slice(i,i+2),dims=pair.map(f=>{let w=cw,h=w*f.h/f.w;if(h>maxH){h=maxH;w=h*f.w/f.h;}return{w,h};});
+      const H=Math.max(...dims.map(d=>d.h));nl(H+24);
+      pair.forEach((f,k)=>{const d=dims[k],x=M+k*(cw+gap)+(cw-d.w)/2;doc.addImage(f.url,"JPEG",x,y,d.w,d.h);doc.setDrawColor(170);doc.rect(x,y,d.w,d.h);
+        doc.setFontSize(7.5);doc.setFont("helvetica","normal");doc.text(`${label} · foto ${i+k+1} · ${f.fecha}`,M+k*(cw+gap)+cw/2,y+d.h+10,{align:"center"});});
+      y+=H+22;}y+=4;}
+  function footer(txt){const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setFont("helvetica","normal");doc.setTextColor(110);
+    doc.text(`Página ${i} de ${n}`,612-M,792-34,{align:"right"});doc.text(txt,M,792-34);doc.setTextColor(0);}}
+  return {doc,rich,center,table,sig,fotos,footer,newPage:()=>{doc.addPage();y=TOP;}};
+}
+function pdfActa(){const s=S(),{bl}=acta(s),P=pdfWriter();
+  bl.forEach(b=>{if(b.t==="t")P.center(b.x,{size:11.5,after:8});else if(b.t==="s")P.rich([{x:b.x,b:true}],{after:3,size:9.8});
+    else if(b.t==="li")P.rich([{x:"• "+b.x}],{after:2,indent:12});else if(b.t==="tab")P.table(b.h,b.r,b.w,{center:b.center,right:b.right??-1});
+    else if(b.t==="pb")P.newPage();else if(b.t==="sig")P.sig(b.items);else if(b.t==="fotos")P.fotos(b.l,b.f);else P.rich([{x:b.x}]);});
+  P.footer("Rúbricas: ________   ________");return P.doc.output("blob");}
+async function guardar(nombre,blob){const st=$("#dl_st");st.className="status";
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  st.className="status ok";st.textContent="Descargado: "+nombre+". El borrador de este equipo se borró.";limpiarBorrador();}
+const slug=s=>(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"inmueble";
+$("#dl").onclick=async()=>{if(!window.jspdf){$("#dl_st").textContent="No se cargó el generador de PDF; revisa tu conexión.";return;}const s=S();
+  await guardar(`Acta-${s.modo==="devolucion"?"devolucion":"entrega"}-${slug(s.ac_art||s.ac_dom)}.pdf`,pdfActa());};
+
+/* ---------- ejemplo ---------- */
+function ejemplo(){const hoy=hoyLocal();
+  setS({ac_fecha:hoy,ac_hora:"11:00",ac_mun:"Querétaro",ac_tipo:"Casa habitación",ac_dom:"Calle Ejemplo 123, Fracc. Prueba, C.P. 76000",ac_cat:"140100000000000",ac_fcon:hoy,
+    ac_arr:"Juan Pérez Ejemplo",ac_art:"Ana Gómez Prueba",ac_arr_rep:"",ac_art_rep:"",ac_ase:"Asesor de Ejemplo",m_luz_no:"123456",m_luz:"04521",m_agua_no:"A-7890",m_agua:"00312",m_gas_no:"Estacionario",m_gas:"60 %",dep:"12500"});
+  D.llaves=[{d:"Llaves de puerta principal",c:"3"},{d:"Control de portón eléctrico",c:"1"},{d:"Llave de buzón",c:"1"}];
+  areasDefault();D.areas.forEach((a,i)=>ELEM.forEach(e=>a.el[e]="Bueno"));D.areas[4].el["Instalación hidráulica y sanitaria"]="Regular";D.areas[4].obs="Goteo leve en llave del fregadero.";
+  D.inv=[{d:"Estufa de 4 quemadores",c:"1",e:"Bueno",o:""},{d:"Calentador de agua de paso",c:"1",e:"Bueno",o:""},{d:"Cortinas en recámaras",c:"3",e:"Regular",o:"Una con desgaste"}];
+  D.cargos=[{d:"Reparación de llave del fregadero",m:"450"}];rAll();save();}
+
+/* ---------- borrador y borrado ---------- */
+function limpiarBorrador(){try{localStorage.removeItem(LS);}catch(e){}}
+let _bt=null;$("#borrar").addEventListener("click",()=>{const b=$("#borrar");
+  if(!b.classList.contains("conf")){b.classList.add("conf");b.textContent="¿Borrar todo? Toca otra vez";_bt=setTimeout(()=>{b.classList.remove("conf");b.textContent="🗑 Borrar datos de este equipo";},5000);return;}
+  clearTimeout(_bt);try{[LS].forEach(k=>localStorage.removeItem(k));}catch(e){}location.reload();});
+
+/* ---------- inicio ---------- */
+servsDefault();llavesDefault();areasDefault();
+const hadDraft=load();if(window.TASA_prellenar)setS(window.TASA_prellenar);
+if(!D.servs.length)servsDefault();if(!D.areas.length)areasDefault();
+$("#ac_tipo").addEventListener("change",()=>{if(D.areas.every(a=>!a.fotos.length&&!a.obs&&ELEM.every(e=>!a.el[e]))){areasDefault();rAreas();}});
+if(!S().ac_fecha)$('[data-k="ac_fecha"]').value=hoyLocal();
+rAll();syncModo();go(0);
+</script>
+</body>
+</html>

@@ -32,7 +32,7 @@ const PREFIJO_SIN_PAGINA = "Comisionista sin página de Notion: ";
 export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
   const staff = esStaff(persona);
   const supabase = await crearClienteServidor();
-  const [p, porPagar, paquetes, alertas, conector, actividad, estimados] = await Promise.all([
+  const [p, porPagar, paquetes, alertas, conector, actividad, estimados, revision] = await Promise.all([
     pendientesDelPanel(),
     staff ? comisionesPorPagar() : Promise.resolve([] as PorPagar[]),
     staff ? supabase.from("compras_paquete").select("id", { count: "exact", head: true }).eq("estado", "por_pagar") : Promise.resolve({ count: 0 }),
@@ -42,7 +42,13 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
     staff
       ? supabase.from("solicitudes").select("id", { count: "exact", head: true }).eq("estado", "tramite").eq("honorario_tipo", "estimado").is("honorario_final_en", null)
       : Promise.resolve({ count: 0 }),
+    // Requisitos del checklist (0100): a los 90 días sin revisar, avisa a admin_org.
+    persona.rol === "admin_org"
+      ? supabase.from("ajustes").select("checklist_revisado").maybeSingle<{ checklist_revisado: string }>()
+      : Promise.resolve({ data: null }),
   ]);
+  const diasRevision = revision.data?.checklist_revisado
+    ? Math.floor((Date.now() - new Date(`${revision.data.checklist_revisado}T12:00:00Z`).getTime()) / 86_400_000) : 0;
 
   const tipos = (alertas.data ?? []).map((a) => a.tipo);
   const cuenta = (lista: string[]) => tipos.filter((t) => lista.includes(t)).length;
@@ -92,6 +98,8 @@ export async function tareasDeHoy(persona: Persona): Promise<Tarea[]> {
       { grupo: "vigilar" as const, texto: "Comisionistas inactivos", cuenta: inactivas, href: "/admin/estadisticas" },
       { grupo: "vigilar" as const, texto: "Estimados sin honorario final", cuenta: estimados.count ?? 0, href: "/admin/tramites?estimado=1" },
     ] : []),
+    ...(diasRevision >= 90 ? [{ grupo: "vigilar" as const, texto: "Revisar los requisitos del checklist", href: "/ajustes",
+      detalle: `La última revisión fue hace ${diasRevision} días: Infonavit, Fovissste y bancos cambian requisitos.` }] : []),
     { grupo: "vigilar", texto: "Otras alertas", cuenta: otras, href: "/admin/alertas" },
   ];
   return t.filter((x) => x.cuenta === undefined || x.cuenta > 0);

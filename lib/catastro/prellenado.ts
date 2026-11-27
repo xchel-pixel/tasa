@@ -20,6 +20,22 @@ export function inicialCalculadora(q: Parametros, municipios: string[]): Record<
 }
 
 /** La solicitud que viene del mapa (sin datos del cliente), o nulo si no trae clave. */
+/**
+ * Desde una herramienta de asesor (0100): el botón "Solicitar a MGP" de un consejo trae el servicio (su id, que la
+ * página revisa contra el catálogo), la nota y, si la hay, la clave. Nada del cliente.
+ */
+export function inicialSolicitudDeHerramienta(q: Parametros, servicios: { id: string }[]) {
+  if (q.desde !== "herramienta") return null;
+  const servicio = servicios.find((s) => s.id === q.servicio_id)?.id;
+  return {
+    servicio_id: servicio,
+    clave: limpiarClave(q.clave ?? "") ?? undefined,
+    municipio: (q.municipio ?? "").slice(0, 60) || undefined,
+    descripcion: (q.nota ?? "").slice(0, 800),
+    direccion: (q.direccion ?? "").slice(0, 300) || undefined,
+  };
+}
+
 export function inicialSolicitudDelMapa(q: Parametros) {
   const clave = limpiarClave(q.clave ?? "");
   if (!clave) return null;

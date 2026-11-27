@@ -149,6 +149,18 @@ export async function fijarUltimoFolio(_previo: EstadoAjustes, formData: FormDat
   return { mensaje: "Guardado: el siguiente folio será " + String(ultimo + 1).padStart(4, "0") + ".", error: null };
 }
 
+/** Requisitos del checklist (0100): la fecha en que se revisaron; a los 90 días, Hoy avisa. Queda en la bitácora. */
+export async function guardarChecklistRevisado(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
+  await exigirRol("admin_org");
+  const fecha = String(formData.get("checklist_revisado") ?? "");
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(fecha)) return { mensaje: null, error: "Escribe la fecha de la revisión." };
+  const supabase = await crearClienteServidor();
+  const { error } = await supabase.rpc("guardar_checklist_revisado", { p_fecha: fecha });
+  if (error) return { mensaje: null, error: error.message || "No se pudo guardar." };
+  revalidatePath("/ajustes");
+  return { mensaje: "Guardado: la herramienta ya muestra la nueva fecha.", error: null };
+}
+
 /** DXF por zona (0098): el interruptor para abrirla al equipo. Apagado = solo admin_org. Queda en la bitácora. */
 export async function guardarZonaEquipo(_previo: EstadoAjustes, formData: FormData): Promise<EstadoAjustes> {
   await exigirRol("admin_org");

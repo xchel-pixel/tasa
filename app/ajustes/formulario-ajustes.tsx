@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { BotonEnviar } from "@/components/boton-enviar";
 import { Aviso } from "@/components/aviso";
-import { fijarUltimoFolio, guardarAjustes, guardarLimiteEquipos, guardarPrefijo, guardarZonaEquipo, usarConectorManual, type EstadoAjustes } from "./acciones";
+import { fijarUltimoFolio, guardarAjustes, guardarChecklistRevisado, guardarLimiteEquipos, guardarPrefijo, guardarZonaEquipo, usarConectorManual, type EstadoAjustes } from "./acciones";
 
 const INICIAL: EstadoAjustes = { mensaje: null, error: null };
 const ENTRADA =
@@ -288,6 +288,24 @@ export function FormularioZonaEquipo({ activa }: { activa: boolean }) {
         El equipo puede bajar DXF por zona
       </label>
       <BotonEnviar variante="secundario">Guardar</BotonEnviar>
+      <Aviso estado={estado} />
+    </form>
+  );
+}
+
+/** Requisitos del checklist de documentos (0100): fecha de la última revisión. */
+export function FormularioChecklistRevisado({ fecha }: { fecha: string }) {
+  const [estado, enviar] = useActionState(guardarChecklistRevisado, INICIAL);
+  return (
+    <form action={enviar} className="mt-3 flex flex-col gap-3">
+      <p className="text-[0.9375rem] leading-6 text-secundario">
+        La herramienta muestra esta fecha arriba y en su PDF. A los 90 días sin actualizarla, Hoy te avisa que conviene revisar
+        los requisitos de Infonavit, Fovissste, bancos y notarías.
+      </p>
+      <label className="block text-[0.9375rem] font-semibold">Requisitos revisados el
+        <input type="date" name="checklist_revisado" defaultValue={fecha} required className={ENTRADA.replace("mt-3 ", "mt-1 ")} />
+      </label>
+      <BotonEnviar variante="secundario">Guardar fecha</BotonEnviar>
       <Aviso estado={estado} />
     </form>
   );

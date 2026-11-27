@@ -20,6 +20,8 @@ const GRUPOS: { titulo: string; tarjetas: Tarjeta[]; vacio?: string }[] = [
     { clave: "calculadora_traslado", href: "/calculadora", detalle: "Gastos de escrituración en Querétaro.", ilustracion: "herramienta-calculadora-traslado" },
   ] },
   { titulo: "Comercialización", tarjetas: [
+    { clave: "ficha_captacion", href: "/herramientas/ficha-captacion", detalle: "Ficha comercial con QR a tu WhatsApp y texto para portales.", ilustracion: "herramienta-ficha-captacion" },
+    { clave: "checklist_documentos", href: "/herramientas/checklist-documentos", detalle: "Documentos según la operación y el crédito, y mensajes para pedirlos.", ilustracion: "herramienta-checklist" },
     { clave: "mi_tarjeta", href: "/tarjeta", detalle: "Tu tarjeta digital para compartir.", ilustracion: "herramienta-tarjeta" },
     { clave: "para_tus_clientes", href: "/para-tus-clientes", detalle: "Tu liga y QR para que te pidan cotización.", ilustracion: "herramienta-clientes" },
     // El comisionista la tiene en Mis trabajos (Referidos).

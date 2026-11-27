@@ -4,7 +4,7 @@ import { Etiqueta } from "@/components/etiqueta";
 import { exigirRol } from "@/lib/sesion";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import { ActivarNotion, ConfigNotion, VolverAManualBoton, type DatosNotion } from "./conector-notion";
-import FormularioAjustes, { FormularioLimiteEquipos, FormularioPrefijo, FormularioUltimoFolio, FormularioZonaEquipo } from "./formulario-ajustes";
+import FormularioAjustes, { FormularioLimiteEquipos, FormularioPrefijo, FormularioChecklistRevisado, FormularioUltimoFolio, FormularioZonaEquipo } from "./formulario-ajustes";
 
 export const metadata = { title: "Ajustes — Tasa" };
 
@@ -28,7 +28,7 @@ export default async function Ajustes() {
   const [ajustes, organizacion, conector] = await Promise.all([
     supabase
       .from("ajustes")
-      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo, referido_vigencia_meses, liga_max_por_telefono, liga_max_por_conexion, nota_tarjeta, nota_liga, nota_pdf, nota_version, nota_actualizada_en, texto_invitar, texto_clientes, textos_version, textos_actualizados_en, finanzas_asigna, limite_equipos, zona_dxf_equipo")
+      .select("contacto_soporte, dia_limite_pago_comision, terminos, aviso_privacidad, correo_bienvenida, correo_rechazo, bono_referido_equipo, referido_vigencia_meses, liga_max_por_telefono, liga_max_por_conexion, nota_tarjeta, nota_liga, nota_pdf, nota_version, nota_actualizada_en, texto_invitar, texto_clientes, textos_version, textos_actualizados_en, finanzas_asigna, limite_equipos, zona_dxf_equipo, checklist_revisado")
       .maybeSingle()
       .returns<{
         contacto_soporte: string | null;
@@ -53,6 +53,7 @@ export default async function Ajustes() {
         finanzas_asigna: boolean;
         limite_equipos: Record<string, number | null>;
         zona_dxf_equipo: boolean;
+        checklist_revisado: string;
       } | null>(),
     supabase
       .from("organizaciones")
@@ -168,6 +169,11 @@ export default async function Ajustes() {
           <section className="mt-10">
             <h2 className="text-[1.125rem] font-bold">Mapa catastral: DXF por zona</h2>
             <FormularioZonaEquipo activa={Boolean(oExplota(ajustes, "los ajustes")?.zona_dxf_equipo)} />
+          </section>
+
+          <section className="mt-10">
+            <h2 className="text-[1.125rem] font-bold">Checklist de documentos</h2>
+            <FormularioChecklistRevisado fecha={oExplota(ajustes, "los ajustes")?.checklist_revisado ?? "2026-11-27"} />
           </section>
 
           <section className="mt-10">

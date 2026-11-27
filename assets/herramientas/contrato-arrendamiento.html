@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contrato de arrendamiento · Querétaro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+:root{--navy:#0B3A6E;--navy2:#0E4C8F;--bg:#F7F9FC;--card:#F3F6FA;--line:#D9E1EC;--ink:#1B2533;--mute:#5E6B7D;--ok:#1F7A4D;--warn:#A15C00;--err:#B3261E}
+*{box-sizing:border-box}
+body{margin:0;font-family:"DM Sans",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+header{background:var(--navy);color:#fff;padding:18px 24px}
+header h1{margin:0;font-size:20px;font-weight:700}
+header p{margin:4px 0 0;font-size:13px;opacity:.85}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.steps button{flex:1 1 110px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 8px;font:inherit;font-size:13px;color:var(--mute);cursor:pointer;text-align:left}
+.steps button b{display:block;color:var(--ink);font-size:13px}
+.steps button.on{background:var(--navy);border-color:var(--navy);color:#cfe0f5}
+.steps button.on b{color:#fff}
+.steps button.done b::after{content:" ✓";color:var(--ok)}
+.steps button.on.done b::after{color:#9fe0bd}
+section.step{display:none}
+section.step.on{display:block}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{margin:0 0 4px;font-size:17px}
+.card h3{margin:14px 0 8px;font-size:14px;color:var(--navy)}
+.hint{color:var(--mute);font-size:13px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.grid .full{grid-column:1/-1}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin-bottom:4px}
+input,select,textarea{width:100%;font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+textarea{min-height:80px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid #9DC0EA;border-color:var(--navy2)}
+.req label::after{content:" *";color:var(--err)}
+.missing input,.missing select,.missing textarea{border-color:#E39B95;background:#FFF7F6}
+.ocr{background:var(--card);border:1px dashed #AFC3DC;border-radius:12px;padding:12px;margin-bottom:12px}
+.ocr .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.ocr .row>div{flex:1 1 200px}
+.ocr input[type=file]{padding:6px;background:#fff}
+.status{font-size:13px;margin-top:8px;color:var(--mute)}
+.status.ok{color:var(--ok)}.status.err{color:var(--err)}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:10px;padding:10px 16px;border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
+.btn:hover{background:var(--navy2)}
+.btn.sec{background:#fff;color:var(--navy)}
+.btn.sec:hover{background:var(--card)}
+.btn:disabled{opacity:.5;cursor:default}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:6px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-size:13.5px;color:var(--ink);cursor:pointer;margin:0;background:#fff}
+.seg input{width:auto;margin:0}
+.seg label:has(input:checked){border-color:var(--navy);background:#E8F0FA}
+.hide{display:none!important}
+.note{font-size:13px;background:#FFF8EA;border:1px solid #F0D9A8;border-radius:10px;padding:10px 12px;color:#6B4A00;margin-bottom:12px}
+.note.blue{background:#EEF4FB;border-color:#C9DAF0;color:#173E6B}
+.preview{background:#fff;border:1px solid var(--line);border-radius:12px;padding:34px 40px;max-height:620px;overflow:auto;font-family:Georgia,"Times New Roman",serif;font-size:13.5px;line-height:1.55;text-align:justify}
+.preview .t{text-align:center;font-weight:700;margin-bottom:14px}
+.preview .h{text-align:center;font-weight:700;margin:16px 0 8px}
+.preview .s{font-weight:700;margin:10px 0 4px}
+.preview .c{font-weight:700}
+.preview .sig{display:grid;grid-template-columns:1fr 1fr;gap:34px 30px;margin-top:40px;text-align:center}
+.preview .sig div{border-top:1px solid #333;padding-top:6px;font-size:12px}
+.preview .pb{border-top:1px dashed #bbb;margin:22px 0;text-align:center;color:#999;font-size:11px;font-family:"DM Sans",sans-serif}
+.thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.thumbs figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px;text-align:center}
+.thumbs img{display:block;height:170px;max-width:290px;object-fit:contain;cursor:zoom-in;border-radius:6px}
+.thumbs img.big{height:auto;max-width:min(640px,86vw);cursor:zoom-out}
+.thumbs figcaption{font-size:11.5px;color:var(--mute);margin-top:4px}
+.thumbs button{font:inherit;font-size:11.5px;border:0;background:none;color:var(--err);cursor:pointer;padding:0;margin-left:6px}
+.warnline{font-size:12.5px;color:#6B4A00;background:#FFF8EA;border:1px solid #F0D9A8;border-radius:8px;padding:6px 10px;margin-top:8px}
+.preview .anx{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 16px}
+.preview .anx img{width:100%;border:1px solid #ccc}
+.fmt{margin-top:3px}.fmt.bad{color:var(--err)}.fmt.good{color:var(--ok)}
+input.badfmt{border-color:#E39B95;background:#FFF7F6}
+.pend{list-style:none;padding:0;margin:0}
+.pend li{padding:8px 0;border-bottom:1px solid #EEF1F5;display:flex;gap:10px;font-size:14px}
+.pend li span.k{flex:0 0 auto;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;height:fit-content;margin-top:2px}
+.k.falta{background:#FDECEA;color:var(--err)}.k.verif{background:#EEF4FB;color:var(--navy)}.k.firma{background:#EAF6EF;color:var(--ok)}.k.tip{background:#FFF4E0;color:var(--warn)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.small{font-size:12px;color:var(--mute)}
+footer{text-align:center;font-size:12px;color:var(--mute);margin-top:30px}
+@media (max-width:600px){.preview{padding:20px}.preview .sig{grid-template-columns:1fr}}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.borrar{font:inherit;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;border-radius:9px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+.borrar:hover{background:rgba(255,255,255,.12)}.borrar.conf{background:#B3261E;border-color:#B3261E}
+</style>
+</head>
+<body>
+<header>
+  <div>
+  <h1>Contrato de arrendamiento</h1>
+  <p>Estado de Querétaro · Llena los datos, agrega las INE, revisa y descarga el PDF</p>
+  </div>
+  <button class="borrar" id="borrar" title="Borra el borrador guardado en este navegador">🗑 Borrar datos de este equipo</button>
+</header>
+<div class="wrap">
+  <div class="steps" id="steps"></div>
+
+  <!-- PASO 1 -->
+  <section class="step" data-title="Inmueble" data-sub="Tipo y ubicación">
+    <div class="card">
+      <h2>Inmueble a rentar</h2>
+      <p class="hint">Datos del inmueble y de cómo acredita el arrendador que es suyo.</p>
+      <div class="ocr">
+        <b style="font-size:14px">📍 Llenar desde clave catastral <span class="small">(opcional)</span></b>
+        <div class="row" style="margin-top:8px">
+          <div><label>Clave catastral</label><input id="cat_q" inputmode="numeric" placeholder="Ej. 140100121023012"></div>
+          <div style="flex:0 0 auto"><button class="btn sec" id="cat_btn">Buscar</button></div>
+          <div><label>…o sube la ficha del predio (PDF del Mapa catastral)</label><input type="file" accept="application/pdf" id="cat_pdf"></div>
+        </div>
+        <div class="status" id="cat_st"></div>
+      </div>
+      <div class="grid">
+        <div class="req"><label>Tipo de inmueble</label>
+          <select data-k="in_tipo" id="in_tipo">
+            <option>Casa habitación</option><option>Departamento</option><option>Local comercial</option><option>Oficina</option><option>Bodega</option>
+          </select></div>
+        <div class="req"><label>Municipio</label>
+          <select data-k="in_mun" id="in_mun"></select></div>
+        <div class="full req"><label>Domicilio del inmueble (calle, número, interior, colonia/fraccionamiento, C.P.)</label>
+          <input data-k="in_dom" placeholder="Ej. Av. Ejemplo 123, int. 4, Fracc. Los Pinos, C.P. 76000"></div>
+        <div><label>Clave catastral</label><input data-k="in_cat" placeholder="Opcional (del Mapa catastral)"></div>
+        <div><label>Cajones de estacionamiento</label><input data-k="in_caj" type="number" min="0" value="1"></div>
+        <div><label>¿Amueblado?</label><select data-k="in_amu"><option>No</option><option>Sí</option><option>Semiamueblado</option></select></div>
+        <div><label>¿Está en condominio?</label><select data-k="in_con"><option>No</option><option>Sí</option></select></div>
+        <div class="hab"><label>Ocupantes máximos</label><input data-k="in_ocu" type="number" min="1" value="4"></div>
+        <div class="hab"><label>Mascotas</label><select data-k="in_mas"><option>No permitidas</option><option>Permitidas</option><option>Solo con autorización escrita</option></select></div>
+        <div><label>Superficie de terreno (m²)</label><input data-k="in_supT" placeholder="Opcional"></div>
+        <div><label>Construcción (m²)</label><input data-k="in_supC" placeholder="Opcional"></div>
+        <div class="full"><label>Medidas y colindancias (opcional; si las llenas, se citan en el contrato)</label><textarea data-k="in_col" placeholder="Una por renglón. Ej.&#10;Noroeste: 16.00 m con propiedad vecina"></textarea></div>
+        <div class="full com hide req"><label>Giro o actividad que se realizará</label><input data-k="in_giro" placeholder="Ej. venta de ropa al menudeo, oficinas administrativas"></div>
+      </div>
+      <h3>Acreditación de la propiedad</h3>
+      <div class="grid">
+        <div class="req"><label>Documento</label><select data-k="pr_doc" id="pr_doc"><option>Escritura pública</option><option>Otro documento</option></select></div>
+        <div class="esc"><label>Número de escritura</label><input data-k="pr_num"></div>
+        <div class="esc"><label>Fecha de la escritura</label><input data-k="pr_fec" type="date"></div>
+        <div class="esc full"><label>Notario que la otorgó</label><input data-k="pr_not" placeholder="Ej. Lic. Nombre Apellido, Notario Público No. 00 de Querétaro"></div>
+        <div class="esc"><label>Folio real (RPP)</label><input data-k="pr_fol" placeholder="Opcional"></div>
+        <div class="otro hide full"><label>Describe el documento</label><input data-k="pr_otro" placeholder="Ej. contrato de compraventa privado de fecha ..."></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" data-load>Cargar ejemplo</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- PASO 2 -->
+  <section class="step" data-title="Arrendador" data-sub="Dueño del inmueble">
+    <div class="card" id="box_ar"></div>
+    <div class="card" id="box_cy">
+      <h2>Cónyuge del arrendador</h2>
+      <p class="hint">Aparece porque el arrendador está casado por sociedad conyugal: se recomienda que el cónyuge firme dando su consentimiento.</p>
+      <div class="grid">
+        <div class="full"><label>Nombre completo del cónyuge</label><input data-k="cy_nombre"></div>
+        <div><label>Clave de elector</label><input data-k="cy_clave" data-fmt="clave" maxlength="18" style="text-transform:uppercase"><div class="fmt small"></div></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- PASO 3 -->
+  <section class="step" data-title="Arrendatario" data-sub="Quien renta">
+    <div class="card" id="box_at"></div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- PASO 4 -->
+  <section class="step" data-title="Garantía" data-sub="Aval o póliza">
+    <div class="card">
+      <h2>Garantía del contrato</h2>
+      <p class="hint">Además del depósito, ¿qué respalda el pago de la renta?</p>
+      <div class="seg" id="ga_tipo">
+        <label><input type="radio" name="ga" value="obligado" checked> Obligado solidario</label>
+        <label><input type="radio" name="ga" value="fiador"> Fiador con inmueble</label>
+        <label><input type="radio" name="ga" value="poliza"> Póliza jurídica</label>
+        <label><input type="radio" name="ga" value="ninguna"> Solo depósito</label>
+      </div>
+    </div>
+    <div class="card" id="box_os"></div>
+    <div class="card hide" id="box_fi">
+      <h2>Inmueble que deja en garantía el fiador</h2>
+      <div class="grid">
+        <div class="full"><label>Domicilio del inmueble</label><input data-k="fi_dom"></div>
+        <div><label>Folio real (RPP)</label><input data-k="fi_fol"></div>
+        <div><label>Escritura número</label><input data-k="fi_esc"></div>
+      </div>
+    </div>
+    <div class="card hide" id="box_po">
+      <h2>Póliza jurídica</h2>
+      <div class="grid">
+        <div><label>Empresa que la emite</label><input data-k="po_emp"></div>
+        <div><label>Número de póliza</label><input data-k="po_num"></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- PASO 5 -->
+  <section class="step" data-title="Condiciones" data-sub="Renta y plazo">
+    <div class="card">
+      <h2>Renta, plazo y depósito</h2>
+      <div class="grid">
+        <div class="req"><label>Renta mensual (MXN)</label><input data-k="co_renta" type="number" min="0" step="0.01" placeholder="12500"></div>
+        <div class="com hide"><label>IVA</label><select data-k="co_iva"><option value="mas">Más IVA</option><option value="incluido">IVA incluido</option><option value="no">No aplica</option></select></div>
+        <div class="req"><label>Se paga a más tardar el día</label><input data-k="co_dia" type="number" min="1" max="28" value="5"></div>
+        <div class="req"><label>Fecha de inicio</label><input data-k="co_ini" type="date"></div>
+        <div class="req"><label>Plazo forzoso (meses)</label><input data-k="co_plazo" id="co_plazo" type="number" min="1" value="12"></div>
+        <div><label>Fecha de término</label><input id="co_fin" disabled></div>
+        <div class="req"><label>Depósito en garantía (meses de renta)</label><input data-k="co_dep" type="number" min="0" step="0.5" value="1"></div>
+        <div><label>Forma de pago</label><select data-k="co_forma" id="co_forma"><option>Transferencia</option><option>Depósito bancario</option><option>Efectivo contra recibo</option></select></div>
+        <div class="bank"><label>Banco</label><input data-k="co_banco"></div>
+        <div class="bank"><label>CLABE</label><input data-k="co_clabe" data-fmt="clabe" maxlength="18" inputmode="numeric"><div class="fmt small"></div></div>
+        <div class="bank full"><label>Titular de la cuenta</label><input data-k="co_tit" placeholder="Si se deja vacío, se usa el nombre del arrendador"></div>
+      </div>
+      <div class="note hide" id="plazo_warn"></div>
+      <h3>Incremento anual</h3>
+      <div class="grid">
+        <div><label>Cómo se incrementa la renta</label><select data-k="co_inc" id="co_inc"><option value="inpc">Según inflación (INPC del INEGI)</option><option value="pct">Porcentaje fijo</option><option value="no">Sin incremento</option></select></div>
+        <div class="pct hide"><label>Porcentaje anual (%)</label><input data-k="co_pct" type="number" min="0" step="0.1" value="5"></div>
+      </div>
+      <h3>Gastos y penas</h3>
+      <div class="grid">
+        <div><label>Cuota de mantenimiento la paga</label><select data-k="co_mant"><option>El arrendatario</option><option>El arrendador</option><option>No aplica</option></select></div>
+        <div><label>Interés moratorio mensual (%)</label><input data-k="co_mora" type="number" min="0" step="0.5" value="3"></div>
+        <div><label>Pena por terminar antes (meses de renta)</label><input data-k="co_pena" type="number" min="0" step="0.5" value="1"></div>
+        <div><label>Aviso previo para visitas (horas)</label><input data-k="co_visita" type="number" min="0" value="24"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Firma e inventario</h2>
+      <div class="grid">
+        <div class="req"><label>Lugar de firma (municipio)</label><select data-k="fi_lugar" id="fi_lugar"></select></div>
+        <div class="req"><label>Fecha de firma</label><input data-k="fi_fecha" type="date"></div>
+        <div><label>Testigo 1 (opcional)</label><input data-k="te_1"></div>
+        <div><label>Testigo 2 (opcional)</label><input data-k="te_2"></div>
+        <div class="full"><label>Inventario (un elemento por renglón; queda como Anexo A)</label>
+          <textarea data-k="inv" placeholder="Ej.&#10;3 juegos de llaves de acceso principal&#10;1 control de portón&#10;Estufa de 4 quemadores marca ___ en buen estado&#10;Calentador de agua de paso"></textarea></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Revisar y generar →</button></div>
+  </section>
+
+  <!-- PASO 6 -->
+  <section class="step" data-title="Generar" data-sub="Revisar y descargar">
+    <div class="card">
+      <h2>Tu contrato</h2>
+      <div id="faltan"></div>
+      <div class="actions">
+        <button class="btn" id="dl_contrato">Descargar contrato (PDF)</button>
+        <button class="btn sec" id="dl_pend">Descargar hoja de pendientes (PDF)</button>
+      </div>
+      <div class="status" id="dl_status"></div>
+      <div class="preview" id="preview"></div>
+    </div>
+    <div class="card">
+      <h2>Tus pendientes antes de firmar</h2>
+      <p class="hint">No forman parte del contrato. Son responsabilidad del asesor.</p>
+      <ul class="pend" id="pend"></ul>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn sec" id="reset">Empezar uno nuevo</button></div>
+  </section>
+
+  <footer>Formato de apoyo para asesores. La verificación de identidad, de la propiedad y del contenido del contrato corresponde a quien lo utiliza. Las fotos de INE se procesan en este equipo y no se envían a ningún servidor. El borrador guardado en este navegador no incluye CURP, RFC, CLABE, datos de INE ni fotos, y se borra al descargar el PDF.</footer>
+</div>
+
+<script>
+/* ---------- utilidades ---------- */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const MUN=["Amealco de Bonfil","Arroyo Seco","Cadereyta de Montes","Colón","Corregidora","El Marqués","Ezequiel Montes","Huimilpan","Jalpan de Serra","Landa de Matamoros","Pedro Escobedo","Peñamiller","Pinal de Amoles","Querétaro","San Joaquín","San Juan del Río","Tequisquiapan","Tolimán"];
+const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const ORD=["PRIMERA","SEGUNDA","TERCERA","CUARTA","QUINTA","SEXTA","SÉPTIMA","OCTAVA","NOVENA","DÉCIMA","DÉCIMA PRIMERA","DÉCIMA SEGUNDA","DÉCIMA TERCERA","DÉCIMA CUARTA","DÉCIMA QUINTA","DÉCIMA SEXTA","DÉCIMA SÉPTIMA","DÉCIMA OCTAVA","DÉCIMA NOVENA","VIGÉSIMA","VIGÉSIMA PRIMERA","VIGÉSIMA SEGUNDA","VIGÉSIMA TERCERA","VIGÉSIMA CUARTA"];
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const B=(v,n=24)=>(v&&String(v).trim())?String(v).trim():"_".repeat(n);
+function fechaLarga(iso){if(!iso)return "____ de __________ de ______";const[y,m,d]=iso.split("-").map(Number);return `${d} de ${MESES[m-1]} de ${y}`;}
+function addMonths(iso,n){if(!iso||!n)return "";const[y,m,d]=iso.split("-").map(Number);const dt=new Date(y,m-1+Number(n),d);dt.setDate(dt.getDate()-1);return dt.toISOString().slice(0,10);}
+function money(n){return Number(n||0).toLocaleString("es-MX",{style:"currency",currency:"MXN"});}
+function numLetras(num){
+  num=Math.round(Number(num||0)*100)/100;const ent=Math.floor(num),cent=Math.round((num-ent)*100);
+  const U=["","UN","DOS","TRES","CUATRO","CINCO","SEIS","SIETE","OCHO","NUEVE","DIEZ","ONCE","DOCE","TRECE","CATORCE","QUINCE","DIECISÉIS","DIECISIETE","DIECIOCHO","DIECINUEVE","VEINTE","VEINTIÚN","VEINTIDÓS","VEINTITRÉS","VEINTICUATRO","VEINTICINCO","VEINTISÉIS","VEINTISIETE","VEINTIOCHO","VEINTINUEVE"];
+  const D=["","","","TREINTA","CUARENTA","CINCUENTA","SESENTA","SETENTA","OCHENTA","NOVENTA"];
+  const C=["","CIENTO","DOSCIENTOS","TRESCIENTOS","CUATROCIENTOS","QUINIENTOS","SEISCIENTOS","SETECIENTOS","OCHOCIENTOS","NOVECIENTOS"];
+  const cien=n=>{if(n===0)return"";if(n===100)return"CIEN";const c=Math.floor(n/100),r=n%100;let s=C[c];if(r){s+=(s?" ":"");s+=r<30?U[r]:D[Math.floor(r/10)]+(r%10?" Y "+U[r%10]:"");}return s;};
+  const sec=n=>{if(n===0)return"CERO";let s="";const mill=Math.floor(n/1e6),mil=Math.floor((n%1e6)/1000),r=n%1000;
+    if(mill)s+=(mill===1?"UN MILLÓN":cien(mill)+" MILLONES");
+    if(mil)s+=(s?" ":"")+(mil===1?"MIL":cien(mil)+" MIL");
+    if(r)s+=(s?" ":"")+cien(r);
+    if(mill&&!mil&&!r)s+=" DE";return s;};
+  return `${sec(ent)} PESOS ${String(cent).padStart(2,"0")}/100 M.N.`;
+}
+const imp=n=>`${money(n)} (${numLetras(n)})`;
+
+/* ---------- bloques de persona ---------- */
+function personaHTML(p,titulo,hint,moral){
+  return `<h2>${titulo}</h2><p class="hint">${hint}</p>
+  ${moral?`<div class="seg" style="margin-bottom:12px"><label><input type="radio" name="${p}_tipo" value="fisica" checked> Persona física</label><label><input type="radio" name="${p}_tipo" value="moral"> Persona moral (empresa)</label></div>
+  <div class="grid ${p}_moral hide" style="margin-bottom:12px">
+    <div class="full"><label>Razón social</label><input data-k="${p}_razon"></div>
+    <div><label>RFC</label><input data-k="${p}_rfc"></div>
+    <div class="full"><label>Datos de constitución y del poder del representante</label><textarea data-k="${p}_const" placeholder="Ej. según escritura pública No. ___ de fecha ___ otorgada ante el Notario Público No. ___; el representante acredita sus facultades con la escritura No. ___"></textarea></div>
+  </div>`:""}
+  <div class="ocr">
+    <b style="font-size:14px">🪪 Agregar INE como anexo <span class="small">(recomendado)</span></b>
+    <div class="small" style="margin:2px 0 8px">Las fotos se integran al contrato en el Anexo B (copia de identificaciones) y se intenta leer los datos: solo se llenan los que salen completos y con formato válido. Todo se procesa en este equipo, sin enviar nada a internet.</div>
+    <div class="row">
+      <div><label>Frente</label><input type="file" accept="image/*" id="${p}_f1" data-ine="${p}"></div>
+      <div><label>Reverso</label><input type="file" accept="image/*" id="${p}_f2" data-ine="${p}"></div>
+    </div>
+    <div class="thumbs" id="${p}_th"></div>
+    <div style="margin-top:8px"><button class="btn sec" data-ocr="${p}">Volver a intentar lectura</button></div>
+    <div class="status" id="${p}_st"></div>
+  </div>
+  <div class="grid">
+    <div class="full req"><label class="${p}_lnombre">Nombre completo</label><input data-k="${p}_nombre"></div>
+    <div><label>Nacionalidad</label><input data-k="${p}_nac" value="mexicana"></div>
+    <div class="${p}_pf"><label>Estado civil</label><select data-k="${p}_civil" id="${p}_civil"><option>soltero(a)</option><option>casado(a)</option><option>en unión libre</option><option>divorciado(a)</option><option>viudo(a)</option></select></div>
+    <div class="${p}_pf ${p}_reg hide"><label>Régimen matrimonial</label><select data-k="${p}_reg" id="${p}_reg"><option>sociedad conyugal</option><option>separación de bienes</option></select></div>
+    <div class="${p}_pf"><label>Ocupación</label><input data-k="${p}_ocup"></div>
+    <div><label>CURP</label><input data-k="${p}_curp" data-fmt="curp" maxlength="18" style="text-transform:uppercase"><div class="fmt small"></div></div>
+    <div class="req"><label>Clave de elector (INE)</label><input data-k="${p}_clave" data-fmt="clave" maxlength="18" style="text-transform:uppercase"><div class="fmt small"></div></div>
+    <div><label>CIC / número de identificación</label><input data-k="${p}_cic"></div>
+    <div class="full req"><label>Domicilio</label><input data-k="${p}_dom"></div>
+    <div><label>Teléfono</label><input data-k="${p}_tel" inputmode="tel"></div>
+    <div><label>Correo</label><input data-k="${p}_mail" type="email"></div>
+  </div>`;
+}
+$("#box_ar").innerHTML=personaHTML("ar","Arrendador","Dueño del inmueble (o empresa propietaria).",true);
+$("#box_at").innerHTML=personaHTML("at","Arrendatario","Quien va a rentar y ocupar el inmueble.",true);
+$("#box_os").innerHTML=personaHTML("os",'<span id="os_tit">Obligado solidario</span>',"Persona que responde por el arrendatario si no paga.",false);
+["in_mun","fi_lugar"].forEach(id=>{$("#"+id).innerHTML=MUN.map(m=>`<option${m==="Querétaro"?" selected":""}>${m}</option>`).join("");});
+
+/* ---------- estado ---------- */
+function S(){const o={};$$("[data-k]").forEach(e=>o[e.dataset.k]=e.value.trim());
+  o.ar_tipo=($("input[name=ar_tipo]:checked")||{}).value||"fisica";
+  o.at_tipo=($("input[name=at_tipo]:checked")||{}).value||"fisica";
+  o.ga=($("input[name=ga]:checked")||{}).value||"obligado";return o;}
+function setS(o){for(const k in o){const e=$(`[data-k="${k}"]`);if(e)e.value=o[k];}
+  ["ar_tipo","at_tipo","ga"].forEach(n=>{if(o[n]){const r=$(`input[name=${n}][value=${o[n]}]`);if(r)r.checked=true;}});sync();}
+const LS="mgp_contrato_arr_v1";
+const SENSIBLE=/(_curp|_clave|_cic|_rfc|clabe)$/;
+function save(){try{const o=S();Object.keys(o).forEach(k=>{if(SENSIBLE.test(k))delete o[k];});localStorage.setItem(LS,JSON.stringify(o));}catch(e){}}
+function load(){try{const o=JSON.parse(localStorage.getItem(LS)||"null");if(o)setS(o);}catch(e){}}
+
+/* ---------- visibilidad condicional ---------- */
+const esCom=t=>["Local comercial","Oficina","Bodega"].includes(t);
+function sync(){
+  const s=S(),com=esCom(s.in_tipo);
+  $$(".com").forEach(e=>e.classList.toggle("hide",!com));
+  $$(".hab").forEach(e=>e.classList.toggle("hide",com));
+  $$(".esc").forEach(e=>e.classList.toggle("hide",s.pr_doc!=="Escritura pública"));
+  $$(".otro").forEach(e=>e.classList.toggle("hide",s.pr_doc==="Escritura pública"));
+  ["ar","at","os"].forEach(p=>{
+    const mor=s[p+"_tipo"]==="moral";
+    $$("."+p+"_moral").forEach(e=>e.classList.toggle("hide",!mor));
+    $$("."+p+"_pf").forEach(e=>e.classList.toggle("hide",mor));
+    const ln=$("."+p+"_lnombre");if(ln)ln.textContent=mor?"Nombre del representante legal":"Nombre completo";
+    if(!mor)$$("."+p+"_reg").forEach(e=>e.classList.toggle("hide",s[p+"_civil"]!=="casado(a)"));
+  });
+  $("#box_cy").classList.toggle("hide",!(s.ar_tipo==="fisica"&&s.ar_civil==="casado(a)"&&s.ar_reg==="sociedad conyugal"));
+  $("#box_os").classList.toggle("hide",s.ga==="poliza"||s.ga==="ninguna");
+  $("#os_tit").textContent=s.ga==="fiador"?"Fiador":"Obligado solidario";
+  $("#box_fi").classList.toggle("hide",s.ga!=="fiador");
+  $("#box_po").classList.toggle("hide",s.ga!=="poliza");
+  $$(".pct").forEach(e=>e.classList.toggle("hide",s.co_inc!=="pct"));
+  $$(".bank").forEach(e=>e.classList.toggle("hide",s.co_forma==="Efectivo contra recibo"));
+  $("#co_fin").value=s.co_ini&&s.co_plazo?fechaLarga(addMonths(s.co_ini,s.co_plazo)):"";
+  const max=com?180:120, w=$("#plazo_warn");
+  if(Number(s.co_plazo)>max){w.className="note";w.textContent=`El plazo no puede exceder ${max/12} años (${max} meses) para este tipo de inmueble en Querétaro.`;}
+  else if(!com&&Number(s.co_plazo)<12){w.className="note blue";w.textContent="Plazo menor a un año: es válido si así se pacta; el contrato lo dejará expreso.";}
+  else w.className="note hide";
+}
+document.addEventListener("input",()=>{sync();save();});
+document.addEventListener("change",()=>{sync();save();});
+
+/* ---------- pasos ---------- */
+const steps=$$("section.step");let cur=0;
+$("#steps").innerHTML=steps.map((s,i)=>`<button data-go="${i}"><b>${i+1}. ${s.dataset.title}</b>${s.dataset.sub}</button>`).join("");
+function go(i){cur=Math.max(0,Math.min(steps.length-1,i));steps.forEach((s,j)=>s.classList.toggle("on",j===cur));
+  $$("#steps button").forEach((b,j)=>{b.classList.toggle("on",j===cur);b.classList.toggle("done",j<cur);});
+  if(cur===steps.length-1)render();window.scrollTo({top:0,behavior:"smooth"});}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("button");if(!t)return;
+  if(t.dataset.go!==undefined)go(+t.dataset.go);
+  if(t.dataset.ocr)leerINE(t.dataset.ocr);
+  if(t.hasAttribute("data-next"))go(cur+1);
+  if(t.hasAttribute("data-prev"))go(cur-1);
+  if(t.hasAttribute("data-load"))ejemplo();
+});
+$("#reset").onclick=()=>{try{localStorage.removeItem(LS);}catch(e){}location.reload();};
+
+/* ---------- INE: imágenes para Anexo B ---------- */
+const IMGS={ar:{},at:{},os:{}};
+function toJpeg(file,max=1400){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{
+  const sc=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");
+  c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
+  res({url:c.toDataURL("image/jpeg",.85),w:c.width,h:c.height});URL.revokeObjectURL(img.src);};img.onerror=()=>rej(new Error("No se pudo abrir la imagen."));img.src=URL.createObjectURL(file);});}
+function thumbs(p){const box=$("#"+p+"_th");const it=[["f1","Frente"],["f2","Reverso"]].filter(([k])=>IMGS[p][k]);
+  box.innerHTML=it.map(([k,l])=>`<figure><img src="${IMGS[p][k].url}" alt="INE ${l}" data-zoom><figcaption>${l} · va al Anexo B<button data-quitar="${p}:${k}">Quitar</button></figcaption></figure>`).join("");}
+document.addEventListener("change",async e=>{const t=e.target;if(!t.dataset||!t.dataset.ine)return;const p=t.dataset.ine,k=t.id.endsWith("f1")?"f1":"f2",f=t.files[0];if(!f)return;
+  try{IMGS[p][k]=await toJpeg(f);thumbs(p);if(cur===steps.length-1)render();}catch(err){$("#"+p+"_st").textContent=err.message;return;}
+  if(IMGS[p].f1&&IMGS[p].f2)leerINE(p);else{const st=$("#"+p+"_st");st.className="status";st.textContent="Sube también el "+(IMGS[p].f1?"reverso":"frente")+".";}});
+document.addEventListener("click",e=>{const z=e.target.closest("[data-zoom]");if(z)z.classList.toggle("big");
+  const q=e.target.closest("[data-quitar]");if(q){const[p,k]=q.dataset.quitar.split(":");delete IMGS[p][k];$("#"+p+"_"+k).value="";thumbs(p);}});
+
+/* ---------- validación de formato ---------- */
+const FMT={
+  clave:{re:/^[A-Z]{6}\d{8}[HMX]\d{3}$/,len:18,msg:"6 letras, 8 números, H/M y 3 números"},
+  curp:{re:/^[A-Z]{4}\d{6}[HMX][A-Z]{5}[A-Z0-9]\d$/,len:18,msg:"formato de CURP de 18 caracteres"},
+  clabe:{re:/^\d{18}$/,len:18,msg:"18 números",chk:v=>{const w=[3,7,1];let t=0;for(let i=0;i<17;i++)t+=(+v[i]*w[i%3])%10;return (10-t%10)%10===+v[17];}}
+};
+function fmtCheck(e){const f=FMT[e.dataset.fmt],box=e.parentElement.querySelector(".fmt");if(!f||!box)return true;
+  const v=e.value.trim().toUpperCase().replace(/\s/g,"");
+  if(!v){box.textContent="";box.className="fmt small";e.classList.remove("badfmt");return true;}
+  let ok=f.re.test(v),msg="";
+  if(!ok)msg=v.length!==f.len?`Lleva ${v.length} de ${f.len} caracteres (${f.msg}).`:`Formato no válido (${f.msg}).`;
+  else if(f.chk&&!f.chk(v)){ok=false;msg="El dígito verificador no cuadra: revisa la CLABE.";}
+  box.textContent=ok?"✓ Formato correcto":msg;box.className="fmt small "+(ok?"good":"bad");e.classList.toggle("badfmt",!ok);return ok;}
+document.addEventListener("input",e=>{if(e.target.dataset&&e.target.dataset.fmt)fmtCheck(e.target);});
+
+/* ---------- lectura de INE (solo datos verificables) ---------- */
+const CURP_D="0123456789ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+function curpOK(c){if(!FMT.curp.re.test(c))return false;let t=0;for(let i=0;i<17;i++)t+=CURP_D.indexOf(c[i])*(18-i);return (10-t%10)%10===+c[17];}
+function mrzDig(str){const v=ch=>/\d/.test(ch)?+ch:/[A-Z]/.test(ch)?ch.charCodeAt(0)-55:0;const w=[7,3,1];let t=0;[...str].forEach((c,i)=>t+=v(c)*w[i%3]);return t%10;}
+function parseINE(front,back){
+  const out={},F=(front||"").toUpperCase(),K=(back||"").toUpperCase(),ALL=(F+"\n"+K).replace(/[ \t]/g,"");
+  // CURP: debe cumplir formato y dígito verificador
+  for(const m of ALL.matchAll(/[A-Z]{4}\d{6}[HMX][A-Z]{5}[A-Z0-9]\d/g))if(curpOK(m[0])){out.curp=m[0];break;}
+  // Clave de elector: formato completo; si hay CURP, la fecha debe coincidir
+  for(const m of ALL.matchAll(/[A-Z]{6}\d{8}[HMX]\d{3}/g)){const c=m[0];if(out.curp&&c.slice(6,12)!==out.curp.slice(4,10))continue;out.clave=c;break;}
+  // Zona de lectura mecánica del reverso
+  const mz=K.replace(/[«]/g,"<<").replace(/[(\[{]/g,"<").replace(/ /g,"").split("\n").map(l=>l.trim());
+  const l1=mz.find(l=>/IDMEX\d{10}/.test(l));
+  if(l1){const i=l1.indexOf("IDMEX"),cic=l1.slice(i+5,i+14),chk=l1[i+14];if(/^\d{9}$/.test(cic)&&mrzDig(cic)===+chk)out.cic=cic;}
+  const nl=mz.find(l=>/^[A-Z]{2,}(<[A-Z]+)*<<[A-Z]{2,}(<[A-Z]+)*<*$/.test(l));
+  if(nl){const[ap,no]=nl.split("<<");const ape=ap.split("<").filter(Boolean),nom=no.split("<").filter(Boolean);
+    // solo si el primer apellido también aparece en el frente
+    if(ape.length&&nom.length&&F.replace(/\s/g,"").includes(ape[0]))out.nombre=[...nom,...ape].join(" ");}
+  return out;
+}
+let worker=null;
+async function getWorker(st){if(worker)return worker;if(!window.Tesseract)throw new Error("Worker no disponible");
+  st.textContent="Preparando lectura (la primera vez tarda unos segundos)…";
+  worker=await Tesseract.createWorker("spa",1,{langPath:"https://cdn.jsdelivr.net/npm/@tesseract.js-data/spa/4.0.0_best_int"});return worker;}
+function prep(file){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{
+  const sc=Math.min(2.2,1800/Math.max(img.width,img.height))||1;const c=document.createElement("canvas");c.width=img.width*sc;c.height=img.height*sc;
+  const x=c.getContext("2d");x.drawImage(img,0,0,c.width,c.height);const d=x.getImageData(0,0,c.width,c.height),a=d.data;
+  for(let i=0;i<a.length;i+=4){let g=.3*a[i]+.59*a[i+1]+.11*a[i+2];g=g>150?255:g<90?0:(g-90)*4.25;a[i]=a[i+1]=a[i+2]=g;}
+  x.putImageData(d,0,0);res(c);};img.onerror=rej;img.src=URL.createObjectURL(file);});}
+const ocrBusy={};
+async function leerINE(p){
+  const st=$("#"+p+"_st"),f1=$("#"+p+"_f1").files[0],f2=$("#"+p+"_f2").files[0];
+  st.className="status";if(!f1||!f2){st.textContent="Sube frente y reverso.";return;}
+  if(ocrBusy[p])return;ocrBusy[p]=true;
+  const CAMPOS=[["nombre","nombre"],["curp","CURP"],["clave","clave de elector"],["cic","CIC"]];
+  try{const w=await getWorker(st);
+    st.textContent="Leyendo frente…";const t1=(await w.recognize(await prep(f1))).data.text;
+    st.textContent="Leyendo reverso…";const t2=(await w.recognize(await prep(f2))).data.text;
+    const r=parseINE(t1,t2),ok=[],no=[];
+    CAMPOS.forEach(([k,l])=>{const e=$(`[data-k="${p}_${k}"]`);
+      if(r[k]){e.value=r[k];e.style.background="#EEF8F1";ok.push(l);if(e.dataset.fmt)fmtCheck(e);}else if(!e.value)no.push(l);});
+    no.push("domicilio");sync();save();
+    st.className="status "+(ok.length?"ok":"err");
+    st.innerHTML=(ok.length?`✓ Leídos completos y verificados: <b>${ok.join(", ")}</b> (en verde).<br>`:"No se pudo leer ningún dato completo. ")+
+      `<span style="color:var(--err)">Captura a mano viendo la imagen: ${no.join(", ")}.</span>`;
+  }catch(err){const m=String(err&&err.message||err||"");st.className="status err";
+    st.textContent=/Worker|blob|fetch|Network/i.test(m)
+      ?"No se pudo cargar el lector de INE. La INE sí quedó en el Anexo B: captura los datos a mano."
+      :"No se pudo leer la INE. Quedó en el Anexo B: captura los datos a mano.";}
+  finally{ocrBusy[p]=false;}
+}
+
+/* ---------- catastro ---------- */
+const normTxt=t=>t.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+function aplicarCatastro(d){
+  const set=(k,v)=>{if(v===undefined||v===null||v==="")return 0;const e=$(`[data-k="${k}"]`);if(!e)return 0;e.value=v;e.style.background="#EEF8F1";return 1;};
+  let n=0;n+=set("in_cat",d.clave);
+  if(d.municipio){const m=MUN.find(x=>normTxt(x)===normTxt(d.municipio).trim());if(m)n+=set("in_mun",m);}
+  if(d.direccion){let seg=d.direccion.split(",").map(x=>x.trim()).filter(Boolean);
+    while(seg.length>1&&/QUERETARO|SANTIAGO DE QUERETARO/.test(normTxt(seg[seg.length-1])))seg.pop();
+    n+=set("in_dom",seg.join(", "));}
+  const num=v=>v===undefined?"":String(v).replace(/[^\d.,]/g,"");
+  n+=set("in_supT",num(d.sup_terreno));n+=set("in_supC",num(d.sup_construccion));
+  if(d.colindancias&&d.colindancias.length)n+=set("in_col",d.colindancias.map(c=>`${c.orientacion}: ${c.medida} m con ${c.colinda}`).join("\n"));
+  sync();save();return n;
+}
+async function leerFicha(file){
+  const lib=window.pdfjsLib;if(!lib)throw new Error("No se cargó el lector de PDF.");
+  const pdf=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const rows=[];
+  for(let p=1;p<=pdf.numPages;p++){const tc=await (await pdf.getPage(p)).getTextContent();const map=new Map();
+    tc.items.forEach(it=>{if(!it.str||!it.str.trim())return;const y=Math.round(it.transform[5]/3);if(!map.has(y))map.set(y,[]);map.get(y).push(it);});
+    [...map.keys()].sort((a,b)=>b-a).forEach(y=>rows.push(map.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join(" ")));}
+  return parseFicha(rows);
+}
+function parseFicha(rows){
+  const T=rows.join("\n"),d={};
+  let m=T.match(/Clave catastral\s+(\d{10,18})/);if(m)d.clave=m[1];
+  m=T.match(/Municipio\s+([^\n]+)/);if(m)d.municipio=m[1].trim();
+  m=T.match(/Direcci[oó]n\s+([\s\S]+?)\n\s*Superficies/);if(m)d.direccion=m[1].replace(/\s*\n\s*/g," ").trim();
+  m=T.match(/Superficie de terreno[^\n\d]*([\d,.]+)/);if(m)d.sup_terreno=m[1];
+  m=T.match(/Construcci[oó]n total\s+([\d,.]+)/);if(m)d.sup_construccion=m[1];
+  const ORI="Norte|Sur|Este|Oeste|Oriente|Poniente|Noreste|Noroeste|Sureste|Suroeste|Nororiente|Norponiente|Suroriente|Surponiente";
+  const sec=T.split(/Colinda con/i)[1];
+  if(sec){d.colindancias=[];for(const r of sec.split(/Medidas del pol[ií]gono/i)[0].split("\n")){
+    const k=r.match(new RegExp(`^(${ORI})\\s+([\\d.,]+)\\s+(.+)$`,"i"));
+    if(k)d.colindancias.push({orientacion:k[1],medida:k[2],colinda:k[3].replace(/^CON\s+/i,"").trim()});}}
+  return d;
+}
+$("#cat_pdf").addEventListener("change",async e=>{const f=e.target.files[0],st=$("#cat_st");if(!f)return;
+  st.className="status";st.textContent="Leyendo ficha…";
+  try{const d=await leerFicha(f);const n=aplicarCatastro(d);if(d.clave)$("#cat_q").value=d.clave;
+    st.className="status "+(n?"ok":"err");st.textContent=n?`Se llenaron ${n} campo(s) desde la ficha (en verde). Revisa el domicilio: agrega número interior o C.P. si falta.`:"No se reconocieron datos en ese PDF. ¿Es la ficha del predio del Mapa catastral?";
+  }catch(err){st.className="status err";st.textContent="No se pudo leer el PDF: "+(err.message||err);}});
+$("#cat_btn").addEventListener("click",async()=>{const st=$("#cat_st"),q=$("#cat_q").value.replace(/\D/g,"");st.className="status";
+  if(!q){st.textContent="Escribe la clave catastral.";return;}
+  if(typeof window.TASA_catastro!=="function"){st.className="status";$('[data-k="in_cat"]').value=q;save();
+    st.textContent="Clave capturada. Para llenar el resto, sube la ficha del predio en PDF.";return;}
+  try{st.textContent="Consultando…";const n=aplicarCatastro(await window.TASA_catastro(q)||{});
+    st.className="status "+(n?"ok":"err");st.textContent=n?`Se llenaron ${n} campo(s) (en verde).`:"No se encontró información para esa clave.";}
+  catch(err){st.className="status err";st.textContent="No se pudo consultar: "+(err.message||err);}});
+
+/* ---------- contrato ---------- */
+function nombreParte(s,p){return (s[p+"_tipo"]==="moral"?B(s[p+"_razon"],30):B(s[p+"_nombre"],30)).toUpperCase();}
+function generales(s,p){return generales0(s,p).replace(/[.\s]+$/,"");}
+function generales0(s,p){
+  const ident=`quien se identifica con credencial para votar expedida por el Instituto Nacional Electoral con clave de elector ${B(s[p+"_clave"],18).toUpperCase()}${s[p+"_cic"]?" e identificador "+s[p+"_cic"]:""}`;
+  if(s[p+"_tipo"]==="moral")
+    return `${B(s[p+"_razon"],30).toUpperCase()}, persona moral constituida conforme a las leyes mexicanas, con Registro Federal de Contribuyentes ${B(s[p+"_rfc"],13).toUpperCase()}, ${B(s[p+"_const"],40)}, representada en este acto por ${B(s[p+"_nombre"],30).toUpperCase()}, ${ident}, y manifiesta bajo protesta de decir verdad que sus facultades no le han sido revocadas ni limitadas en forma alguna; con domicilio en ${B(s[p+"_dom"],40)}`;
+  const civ=s[p+"_civil"]||"soltero(a)";
+  const reg=civ==="casado(a)"?` bajo el régimen de ${s[p+"_reg"]}`:"";
+  return `${B(s[p+"_nombre"],30).toUpperCase()}, de nacionalidad ${s[p+"_nac"]||"mexicana"}, mayor de edad, ${civ}${reg}, con ocupación ${B(s[p+"_ocup"],16)}${s[p+"_curp"]?", con Clave Única de Registro de Población "+s[p+"_curp"].toUpperCase():""}, ${ident}, con domicilio en ${B(s[p+"_dom"],40)}`;
+}
+function contrato(s){
+  const com=esCom(s.in_tipo),R=Number(s.co_renta||0),dep=R*Number(s.co_dep||0),fin=addMonths(s.co_ini,s.co_plazo);
+  const ga=s.ga, gN=ga==="fiador"?"EL FIADOR":"EL OBLIGADO SOLIDARIO", hayG=ga==="obligado"||ga==="fiador";
+  const cy=s.ar_tipo==="fisica"&&s.ar_civil==="casado(a)"&&s.ar_reg==="sociedad conyugal";
+  const ubic=`${B(s.in_dom,40)}, municipio de ${s.in_mun}, Estado de Querétaro`;
+  const ivaTxt=com&&s.co_iva==="mas"?", más el Impuesto al Valor Agregado correspondiente":com&&s.co_iva==="incluido"?", con el Impuesto al Valor Agregado incluido":"";
+  const blocks=[];const P=x=>blocks.push({t:"p",x}),H=x=>blocks.push({t:"h",x}),Sb=x=>blocks.push({t:"s",x});
+  let n=0;const C=(h,x)=>blocks.push({t:"c",h:`${ORD[n++]}. ${h}.`,x});
+  blocks.push({t:"t",x:`CONTRATO DE ARRENDAMIENTO DE ${com?"INMUEBLE PARA USO "+(s.in_tipo==="Bodega"?"DE BODEGA":"COMERCIAL"):"CASA HABITACIÓN"}`});
+  P(`CONTRATO DE ARRENDAMIENTO QUE CELEBRAN, POR UNA PARTE, ${nombreParte(s,"ar")}, A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ "EL ARRENDADOR"${cy?`, CON LA COMPARECENCIA DE SU CÓNYUGE ${B(s.cy_nombre,30).toUpperCase()}`:""}; POR OTRA PARTE, ${nombreParte(s,"at")}, A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ "EL ARRENDATARIO"${hayG?`; Y ${B(s.os_nombre,30).toUpperCase()}, A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ "${gN}"`:""}; AL TENOR DE LAS SIGUIENTES DECLARACIONES Y CLÁUSULAS:`);
+  H("DECLARACIONES");
+  Sb(`I. Declara EL ARRENDADOR:`);
+  P(`a) Ser ${generales(s,"ar")}.`);
+  const acred=s.pr_doc==="Escritura pública"
+    ?`la escritura pública número ${B(s.pr_num,8)} de fecha ${fechaLarga(s.pr_fec)}, otorgada ante ${B(s.pr_not,40)}${s.pr_fol?", inscrita en el Registro Público de la Propiedad bajo el folio real "+s.pr_fol:""}`
+    :B(s.pr_otro,40);
+  const supTxt=(s.in_supT||s.in_supC)?`, con superficie de terreno de ${B(s.in_supT,6)} m²${s.in_supC?" y "+s.in_supC+" m² de construcción":""}`:"";
+  const colL=(s.in_col||"").split("\n").map(x=>x.trim()).filter(Boolean);
+  const colTxt=colL.length?`, con las siguientes medidas y colindancias: ${colL.map(x=>"al "+x.replace(/^(\S+)\s*:\s*/,"$1, ")).join("; ")}`:"";
+  P(`b) Ser legítimo propietario del inmueble ubicado en ${ubic}${s.in_cat?", con clave catastral "+s.in_cat:""}${supTxt}${colTxt} (en adelante "EL INMUEBLE"), lo cual acredita con ${acred}.`);
+  P(`c) Que EL INMUEBLE se encuentra en condiciones de higiene y seguridad para el uso convenido, al corriente en el pago del impuesto predial y de los servicios con que cuenta, y que es su voluntad darlo en arrendamiento en los términos de este contrato.`);
+  if(cy)P(`d) Que comparece su cónyuge, ${B(s.cy_nombre,30).toUpperCase()}, quien se identifica con credencial para votar con clave de elector ${B(s.cy_clave,18).toUpperCase()}, para manifestar su conformidad con la celebración del presente contrato.`);
+  Sb(`II. Declara EL ARRENDATARIO:`);
+  P(`a) Ser ${generales(s,"at")}.`);
+  P(`b) Que conoce EL INMUEBLE, que lo ha revisado y que lo recibe a su entera satisfacción en el estado descrito en el Anexo A de este contrato.`);
+  P(`c) Que destinará EL INMUEBLE exclusivamente ${com?`al giro de ${B(s.in_giro,30)}`:`a casa habitación`}, y que los recursos con que pagará la renta son de procedencia lícita.`);
+  let rom="III";
+  if(hayG){Sb(`III. Declara ${gN}:`);
+    P(`a) Ser ${generales(s,"os")}.`);
+    P(ga==="fiador"
+      ?`b) Ser propietario del inmueble ubicado en ${B(s.fi_dom,40)}${s.fi_esc?", según escritura número "+s.fi_esc:""}${s.fi_fol?", inscrito en el Registro Público de la Propiedad bajo el folio real "+s.fi_fol:""}, el cual se encuentra libre de gravámenes, y que es su voluntad constituirse en fiador de EL ARRENDATARIO.`
+      :`b) Que es su voluntad obligarse solidariamente con EL ARRENDATARIO al cumplimiento de todas las obligaciones derivadas de este contrato.`);
+    rom="IV";}
+  Sb(`${rom}. Declaran las partes:`);
+  P(`Único. Que se reconocen mutuamente la capacidad y, en su caso, la personalidad con que comparecen, y que en la celebración de este contrato no existe error, dolo, mala fe, violencia ni lesión, por lo que lo otorgan al tenor de las siguientes:`);
+  H("CLÁUSULAS");
+  C("OBJETO",`EL ARRENDADOR otorga en arrendamiento a EL ARRENDATARIO, quien lo recibe en tal concepto, EL INMUEBLE descrito en la declaración I, inciso b)${Number(s.in_caj)>0?`, incluyendo ${s.in_caj} cajón(es) de estacionamiento`:""}${s.in_amu!=="No"?`, ${s.in_amu==="Sí"?"amueblado":"semiamueblado"} con los bienes que se relacionan en el Anexo A`:", con los accesorios que se relacionan en el Anexo A"}.`);
+  C("DESTINO",com
+    ?`EL INMUEBLE se destinará exclusivamente al giro de ${B(s.in_giro,30)}. EL ARRENDATARIO no podrá cambiar dicho destino sin el consentimiento previo y por escrito de EL ARRENDADOR. La obtención y vigencia de licencias de funcionamiento, permisos y autorizaciones que requiera su actividad correrán por cuenta y bajo responsabilidad de EL ARRENDATARIO. Queda prohibido almacenar sustancias peligrosas o realizar actividades ilícitas en EL INMUEBLE.`
+    :`EL INMUEBLE se destinará exclusivamente a casa habitación de EL ARRENDATARIO y de las personas que habiten con él, sin exceder de ${B(s.in_ocu,2)} ocupantes. Queda prohibido darle un uso distinto, almacenar sustancias peligrosas o realizar actividades ilícitas en él.`);
+  C("PLAZO",`El presente contrato tendrá una vigencia forzosa para ambas partes de ${B(s.co_plazo,2)} (${numLetras(s.co_plazo||0).replace(/ PESOS.*$/,"").toLowerCase()}) meses, que inicia el ${fechaLarga(s.co_ini)} y concluye el ${fechaLarga(fin)}. Al término del plazo, cualquier prórroga o renovación deberá constar por escrito y firmada por las partes; la permanencia de EL ARRENDATARIO en EL INMUEBLE sin dicho documento no implicará renovación del contrato.`);
+  const pagoTxt=s.co_forma==="Efectivo contra recibo"
+    ?`en efectivo, en el domicilio de EL ARRENDADOR o donde este indique por escrito, contra la entrega del recibo correspondiente`
+    :`mediante ${s.co_forma.toLowerCase()} a la cuenta CLABE ${B(s.co_clabe,18)} de la institución ${B(s.co_banco,14)}, a nombre de ${(s.co_tit||(s.ar_tipo==="moral"?s.ar_razon:s.ar_nombre)||"_".repeat(30)).toUpperCase()}; el comprobante de la operación hará las veces de recibo`;
+  C("RENTA",`EL ARRENDATARIO pagará a EL ARRENDADOR, por concepto de renta mensual, la cantidad de ${imp(R)}${ivaTxt}. La renta se pagará por meses adelantados, a más tardar el día ${B(s.co_dia,2)} de cada mes, ${pagoTxt}. La renta se causará por meses completos, aun cuando EL ARRENDATARIO ocupe EL INMUEBLE solo una parte del mes.${com?" EL ARRENDADOR expedirá el comprobante fiscal correspondiente.":""}`);
+  if(s.co_inc!=="no"){
+    C("INCREMENTO DE LA RENTA",s.co_inc==="pct"
+      ?`Si el arrendamiento continúa por un período mayor a doce meses, al cumplirse cada año de vigencia la renta se incrementará en un ${B(s.co_pct,3)}% (por ciento) respecto de la renta vigente en ese momento.`
+      :`Si el arrendamiento continúa por un período mayor a doce meses, al cumplirse cada año de vigencia la renta se incrementará en el mismo porcentaje en que haya variado el Índice Nacional de Precios al Consumidor publicado por el Instituto Nacional de Estadística y Geografía durante los doce meses inmediatos anteriores.`);
+  }
+  if(Number(s.co_mora)>0)C("PAGO TARDÍO",`Si EL ARRENDATARIO no paga la renta en el plazo señalado, pagará un interés moratorio del ${s.co_mora}% (por ciento) mensual sobre el importe vencido, por todo el tiempo que dure la mora, sin perjuicio del derecho de EL ARRENDADOR a demandar la rescisión del contrato.`);
+  C("DEPÓSITO EN GARANTÍA",`A la firma de este contrato, EL ARRENDATARIO entrega a EL ARRENDADOR la cantidad de ${imp(dep)}, equivalente a ${s.co_dep||"0"} mes(es) de renta, como depósito en garantía del cumplimiento de sus obligaciones. El depósito no generará intereses ni podrá aplicarse al pago de rentas. EL ARRENDADOR lo devolverá dentro de los treinta días naturales siguientes a la entrega de EL INMUEBLE, una vez verificado que este se encuentra en las condiciones en que se recibió, salvo el deterioro normal por su uso, y que no existen adeudos de renta, servicios o cuotas; en caso contrario, podrá aplicarlo a cubrir dichos conceptos, entregando el remanente si lo hubiere.`);
+  C("SERVICIOS Y CUOTAS",`Serán por cuenta de EL ARRENDATARIO los pagos de energía eléctrica, agua, gas, teléfono, internet y cualquier otro servicio que contrate o consuma durante la vigencia del arrendamiento${s.co_mant==="El arrendatario"?", así como la cuota de mantenimiento"+(s.in_con==="Sí"?" condominal":""):""}. ${s.co_mant==="El arrendador"?"La cuota de mantenimiento"+(s.in_con==="Sí"?" condominal":"")+" y el":"El"} impuesto predial ${s.co_mant==="El arrendador"?"serán":"será"} por cuenta de EL ARRENDADOR. Al término del contrato, EL ARRENDATARIO entregará los comprobantes de pago de los servicios a su cargo al corriente.`);
+  C("CONSERVACIÓN Y REPARACIONES",`EL ARRENDATARIO se obliga a conservar EL INMUEBLE en el estado en que lo recibe y a realizar a su costa las reparaciones de los deterioros causados por él, por las personas que lo habiten o visiten, así como las pequeñas reparaciones derivadas del uso ordinario. Deberá avisar de inmediato a EL ARRENDADOR de cualquier desperfecto que requiera reparación mayor. EL ARRENDADOR realizará las reparaciones necesarias para conservar EL INMUEBLE en estado de servir para el uso convenido, salvo que el daño sea imputable a EL ARRENDATARIO.`);
+  C("MEJORAS Y MODIFICACIONES",`EL ARRENDATARIO no podrá realizar obras, modificaciones ni mejoras en EL INMUEBLE sin el consentimiento previo y por escrito de EL ARRENDADOR. Salvo pacto escrito en contrario, las mejoras que se realicen quedarán en beneficio de EL INMUEBLE sin costo para EL ARRENDADOR, o EL ARRENDATARIO deberá retirarlas a su costa, dejando EL INMUEBLE en el estado en que lo recibió.`);
+  C("SUBARRENDAMIENTO Y CESIÓN",`EL ARRENDATARIO no podrá subarrendar total ni parcialmente EL INMUEBLE, ni ceder los derechos derivados de este contrato, sin el consentimiento previo y por escrito de EL ARRENDADOR.`);
+  if(!com||s.in_con==="Sí"){
+    const partes=[];
+    if(!com)partes.push(s.in_mas==="Permitidas"?"Se permite la tenencia de mascotas en EL INMUEBLE; EL ARRENDATARIO responderá de los daños que causen y de las molestias a los vecinos":s.in_mas==="Solo con autorización escrita"?"La tenencia de mascotas en EL INMUEBLE requerirá autorización previa y por escrito de EL ARRENDADOR; en su caso, EL ARRENDATARIO responderá de los daños que causen":"No se permite la tenencia de mascotas en EL INMUEBLE");
+    if(s.in_con==="Sí")partes.push("EL ARRENDATARIO se obliga a cumplir el reglamento del condominio, del cual recibe copia a la firma de este contrato, y responderá de las sanciones que se impongan por su incumplimiento");
+    C(s.in_con==="Sí"?"CONVIVENCIA Y REGLAMENTO":"MASCOTAS",partes.join(". ")+".");
+  }
+  C("VISITAS DE INSPECCIÓN",`EL ARRENDADOR podrá visitar EL INMUEBLE para verificar su estado, previo aviso a EL ARRENDATARIO con al menos ${B(s.co_visita,2)} horas de anticipación, en día y hora hábiles.`);
+  if(ga==="obligado")C("OBLIGADO SOLIDARIO",`EL OBLIGADO SOLIDARIO se obliga solidariamente con EL ARRENDATARIO al cumplimiento de todas y cada una de las obligaciones de este contrato, incluyendo el pago de rentas, intereses, penas, servicios, daños y gastos. Su obligación subsistirá hasta que EL INMUEBLE sea entregado a EL ARRENDADOR y se cubran todos los adeudos, aun cuando el arrendamiento se prorrogue o se renueve.`);
+  if(ga==="fiador")C("FIANZA",`EL FIADOR se constituye en fiador de EL ARRENDATARIO para garantizar el cumplimiento de todas las obligaciones de este contrato, renunciando a los beneficios de orden y excusión. Su obligación subsistirá hasta que EL INMUEBLE sea entregado a EL ARRENDADOR y se cubran todos los adeudos, aun cuando el arrendamiento se prorrogue o se renueve.`);
+  if(ga==="poliza")C("PÓLIZA JURÍDICA",`Las partes reconocen que el presente arrendamiento cuenta con la póliza jurídica número ${B(s.po_num,10)} expedida por ${B(s.po_emp,24)}, cuyos términos se tienen por reproducidos y forman parte de este contrato.`);
+  C("RESCISIÓN",`EL ARRENDADOR podrá rescindir el presente contrato, sin necesidad de declaración judicial previa en lo que la ley lo permita, por cualquiera de las siguientes causas: a) la falta de pago de dos o más mensualidades de renta; b) destinar EL INMUEBLE a un uso distinto del convenido; c) subarrendar o ceder EL INMUEBLE sin su consentimiento escrito; d) causar daños graves a EL INMUEBLE o realizar en él obras no autorizadas; e) realizar actividades ilícitas en EL INMUEBLE; y f) el incumplimiento de cualquier otra obligación a cargo de EL ARRENDATARIO.`);
+  C("TERMINACIÓN ANTICIPADA",`Si EL ARRENDATARIO desea desocupar EL INMUEBLE antes del vencimiento del plazo forzoso, deberá avisarlo por escrito a EL ARRENDADOR con al menos treinta días naturales de anticipación y pagar, como pena convencional, el equivalente a ${s.co_pena||"0"} mes(es) de la renta vigente, además de las rentas y servicios que se adeuden a la fecha de la entrega.`);
+  C("ENTREGA DEL INMUEBLE",`Al término del arrendamiento, EL ARRENDATARIO entregará EL INMUEBLE desocupado, limpio, en el estado en que lo recibió salvo el deterioro natural por el uso, con la totalidad de llaves y accesorios relacionados en el Anexo A y con los servicios pagados. De la entrega se levantará un acta de entrega-recepción firmada por ambas partes.`);
+  C("DOMICILIOS",`Para todo lo relacionado con este contrato, las partes señalan como sus domicilios: EL ARRENDADOR, el indicado en la declaración I; EL ARRENDATARIO, EL INMUEBLE arrendado${hayG?`; y ${gN}, el indicado en la declaración III`:""}. Cualquier cambio de domicilio deberá notificarse por escrito a las demás partes.`);
+  C("ANEXOS",`Forman parte integrante de este contrato: Anexo A, inventario y estado de EL INMUEBLE; y Anexo B, copia de las identificaciones oficiales de quienes lo firman${s.ar_tipo==="moral"||s.at_tipo==="moral"?" y de los documentos que acreditan la representación de las personas morales":""}.`);
+  C("JURISDICCIÓN",`Para la interpretación y cumplimiento de este contrato, las partes se someten a las leyes del Estado de Querétaro y a la jurisdicción de los tribunales competentes del lugar de ubicación de EL INMUEBLE, renunciando a cualquier otro fuero que pudiera corresponderles por razón de sus domicilios presentes o futuros.`);
+  P(`Leído que fue el presente contrato y enteradas las partes de su contenido y alcance legal, lo firman por duplicado en ${s.fi_lugar}, Querétaro, el ${fechaLarga(s.fi_fecha)}.`);
+  const sig=[{l:"EL ARRENDADOR",n:s.ar_tipo==="moral"?`${nombreParte(s,"ar")}\nRep.: ${B(s.ar_nombre,20).toUpperCase()}`:nombreParte(s,"ar")},
+             {l:"EL ARRENDATARIO",n:s.at_tipo==="moral"?`${nombreParte(s,"at")}\nRep.: ${B(s.at_nombre,20).toUpperCase()}`:nombreParte(s,"at")}];
+  if(cy)sig.push({l:"CÓNYUGE DEL ARRENDADOR",n:B(s.cy_nombre,24).toUpperCase()});
+  if(hayG)sig.push({l:gN,n:B(s.os_nombre,24).toUpperCase()});
+  if(s.te_1)sig.push({l:"TESTIGO",n:s.te_1.toUpperCase()});
+  if(s.te_2)sig.push({l:"TESTIGO",n:s.te_2.toUpperCase()});
+  blocks.push({t:"sig",items:sig});
+  blocks.push({t:"pb"});
+  blocks.push({t:"t",x:"ANEXO A · INVENTARIO Y ESTADO DEL INMUEBLE"});
+  P(`Inmueble: ${ubic}. Fecha de entrega: ${fechaLarga(s.co_ini)}.`);
+  const inv=(s.inv||"").split("\n").map(x=>x.trim()).filter(Boolean);
+  (inv.length?inv:["______________________________________________","______________________________________________","______________________________________________"]).forEach((x,i)=>blocks.push({t:"li",x:`${i+1}. ${x}`}));
+  P(`Observaciones sobre el estado general (pintura, pisos, muros, instalaciones, ventanas, puertas): ______________________________________________________________________________________________________________________________________________.`);
+  P(`EL ARRENDATARIO recibe EL INMUEBLE y los bienes anteriores a su entera satisfacción.`);
+  blocks.push({t:"sig",items:sig.slice(0,2)});
+  const anx=[["ar","EL ARRENDADOR"],["at","EL ARRENDATARIO"],["os",gN]].filter(([p])=>(p!=="os"||hayG)&&(IMGS[p].f1||IMGS[p].f2));
+  if(anx.length){blocks.push({t:"pb"});blocks.push({t:"t",x:"ANEXO B · COPIA DE IDENTIFICACIONES"});
+    anx.forEach(([p,l])=>blocks.push({t:"img",l:`${l}: ${p==="os"?B(s.os_nombre,24).toUpperCase():nombreParte(s,p)}`,imgs:[IMGS[p].f1,IMGS[p].f2].filter(Boolean)}));}
+  return blocks;
+}
+
+/* ---------- pendientes ---------- */
+function pendientes(s){
+  const L=[],add=(k,x)=>L.push({k,x}),com=esCom(s.in_tipo);
+  const req=[["in_dom","Domicilio del inmueble"],["ar_nombre","Nombre del arrendador"],["ar_clave","Clave de elector del arrendador"],["ar_dom","Domicilio del arrendador"],["at_nombre","Nombre del arrendatario"],["at_clave","Clave de elector del arrendatario"],["at_dom","Domicilio del arrendatario"],["co_renta","Renta mensual"],["co_ini","Fecha de inicio"],["fi_fecha","Fecha de firma"]];
+  if(s.pr_doc==="Escritura pública")req.push(["pr_num","Número de escritura"],["pr_not","Notario de la escritura"]);else req.push(["pr_otro","Documento de propiedad"]);
+  if(s.ar_tipo==="moral")req.push(["ar_razon","Razón social del arrendador"],["ar_const","Constitución y poder del arrendador"]);
+  if(s.at_tipo==="moral")req.push(["at_razon","Razón social del arrendatario"],["at_const","Constitución y poder del arrendatario"]);
+  if(s.ga==="obligado"||s.ga==="fiador")req.push(["os_nombre","Nombre del "+(s.ga==="fiador"?"fiador":"obligado solidario")],["os_clave","Clave de elector del "+(s.ga==="fiador"?"fiador":"obligado solidario")]);
+  if(s.ga==="fiador")req.push(["fi_dom","Inmueble del fiador"]);
+  if(s.ga==="poliza")req.push(["po_num","Número de póliza"],["po_emp","Empresa de la póliza"]);
+  if(com)req.push(["in_giro","Giro del local"]);
+  if(s.co_forma!=="Efectivo contra recibo")req.push(["co_clabe","CLABE para el pago"]);
+  const miss=req.filter(([k])=>!s[k]);
+  miss.forEach(([,l])=>add("FALTA",`Capturar: ${l} (saldrá en blanco en el contrato).`));
+  const nomF={ar_clave:"clave de elector del arrendador",at_clave:"clave de elector del arrendatario",os_clave:"clave de elector del aval",cy_clave:"clave de elector del cónyuge",ar_curp:"CURP del arrendador",at_curp:"CURP del arrendatario",os_curp:"CURP del aval",co_clabe:"CLABE"};
+  $$("[data-fmt]").forEach(e=>{if(!e.value.trim()||fmtCheck(e))return;const sec=e.closest(".card");if(sec&&sec.classList.contains("hide"))return;const wrap=e.closest(".hide");if(wrap)return;add("FALTA",`Revisar ${nomF[e.dataset.k]||e.dataset.k}: el formato no es válido.`);});
+  add("VERIFICAR","Consultar que las INE estén vigentes en la Lista Nominal del INE (listanominal.ine.mx) y cotejarlas contra el original.");
+  add("VERIFICAR",s.pr_doc==="Escritura pública"?"Ver la escritura original y que el arrendador sea el propietario; pedir el predial al corriente.":"Revisar que el documento presentado realmente acredite la propiedad; si no es escritura, consultar con un abogado antes de firmar.");
+  if(s.ar_tipo==="moral"||s.at_tipo==="moral")add("VERIFICAR","Revisar acta constitutiva y poder del representante (que tenga facultades para arrendar y esté vigente).");
+  if(s.ar_tipo==="fisica"&&s.ar_civil==="casado(a)"&&s.ar_reg==="sociedad conyugal")add("FIRMA","Recabar la firma del cónyuge del arrendador y copia de su INE.");
+  if(s.ga==="fiador")add("VERIFICAR","Pedir certificado de libertad de gravamen del inmueble del fiador (MGP lo tramita) y copia de su escritura.");
+  if(s.ga==="obligado")add("VERIFICAR","Pedir comprobantes de ingresos y de domicilio del obligado solidario.");
+  if(s.ga==="poliza")add("VERIFICAR","Anexar la póliza jurídica y revisar que sus datos coincidan con el contrato.");
+  if(s.ga==="ninguna")add("TIP","El contrato solo tiene depósito como garantía. Considera pedir obligado solidario o póliza jurídica.");
+  if(com)add("VERIFICAR","Confirmar que el uso de suelo del local permite el giro; las licencias corren por cuenta del arrendatario. Definir quién emite el CFDI de la renta.");
+  if(s.in_con==="Sí")add("FIRMA","Entregar copia del reglamento del condominio al arrendatario.");
+  add("FIRMA","Imprimir dos tantos; firmar al final y rubricar todas las hojas, incluido el Anexo A.");
+  const sinIne=[["ar","arrendador"],["at","arrendatario"],["os",s.ga==="fiador"?"fiador":"obligado solidario"]].filter(([p])=>(p!=="os"||s.ga==="obligado"||s.ga==="fiador")&&!(IMGS[p].f1&&IMGS[p].f2)).map(([,l])=>l);
+  if(sinIne.length)add("FIRMA",`Anexar copia de la INE (frente y reverso) de: ${sinIne.join(", ")}.`);
+  if(IMGS.ar.f1||IMGS.at.f1||IMGS.os.f1)add("TIP","El PDF incluye fotos de identificaciones: compártelo solo con las partes del contrato.");
+  add("FIRMA","Llenar el inventario con fotos fechadas del inmueble.");
+  add("FIRMA","Entregar recibo del depósito y de la primera renta.");
+  if(Number(s.co_plazo)>12)add("TIP","Por ser un contrato de más de un año, conviene ratificar las firmas ante notario para darle fecha cierta.");
+  add("TIP","¿Dudas sobre el monto de la renta? Solicita una justipreciación de rentas con MGP.");
+  return {L,miss};
+}
+
+/* ---------- vista previa ---------- */
+function render(){
+  const s=S(),bl=contrato(s),{L,miss}=pendientes(s);
+  $("#preview").innerHTML=bl.map(b=>{
+    if(b.t==="t")return `<div class="t">${esc(b.x)}</div>`;
+    if(b.t==="h")return `<div class="h">${esc(b.x)}</div>`;
+    if(b.t==="s")return `<div class="s">${esc(b.x)}</div>`;
+    if(b.t==="c")return `<p><span class="c">${esc(b.h)}</span> ${esc(b.x)}</p>`;
+    if(b.t==="li")return `<div>${esc(b.x)}</div>`;
+    if(b.t==="pb")return `<div class="pb">— nueva hoja —</div>`;
+    if(b.t==="img")return `<div class="s">${esc(b.l)}</div><div class="anx">${b.imgs.map(i=>`<img src="${i.url}">`).join("")}</div>`;
+    if(b.t==="sig")return `<div class="sig">${b.items.map(i=>`<div>${esc(i.l)}<br><b>${esc(i.n).replace(/\n/g,"<br>")}</b></div>`).join("")}</div>`;
+    return `<p>${esc(b.x)}</p>`;}).join("");
+  const lab={FALTA:"falta",VERIFICAR:"verif",FIRMA:"firma",TIP:"tip"};
+  $("#pend").innerHTML=L.map(i=>`<li><span class="k ${lab[i.k]}">${i.k}</span><span>${esc(i.x)}</span></li>`).join("");
+  $("#faltan").innerHTML=miss.length?`<div class="note">Faltan ${miss.length} dato(s) importantes; saldrán como línea en blanco. Puedes descargarlo así y llenarlos a mano, o regresar a capturarlos.</div>`:`<div class="note blue">Contrato completo. Revísalo antes de imprimir.</div>`;
+}
+
+/* ---------- PDF ---------- */
+function pdfWriter(){
+  const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"pt",format:"letter"});
+  const M=66,W=612-2*M,TOP=70,BOT=792-70;let y=TOP;
+  const nl=h=>{if(y+h>BOT){doc.addPage();y=TOP;}};
+  const cache={};let curFont="normal";
+  const tw=(str,font)=>{const fs=doc.getFontSize();let t=0;for(const ch of str){const k=font+fs+ch;if(cache[k]===undefined){doc.setFont("helvetica",font);cache[k]=doc.getTextWidth(ch);}t+=cache[k];}return t;};
+  function justLine(words,x,y,w,last,font){
+    doc.setFont("helvetica",font);
+    if(last||words.length<2){doc.text(words.join(" "),x,y);return;}
+    const tw=words.reduce((a,wd)=>a+doc.getTextWidth(wd),0),gap=(w-tw)/(words.length-1);
+    let cx=x;words.forEach(wd=>{doc.text(wd,cx,y);cx+=doc.getTextWidth(wd)+gap;});
+  }
+  function rich(runs,{size=10,lead=14.2,after=7,indent=0}={}){
+    // runs: [{x,b}] -> palabras con estilo
+    doc.setFontSize(size);const words=[];
+    runs.forEach(r=>r.x.split(/\s+/).filter(Boolean).forEach(w=>words.push({w,b:r.b})));
+    const lines=[];let line=[],lw=0;const sp=()=>tw(" ","normal");
+    const width=w=>tw(w.w,w.b?"bold":"normal");
+    words.forEach(w=>{const ww=width(w),add=line.length?sp()+ww:ww;if(lw+add>W-indent&&line.length){lines.push(line);line=[w];lw=ww;}else{line.push(w);lw+=add;}});
+    if(line.length)lines.push(line);
+    lines.forEach((ln,i)=>{nl(lead);const last=i===lines.length-1;
+      const tw=ln.reduce((a,w)=>a+width(w),0),gap=(last||ln.length<2)?sp():(W-indent-tw)/(ln.length-1);
+      let cx=M+indent;ln.forEach(w=>{doc.setFont("helvetica",w.b?"bold":"normal");doc.text(w.w,cx,y);cx+=width(w)+gap;});y+=lead;});
+    y+=after;
+  }
+  function center(x,{size=11,bold=true,after=10}={}){doc.setFontSize(size);doc.setFont("helvetica",bold?"bold":"normal");
+    doc.splitTextToSize(x,W).forEach(l=>{nl(size+5);doc.text(l,306,y,{align:"center"});y+=size+4;});y+=after;}
+  function sig(items){
+    const colW=(W-40)/2;let rows=Math.ceil(items.length/2);nl(30);y+=34;
+    for(let r=0;r<rows;r++){nl(70);
+      for(let c=0;c<2;c++){const it=items[r*2+c];if(!it)continue;const x=M+c*(colW+40);
+        doc.setLineWidth(.6);doc.line(x,y,x+colW,y);doc.setFontSize(8.5);doc.setFont("helvetica","normal");
+        doc.text(it.l,x+colW/2,y+11,{align:"center"});doc.setFont("helvetica","bold");
+        doc.splitTextToSize(it.n.replace(/\n/g," · "),colW).slice(0,3).forEach((l,i)=>doc.text(l,x+colW/2,y+23+i*10,{align:"center"}));}
+      y+=78;}
+  }
+  function footer(txt){const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setFont("helvetica","normal");doc.setTextColor(110);
+    doc.text(`Página ${i} de ${n}`,612-M,792-36,{align:"right"});if(txt)doc.text(txt,M,792-36);doc.setTextColor(0);}}
+  function imgs(label,list){
+    const gap=16,cw=(W-gap)/2,maxH=170;
+    const dims=list.map(i=>{let w=cw,h=w*i.h/i.w;if(h>maxH){h=maxH;w=h*i.w/i.h;}return{w,h};});
+    const H=Math.max(...dims.map(d=>d.h));nl(H+40);
+    rich([{x:label,b:true}],{after:4});
+    list.forEach((i,k)=>{const d=dims[k];doc.addImage(i.url,"JPEG",M+k*(cw+gap),y,d.w,d.h);doc.setDrawColor(180);doc.rect(M+k*(cw+gap),y,d.w,d.h);});
+    y+=H+20;
+  }
+  return {doc,rich,center,sig,footer,imgs,newPage:()=>{doc.addPage();y=TOP;},get y(){return y;},set y(v){y=v;},M,W};
+}
+function pdfContrato(){
+  const s=S(),bl=contrato(s),P=pdfWriter();
+  bl.forEach(b=>{
+    if(b.t==="t")P.center(b.x,{size:11.5,after:8});
+    else if(b.t==="h")P.center(b.x,{size:10.5,after:4});
+    else if(b.t==="s")P.rich([{x:b.x,b:true}],{after:3});
+    else if(b.t==="c")P.rich([{x:b.h,b:true},{x:b.x,b:false}]);
+    else if(b.t==="li")P.rich([{x:b.x}],{after:2,indent:14});
+    else if(b.t==="pb")P.newPage();
+    else if(b.t==="sig")P.sig(b.items);
+    else if(b.t==="img")P.imgs(b.l,b.imgs);
+    else P.rich([{x:b.x}]);
+  });
+  P.footer("Rúbricas: ________   ________   ________");
+  return P.doc.output("blob");
+}
+function pdfPend(){
+  const s=S(),{L}=pendientes(s),P=pdfWriter();
+  P.center("HOJA DE PENDIENTES DEL ASESOR",{size:12.5,after:2});
+  P.center("No forma parte del contrato. Retírala antes de firmar.",{size:9,bold:false,after:12});
+  P.rich([{x:"Arrendador: ",b:true},{x:nombreParte(s,"ar")}],{after:1});
+  P.rich([{x:"Arrendatario: ",b:true},{x:nombreParte(s,"at")}],{after:1});
+  P.rich([{x:"Inmueble: ",b:true},{x:`${B(s.in_dom,30)}, ${s.in_mun}, Qro.`}],{after:1});
+  P.rich([{x:"Renta: ",b:true},{x:`${money(s.co_renta)} · inicio ${fechaLarga(s.co_ini)} · ${s.co_plazo||"__"} meses`}],{after:12});
+  ["FALTA","VERIFICAR","FIRMA","TIP"].forEach(k=>{const it=L.filter(i=>i.k===k);if(!it.length)return;
+    P.rich([{x:{FALTA:"Datos por completar",VERIFICAR:"Verificaciones",FIRMA:"Para la firma",TIP:"Recomendaciones"}[k],b:true}],{after:3});
+    it.forEach(i=>P.rich([{x:"☐  "+i.x}].map(r=>({x:r.x.replace("☐","[  ]")})),{after:3,indent:10}));P.y+=6;});
+  P.rich([{x:"Este formato es una herramienta de apoyo. La verificación de la identidad de las partes, de la propiedad del inmueble y del contenido del contrato es responsabilidad de quien lo utiliza."}],{size:8.5,lead:12});
+  P.footer("");
+  return P.doc.output("blob");
+}
+async function guardar(nombre,blob){const st=$("#dl_status");st.className="status";
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  st.className="status ok";st.textContent="Descargado: "+nombre+". El borrador de este equipo se borró.";limpiarBorrador();}
+const slug=s=>(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"sin-nombre";
+$("#dl_contrato").onclick=async()=>{if(!window.jspdf){$("#dl_status").textContent="No se cargó el generador de PDF; revisa tu conexión.";return;}
+  const s=S();await guardar(`Contrato-arrendamiento-${slug(s.at_tipo==="moral"?s.at_razon:s.at_nombre)}.pdf`,pdfContrato());};
+$("#dl_pend").onclick=async()=>{if(!window.jspdf)return;const s=S();await guardar(`Pendientes-${slug(s.at_tipo==="moral"?s.at_razon:s.at_nombre)}.pdf`,pdfPend());};
+
+/* ---------- ejemplo ---------- */
+function ejemplo(){
+  const hoy=new Date().toISOString().slice(0,10);
+  setS({in_tipo:"Casa habitación",in_mun:"Querétaro",in_dom:"Calle Ejemplo 123, Fracc. Prueba, C.P. 76000",in_cat:"140100000000000",in_caj:"2",in_amu:"No",in_con:"Sí",in_ocu:"4",in_mas:"Solo con autorización escrita",
+    pr_doc:"Escritura pública",pr_num:"12,345",pr_fec:"2019-05-14",pr_not:"Lic. Nombre de Ejemplo, Notario Público No. 0 de Querétaro",pr_fol:"000000",
+    ar_tipo:"fisica",ar_nombre:"Juan Pérez Ejemplo",ar_nac:"mexicana",ar_civil:"casado(a)",ar_reg:"sociedad conyugal",ar_ocup:"comerciante",ar_curp:"",ar_clave:"PREJJN80010122H100",ar_dom:"Av. Ficticia 45, Col. Centro, Querétaro, Qro.",ar_tel:"4420000000",
+    cy_nombre:"María López Ejemplo",cy_clave:"LPEJMR82020222M200",
+    at_tipo:"fisica",at_nombre:"Ana Gómez Prueba",at_nac:"mexicana",at_civil:"soltero(a)",at_ocup:"ingeniera",at_clave:"GMPRAN90030322M300",at_dom:"Calle Anterior 9, Col. Sur, Querétaro, Qro.",
+    ga:"obligado",os_nombre:"Luis Gómez Prueba",os_civil:"casado(a)",os_reg:"separación de bienes",os_ocup:"contador",os_clave:"GMPRLS65040422H400",os_dom:"Calle Aval 77, Col. Norte, Querétaro, Qro.",
+    co_renta:"12500",co_dia:"5",co_ini:hoy,co_plazo:"12",co_dep:"1",co_forma:"Transferencia",co_banco:"Banco Ejemplo",co_clabe:"000000000000000000",co_inc:"inpc",co_mant:"El arrendatario",co_mora:"3",co_pena:"1",co_visita:"24",
+    fi_lugar:"Querétaro",fi_fecha:hoy,inv:"3 juegos de llaves de acceso principal\n1 control de portón eléctrico\nCalentador de agua de paso en funcionamiento\nCortinas en recámaras (3)"});
+  save();
+}
+
+/* ---------- borrador y borrado ---------- */
+function limpiarBorrador(){try{localStorage.removeItem(LS);}catch(e){}}
+let _bt=null;$("#borrar").addEventListener("click",()=>{const b=$("#borrar");
+  if(!b.classList.contains("conf")){b.classList.add("conf");b.textContent="¿Borrar todo? Toca otra vez";_bt=setTimeout(()=>{b.classList.remove("conf");b.textContent="🗑 Borrar datos de este equipo";},5000);return;}
+  clearTimeout(_bt);try{[LS].forEach(k=>localStorage.removeItem(k));}catch(e){}location.reload();});
+
+load();setTimeout(()=>$$("[data-fmt]").forEach(fmtCheck),0);if(window.TASA_prellenar)setS(window.TASA_prellenar);sync();go(0);
+</script>
+</body>
+</html>

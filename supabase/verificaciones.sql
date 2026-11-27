@@ -3581,7 +3581,9 @@ declare
   nv  uuid;
 begin
   perform pg_temp.sistema();
-  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 8::bigint, 'Cada organización nace con sus herramientas');
+  -- Este catálogo es el de antes de 0100: ficha y checklist apagadas aquí (las prueba su propia sección).
+  update herramientas set activa = false where organizacion_id = xg and clave in ('ficha_captacion', 'checklist_documentos');
+  perform pg_temp.igual((select count(*) from herramientas where organizacion_id = xg), 10::bigint, 'Cada organización nace con sus herramientas (0100: ficha y checklist)');
   perform pg_temp.igual((select string_agg(clave, ',' order by orden) from herramientas where organizacion_id = xg and activa), 'mi_tarjeta,para_tus_clientes,invitar,agenda',
     'Activas: Mi tarjeta, Para tus clientes, Invita y la Agenda (solo admin_org, 0091); la calculadora aún no');
 
@@ -3622,6 +3624,8 @@ begin
   perform pg_temp.debe_fallar('select count(*) from herramientas', 'permission denied', 'Sin sesión no se lee el catálogo');
   perform pg_temp.sistema();
   update herramientas set activa = false, niveles = null where organizacion_id = xg and clave like 'calculadora%';
+  -- 0100: ficha y checklist vuelven a como las deja la migración (las prueba su propia sección).
+  update herramientas set activa = true where organizacion_id = xg and clave in ('ficha_captacion', 'checklist_documentos');
 end;
 $$;
 
@@ -6629,6 +6633,46 @@ begin
   delete from alertas where tipo = 'catastro_bloqueo';
   delete from catastro_bloqueo_correos;
   update herramientas set roles = array['admin_org'] where organizacion_id = pg_temp.xg() and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$sec$;
+
+-- @@ Ficha de captación y checklist: catálogo, uso, servicios y fecha del checklist (0100)
+do $sec$
+declare
+  xg uuid := pg_temp.xg();
+begin
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select string_agg(clave || ':' || activa, ',' order by clave) from herramientas
+                          where organizacion_id = xg and clave in ('ficha_captacion', 'checklist_documentos')),
+    'checklist_documentos:true,ficha_captacion:true', 'XG: ficha y checklist encendidas');
+  perform pg_temp.igual((select count(*) from servicios where organizacion_id = xg and nombre_notion in
+    ('Certificado de Libertad de Gravamen', 'Justipreciación de Rentas', 'Régimen en Condominio')), 3::bigint, 'XG: los 3 servicios nuevos con su nombre en Notion');
+  -- El comisionista tiene la ficha (sin niveles) y registra su uso; una herramienta que no tiene, no.
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(exists (select 1 from mis_herramientas() where clave = 'ficha_captacion'), true, 'El comisionista ve la ficha');
+  perform registrar_uso_herramienta('ficha_captacion', 'acceso');
+  perform registrar_uso_herramienta('ficha_captacion', 'pdf');
+  perform registrar_uso_herramienta('contrato_arrendamiento', 'acceso');
+  perform registrar_uso_herramienta('ficha_captacion', 'borrar todo');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select string_agg(herramienta || ':' || evento, ',' order by id) from eventos_uso
+                          where persona_id = (select id from personas where correo = 'xchel+ana@arqosuv.com')
+                            and herramienta in ('ficha_captacion', 'contrato_arrendamiento')),
+    'ficha_captacion:acceso,ficha_captacion:pdf', 'Solo se registra el uso de lo que tiene, y solo abrir y PDF');
+  -- Por nivel: con niveles que no son el suyo, ya no la ve.
+  update herramientas set niveles = array[gen_random_uuid()] where organizacion_id = xg and clave = 'ficha_captacion';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(exists (select 1 from mis_herramientas() where clave = 'ficha_captacion'), false, 'Con otro nivel, el comisionista no la ve');
+  perform pg_temp.sistema();
+  update herramientas set niveles = null where organizacion_id = xg and clave = 'ficha_captacion';
+  -- Fecha de revisión del checklist: solo admin_org, nunca futura.
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.debe_fallar($q$select guardar_checklist_revisado(date '2026-11-01')$q$, 'Solo admin_org', 'Finanzas no cambia la fecha');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select guardar_checklist_revisado(current_date + 30)$q$, 'futura', 'No se acepta una fecha futura');
+  perform guardar_checklist_revisado(date '2026-11-20');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select checklist_revisado from ajustes where organizacion_id = xg), date '2026-11-20', 'admin_org guarda la fecha');
 end;
 $sec$;
 

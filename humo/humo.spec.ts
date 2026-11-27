@@ -143,6 +143,9 @@ const PANTALLAS: Record<string, Pantalla> = {
   "/mi-cuenta": { rutas: () => ["/mi-cuenta"], espera: SOLO_COMISIONISTA },
   "/administracion": { rutas: () => ["/administracion"], espera: OPERACION },
   "/herramientas": { rutas: () => ["/herramientas"], espera: TODOS },
+  // Herramientas de asesor (0100): encendidas en DEMO para admin_org, finanzas, equipo y comisionistas (no admin_marca).
+  "/herramientas/[herramienta]": { rutas: () => ["/herramientas/ficha-captacion", "/herramientas/checklist-documentos"],
+    espera: { admin_org: "abre", finanzas: "abre", admin_marca: "inicio", equipo: "abre", comisionista: "abre" } },
   "/para-tus-clientes": { rutas: () => ["/para-tus-clientes"], espera: TODOS },
   "/invitar": { rutas: () => ["/invitar"], espera: TODOS },
   "/calculadora/mis-calculos": { rutas: () => ["/calculadora/mis-calculos"], espera: TODOS },

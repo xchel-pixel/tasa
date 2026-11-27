@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ficha de captación del inmueble</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+:root{--navy:#0B3A6E;--navy2:#0E4C8F;--bg:#F7F9FC;--card:#F3F6FA;--line:#D9E1EC;--ink:#1B2533;--mute:#5E6B7D;--ok:#1F7A4D;--warn:#A15C00;--err:#B3261E;--acc:#0B3A6E}
+*{box-sizing:border-box}
+body{margin:0;font-family:"DM Sans",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+header{background:var(--navy);color:#fff;padding:18px 24px}
+header h1{margin:0;font-size:20px;font-weight:700}
+header p{margin:4px 0 0;font-size:13px;opacity:.85}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.steps button{flex:1 1 110px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 8px;font:inherit;font-size:13px;color:var(--mute);cursor:pointer;text-align:left}
+.steps button b{display:block;color:var(--ink);font-size:13px}
+.steps button.on{background:var(--navy);border-color:var(--navy);color:#cfe0f5}.steps button.on b{color:#fff}
+.steps button.done b::after{content:" ✓";color:var(--ok)}.steps button.on.done b::after{color:#9fe0bd}
+section.step{display:none}section.step.on{display:block}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{margin:0 0 4px;font-size:17px}.card h3{margin:16px 0 8px;font-size:14px;color:var(--navy)}
+.hint{color:var(--mute);font-size:13px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}.grid .full{grid-column:1/-1}.grid .two{grid-column:span 2}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--mute);margin-bottom:4px}
+input,select,textarea{width:100%;font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+textarea{min-height:90px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid #9DC0EA;border-color:var(--navy2)}
+input[type=color]{padding:2px;height:40px}
+.req label::after{content:" *";color:var(--err)}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:10px;padding:10px 16px;border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
+.btn:hover{background:var(--navy2)}.btn.sec{background:#fff;color:var(--navy)}.btn.sec:hover{background:var(--card)}
+.btn.sm{padding:6px 10px;font-size:13px;border-radius:8px}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:13px;color:var(--ink);cursor:pointer;margin:0;background:#fff;font-weight:500}
+.chips input{width:auto;margin:0}
+.chips label:has(input:checked){border-color:var(--navy);background:#E8F0FA}
+.docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px 14px}
+.docs label{display:flex;gap:8px;align-items:flex-start;font-weight:500;font-size:14px;color:var(--ink);margin:0;padding:6px 0;border-bottom:1px solid #EEF1F5}
+.docs input{width:auto;margin-top:3px}
+.hide{display:none!important}
+.box{background:var(--card);border:1px dashed #AFC3DC;border-radius:12px;padding:12px;margin-bottom:12px}
+.box .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.box .row>div{flex:1 1 200px}
+.note{font-size:13px;background:#FFF8EA;border:1px solid #F0D9A8;border-radius:10px;padding:10px 12px;color:#6B4A00;margin-bottom:12px}
+.note.blue{background:#EEF4FB;border-color:#C9DAF0;color:#173E6B}
+.status{font-size:13px;margin-top:8px;color:var(--mute)}.status.ok{color:var(--ok)}.status.err{color:var(--err)}
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
+.gal figure{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;position:relative}
+.gal img{width:100%;height:110px;object-fit:cover;display:block}
+.gal figcaption{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;font-size:11.5px;color:var(--mute)}
+.gal figcaption button{border:0;background:none;cursor:pointer;font-size:13px;color:var(--navy);padding:0 3px}
+.gal .cov{position:absolute;top:6px;left:6px;background:var(--navy);color:#fff;font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 6px}
+.add{display:flex;align-items:center;justify-content:center;height:150px;border:1px dashed #9DB4D1;border-radius:10px;color:var(--navy);font-size:13px;cursor:pointer;text-align:center;background:#fff;margin:0}
+.add input{display:none}
+.logo{display:flex;gap:12px;align-items:center}
+.logo img{height:56px;max-width:160px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.pend{list-style:none;padding:0;margin:0}
+.pend li{padding:7px 0;border-bottom:1px solid #EEF1F5;display:flex;gap:10px;font-size:14px}
+.pend li span.k{flex:0 0 auto;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;height:fit-content;margin-top:2px}
+.k.falta{background:#FDECEA;color:var(--err)}.k.verif{background:#EEF4FB;color:var(--navy)}.k.tip{background:#FFF4E0;color:var(--warn)}
+/* vista previa ficha */
+.fp{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;max-width:640px;margin:0 auto}
+.fp .band{background:var(--acc);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:14px 20px}
+.fp .band b{font-size:13px;letter-spacing:.12em}.fp .band span{font-size:22px;font-weight:700}
+.fp .cover{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#E5EAF1}
+.fp .body{padding:18px 22px}
+.fp h3{margin:0;font-size:20px;color:var(--ink)}.fp .loc{color:var(--mute);font-size:13.5px;margin-top:2px}
+.fp .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin:14px 0}
+.fp .stats div{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+.fp .stats b{display:block;font-size:17px;color:var(--acc)}.fp .stats small{font-size:11px;color:var(--mute)}
+.fp p{font-size:13.5px;line-height:1.5;color:#2A3442}
+.fp ul{columns:2;font-size:13px;color:#2A3442;padding-left:18px;margin:6px 0}
+.fp .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}.fp .thumbs img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px}
+.fp .ase{display:flex;gap:12px;align-items:center;border-top:3px solid var(--acc);background:#F6F8FB;padding:12px 20px;font-size:13px}
+.fp .ase img{height:40px;max-width:110px;object-fit:contain}
+.copybox{white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13.5px;max-height:260px;overflow:auto}
+.small{font-size:12px;color:var(--mute)}
+footer{text-align:center;font-size:12px;color:var(--mute);margin-top:30px}
+@media (max-width:600px){.grid .two{grid-column:auto}.fp ul{columns:1}}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.borrar{font:inherit;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;border-radius:9px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+.borrar:hover{background:rgba(255,255,255,.12)}.borrar.conf{background:#B3261E;border-color:#B3261E}
+</style>
+</head>
+<body>
+<header>
+  <div>
+  <h1>Ficha de captación del inmueble</h1>
+  <p>Ficha comercial para tus clientes · Ficha interna de captación · Texto listo para publicar</p>
+  </div>
+  <button class="borrar" id="borrar" title="Borra el borrador guardado en este navegador">🗑 Borrar datos de este equipo</button>
+</header>
+<div class="wrap">
+  <div class="steps" id="steps"></div>
+
+  <!-- 1 INMUEBLE -->
+  <section class="step" data-title="Inmueble" data-sub="Operación y ubicación">
+    <div class="card">
+      <h2>Operación y precio</h2>
+      <div class="grid">
+        <div class="req"><label>Operación</label><select data-k="op" id="op"><option>Venta</option><option>Renta</option><option>Venta y renta</option></select></div>
+        <div class="req"><label>Tipo de inmueble</label><select data-k="tipo" id="tipo"><option>Casa</option><option>Departamento</option><option>Casa en condominio</option><option>Terreno</option><option>Local comercial</option><option>Oficina</option><option>Bodega</option><option>Nave industrial</option></select></div>
+        <div class="req v"><label>Precio de venta (MXN)</label><input type="number" min="0" data-k="precio"></div>
+        <div class="req r hide"><label>Renta mensual (MXN)</label><input type="number" min="0" data-k="renta"></div>
+        <div><label>Mantenimiento mensual (MXN)</label><input type="number" min="0" data-k="mant" placeholder="Si aplica"></div>
+        <div><label>¿Precio negociable?</label><select data-k="neg"><option>No especificar</option><option>Negociable</option><option>Precio fijo</option></select></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Ubicación</h2>
+      <div class="box">
+        <b style="font-size:14px">📍 Llenar desde clave catastral <span class="small">(opcional)</span></b>
+        <div class="row" style="margin-top:8px">
+          <div><label>Clave catastral</label><input id="cat_q" inputmode="numeric" placeholder="Ej. 140100121023012"></div>
+          <div style="flex:0 0 auto"><button class="btn sec" id="cat_btn">Buscar</button></div>
+          <div><label>…o sube la ficha del predio (PDF del Mapa catastral)</label><input type="file" accept="application/pdf" id="cat_pdf"></div>
+        </div>
+        <div class="status" id="cat_st"></div>
+      </div>
+      <div class="grid">
+        <div class="two req"><label>Calle y número</label><input data-k="calle"></div>
+        <div class="two req"><label>Colonia o fraccionamiento</label><input data-k="col"></div>
+        <div class="req"><label>Municipio</label><select data-k="mun" id="mun"></select></div>
+        <div><label>Código postal</label><input data-k="cp" inputmode="numeric" maxlength="5"></div>
+        <div><label>Clave catastral</label><input data-k="cat"></div>
+        <div><label>En la ficha comercial mostrar</label><select data-k="mostrar"><option value="col">Solo colonia y municipio</option><option value="todo">Dirección completa</option></select></div>
+        <div class="full"><label>Referencias o cercanías (aparecen en la ficha)</label><input data-k="ref" placeholder="Ej. a 5 min de Plaza Antea, cerca de escuelas y Av. Bernardo Quintana"></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" data-load>Cargar ejemplo</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- 2 CARACTERÍSTICAS -->
+  <section class="step" data-title="Características" data-sub="Superficies y amenidades">
+    <div class="card">
+      <h2>Superficies y distribución</h2>
+      <div class="grid">
+        <div><label>Terreno (m²)</label><input type="number" min="0" step="0.01" data-k="supT"></div>
+        <div class="nt"><label>Construcción (m²)</label><input type="number" min="0" step="0.01" data-k="supC"></div>
+        <div><label>Frente (m)</label><input type="number" min="0" step="0.01" data-k="frente"></div>
+        <div><label>Fondo (m)</label><input type="number" min="0" step="0.01" data-k="fondo"></div>
+        <div class="nt"><label>Niveles / pisos</label><input type="number" min="0" data-k="niveles"></div>
+        <div class="nt"><label>Antigüedad (años)</label><input type="number" min="0" data-k="edad" placeholder="0 = nueva"></div>
+        <div class="nt"><label>Estado de conservación</label><select data-k="cons"><option></option><option>Nuevo</option><option>Excelente</option><option>Bueno</option><option>Regular</option><option>Para remodelar</option></select></div>
+        <div class="hab"><label>Recámaras</label><input type="number" min="0" data-k="rec"></div>
+        <div class="nt"><label>Baños completos</label><input type="number" min="0" data-k="banos"></div>
+        <div class="nt"><label>Medios baños</label><input type="number" min="0" data-k="medios"></div>
+        <div><label>Estacionamientos</label><input type="number" min="0" data-k="est"></div>
+        <div class="ter hide"><label>Uso de suelo</label><input data-k="uso" placeholder="Ej. habitacional H2, comercial"></div>
+        <div class="ter hide"><label>Topografía</label><select data-k="topo"><option></option><option>Plana</option><option>Pendiente ligera</option><option>Pendiente pronunciada</option><option>Irregular</option></select></div>
+      </div>
+      <h3>Amenidades y equipamiento</h3>
+      <div class="chips" id="amen"></div>
+      <div style="margin-top:10px"><label>Otras (separadas por coma)</label><input data-k="otras" placeholder="Ej. chimenea, cuarto de lavado techado"></div>
+    </div>
+    <div class="card">
+      <h2>Título y descripción</h2>
+      <div class="grid">
+        <div class="full"><label>Título de la ficha</label><input data-k="titulo" id="titulo" placeholder="Se arma solo; puedes cambiarlo"></div>
+        <div class="full"><label>Descripción</label><textarea data-k="desc" id="desc" style="min-height:130px" placeholder="Escribe la descripción o usa el botón para generar una a partir de los datos."></textarea></div>
+      </div>
+      <div class="actions"><button class="btn sec sm" id="gen_desc">Generar descripción con los datos</button><span class="small">Revísala y ajústala a tu estilo.</span></div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- 3 FOTOS -->
+  <section class="step" data-title="Fotos" data-sub="Portada y galería">
+    <div class="card">
+      <h2>Fotos del inmueble</h2>
+      <p class="hint">La primera es la portada. Usa las flechas para ordenarlas. Recomendado: fachada, sala, cocina, recámara principal, baño y áreas exteriores (hasta 12).</p>
+      <div class="gal" id="gal"></div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- 4 ASESOR -->
+  <section class="step" data-title="Asesor" data-sub="Tu tarjeta de contacto">
+    <div class="card">
+      <h2>Tus datos de contacto</h2>
+      <p class="hint" id="ase_hint">Aparecen en la ficha comercial. Se guardan en este navegador para tus siguientes fichas.</p>
+      <div class="grid">
+        <div class="two req"><label>Nombre</label><input data-a="nombre"></div>
+        <div class="two"><label>Inmobiliaria o marca</label><input data-a="empresa"></div>
+        <div class="req"><label>Teléfono / WhatsApp</label><input data-a="telefono" inputmode="tel"></div>
+        <div><label>Correo</label><input data-a="correo" type="email"></div>
+        <div><label>Color de la ficha</label><input type="color" data-a="color" value="#0B3A6E"></div>
+        <div class="full"><label>Logo (opcional)</label>
+          <div class="logo"><img id="logo_img" class="hide" alt=""><input type="file" accept="image/*" id="logo_in" style="max-width:320px"><button class="btn sec sm hide" id="logo_del">Quitar logo</button></div></div>
+      </div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Siguiente →</button></div>
+  </section>
+
+  <!-- 5 CAPTACIÓN -->
+  <section class="step" data-title="Captación" data-sub="Propietario y documentos">
+    <div class="card">
+      <h2>Propietario <span class="small">(solo en la ficha interna)</span></h2>
+      <div class="grid">
+        <div class="two"><label>Nombre del propietario</label><input data-k="pr_nom"></div>
+        <div><label>Teléfono</label><input data-k="pr_tel" inputmode="tel"></div>
+        <div><label>Correo</label><input data-k="pr_mail" type="email"></div>
+        <div><label>Estado civil</label><select data-k="pr_civil"><option></option><option>Soltero(a)</option><option>Casado(a) – sociedad conyugal</option><option>Casado(a) – separación de bienes</option><option>Divorciado(a)</option><option>Viudo(a)</option><option>Persona moral</option></select></div>
+        <div><label>¿Hay varios propietarios o herederos?</label><select data-k="pr_varios"><option>No</option><option>Sí</option></select></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Condiciones de la captación</h2>
+      <div class="grid">
+        <div><label>Tipo</label><select data-k="ca_tipo"><option>Exclusiva</option><option>Opción abierta</option><option>Compartida con otra inmobiliaria</option></select></div>
+        <div><label>Comisión (%)</label><input type="number" min="0" step="0.1" data-k="ca_com" placeholder="Ej. 5"></div>
+        <div><label>Vigencia desde</label><input type="date" data-k="ca_ini"></div>
+        <div><label>Vigencia hasta</label><input type="date" data-k="ca_fin"></div>
+        <div><label>Precio que pide el propietario</label><input type="number" min="0" data-k="ca_pide"></div>
+        <div><label>¿Tiene avalúo u opinión de valor?</label><select data-k="ca_aval"><option>No</option><option>Sí, reciente (menos de 6 meses)</option><option>Sí, pero de más de 6 meses</option></select></div>
+        <div><label>¿Tiene hipoteca o gravamen?</label><select data-k="ca_grav"><option>No</option><option>Sí, crédito Infonavit/Fovissste</option><option>Sí, crédito bancario</option><option>Sí, otro</option><option>No sabe</option></select></div>
+        <div><label>¿Está en régimen de condominio?</label><select data-k="ca_cond"><option>No aplica</option><option>Sí, constituido</option><option>Es condominio pero no está constituido</option><option>No sabe</option></select></div>
+        <div class="full"><label>Notas internas</label><textarea data-k="ca_notas" placeholder="Motivo de venta, horarios de visita, quién tiene las llaves, etc."></textarea></div>
+      </div>
+      <h3>Documentos recibidos</h3>
+      <div class="docs" id="docs"></div>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn" data-next>Revisar y generar →</button></div>
+  </section>
+
+  <!-- 6 GENERAR -->
+  <section class="step" data-title="Generar" data-sub="PDF y texto">
+    <div class="card">
+      <h2>Ficha comercial</h2>
+      <div id="aviso"></div>
+      <div class="actions">
+        <button class="btn" id="dl_com">Descargar ficha comercial (PDF)</button>
+        <button class="btn sec" id="dl_int">Descargar ficha interna (PDF)</button>
+      </div>
+      <div class="status" id="dl_st"></div>
+      <div id="prev"></div>
+    </div>
+    <div class="card">
+      <h2>Texto para WhatsApp o portales</h2>
+      <div class="copybox" id="txt"></div>
+      <div class="actions"><button class="btn sec" id="copy">Copiar texto</button><span class="status" id="copy_st"></span></div>
+    </div>
+    <div class="card">
+      <h2>Pendientes de la captación</h2>
+      <ul class="pend" id="pend"></ul>
+    </div>
+    <div class="nav"><button class="btn sec" data-prev>← Atrás</button><button class="btn sec" id="reset">Empezar una nueva</button></div>
+  </section>
+
+  <footer>Formato de apoyo para asesores. La información de la ficha es responsabilidad de quien la publica. Las fotos se procesan en este equipo y no se envían a ningún servidor ni se guardan en el navegador. El borrador se borra al descargar el PDF; tus datos de asesor quedan guardados hasta que uses "Borrar datos de este equipo".</footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const MUN=["Amealco de Bonfil","Arroyo Seco","Cadereyta de Montes","Colón","Corregidora","El Marqués","Ezequiel Montes","Huimilpan","Jalpan de Serra","Landa de Matamoros","Pedro Escobedo","Peñamiller","Pinal de Amoles","Querétaro","San Joaquín","San Juan del Río","Tequisquiapan","Tolimán"];
+const AMEN=["Cocina integral","Jardín","Terraza","Roof garden","Estudio","Cuarto de servicio","Área de lavado","Bodega","Closets / vestidor","Alberca","Calentador solar","Paneles solares","Cisterna","Aire acondicionado","Amueblado","Se aceptan mascotas","Coto privado","Vigilancia 24 h","Áreas verdes","Casa club","Gimnasio","Juegos infantiles","Elevador","Acceso controlado","Uso de suelo comercial","Todos los servicios"];
+const DOCS=["Escritura pública","Boleta predial al corriente","Recibo de agua al corriente","INE del propietario","Acta de matrimonio (si aplica)","Constancia de situación fiscal (RFC)","Comprobante de domicilio","Certificado de libertad de gravamen","Constancia de no adeudo de mantenimiento","Reglamento del condominio","Planos o licencia de construcción","Avalúo u opinión de valor"];
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money=n=>Number(n||0).toLocaleString("es-MX",{style:"currency",currency:"MXN",maximumFractionDigits:0});
+const num=n=>Number(n||0).toLocaleString("es-MX",{maximumFractionDigits:2});
+const hoyLocal=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+const fechaCorta=iso=>{if(!iso)return"—";const[y,m,d]=iso.split("-");return `${d}/${m}/${y}`;};
+$("#mun").innerHTML=MUN.map(m=>`<option${m==="Querétaro"?" selected":""}>${m}</option>`).join("");
+$("#amen").innerHTML=AMEN.map(a=>`<label><input type="checkbox" data-am value="${a}"> ${a}</label>`).join("");
+$("#docs").innerHTML=DOCS.map(d=>`<label><input type="checkbox" data-doc value="${d}"> ${d}</label>`).join("");
+
+/* ---------- estado ---------- */
+let FOTOS=[];let ASE={nombre:"",empresa:"",telefono:"",correo:"",color:"#0B3A6E",logo:null};
+function S(){const o={};$$("[data-k]").forEach(e=>o[e.dataset.k]=e.value.trim());
+  o.amen=$$("[data-am]:checked").map(e=>e.value);o.docs=$$("[data-doc]:checked").map(e=>e.value);return o;}
+function setS(o){for(const k in o){const e=$(`[data-k="${k}"]`);if(e&&typeof o[k]!=="object")e.value=o[k];}
+  if(o.amen)$$("[data-am]").forEach(e=>e.checked=o.amen.includes(e.value));
+  if(o.docs)$$("[data-doc]").forEach(e=>e.checked=o.docs.includes(e.value));sync();}
+const LS="mgp_ficha_cap_v1",LSA="mgp_asesor_v1";
+function save(){try{localStorage.setItem(LS,JSON.stringify(S()));}catch(e){}}
+function saveA(){try{localStorage.setItem(LSA,JSON.stringify(ASE));}catch(e){}}
+function load(){try{const o=JSON.parse(localStorage.getItem(LS)||"null");if(o)setS(o);}catch(e){}
+  try{const a=JSON.parse(localStorage.getItem(LSA)||"null");if(a)ASE=Object.assign(ASE,a);}catch(e){}
+  if(window.TASA_asesor){const t=window.TASA_asesor;ASE=Object.assign(ASE,{nombre:t.nombre||ASE.nombre,empresa:t.empresa||ASE.empresa,telefono:t.telefono||ASE.telefono,correo:t.correo||ASE.correo,logo:t.logo||ASE.logo});
+    $("#ase_hint").textContent="Datos tomados de tu perfil en la plataforma. Puedes ajustarlos para esta ficha.";}
+  rAse();}
+function rAse(){$$("[data-a]").forEach(e=>e.value=ASE[e.dataset.a]||"");if(!ASE.color)ASE.color="#0B3A6E";$('[data-a="color"]').value=ASE.color;
+  const im=$("#logo_img");if(ASE.logo){im.src=ASE.logo;im.classList.remove("hide");$("#logo_del").classList.remove("hide");}else{im.classList.add("hide");$("#logo_del").classList.add("hide");}
+  document.documentElement.style.setProperty("--acc",ASE.color);}
+
+/* ---------- condicionales ---------- */
+const esTer=t=>t==="Terreno";
+const esHab=t=>["Casa","Departamento","Casa en condominio"].includes(t);
+let tituloManual=false;
+function tituloAuto(s){const op=s.op==="Venta"?"en venta":s.op==="Renta"?"en renta":"en venta y renta";
+  return `${s.tipo} ${op}${s.col?" en "+s.col:""}, ${s.mun}`;}
+function sync(){const s=S();
+  $$(".v").forEach(e=>e.classList.toggle("hide",s.op==="Renta"));$$(".r").forEach(e=>e.classList.toggle("hide",s.op==="Venta"));
+  $$(".ter").forEach(e=>e.classList.toggle("hide",!esTer(s.tipo)));$$(".nt").forEach(e=>e.classList.toggle("hide",esTer(s.tipo)));
+  $$(".hab").forEach(e=>e.classList.toggle("hide",!esHab(s.tipo)));
+  if(!tituloManual){$("#titulo").value=tituloAuto(s);}}
+document.addEventListener("input",e=>{if(e.target.id==="titulo")tituloManual=!!e.target.value;
+  if(e.target.dataset.a){ASE[e.target.dataset.a]=e.target.value;if(e.target.dataset.a==="color")document.documentElement.style.setProperty("--acc",e.target.value);saveA();return;}
+  sync();save();});
+document.addEventListener("change",()=>{sync();save();});
+
+/* ---------- pasos ---------- */
+const steps=$$("section.step");let cur=0;
+function renderSteps(){$("#steps").innerHTML=steps.map((s,i)=>`<button data-go="${i}" class="${i===cur?"on":""} ${i<cur?"done":""}"><b>${i+1}. ${s.dataset.title}</b>${s.dataset.sub}</button>`).join("");}
+function go(i){cur=Math.max(0,Math.min(steps.length-1,i));steps.forEach((s,j)=>s.classList.toggle("on",j===cur));renderSteps();if(cur===steps.length-1)render();window.scrollTo({top:0,behavior:"smooth"});}
+document.addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;
+  if(t.dataset.go!==undefined)go(+t.dataset.go);if(t.hasAttribute("data-next"))go(cur+1);if(t.hasAttribute("data-prev"))go(cur-1);
+  if(t.hasAttribute("data-load"))ejemplo();
+  if(t.dataset.mv){const[i,d]=t.dataset.mv.split(":").map(Number),j=i+d;if(j>=0&&j<FOTOS.length){[FOTOS[i],FOTOS[j]]=[FOTOS[j],FOTOS[i]];rGal();}}
+  if(t.dataset.fdel!==undefined){FOTOS.splice(+t.dataset.fdel,1);rGal();}});
+$("#reset").onclick=()=>{try{localStorage.removeItem(LS);}catch(e){}location.reload();};
+
+/* ---------- fotos ---------- */
+function toJpeg(file,max=1600){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{
+  const sc=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement("canvas");c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+  const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(img.src);
+  res({url:c.toDataURL("image/jpeg",.82),w:c.width,h:c.height});};img.onerror=()=>rej(new Error("img"));img.src=URL.createObjectURL(file);});}
+function rGal(){$("#gal").innerHTML=FOTOS.map((f,i)=>`<figure>${i===0?'<span class="cov">PORTADA</span>':""}<img src="${f.url}" alt=""><figcaption><span><button data-mv="${i}:-1" title="Mover antes">◀</button><button data-mv="${i}:1" title="Mover después">▶</button></span><button data-fdel="${i}" title="Quitar" style="color:var(--err)">✕</button></figcaption></figure>`).join("")+
+  (FOTOS.length<12?`<label class="add">📷 Agregar fotos<br>(${FOTOS.length}/12)<input type="file" accept="image/*" multiple id="f_in"></label>`:"");
+  const fi=$("#f_in");if(fi)fi.onchange=async()=>{for(const f of [...fi.files].slice(0,12-FOTOS.length)){try{FOTOS.push(await toJpeg(f));}catch(e){}}rGal();};}
+$("#logo_in").onchange=async e=>{const f=e.target.files[0];if(!f)return;const j=await toJpeg(f,500);ASE.logo=j.url;saveA();rAse();};
+$("#logo_del").onclick=()=>{ASE.logo=null;$("#logo_in").value="";saveA();rAse();};
+
+/* ---------- catastro ---------- */
+const normTxt=t=>t.normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase();
+function aplicarCatastro(d){const set=(k,v)=>{if(v===undefined||v===null||v==="")return 0;const e=$(`[data-k="${k}"]`);if(!e)return 0;e.value=v;e.style.background="#EEF8F1";return 1;};
+  let n=0;n+=set("cat",d.clave);
+  if(d.municipio){const m=MUN.find(x=>normTxt(x)===normTxt(d.municipio).trim());if(m)n+=set("mun",m);}
+  if(d.direccion){const seg=d.direccion.split(",").map(x=>x.trim()).filter(x=>x&&!/QUERETARO/.test(normTxt(x)));
+    const tc=t=>t.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
+    if(seg[0])n+=set("calle",tc(seg[0]));if(seg[1])n+=set("col",tc(seg[1]));}
+  const nn=v=>v===undefined?"":String(v).replace(/[^\d.]/g,"");n+=set("supT",nn(d.sup_terreno));n+=set("supC",nn(d.sup_construccion));
+  sync();save();return n;}
+async function leerFicha(file){const lib=window.pdfjsLib;if(!lib)throw new Error("No se cargó el lector de PDF.");
+  const pdf=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;const rows=[];
+  for(let p=1;p<=pdf.numPages;p++){const tc=await (await pdf.getPage(p)).getTextContent();const map=new Map();
+    tc.items.forEach(it=>{if(!it.str||!it.str.trim())return;const y=Math.round(it.transform[5]/3);if(!map.has(y))map.set(y,[]);map.get(y).push(it);});
+    [...map.keys()].sort((a,b)=>b-a).forEach(y=>rows.push(map.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join(" ")));}
+  const T=rows.join("\n"),d={};let m;
+  if(m=T.match(/Clave catastral\s+(\d{10,18})/))d.clave=m[1];
+  if(m=T.match(/Municipio\s+([^\n]+)/))d.municipio=m[1].trim();
+  if(m=T.match(/Direcci[oó]n\s+([\s\S]+?)\n\s*Superficies/))d.direccion=m[1].replace(/\s*\n\s*/g," ").trim();
+  if(m=T.match(/Superficie de terreno[^\n\d]*([\d,.]+)/))d.sup_terreno=m[1];
+  if(m=T.match(/Construcci[oó]n total\s+([\d,.]+)/))d.sup_construccion=m[1];
+  return d;}
+$("#cat_pdf").addEventListener("change",async e=>{const f=e.target.files[0],st=$("#cat_st");if(!f)return;st.className="status";st.textContent="Leyendo ficha…";
+  try{const d=await leerFicha(f),n=aplicarCatastro(d);if(d.clave)$("#cat_q").value=d.clave;st.className="status "+(n?"ok":"err");
+    st.textContent=n?`Se llenaron ${n} campo(s) (en verde). Revisa calle, colonia y agrega el código postal.`:"No se reconocieron datos en ese PDF.";}
+  catch(err){st.className="status err";st.textContent="No se pudo leer el PDF: "+(err.message||err);}});
+$("#cat_btn").addEventListener("click",async()=>{const st=$("#cat_st"),q=$("#cat_q").value.replace(/\D/g,"");st.className="status";
+  if(!q){st.textContent="Escribe la clave catastral.";return;}
+  if(typeof window.TASA_catastro!=="function"){$('[data-k="cat"]').value=q;save();st.textContent="Clave capturada. Para llenar el resto, sube la ficha del predio en PDF.";return;}
+  try{st.textContent="Consultando…";const n=aplicarCatastro(await window.TASA_catastro(q)||{});st.className="status "+(n?"ok":"err");st.textContent=n?`Se llenaron ${n} campo(s) (en verde).`:"No se encontró información para esa clave.";}
+  catch(err){st.className="status err";st.textContent="No se pudo consultar: "+(err.message||err);}});
+
+/* ---------- contenido ---------- */
+function precioTxt(s){const p=[];if(s.op!=="Renta"&&s.precio)p.push(money(s.precio));if(s.op!=="Venta"&&s.renta)p.push(money(s.renta)+" /mes");return p.join(" · ")||"Precio a consultar";}
+function ubicTxt(s){return s.mostrar==="todo"?[s.calle,s.col,s.mun+", Qro.",s.cp?"C.P. "+s.cp:""].filter(Boolean).join(", "):[s.col,s.mun+", Qro."].filter(Boolean).join(", ");}
+function stats(s){const L=[];
+  if(s.supT)L.push([num(s.supT)+" m²","Terreno"]);if(s.supC&&!esTer(s.tipo))L.push([num(s.supC)+" m²","Construcción"]);
+  if(esHab(s.tipo)&&s.rec)L.push([s.rec,"Recámaras"]);
+  if(!esTer(s.tipo)&&(s.banos||s.medios)){const m=Number(s.medios||0),b=Number(s.banos||0);L.push([m===0?String(b):m===1?(b?b+" ½":"½"):`${b} + ${m}`,m>1?"Baños + medios":"Baños"]);}
+  if(s.est)L.push([s.est,"Estacionamientos"]);
+  if(esTer(s.tipo)&&s.frente&&s.fondo)L.push([`${num(s.frente)} × ${num(s.fondo)} m`,"Frente × fondo"]);
+  return L.slice(0,5);}
+function carac(s){const L=[];
+  if(!esTer(s.tipo)&&s.niveles)L.push(`${s.niveles} nivel(es)`);
+  if(!esTer(s.tipo)&&s.edad!=="")L.push(Number(s.edad)===0?"Nueva / a estrenar":`Antigüedad: ${s.edad} años`);
+  if(!esTer(s.tipo)&&s.cons)L.push(`Estado: ${s.cons}`);
+  if(s.frente&&s.fondo&&!esTer(s.tipo))L.push(`Frente ${num(s.frente)} m × fondo ${num(s.fondo)} m`);
+  if(esTer(s.tipo)&&s.uso)L.push(`Uso de suelo: ${s.uso}`);if(esTer(s.tipo)&&s.topo)L.push(`Topografía: ${s.topo}`);
+  if(s.mant)L.push(`Mantenimiento: ${money(s.mant)} mensuales`);
+  if(s.neg&&s.neg!=="No especificar")L.push(s.neg==="Negociable"?"Precio negociable":"Precio fijo");
+  return L.concat(s.amen,(s.otras||"").split(",").map(x=>x.trim()).filter(Boolean));}
+function genDesc(s){const op=s.op==="Venta"?"venta":s.op==="Renta"?"renta":"venta o renta";
+    let t=`${s.tipo} en ${op} ubicad${["Casa","Casa en condominio","Oficina","Bodega","Nave industrial"].includes(s.tipo)?"a":"o"} en ${s.col||"excelente zona"}, ${s.mun==="Querétaro"?"Querétaro":s.mun+", Querétaro"}.`;
+  if(esTer(s.tipo))t+=` Cuenta con ${s.supT?num(s.supT)+" m² de superficie":"amplia superficie"}${s.frente&&s.fondo?` (${num(s.frente)} m de frente por ${num(s.fondo)} m de fondo)`:""}${s.topo?`, topografía ${s.topo.toLowerCase()}`:""}${s.uso?` y uso de suelo ${s.uso}`:""}.`;
+  else{const d=[];if(s.supC)d.push(`${num(s.supC)} m² de construcción`);if(s.supT)d.push(`${num(s.supT)} m² de terreno`);
+    if(d.length)t+=` Tiene ${d.join(" sobre ")}.`;
+    const dist=[];if(esHab(s.tipo)&&s.rec)dist.push(`${s.rec} recámara${s.rec>1?"s":""}`);if(s.banos)dist.push(`${s.banos} baño${s.banos>1?"s":""} completo${s.banos>1?"s":""}`);
+    if(Number(s.medios))dist.push(`${s.medios} medio${s.medios>1?"s":""} baño${s.medios>1?"s":""}`);if(s.est)dist.push(`${s.est} estacionamiento${s.est>1?"s":""}`);
+    if(dist.length)t+=` Distribuida en ${s.niveles?s.niveles+" nivel"+(s.niveles>1?"es":"")+" con ":""}${dist.slice(0,-1).join(", ")}${dist.length>1?" y ":""}${dist.slice(-1)}.`;
+    if(s.edad!==""&&Number(s.edad)===0)t+=" Inmueble nuevo, a estrenar.";else if(s.cons)t+=` En ${s.cons.toLowerCase()==="para remodelar"?"condiciones para remodelar":(s.cons.toLowerCase()+" estado de conservación")}.`;}
+  if(s.amen.length)t+=` Destaca por: ${s.amen.slice(0,6).join(", ").toLowerCase()}.`;
+  if(s.ref)t+=` ${s.ref.charAt(0).toUpperCase()+s.ref.slice(1)}${/[.!]$/.test(s.ref)?"":"."}`;
+  t+=` ¡Agenda tu visita!`;return t;}
+$("#gen_desc").onclick=()=>{const s=S();$("#desc").value=genDesc(s);save();};
+function textoPub(s){const L=[`🏡 ${s.titulo||tituloAuto(s)}`,`💰 ${precioTxt(s)}${s.neg==="Negociable"?" (negociable)":""}`,`📍 ${ubicTxt(s)}`];
+  const st=stats(s);if(st.length)L.push("",...st.map(([v,l])=>`▪️ ${l}: ${v}`));
+  if(s.desc)L.push("",s.desc);
+  const am=carac(s).filter(x=>!/^Mantenimiento|^Precio/.test(x));if(am.length)L.push("","✅ "+am.join(" · "));
+  if(s.mant)L.push(`Mantenimiento: ${money(s.mant)}/mes`);
+  L.push("",`📲 ${ASE.nombre||"Asesor"}${ASE.empresa?" · "+ASE.empresa:""}`,[ASE.telefono,ASE.correo].filter(Boolean).join(" · "));return L.join("\n").trim();}
+
+/* ---------- pendientes ---------- */
+function pendientes(s){const L=[],add=(k,x)=>L.push({k,x});
+  if(s.op!=="Renta"&&!s.precio)add("FALTA","Precio de venta.");if(s.op!=="Venta"&&!s.renta)add("FALTA","Renta mensual.");
+  if(!s.col)add("FALTA","Colonia o fraccionamiento.");if(!FOTOS.length)add("FALTA","Agregar fotos (la ficha comercial sale sin imágenes).");
+  if(!ASE.nombre||!ASE.telefono)add("FALTA","Tus datos de contacto (paso 4).");
+  if(!s.desc)add("FALTA","Descripción del inmueble (puedes generarla en el paso 2).");
+  const faltan=DOCS.filter(d=>!s.docs.includes(d)&&!(d.startsWith("Acta de matrimonio")&&!/Casado/.test(s.pr_civil))&&!(d.startsWith("Reglamento")&&!/condominio/i.test(s.tipo)&&s.ca_cond==="No aplica")&&!(d.startsWith("Constancia de no adeudo")&&!s.mant&&!/condominio|Departamento/i.test(s.tipo)));
+  if(faltan.length)add("VERIFICAR",`Documentos por recabar: ${faltan.join(", ")}.`);
+  if(/Casado\(a\) – sociedad conyugal/.test(s.pr_civil))add("VERIFICAR","Propietario casado por sociedad conyugal: para vender se necesita la firma del cónyuge.");
+  if(s.pr_varios==="Sí")add("VERIFICAR","Hay varios propietarios o herederos: confirmar que todos estén de acuerdo; si es herencia, revisar que la sucesión esté terminada.");
+  if(/^Sí/.test(s.ca_grav))add("VERIFICAR","Tiene hipoteca o gravamen: pedir el saldo y la carta de instrucción para liquidarlo en la escrituración.");
+  if(s.ca_grav==="No sabe"||!s.docs.includes("Certificado de libertad de gravamen"))add("TIP","Solicita el certificado de libertad de gravamen para descartar sorpresas antes de ofertar. MGP lo tramita.");
+  if(s.ca_cond==="Es condominio pero no está constituido"||s.ca_cond==="No sabe")add("TIP","Si el inmueble forma parte de un condominio no constituido, no podrá escriturarse por separado. MGP realiza el régimen en condominio (planos, memoria descriptiva, indivisos y plantilla RPPC).");
+  if(s.ca_aval!=="Sí, reciente (menos de 6 meses)")add("TIP","¿El precio está en mercado? Solicita una opinión de valor o un avalúo MGP antes de publicar.");
+  if(s.ca_pide&&s.precio&&Number(s.ca_pide)!==Number(s.precio))add("VERIFICAR",`El precio publicado (${money(s.precio)}) es distinto al que pide el propietario (${money(s.ca_pide)}).`);
+  if(s.ca_fin&&s.ca_fin<hoyLocal())add("VERIFICAR","La vigencia de la captación ya venció.");
+  if(s.ca_tipo==="Exclusiva"&&!s.ca_fin)add("FALTA","Fecha de término de la exclusiva.");
+  return L;}
+
+/* ---------- vista previa ---------- */
+function render(){const s=S();if(!s.titulo)s.titulo=tituloAuto(s);
+  const st=stats(s),ca=carac(s);
+  $("#prev").innerHTML=`<div class="fp"><div class="band"><b>${esc(s.op==="Venta y renta"?"EN VENTA Y RENTA":"EN "+s.op.toUpperCase())}</b><span>${esc(precioTxt(s))}</span></div>
+    ${FOTOS[0]?`<img class="cover" src="${FOTOS[0].url}">`:`<div class="cover"></div>`}
+    <div class="body"><h3>${esc(s.titulo)}</h3><div class="loc">📍 ${esc(ubicTxt(s))}</div>
+    ${st.length?`<div class="stats">${st.map(([v,l])=>`<div><b>${esc(v)}</b><small>${esc(l)}</small></div>`).join("")}</div>`:""}
+    ${s.desc?`<p>${esc(s.desc)}</p>`:""}${ca.length?`<ul>${ca.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
+    ${FOTOS.length>1?`<div class="thumbs">${FOTOS.slice(1,7).map(f=>`<img src="${f.url}">`).join("")}</div>`:""}</div>
+    <div class="ase">${ASE.logo?`<img src="${ASE.logo}">`:""}<div><b>${esc(ASE.nombre||"Tu nombre")}</b>${ASE.empresa?" · "+esc(ASE.empresa):""}<br>${esc([ASE.telefono,ASE.correo].filter(Boolean).join(" · ")||"Tus datos de contacto")}</div></div></div>`;
+  $("#txt").textContent=textoPub(s);
+  const L=pendientes(s),lab={FALTA:"falta",VERIFICAR:"verif",TIP:"tip"};
+  $("#pend").innerHTML=L.map(i=>`<li><span class="k ${lab[i.k]}">${i.k}</span><span>${esc(i.x)}</span></li>`).join("");
+  const f=L.filter(i=>i.k==="FALTA").length;
+  $("#aviso").innerHTML=f?`<div class="note">Faltan ${f} dato(s) para una ficha completa (ver pendientes abajo).</div>`:"";}
+$("#copy").onclick=async()=>{try{await navigator.clipboard.writeText($("#txt").textContent);$("#copy_st").className="status ok";$("#copy_st").textContent="Copiado.";}
+  catch(e){const r=document.createRange();r.selectNodeContents($("#txt"));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);$("#copy_st").textContent="Selecciónalo y cópialo con Ctrl+C.";}};
+
+/* ---------- PDF ---------- */
+function hex(c){const m=(c||"#0B3A6E").replace("#","").match(/.{2}/g)||["0b","3a","6e"];return m.map(x=>parseInt(x,16));}
+function crop(f,ratio){return new Promise(res=>{const img=new Image();img.onload=()=>{let sw=img.width,sh=img.height;
+  if(sw/sh>ratio)sw=sh*ratio;else sh=sw/ratio;const c=document.createElement("canvas");c.width=Math.min(1600,Math.round(sw));c.height=Math.round(c.width/ratio);
+  c.getContext("2d").drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.85));};img.src=f.url;});}
+function mkDoc(){const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"pt",format:"letter"});const cache={};
+  const orig=doc.text.bind(doc);
+  doc.text=function(t,x,y,o){if(Array.isArray(t)){t.forEach((l,i)=>doc.text(l,x,y+i*doc.getFontSize()*1.15,o));return doc;}
+    t=String(t).replace(/×/g,"x");if(!t.includes("²"))return orig(t,x,y,o);
+    const fs=doc.getFontSize(),parts=t.split("²"),sw=doc.getTextWidth("2")*.62;let total=parts.reduce((a,p)=>a+doc.getTextWidth(p),0)+sw*(parts.length-1);
+    const al=o&&o.align;let cx=al==="center"?x-total/2:al==="right"?x-total:x;
+    parts.forEach((p,i)=>{orig(p,cx,y);cx+=doc.getTextWidth(p);if(i<parts.length-1){doc.setFontSize(fs*.62);orig("2",cx,y-fs*.36);doc.setFontSize(fs);cx+=sw;}});return doc;};
+  const tw=(str,font)=>{const fs=doc.getFontSize();let t=0;for(const ch of String(str)){const k=font+fs+ch;if(cache[k]===undefined){doc.setFont("helvetica",font);cache[k]=doc.getTextWidth(ch);}t+=cache[k];}return t;};
+  const wrap=(text,width,font)=>{const out=[];String(text).split("\n").forEach(par=>{let line="";par.split(/\s+/).filter(Boolean).forEach(w=>{const t=line?line+" "+w:w;if(tw(t,font)>width&&line){out.push(line);line=w;}else line=t;});if(line)out.push(line);});return out;};
+  return {doc,tw,wrap};}
+function waQR(){const d=(ASE.telefono||"").replace(/\D/g,"");if(d.length<10||!window.QRious)return null;
+  const n=d.length===10?"52"+d:d;try{return new QRious({value:"https://wa.me/"+n,size:300,level:"M"}).toDataURL("image/png");}catch(e){return null;}}
+async function pdfComercial(){const s=S();if(!s.titulo)s.titulo=tituloAuto(s);const {doc,tw,wrap}=mkDoc();const A=hex(ASE.color),M=40,W=612-2*M;let y=0;
+  const footer=()=>{const fy=792-58;doc.setFillColor(246,248,251);doc.rect(0,fy,612,58,"F");doc.setFillColor(...A);doc.rect(0,fy,612,3,"F");
+    let x=M;if(ASE.logo){try{const p=doc.getImageProperties(ASE.logo);const h=34,w=Math.min(110,h*p.width/p.height);doc.addImage(ASE.logo,"JPEG",x,fy+13,w,h);x+=w+14;}catch(e){}}
+    doc.setTextColor(27,37,51);doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text(ASE.nombre||"",x,fy+25);
+    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(94,107,125);doc.text([ASE.empresa,[ASE.telefono,ASE.correo].filter(Boolean).join("  ·  ")].filter(Boolean).join("   |   "),x,fy+40);
+    const qr=waQR();let rx=612-M;
+    if(qr){doc.addImage(qr,"PNG",612-M-46,fy+7,44,44);rx=612-M-52;doc.setFontSize(7.5);doc.setTextColor(...A);doc.setFont("helvetica","bold");doc.text("Escanea para",rx,fy+24,{align:"right"});doc.text("escribir por WhatsApp",rx,fy+33,{align:"right"});doc.setFont("helvetica","normal");doc.setTextColor(94,107,125);}
+    doc.setFontSize(7);doc.text("Información y precio sujetos a cambio sin previo aviso.",rx,fy+50,{align:"right"});doc.setTextColor(0);};
+  // banda
+  doc.setFillColor(...A);doc.rect(0,0,612,64,"F");doc.setTextColor(255);doc.setFont("helvetica","bold");doc.setFontSize(11);
+  doc.text(s.op==="Venta y renta"?"EN VENTA Y RENTA":"EN "+s.op.toUpperCase(),M,38,{charSpace:1.5});
+  doc.setFontSize(20);doc.text(precioTxt(s),612-M,40,{align:"right"});y=64;
+  if(FOTOS[0]){const im=await crop(FOTOS[0],612/300);doc.addImage(im,"JPEG",0,y,612,300);y+=300;}else{doc.setFillColor(229,234,241);doc.rect(0,y,612,120,"F");y+=120;}
+  y+=28;doc.setTextColor(27,37,51);doc.setFont("helvetica","bold");doc.setFontSize(17);
+  wrap(s.titulo,W,"bold").slice(0,2).forEach(l=>{doc.text(l,M,y);y+=20;});
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(94,107,125);doc.text(ubicTxt(s),M,y);y+=16;
+  const st=stats(s);if(st.length){y+=6;const gap=8,bw=(W-gap*(st.length-1))/st.length;
+    st.forEach(([v,l],i)=>{const x=M+i*(bw+gap);doc.setDrawColor(217,225,236);doc.setLineWidth(.8);doc.roundedRect(x,y,bw,46,6,6);
+      doc.setTextColor(...A);doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text(String(v),x+bw/2,y+21,{align:"center"});
+      doc.setTextColor(94,107,125);doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text(l,x+bw/2,y+35,{align:"center"});});y+=62;}
+  const BOT=792-72;const ensure=h=>{if(y+h>BOT){footer();doc.addPage();y=40;}};
+  if(s.desc){doc.setTextColor(42,52,66);doc.setFont("helvetica","normal");doc.setFontSize(10);wrap(s.desc,W,"normal").forEach(l=>{ensure(14);doc.text(l,M,y);y+=14;});y+=8;}
+  const ca=carac(s);if(ca.length){ensure(30);doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...A);doc.text("Características",M,y);y+=14;
+    doc.setFont("helvetica","normal");doc.setFontSize(9.5);doc.setTextColor(42,52,66);const cw=W/2,half=Math.ceil(ca.length/2);
+    for(let i=0;i<half;i++){ensure(14);[ca[i],ca[i+half]].forEach((t,k)=>{if(!t)return;doc.setFillColor(...A);doc.circle(M+k*cw+3,y-3,1.8,"F");doc.text(wrap(t,cw-16,"normal")[0]||"",M+k*cw+11,y);});y+=14;}}
+  let usadas=1;
+  if(FOTOS.length>1){const gap=8,n=Math.min(3,FOTOS.length-1),cw=(W-gap*2)/3,ch=cw*3/4;
+    if(y+ch+14<=BOT){y+=6;for(let i=0;i<n;i++){const im=await crop(FOTOS[1+i],4/3);doc.addImage(im,"JPEG",M+i*(cw+gap),y,cw,ch);}usadas=1+n;y+=ch+10;}}
+  footer();
+  // galería
+  const rest=FOTOS.slice(usadas);if(rest.length){
+    for(let p=0;p<rest.length;p+=6){doc.addPage();doc.setFillColor(...A);doc.rect(0,0,612,40,"F");doc.setTextColor(255);doc.setFont("helvetica","bold");doc.setFontSize(11);
+      doc.text(s.titulo.length>70?s.titulo.slice(0,68)+"…":s.titulo,M,25);doc.setFont("helvetica","normal");doc.text(precioTxt(s),612-M,25,{align:"right"});
+      const gap=10,cw=(W-gap)/2,ch=cw*3/4;let yy=56;
+      for(let i=0;i<6&&p+i<rest.length;i++){const im=await crop(rest[p+i],4/3),cx=M+(i%2)*(cw+gap);if(i>0&&i%2===0)yy+=ch+gap;doc.addImage(im,"JPEG",cx,yy,cw,ch);}
+      footer();}}
+  return doc.output("blob");}
+function pdfInterna(){const s=S();if(!s.titulo)s.titulo=tituloAuto(s);const {doc,tw,wrap}=mkDoc();const M=50,W=612-2*M;let y=56;
+  const ensure=h=>{if(y+h>792-50){doc.addPage();y=50;}};
+  doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text("FICHA INTERNA DE CAPTACIÓN",M,y);doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(110);
+  doc.text(`Uso interno · no compartir con clientes · ${fechaCorta(hoyLocal())}`,612-M,y,{align:"right"});doc.setTextColor(0);y+=22;
+  const sec=t=>{ensure(30);y+=6;doc.setFillColor(236,241,247);doc.rect(M,y-11,W,16,"F");doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(t,M+6,y);y+=16;};
+  const row=(k,v)=>{doc.setFontSize(9.5);const lines=wrap(v||"—",W-160,"normal");ensure(lines.length*13+2);doc.setFont("helvetica","bold");doc.setTextColor(94,107,125);doc.text(k,M+6,y);
+    doc.setFont("helvetica","normal");doc.setTextColor(27,37,51);lines.forEach((l,i)=>doc.text(l,M+160,y+i*13));y+=lines.length*13+3;doc.setTextColor(0);};
+  sec("INMUEBLE");row("Inmueble",s.titulo);row("Dirección",[s.calle,s.col,s.mun+", Qro.",s.cp?"C.P. "+s.cp:""].filter(Boolean).join(", "));row("Clave catastral",s.cat);
+  row("Superficies",[s.supT?`Terreno ${num(s.supT)} m²`:"",s.supC?`Construcción ${num(s.supC)} m²`:""].filter(Boolean).join(" · "));
+  row("Precio publicado",precioTxt(s));row("Precio que pide el propietario",s.ca_pide?money(s.ca_pide):"");row("Mantenimiento",s.mant?money(s.mant)+" mensuales":"");
+  sec("PROPIETARIO");row("Nombre",s.pr_nom);row("Contacto",[s.pr_tel,s.pr_mail].filter(Boolean).join(" · "));row("Estado civil",s.pr_civil);row("Varios propietarios / herederos",s.pr_varios);
+  sec("CAPTACIÓN");row("Tipo",s.ca_tipo);row("Comisión",s.ca_com?s.ca_com+" %":"");row("Vigencia",`${fechaCorta(s.ca_ini)} al ${fechaCorta(s.ca_fin)}`);
+  row("Avalúo u opinión de valor",s.ca_aval);row("Hipoteca o gravamen",s.ca_grav);row("Régimen de condominio",s.ca_cond);row("Asesor",[ASE.nombre,ASE.empresa].filter(Boolean).join(" · "));
+  sec("DOCUMENTOS");doc.setFontSize(9.5);DOCS.forEach(d=>{ensure(14);const ok=s.docs.includes(d);doc.setDrawColor(120);doc.rect(M+6,y-8,9,9);
+    if(ok){doc.setDrawColor(31,122,77);doc.setLineWidth(1.4);doc.line(M+7.5,y-3.5,M+10,y-1);doc.line(M+10,y-1,M+14,y-7);doc.setLineWidth(.5);}
+    doc.setFont("helvetica","normal");doc.setTextColor(ok?27:150);doc.text(d,M+22,y);doc.setTextColor(0);y+=14;});
+  sec("NOTAS");doc.setFontSize(9.5);doc.setFont("helvetica","normal");wrap(s.ca_notas||"—",W-12,"normal").forEach(l=>{ensure(13);doc.text(l,M+6,y);y+=13;});
+  const P=pendientes(s).filter(p=>p.k!=="FALTA"||/Fecha de término/.test(p.x));
+  if(P.length){sec("PENDIENTES");P.forEach(p=>{wrap("[  ] "+p.x,W-12,"normal").forEach((l,i)=>{ensure(13);doc.text(l,M+6+(i?18:0),y);y+=13;});y+=2;});}
+  const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(110);doc.text(`Página ${i} de ${n}`,612-M,792-30,{align:"right"});}
+  return doc.output("blob");}
+async function guardar(nombre,blob){const st=$("#dl_st");st.className="status";
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  st.className="status ok";st.textContent="Descargado: "+nombre+". El borrador de este equipo se borró.";limpiarBorrador();}
+const slug=s=>(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50)||"inmueble";
+$("#dl_com").onclick=async()=>{if(!window.jspdf)return;$("#dl_st").textContent="Generando…";const s=S();await guardar(`Ficha-${slug(s.titulo||tituloAuto(s))}.pdf`,await pdfComercial());};
+$("#dl_int").onclick=async()=>{if(!window.jspdf)return;const s=S();await guardar(`Captacion-interna-${slug(s.col||s.calle)}.pdf`,pdfInterna());};
+
+/* ---------- ejemplo ---------- */
+function ejemplo(){tituloManual=false;
+  setS({op:"Venta",tipo:"Casa",precio:"3850000",mant:"950",neg:"Negociable",calle:"Calle Ejemplo 123",col:"Fracc. Arboledas",mun:"Querétaro",cp:"76140",cat:"140100000000000",mostrar:"col",
+    ref:"a 5 minutos de Plaza Antea y de escuelas, con salida rápida a Bernardo Quintana",supT:"156",supC:"213.82",frente:"10",fondo:"16",niveles:"2",edad:"8",cons:"Excelente",rec:"3",banos:"2",medios:"1",est:"2",
+    amen:["Cocina integral","Jardín","Estudio","Calentador solar","Coto privado","Vigilancia 24 h","Cuarto de servicio"],desc:"",
+    pr_nom:"Propietario de Ejemplo",pr_tel:"4420000000",pr_civil:"Casado(a) – sociedad conyugal",pr_varios:"No",ca_tipo:"Exclusiva",ca_com:"5",ca_ini:hoyLocal(),ca_fin:"",ca_pide:"3900000",ca_aval:"No",ca_grav:"Sí, crédito Infonavit/Fovissste",ca_cond:"No aplica",
+    docs:["Escritura pública","Boleta predial al corriente","INE del propietario"]});
+  $("#desc").value=genDesc(S());
+  if(!ASE.nombre){ASE=Object.assign(ASE,{nombre:"Asesor de Ejemplo",empresa:"Inmobiliaria Ejemplo",telefono:"442 000 0000",correo:"asesor@ejemplo.com"});saveA();rAse();}
+  save();}
+
+/* ---------- inicio ---------- */
+/* ---------- borrador y borrado ---------- */
+function limpiarBorrador(){try{localStorage.removeItem(LS);}catch(e){}}
+let _bt=null;$("#borrar").addEventListener("click",()=>{const b=$("#borrar");
+  if(!b.classList.contains("conf")){b.classList.add("conf");b.textContent="¿Borrar todo? Toca otra vez";_bt=setTimeout(()=>{b.classList.remove("conf");b.textContent="🗑 Borrar datos de este equipo";},5000);return;}
+  clearTimeout(_bt);try{[LS,LSA].forEach(k=>localStorage.removeItem(k));}catch(e){}location.reload();});
+
+load();if(window.TASA_prellenar)setS(window.TASA_prellenar);
+tituloManual=!!$("#titulo").value&&$("#titulo").value!==tituloAuto(S());
+sync();rGal();go(0);
+</script>
+</body>
+</html>
