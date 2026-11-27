@@ -168,9 +168,20 @@ describe("Geometría UTM de la fuente (0066)", () => {
     const multi: Geometria = { type: "MultiPolygon", coordinates: [
       [[[0, 0], [40, 0], [40, 40], [0, 40], [0, 0]], [[10, 10], [10, 20], [20, 20], [20, 10], [10, 10]]],
       [[[100, 0], [103, 0], [103, 5], [100, 5], [100, 0]]]].map((p) => p.map((a) => a.map(([x, y]) => [352000 + x, 2280000 + y] as Punto))) };
-    const { anillos, textos } = leer(dxfDePredio({ clave: "149999990000002", geometria: utmAGeografica(multi), geometriaUtm: multi, consultadoEn: "2026-11-09" }));
+    const { anillos, textos, capas, entidades } = leer(dxfDePredio({ clave: "149999990000002", geometria: utmAGeografica(multi), geometriaUtm: multi, consultadoEn: "2026-11-09" }));
     expect(anillos.length).toBe(3);
-    expect(textos("TEXTO")[1]).toBe("Superficie del polígono: 1,515.00 m2");
+    // El hueco va en su capa (otro color), para no medirlo ni rellenarlo como predio; con su superficie al centro.
+    expect(capas.has("PREDIO_HUECO")).toBe(true);
+    const capaDe = (tipo: string) => entidades.filter((e) => e.tipo === tipo).map((e) => e.g.get(8)![0]);
+    expect(capaDe("POLYLINE")).toEqual(["PREDIO", "PREDIO_HUECO", "PREDIO"]);
+    expect(textos("TEXTO")).toEqual(expect.arrayContaining(["Hueco 100.00 m2", "Superficie bruta: 1,615.00 m2",
+      "Superficie de hueco: 100.00 m2 (capa PREDIO_HUECO)", "Superficie neta: 1,515.00 m2"]));
+    expect(textos("TEXTO").some((x) => x.startsWith("Superficie del polígono"))).toBe(false);
+  });
+  test("sin hueco: una sola superficie y sin capa PREDIO_HUECO", () => {
+    const d = leer(dxfDePredio({ clave: "149999990000001", geometria: POLIGONO, consultadoEn: "2026-11-09" }));
+    expect(d.capas.has("PREDIO_HUECO")).toBe(false);
+    expect(d.textos("TEXTO").filter((x) => x.startsWith("Superficie"))).toHaveLength(1);
   });
 });
 

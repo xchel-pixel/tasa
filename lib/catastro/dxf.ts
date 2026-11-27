@@ -84,11 +84,43 @@ export function superficieUtm(pols: Punto[][][]): number {
 
 const miles = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** Huecos interiores: capa aparte (otro color), para no medirlos ni rellenarlos como predio en AutoCAD. */
+export const CAPA_HUECO = "PREDIO_HUECO";
+const COLOR_HUECO = 30;
+
+/** Bruta (los contornos), huecos y neta (bruta menos huecos), en m², y cuántos huecos. */
+export function superficiesDe(pols: Punto[][][]): { bruta: number; huecos: number; neta: number; cuantos: number } {
+  const bruta = pols.reduce((s, pol) => s + Math.abs(areaConSigno(pol[0])), 0);
+  const huecos = pols.reduce((s, pol) => s + pol.slice(1).reduce((h, a) => h + Math.abs(areaConSigno(a)), 0), 0);
+  return { bruta, huecos, neta: bruta - huecos, cuantos: pols.reduce((s, pol) => s + pol.length - 1, 0) };
+}
+
+/** Las líneas de superficie: una sola sin huecos; con huecos, bruta, huecos y neta. */
+export function lineasDeSuperficie(pols: Punto[][][], aprox: boolean): string[] {
+  const s = superficiesDe(pols);
+  const a = aprox ? " (aprox.)" : "";
+  if (!s.cuantos) return [`Superficie del polígono${a}: ${miles(s.neta)} m2`];
+  return [`Superficie bruta${a}: ${miles(s.bruta)} m2`,
+    `Superficie de ${s.cuantos === 1 ? "hueco" : `${s.cuantos} huecos`}: ${miles(s.huecos)} m2 (capa ${CAPA_HUECO})`,
+    `Superficie neta${a}: ${miles(s.neta)} m2`];
+}
+
 export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn, construcciones }: PredioDxf): string {
   const pols = anillosDe({ geometria, geometriaUtm });
   const obras = construcciones?.estado === "ok" ? construcciones.construcciones : [];
   const capasNivel = [...new Set(obras.map((x) => x.nivel))].sort((a, b) => a - b).map((n): [string, number] => [capaDeNivel(n), COLOR_NIVEL[n - 1] ?? 7]);
-  const CAPAS: [string, number][] = [["PREDIO", 7], ...capasNivel, ["VERTICES", 1], ["COTAS", 3], ["TEXTO", 5]];
+  const conHueco = pols.some((pol) => pol.length > 1);
+  const CAPAS: [string, number][] = [["PREDIO", 7], ...(conHueco ? [[CAPA_HUECO, COLOR_HUECO] as [string, number]] : []), ...capasNivel,
+    ["VERTICES", 1], ["COTAS", 3], ["TEXTO", 5]];
+  const fecha = new Date(consultadoEn).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Mexico_City" });
+  const resumen = [
+    `Clave catastral: ${clave}`,
+    // Exacta con la geometría UTM de la fuente; "aprox." si se calculó desde los grados.
+    ...lineasDeSuperficie(pols, !geometriaUtm),
+    ...(construcciones ? textoConstrucciones(construcciones) : []),
+    `Fecha de consulta: ${fecha}`,
+    "Información sin validez oficial",
+  ];
   const todos = pols.flat(2);
   const xs = todos.map((p) => p[0]), ys = todos.map((p) => p[1]);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
@@ -108,7 +140,7 @@ export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn, cons
   g(9, "$ACADVER"); g(1, "AC1009");
   g(9, "$DWGCODEPAGE"); g(3, "ANSI_1252");
   g(9, "$INSBASE"); g(10, "0.0"); g(20, "0.0"); g(30, "0.0");
-  g(9, "$EXTMIN"); g(10, num(x0)); g(20, num(y0 - (4 + 1.7 * (4 + (construcciones ? textoConstrucciones(construcciones).length : 0))) * h)); g(30, "0.0");
+  g(9, "$EXTMIN"); g(10, num(x0)); g(20, num(y0 - (4 + 1.7 * resumen.length) * h)); g(30, "0.0");
   g(9, "$EXTMAX"); g(10, num(x1)); g(20, num(y1)); g(30, "0.0");
   g(0, "ENDSEC");
 
@@ -132,10 +164,16 @@ export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn, cons
   g(0, "SECTION"); g(2, "ENTITIES");
   let n = 0;
   for (const pol of pols) {
-    for (const anillo of pol) {
-      g(0, "POLYLINE"); g(8, "PREDIO"); g(66, 1); g(10, "0.0"); g(20, "0.0"); g(30, "0.0"); g(70, 1);
-      for (const [x, y] of anillo) { g(0, "VERTEX"); g(8, "PREDIO"); g(10, coord(x)); g(20, coord(y)); g(30, "0.0"); }
-      g(0, "SEQEND"); g(8, "PREDIO");
+    for (const [k, anillo] of pol.entries()) {
+      // El contorno en PREDIO; cada hueco en su capa, con su superficie al centro.
+      const capa = k === 0 ? "PREDIO" : CAPA_HUECO;
+      g(0, "POLYLINE"); g(8, capa); g(66, 1); g(10, "0.0"); g(20, "0.0"); g(30, "0.0"); g(70, 1);
+      for (const [x, y] of anillo) { g(0, "VERTEX"); g(8, capa); g(10, coord(x)); g(20, coord(y)); g(30, "0.0"); }
+      g(0, "SEQEND"); g(8, capa);
+      if (k > 0) {
+        const [hx, hy] = puntoInterior({ type: "Polygon", coordinates: [anillo] });
+        texto("TEXTO", hx, hy, `Hueco ${miles(Math.abs(areaConSigno(anillo)))} m2`, 0, true, h * 0.7);
+      }
 
       // Hacia afuera del anillo: depende de su sentido de giro.
       const sentido = areaConSigno(anillo) >= 0 ? 1 : -1;
@@ -169,15 +207,7 @@ export function dxfDePredio({ clave, geometria, geometriaUtm, consultadoEn, cons
     texto("TEXTO", cx, cy - (c.nivel - 1) * h * 0.8, `N${c.nivel} ${miles(c.m2)} m2`, 0, true, h * 0.6);
   }
 
-  const fecha = new Date(consultadoEn).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Mexico_City" });
-  [
-    `Clave catastral: ${clave}`,
-    // Exacta con la geometría UTM de la fuente; "aprox." si se calculó desde los grados.
-    `Superficie del polígono${geometriaUtm ? "" : " (aprox.)"}: ${miles(superficieUtm(pols))} m2`,
-    ...(construcciones ? textoConstrucciones(construcciones) : []),
-    `Fecha de consulta: ${fecha}`,
-    "Información sin validez oficial",
-  ].forEach((t, i) => texto("TEXTO", x0, y0 - 2.5 * h - i * 1.7 * h, t));
+  resumen.forEach((t, i) => texto("TEXTO", x0, y0 - 2.5 * h - i * 1.7 * h, t));
   g(0, "ENDSEC");
   g(0, "EOF");
   return salida.join("\r\n") + "\r\n";
@@ -221,7 +251,9 @@ export function dxfDeZona({ zona, predios, construcciones, rotos, fecha }: ZonaD
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const h = r3(Math.min(6, Math.max(1, Math.hypot(zx1 - zx0, zy1 - zy0) / 60)));
   const niveles = [...new Set(construcciones.map((x) => x.nivel))].sort((a, b) => a - b);
-  const CAPAS: [string, number][] = [["PREDIO", 7], ...niveles.map((n): [string, number] => [capaDeNivel(n), COLOR_NIVEL[n - 1] ?? 7]), ["TEXTO", 5]];
+  const conHueco = predios.some((p) => p.anillos.some((pol) => pol.length > 1));
+  const CAPAS: [string, number][] = [["PREDIO", 7], ...(conHueco ? [[CAPA_HUECO, COLOR_HUECO] as [string, number]] : []),
+    ...niveles.map((n): [string, number] => [capaDeNivel(n), COLOR_NIVEL[n - 1] ?? 7]), ["TEXTO", 5]];
 
   const urbanos = predios.filter((p) => !p.rustico).length;
   const dia = new Date(fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Mexico_City" });
@@ -276,11 +308,22 @@ export function dxfDeZona({ zona, predios, construcciones, rotos, fecha }: ZonaD
   g(0, "SECTION"); g(2, "ENTITIES");
   for (const p of predios) {
     for (const pol of p.anillos) {
-      for (const anillo of pol) polilinea("PREDIO", anillo);
+      pol.forEach((anillo, k) => polilinea(k === 0 ? "PREDIO" : CAPA_HUECO, anillo));
       // La clave al centro de cada parte (un predio en varias partes la lleva en todas), del tamaño de la parte.
       const m2 = superficieUtm([pol]);
       const [cx, cy] = puntoInterior({ type: "Polygon", coordinates: pol });
-      texto(cx, cy, p.clave, r3(Math.min(3, Math.max(0.3, Math.sqrt(m2) / 18))), true);
+      const alto = r3(Math.min(3, Math.max(0.3, Math.sqrt(m2) / 18)));
+      texto(cx, cy, p.clave, alto, true);
+      if (pol.length > 1) {
+        // Con hueco: bruta, hueco y neta bajo la clave; la superficie de cada hueco, en el hueco.
+        const s = superficiesDe([pol]);
+        [`Bruta ${miles(s.bruta)} m2`, `Hueco ${miles(s.huecos)} m2`, `Neta ${miles(s.neta)} m2`]
+          .forEach((t, i) => texto(cx, cy - (i + 1) * alto * 1.4, t, r3(alto * 0.7), true));
+        for (const hueco of pol.slice(1)) {
+          const [hx, hy] = puntoInterior({ type: "Polygon", coordinates: [hueco] });
+          texto(hx, hy, `Hueco ${miles(Math.abs(areaConSigno(hueco)))} m2`, r3(alto * 0.7), true);
+        }
+      }
     }
   }
   for (const c of construcciones) for (const pol of c.anillos) for (const anillo of pol) polilinea(capaDeNivel(c.nivel), anillo);

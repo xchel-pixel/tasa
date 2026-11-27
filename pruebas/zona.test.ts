@@ -121,5 +121,10 @@ describe("Predios en varias partes, repetidos o con hueco", () => {
     expect(dxf.split("140100123619158").length - 1).toBe(2);
     expect(dxf.split("140100123619995").length - 1).toBe(1);
     expect(dxf).toContain("2 predios en 4 líneas cerradas");
+    // El hueco en su capa, con bruta, hueco y neta bajo la clave, y su superficie en el hueco.
+    const lineas = dxf.split(String.fromCharCode(13, 10));
+    const capasDePolilineas = lineas.filter((_, i) => lineas[i - 2] === "POLYLINE" && lineas[i - 1] === "  8");
+    expect(capasDePolilineas.filter((c) => c === "PREDIO_HUECO")).toHaveLength(1);
+    for (const x of ["Bruta 3,600.00 m2", "Hueco 400.00 m2", "Neta 3,200.00 m2"]) expect(dxf).toContain(x);
   });
 });
