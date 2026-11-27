@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Mapa catastral">
+  <!-- Mapa catastral: plano plegado con manzanas, un predio resaltado y el pin. -->
+  <ellipse cx="80" cy="106" rx="54" ry="5" fill="#e7f0f8"/>
+  <path d="M26 30l34-10 40 10 34-10v70l-34 10-40-10-34 10z" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <path d="M60 20v70M100 30v70" stroke="#04386c" stroke-width="1.6" stroke-dasharray="3 3"/>
+  <!-- Manzanas y lotes -->
+  <path d="M34 42h20v18H34zM34 66h20v14H34zM68 40h24v16H68zM108 44h20v20h-20z" stroke="#006db3" stroke-width="1.6"/>
+  <path d="M44 42v18M80 40v16M118 44v20M108 54h20" stroke="#006db3" stroke-width="1.2"/>
+  <!-- Predio elegido (acento) -->
+  <path d="M68 62h24v20H68z" fill="#fde9c2" stroke="#c9861a" stroke-width="2.2"/>
+  <!-- Pin -->
+  <path d="M80 70c-7-9-10-14-10-19a10 10 0 0 1 20 0c0 5-3 10-10 19z" fill="#04386c" stroke="#04386c" stroke-width="1.6"/>
+  <circle cx="80" cy="51" r="3.6" fill="#fff"/>
+</svg>

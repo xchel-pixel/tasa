@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Mi cuenta">
+  <!-- Mi cuenta: credencial con foto y datos, y un candado (privacidad). -->
+  <ellipse cx="80" cy="106" rx="52" ry="5" fill="#e7f0f8"/>
+  <rect x="26" y="30" width="86" height="62" rx="7" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <circle cx="50" cy="56" r="10" fill="#e7f0f8" stroke="#006db3" stroke-width="1.8"/>
+  <path d="M38 80c2-6 7-9 12-9s10 3 12 9" stroke="#006db3" stroke-width="1.8"/>
+  <path d="M72 52h28M72 62h22M72 72h26" stroke="#006db3" stroke-width="1.6"/>
+  <rect x="108" y="58" width="28" height="24" rx="4" fill="#fde9c2" stroke="#c9861a" stroke-width="2.2"/>
+  <path d="M114 58v-6a8 8 0 0 1 16 0v6" stroke="#c9861a" stroke-width="2.2"/>
+  <circle cx="122" cy="70" r="2.4" fill="#c9861a"/>
+</svg>

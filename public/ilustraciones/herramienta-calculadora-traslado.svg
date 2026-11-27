@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Calculadora de traslado">
+  <!-- Calculadora de traslado: una casa con la llave y la calculadora de los gastos. -->
+  <ellipse cx="80" cy="106" rx="54" ry="5" fill="#e7f0f8"/>
+  <path d="M28 60l30-26 30 26v40H28z" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <path d="M50 100V78h16v22" stroke="#04386c" stroke-width="2"/>
+  <path d="M36 66h10v8H36z" stroke="#006db3" stroke-width="1.6"/>
+  <rect x="90" y="40" width="40" height="60" rx="6" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <rect x="96" y="46" width="28" height="12" rx="2" fill="#e7f0f8" stroke="#006db3" stroke-width="1.6"/>
+  <g stroke="#006db3" stroke-width="1.6"><path d="M98 66h6M110 66h6M98 75h6M110 75h6M98 84h6"/></g>
+  <path d="M113 81v10M108 86h10" stroke="#c9861a" stroke-width="2.2"/>
+  <circle cx="117" cy="52" r="1.6" fill="#006db3"/>
+</svg>

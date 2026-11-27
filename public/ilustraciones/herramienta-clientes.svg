@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Para tus clientes">
+  <!-- Para tus clientes: un código QR que lleva a la solicitud de cotización. -->
+  <ellipse cx="80" cy="106" rx="50" ry="5" fill="#e7f0f8"/>
+  <rect x="30" y="22" width="56" height="56" rx="6" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <g fill="#04386c"><rect x="38" y="30" width="12" height="12" rx="1"/><rect x="66" y="30" width="12" height="12" rx="1"/><rect x="38" y="58" width="12" height="12" rx="1"/></g>
+  <g fill="#006db3"><rect x="56" y="34" width="4" height="4"/><rect x="56" y="48" width="8" height="4"/><rect x="66" y="52" width="4" height="8"/><rect x="72" y="62" width="6" height="6"/><rect x="56" y="62" width="4" height="8"/></g>
+  <path d="M86 50h18" stroke="#c9861a" stroke-width="2.2"/>
+  <path d="M98 44l6 6-6 6" stroke="#c9861a" stroke-width="2.2"/>
+  <rect x="108" y="34" width="28" height="40" rx="4" fill="#fde9c2" stroke="#c9861a" stroke-width="2"/>
+  <path d="M114 44h16M114 51h16M114 58h10" stroke="#c9861a" stroke-width="1.6"/>
+  <path d="M40 92h36" stroke="#006db3" stroke-width="1.6"/>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Checklist de documentos">
+  <!-- Checklist de documentos: carpeta con documentos y una lista palomeada. -->
+  <ellipse cx="80" cy="106" rx="54" ry="5" fill="#e7f0f8"/>
+  <path d="M26 40a4 4 0 0 1 4-4h22l6 7h40a4 4 0 0 1 4 4v49a4 4 0 0 1-4 4H30a4 4 0 0 1-4-4z" fill="#e7f0f8" stroke="#04386c" stroke-width="2.2"/>
+  <path d="M40 36V24h40v19" fill="#fff" stroke="#006db3" stroke-width="1.8"/>
+  <path d="M48 32h24M48 38h16" stroke="#006db3" stroke-width="1.4"/>
+  <rect x="96" y="22" width="40" height="56" rx="5" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <g stroke="#c9861a" stroke-width="2.2"><path d="M102 36l3 3 5-6M102 50l3 3 5-6"/></g>
+  <path d="M102 61h7v7h-7z" stroke="#006db3" stroke-width="1.6"/>
+  <path d="M115 37h15M115 51h15M115 65h12" stroke="#006db3" stroke-width="1.6"/>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Mi tarjeta">
+  <!-- Mi tarjeta: tarjeta de presentación en el celular, lista para compartir. -->
+  <ellipse cx="80" cy="106" rx="46" ry="5" fill="#e7f0f8"/>
+  <rect x="56" y="14" width="48" height="88" rx="8" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <path d="M74 20h12" stroke="#04386c" stroke-width="2"/>
+  <circle cx="80" cy="42" r="10" fill="#e7f0f8" stroke="#006db3" stroke-width="1.8"/>
+  <path d="M74 46c2-3 4-4 6-4s4 1 6 4" stroke="#006db3" stroke-width="1.6"/>
+  <path d="M66 62h28M70 70h20" stroke="#006db3" stroke-width="1.6"/>
+  <rect x="66" y="78" width="28" height="10" rx="5" fill="#04386c"/>
+  <path d="M118 44l12-8M118 56h14M118 68l12 8" stroke="#c9861a" stroke-width="2.2"/>
+</svg>

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { cerrarSesion, marcarAvisoVisto } from "@/app/acciones";
 import { Marca } from "@/components/marca";
-import { MenuFijo } from "@/components/menu-fijo";
-import { menuDe } from "@/lib/herramientas";
+import { MenuFijo, PestanasSeccion } from "@/components/menu-fijo";
+import { misHerramientas } from "@/lib/herramientas";
+import { seccionesDe } from "@/lib/menu";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
 
@@ -10,8 +11,8 @@ import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
  * La barra de arriba de toda pantalla con sesión: la marca lleva al
  * inicio, debajo va la organización (con "Cambiar" si hay más de una) y
  * "Salir" cierra la sesión. El menú fijo (0053) va aquí arriba en la
- * computadora y abajo en el celular; sus entradas salen del catálogo de
- * herramientas, por rol.
+ * computadora y abajo en el celular; sus secciones salen de lib/menu.ts, por
+ * rol y catálogo de herramientas.
  *
  * Si la plataforma entra a una organización que no es suya, una franja
  * fija lo dice: lo que haga ahí queda a nombre de la plataforma.
@@ -19,7 +20,7 @@ import { crearClienteServidor, verComoId } from "@/lib/supabase/server";
 export async function Encabezado() {
   const sesion = await obtenerSesion();
   const persona = sesion?.persona;
-  const entradas = persona ? await menuDe(persona) : [];
+  const entradas = persona ? seccionesDe(persona, await misHerramientas()) : [];
   // El aviso de la organización activa (sin ?org= sale el de la principal).
   const ligaPrivacidad = persona ? `/privacidad?org=${encodeURIComponent(persona.organizacion.slug)}` : "/privacidad";
   // Aviso de privacidad nuevo que esta persona no ha visto (0064): se avisa aquí, no por correo.
@@ -57,7 +58,7 @@ export async function Encabezado() {
               </p>
             ) : null}
           </div>
-          {entradas.length > 1 ? <MenuFijo entradas={entradas} lugar="arriba" /> : null}
+          {entradas.length > 1 ? <MenuFijo secciones={entradas} lugar="arriba" /> : null}
           <div className="flex shrink-0 items-center gap-3">
             <Link href={ligaPrivacidad} className="toque text-[0.875rem] text-secundario underline underline-offset-4">
               Privacidad
@@ -75,6 +76,7 @@ export async function Encabezado() {
           </div>
         </div>
       </header>
+      {entradas.length > 1 ? <PestanasSeccion secciones={entradas} /> : null}
       {porVer ? (
         <div role="status" className="border-b border-linea bg-tinte px-6 py-3">
           <div className="mx-auto flex w-full max-w-md flex-wrap items-center justify-between gap-x-4 gap-y-2 md:max-w-3xl">
@@ -89,7 +91,7 @@ export async function Encabezado() {
           </div>
         </div>
       ) : null}
-      {entradas.length > 1 ? <MenuFijo entradas={entradas} lugar="abajo" /> : null}
+      {entradas.length > 1 ? <MenuFijo secciones={entradas} lugar="abajo" /> : null}
     </>
   );
 }

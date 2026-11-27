@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ficha de captación">
+  <!-- Ficha de captación: tarjeta con la foto de la casa, el precio y el código QR. -->
+  <ellipse cx="80" cy="106" rx="54" ry="5" fill="#e7f0f8"/>
+  <rect x="30" y="18" width="78" height="84" rx="6" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <rect x="38" y="26" width="62" height="36" rx="3" fill="#e7f0f8" stroke="#006db3" stroke-width="1.6"/>
+  <path d="M52 54V44l10-8 10 8v10z" stroke="#04386c" stroke-width="1.8"/>
+  <path d="M38 62l16-10 12 8 10-6 24 12" stroke="#006db3" stroke-width="1.4"/>
+  <path d="M38 72h30M38 80h44M38 88h24" stroke="#006db3" stroke-width="1.6"/>
+  <rect x="104" y="58" width="30" height="30" rx="3" fill="#fde9c2" stroke="#c9861a" stroke-width="2.2"/>
+  <g fill="#c9861a"><rect x="109" y="63" width="7" height="7"/><rect x="122" y="63" width="7" height="7"/><rect x="109" y="76" width="7" height="7"/><rect x="122" y="77" width="3" height="3"/><rect x="126" y="80" width="3" height="3"/></g>
+</svg>

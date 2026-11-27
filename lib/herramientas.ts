@@ -20,30 +20,3 @@ export async function tengoHerramienta(clave: ClaveHerramienta): Promise<boolean
 
 /** Para pantallas de herramientas que puede abrir cualquier rol (el catálogo decide quién la ve). */
 export const TODOS_LOS_ROLES: Rol[] = ["admin_org", "finanzas", "admin_marca", "equipo", "comisionista"];
-
-export type EntradaMenu = { href: string; texto: string };
-
-/** Dónde vive cada herramienta que va en el menú. */
-const RUTA: Partial<Record<ClaveHerramienta, string>> = {
-  mi_tarjeta: "/tarjeta",
-  calculadora_traslado: "/calculadora",
-  mapa_catastral: "/mapa-catastral",
-  agenda: "/agenda",
-};
-
-/**
- * El menú fijo, por rol: Portada siempre; el comisionista además su panel de comisiones y Mis datos; en
- * medio, las herramientas del catálogo que tenga activas y marcadas para el menú, en su orden.
- */
-export async function menuDe(persona: Persona): Promise<EntradaMenu[]> {
-  const herramientas = (await misHerramientas())
-    .filter((h) => h.en_menu && RUTA[h.clave])
-    .map((h) => ({ href: RUTA[h.clave]!, texto: h.nombre }));
-  if (persona.rol !== "comisionista") return [{ href: "/", texto: "Portada" }, ...herramientas];
-  return [
-    { href: "/", texto: "Portada" },
-    { href: "/estado-de-cuenta", texto: "Comisiones" },
-    ...herramientas,
-    { href: "/perfil", texto: "Mis datos" },
-  ];
-}

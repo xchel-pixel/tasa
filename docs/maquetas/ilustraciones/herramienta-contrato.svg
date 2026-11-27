@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Contrato de arrendamiento">
+  <!-- Contrato de arrendamiento: hoja con cláusulas, llave y firma. -->
+  <ellipse cx="80" cy="106" rx="50" ry="5" fill="#e7f0f8"/>
+  <path d="M50 14h46l16 16v70a4 4 0 0 1-4 4H50a4 4 0 0 1-4-4V18a4 4 0 0 1 4-4z" fill="#fff" stroke="#04386c" stroke-width="2.2"/>
+  <path d="M96 14v16h16" stroke="#04386c" stroke-width="2"/>
+  <path d="M56 36h30M56 44h44M56 52h40M56 60h44M56 68h26" stroke="#006db3" stroke-width="1.6"/>
+  <!-- Firma -->
+  <path d="M58 88c6-8 8 4 13-2s5 4 10 0 6-2 9 1" stroke="#04386c" stroke-width="1.8"/>
+  <path d="M56 94h40" stroke="#04386c" stroke-width="1.2"/>
+  <!-- Llave (acento) -->
+  <circle cx="120" cy="74" r="9" fill="#fde9c2" stroke="#c9861a" stroke-width="2.2"/>
+  <circle cx="120" cy="74" r="3" stroke="#c9861a" stroke-width="1.8"/>
+  <path d="M114 81l-14 14M104 91l4 4M108 87l3 3" stroke="#c9861a" stroke-width="2.2"/>
+</svg>

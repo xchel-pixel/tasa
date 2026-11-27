@@ -138,6 +138,11 @@ const PANTALLAS: Record<string, Pantalla> = {
   // Portada solo con herramientas (0056): cada tarjeta abre su pantalla.
   "/panel": { rutas: () => ["/panel"], espera: { admin_org: "inicio", finanzas: "inicio", admin_marca: "inicio", equipo: "abre", comisionista: "abre" } },
   "/admin": { rutas: () => ["/admin"], espera: OPERACION },
+  // Menú por secciones (dic-2026): las páginas de cada sección; las pantallas de siempre siguen en su ruta.
+  "/mis-trabajos": { rutas: () => ["/mis-trabajos"], espera: SOLO_COMISIONISTA },
+  "/mi-cuenta": { rutas: () => ["/mi-cuenta"], espera: SOLO_COMISIONISTA },
+  "/administracion": { rutas: () => ["/administracion"], espera: OPERACION },
+  "/herramientas": { rutas: () => ["/herramientas"], espera: TODOS },
   "/para-tus-clientes": { rutas: () => ["/para-tus-clientes"], espera: TODOS },
   "/invitar": { rutas: () => ["/invitar"], espera: TODOS },
   "/calculadora/mis-calculos": { rutas: () => ["/calculadora/mis-calculos"], espera: TODOS },
