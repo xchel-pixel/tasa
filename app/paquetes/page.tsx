@@ -1,7 +1,6 @@
 import { DatosBancarios } from "@/components/datos-bancarios";
 import { Encabezado } from "@/components/encabezado";
 import { Etiqueta } from "@/components/etiqueta";
-import { VolverPortada } from "@/components/volver-portada";
 import { hoyMx } from "@/lib/estadisticas";
 import { fechaCorta, pesos } from "@/lib/formato";
 import { detalleMovimiento, diasHasta, TIPO_COMPRA, TIPO_MOVIMIENTO, type MisPaquetes } from "@/lib/paquetes";
@@ -40,8 +39,7 @@ export default async function MisPaquetesPagina() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <VolverPortada />
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Mis paquetes</h1>
 
           <section className="mt-4 rounded-xl border border-linea px-4 py-4">

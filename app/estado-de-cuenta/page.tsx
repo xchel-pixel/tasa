@@ -26,10 +26,7 @@ export default async function EstadoDeCuenta({ searchParams }: PageProps<"/estad
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
-            ← Portada
-          </Link>
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Estado de cuenta</h1>
           {alcanza ? (
             <Link href="/paquetes" className="mt-3 block rounded-xl border border-primario bg-tinte px-4 py-3 text-[0.9375rem] leading-6">

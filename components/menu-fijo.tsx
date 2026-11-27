@@ -19,6 +19,14 @@ const TRAZOS: Record<IconoMenu, string> = {
   agenda: "M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM8 3v4M16 3v4M4 10h16",
   cuenta: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4-6 8-6s7 2 8 6",
   ajustes: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1",
+  mas: "M12 5v14M5 12h14",
+  dinero: "M12 3v18M16.5 7.5c-.8-1.5-2.4-2.5-4.5-2.5-2.5 0-4.5 1.3-4.5 3.5 0 5 9 2.5 9 7.5 0 2.2-2 3.5-4.5 3.5-2.1 0-3.8-1-4.6-2.6",
+  lista: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01",
+  campana: "M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0",
+  personas: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M16 4.5a3.5 3.5 0 0 1 0 6.5M18.5 14.8c1.8.8 3 2.6 3.5 5.2",
+  llave: "M15 9a4 4 0 1 1-3.9 4.9L4 21H2v-3l7-7A4 4 0 0 1 15 9zM16 8h.01",
+  seguimiento: "M4 19h16M4 15l4-4 4 3 7-7M15 7h4v4",
+  candado: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
 };
 
 export function IconoSeccion({ icono, className = "h-6 w-6" }: { icono: IconoMenu; className?: string }) {

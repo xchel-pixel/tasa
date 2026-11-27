@@ -38,8 +38,7 @@ export default async function MisDatos() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">← Portada</Link>
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Mis datos</h1>
 
           <dl className="mt-4">

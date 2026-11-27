@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { TarjetaInvitar } from "@/components/tarjeta-invitar";
-import { VolverPortada } from "@/components/volver-portada";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { ligasDe, mensajesDeInvitacion } from "@/lib/ligas";
 import { exigirRol } from "@/lib/sesion";
@@ -19,8 +18,7 @@ export default async function Invitar() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <VolverPortada />
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Invita a un comisionista</h1>
           {invitar ? (
             <TarjetaInvitar liga={invitar} mensaje={mensajes.invitar} equipo={equipo} bono={bono} />

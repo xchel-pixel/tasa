@@ -28,7 +28,7 @@ export default async function MisCalculos() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <Link href="/calculadora" className="toque text-[0.9375rem] font-semibold text-acento">← Calculadora</Link>
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Mis cálculos</h1>
           <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">Se guardan 90 días y después se borran solos.</p>

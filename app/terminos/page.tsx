@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { fechaCorta } from "@/lib/formato";
@@ -37,12 +36,7 @@ export default async function Terminos() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          {!persona.debeAceptarTerminos ? (
-            <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
-              ← Portada
-            </Link>
-          ) : null}
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Términos de {persona.organizacion.nombre}</h1>
           {persona.debeAceptarTerminos ? (
             <p className="mt-2 leading-7 text-secundario">

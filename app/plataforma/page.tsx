@@ -30,7 +30,7 @@ export default async function Plataforma() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-8">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="text-[1.5rem] font-bold tracking-tight">Plataforma</h1>
           <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
             Cada organización está aislada: sus datos, niveles, cuentas y ajustes no se mezclan.

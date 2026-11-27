@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { Etiqueta } from "@/components/etiqueta";
@@ -100,8 +99,7 @@ export default async function MiTarjeta() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">← Portada</Link>
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Mi tarjeta</h1>
           {liga ? <CompartirTarjeta liga={liga} publicada={estado === "publicada"} /> : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">

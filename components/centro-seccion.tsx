@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconoSeccion } from "@/components/menu-fijo";
 import type { Pantalla } from "@/lib/menu";
 
 /**
@@ -36,7 +37,12 @@ export function TarjetasDeSeccion({ pantallas }: { pantallas: Pantalla[] }) {
           <ul className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
             {pantallas.filter((p) => (p.grupo ?? "") === g).map((p) => (
               <li key={p.href}>
-                <Link href={p.href} className="flex h-full gap-3 rounded-xl border border-linea bg-fondo px-4 py-3 hover:border-acento">
+                <Link href={p.href} className="flex h-full items-start gap-3 rounded-xl border border-linea bg-fondo px-4 py-3 hover:border-acento">
+                  {p.icono ? (
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tinte text-primario">
+                      <IconoSeccion icono={p.icono} className="h-[22px] w-[22px]" />
+                    </span>
+                  ) : null}
                   <span>
                     <span className="block font-bold leading-tight">{p.titulo}</span>
                     <span className="mt-1 block text-[0.875rem] leading-5 text-secundario">{p.detalle}</span>

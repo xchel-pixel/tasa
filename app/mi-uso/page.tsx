@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Encabezado } from "@/components/encabezado";
 import { PedirMas } from "@/components/formularios-cupo";
 import { PedirMasDxf } from "@/components/formularios-dxf";
-import { VolverPortada } from "@/components/volver-portada";
 import { miCupo, textoCupo, type HerramientaConCupo } from "@/lib/cupos";
 import { miDxf, textoDxf } from "@/lib/dxf-saldo";
 import { misHerramientas } from "@/lib/herramientas";
@@ -35,8 +34,7 @@ export default async function MiUso() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <VolverPortada />
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Mi uso</h1>
           <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">Tus cupos de este mes y lo que has consultado. El cupo se reinicia el día 1.</p>
 

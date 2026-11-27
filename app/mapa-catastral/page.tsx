@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { PedirMas } from "@/components/formularios-cupo";
-import { VolverPortada } from "@/components/volver-portada";
 import { miCupo, textoCupo } from "@/lib/cupos";
 import { miDxf } from "@/lib/dxf-saldo";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
@@ -35,7 +34,6 @@ export default async function MapaCatastralPagina({ searchParams }: { searchPara
       <main className="flex flex-1 flex-col px-4 py-6">
         <div className="mx-auto w-full max-w-3xl">
           <div className="px-2">
-            <VolverPortada />
             <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Mapa catastral</h1>
             <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
               Pica un terreno o búscalo por clave, domicilio, coordenadas, liga de Google Maps o folio real.{equipo ? " Las líneas de los predios aparecen al acercarte a nivel de calle." : ""}

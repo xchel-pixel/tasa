@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
-import { VolverPortada } from "@/components/volver-portada";
 import { TODOS_LOS_ROLES, tengoHerramienta } from "@/lib/herramientas";
 import { exigirRol } from "@/lib/sesion";
 import datos from "@/lib/traslado/parametros-2026.json";
@@ -32,8 +31,7 @@ export default async function Calculadora({ searchParams }: { searchParams: Prom
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <VolverPortada />
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <div className="mt-2 flex items-center justify-between gap-3">
             <h1 className="text-[1.5rem] font-bold tracking-tight">Calculadora de traslado</h1>
             <Link href="/calculadora/mis-calculos" className="toque shrink-0 text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mis cálculos</Link>

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Encabezado } from "@/components/encabezado";
 import { inicialSolicitudDelMapa } from "@/lib/catastro/prellenado";
 import { exigirRol } from "@/lib/sesion";
@@ -45,10 +44,7 @@ export default async function NuevaSolicitud({ searchParams }: { searchParams: P
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
-            ← Portada
-          </Link>
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Nueva solicitud</h1>
           <p className="mt-1 text-[0.9375rem] leading-6 text-secundario">
             Administración revisa los datos y te manda la cotización. Los montos los pone ella.

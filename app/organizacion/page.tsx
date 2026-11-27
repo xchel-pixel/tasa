@@ -24,7 +24,7 @@ export default async function ElegirOrganizacion() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-8">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="text-[1.5rem] font-bold tracking-tight">¿Con qué organización trabajas?</h1>
           {opciones.length === 0 ? (
             <p className="mt-4 rounded-xl bg-alterno px-4 py-3 text-secundario">

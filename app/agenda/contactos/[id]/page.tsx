@@ -30,7 +30,7 @@ export default async function ContactoAgenda({ params }: { params: Promise<{ id:
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-4 py-6">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <Link href="/agenda/contactos" className="toque text-[0.9375rem] font-semibold text-acento">← Contactos</Link>
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">{nuevo ? "Contacto nuevo" : k!.nombre}</h1>
           {k ? (

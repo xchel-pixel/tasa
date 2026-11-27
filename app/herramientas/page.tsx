@@ -38,7 +38,7 @@ export default async function Herramientas() {
       <main className="flex flex-1 flex-col px-6 py-6">
         <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <EncabezadoSeccion titulo="Herramientas" bajada="Todo lo que te ayuda a cerrar una operación, en un solo lugar." ilustracion="seccion-herramientas"
-            texto="Elige una herramienta. Cada una revisa tus permisos y lo que cuentas en tu plan." />
+            texto="Elige una herramienta. Algunas dependen de tu plan." />
           {GRUPOS.map((g) => {
             const tarjetas = g.tarjetas.filter((t) => nombre(t.clave) && !(t.soloStaff && persona.rol === "comisionista"));
             if (!tarjetas.length && !g.vacio) return null;

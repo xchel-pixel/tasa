@@ -33,7 +33,7 @@ export default async function ResultadoCalculo({ params }: { params: Promise<{ i
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <Link href="/calculadora" className="toque text-[0.9375rem] font-semibold text-acento">← Calcular otro</Link>
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Gastos de traslado</h1>
           <p className="text-[0.9375rem] text-secundario">

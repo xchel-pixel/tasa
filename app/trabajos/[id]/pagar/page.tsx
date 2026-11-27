@@ -51,7 +51,7 @@ export default async function ReportarPago({ params }: PageProps<"/trabajos/[id]
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <Link href={`/trabajos/${id}`} className="toque text-[0.9375rem] font-semibold text-acento">
             ← {t.cliente_nombre}
           </Link>

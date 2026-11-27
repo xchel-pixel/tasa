@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
-import { VolverPortada } from "@/components/volver-portada";
 import {
   acomodar, diaLegible, diaMx, diaValido, horaMx, hoyMx, leerDia, ligaWhatsApp, minutosMx, sumarDias,
   type Cita, type Contacto, type EventoTasa, type Tarea,
@@ -49,7 +48,6 @@ export default async function Agenda({ searchParams }: { searchParams: Promise<R
         <AvisosDeshacer>
         <div className="mx-auto w-full max-w-6xl px-4 lg:px-6">
           <div className="flex items-center justify-between px-1">
-            <VolverPortada />
             <div className="flex gap-4">
               <Link href="/agenda/contactos" className="text-[0.9375rem] font-semibold text-acento">Contactos</Link>
               <Link href="/agenda/calendario" className="text-[0.9375rem] font-semibold text-acento">Calendario</Link>
@@ -306,8 +304,7 @@ function AgendaPrivada() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-4 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <VolverPortada />
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">Agenda privada</h1>
           <p className="mt-2 rounded-xl bg-alterno px-4 py-3 text-[0.9375rem] leading-6 text-secundario">
             La agenda de cada persona es privada: ni administración ni &quot;ver como&quot; la pueden abrir.

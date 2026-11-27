@@ -104,7 +104,7 @@ export default async function FichaTrabajo({ params }: PageProps<"/trabajos/[id]
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <Link href="/" className="toque text-[0.9375rem] font-semibold text-acento">
             ← {persona.rol === "comisionista" ? "Mis trabajos" : persona.rol === "equipo" ? "Inicio" : "Panel"}
           </Link>

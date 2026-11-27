@@ -44,7 +44,7 @@ export default async function CitaAgenda({ params, searchParams }: {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-4 py-6">
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           <Link href={`/agenda?dia=${dia}`} className="toque text-[0.9375rem] font-semibold text-acento">← Agenda</Link>
           <h1 className="mt-2 text-[1.5rem] font-bold tracking-tight">{nueva ? "Cita nueva" : c!.titulo}</h1>
 

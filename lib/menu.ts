@@ -14,10 +14,11 @@ import type { Persona } from "@/lib/sesion";
  * La Agenda solo sale si la persona la tiene en el catálogo (apagada, no se ve).
  */
 
-export type IconoMenu = "inicio" | "hoy" | "trabajos" | "admin" | "herramientas" | "agenda" | "cuenta" | "ajustes";
+export type IconoMenu = "inicio" | "hoy" | "trabajos" | "admin" | "herramientas" | "agenda" | "cuenta" | "ajustes"
+  | "mas" | "dinero" | "lista" | "campana" | "personas" | "llave" | "seguimiento" | "candado";
 
 /** Una pantalla dentro de una sección: tarjeta en su página y pestaña en la computadora. */
-export type Pantalla = { href: string; titulo: string; detalle: string; grupo?: string };
+export type Pantalla = { href: string; titulo: string; detalle: string; grupo?: string; icono?: IconoMenu };
 
 export type Seccion = {
   id: "inicio" | "hoy" | "trabajos" | "administracion" | "panel" | "herramientas" | "agenda" | "cuenta" | "ajustes";
@@ -36,10 +37,10 @@ const tiene = (h: Herramienta[], c: ClaveHerramienta) => h.some((x) => x.clave =
 /** Las pantallas de "Mis trabajos" del comisionista. */
 function misTrabajos(h: Herramienta[]): Pantalla[] {
   return [
-    { href: "/solicitudes/nueva", titulo: "Solicitar", detalle: "Cotización o trámite para tu cliente" },
-    { href: "/panel", titulo: "Seguimiento", detalle: "Tus trabajos, tu nivel y en qué va cada uno" },
-    { href: "/estado-de-cuenta", titulo: "Comisiones", detalle: "Lo cobrado, lo por cobrar y tus cierres" },
-    ...(tiene(h, "invitar") ? [{ href: "/invitar", titulo: "Referidos", detalle: "Tu liga para invitar aliados y lo que te dejan" }] : []),
+    { href: "/solicitudes/nueva", titulo: "Solicitar", detalle: "Cotización o trámite para tu cliente", icono: "mas" },
+    { href: "/panel", titulo: "Seguimiento", detalle: "Tus trabajos, tu nivel y en qué va cada uno", icono: "seguimiento" },
+    { href: "/estado-de-cuenta", titulo: "Comisiones", detalle: "Lo cobrado, lo por cobrar y tus cierres", icono: "dinero" },
+    ...(tiene(h, "invitar") ? [{ href: "/invitar", titulo: "Referidos", detalle: "Tu liga para invitar aliados y lo que te dejan", icono: "personas" as const }] : []),
   ];
 }
 
@@ -48,20 +49,20 @@ function administracion(rol: Persona["rol"]): Pantalla[] {
   const staff = rol === "admin_org" || rol === "finanzas";
   const admin = rol === "admin_org";
   const p: (Pantalla | false)[] = [
-    { href: "/admin/tramites", titulo: "Trámites", detalle: "Todos los trabajos y su estatus", grupo: "Operación" },
-    { href: "/admin/solicitudes", titulo: "Por cotizar", detalle: "Solicitudes que esperan cotización", grupo: "Operación" },
-    { href: "/admin/pagos", titulo: "Pagos por confirmar", detalle: "Lo que dicen que ya pagaron", grupo: "Operación" },
-    staff && { href: "/admin/paquetes", titulo: "Paquetes", detalle: "Saldos y vencimientos de los paquetes", grupo: "Operación" },
-    staff && { href: "/admin/cierres", titulo: "Panel de comisiones", detalle: "Cierre del mes y lo que se debe", grupo: "Comisionistas" },
-    staff && { href: "/admin/comisiones", titulo: "Comisiones por pagar", detalle: "Lo que toca pagar y sus facturas", grupo: "Comisionistas" },
-    { href: "/admin/comisionistas", titulo: "Comisionistas", detalle: "Fichas, niveles y estado de cuenta", grupo: "Comisionistas" },
-    staff && { href: "/admin/referidos", titulo: "Referidos", detalle: "Quién invitó a quién y sus bonos", grupo: "Comisionistas" },
-    staff && { href: "/admin/altas", titulo: "Solicitudes de alta", detalle: "Quién pidió entrar", grupo: "Comisionistas" },
-    staff && { href: "/admin/estadisticas", titulo: "Estadísticas", detalle: "Uso de herramientas y salud de la fuente", grupo: "Control" },
-    staff && { href: "/admin/reportes", titulo: "Reportes", detalle: "Cifras del mes para descargar", grupo: "Control" },
-    { href: "/admin/alertas", titulo: "Alertas", detalle: "Lo abierto y lo ya resuelto", grupo: "Control" },
-    admin && { href: "/admin/bitacora", titulo: "Bitácora", detalle: "Quién hizo qué y cuándo", grupo: "Control" },
-    admin && { href: "/admin/accesos", titulo: "Accesos", detalle: "Estatus, sesiones y equipos de cada persona", grupo: "Control" },
+    { href: "/admin/tramites", titulo: "Trámites", detalle: "Todos los trabajos y su estatus", grupo: "Operación", icono: "trabajos" },
+    { href: "/admin/solicitudes", titulo: "Por cotizar", detalle: "Solicitudes que esperan cotización", grupo: "Operación", icono: "mas" },
+    { href: "/admin/pagos", titulo: "Pagos por confirmar", detalle: "Lo que dicen que ya pagaron", grupo: "Operación", icono: "hoy" },
+    staff && { href: "/admin/paquetes", titulo: "Paquetes", detalle: "Saldos y vencimientos de los paquetes", grupo: "Operación", icono: "dinero" },
+    staff && { href: "/admin/cierres", titulo: "Panel de comisiones", detalle: "Cierre del mes y lo que se debe", grupo: "Comisionistas", icono: "admin" },
+    staff && { href: "/admin/comisiones", titulo: "Comisiones por pagar", detalle: "Lo que toca pagar y sus facturas", grupo: "Comisionistas", icono: "dinero" },
+    { href: "/admin/comisionistas", titulo: "Comisionistas", detalle: "Fichas, niveles y estado de cuenta", grupo: "Comisionistas", icono: "cuenta" },
+    staff && { href: "/admin/referidos", titulo: "Referidos", detalle: "Quién invitó a quién y sus bonos", grupo: "Comisionistas", icono: "personas" },
+    staff && { href: "/admin/altas", titulo: "Solicitudes de alta", detalle: "Quién pidió entrar", grupo: "Comisionistas", icono: "mas" },
+    staff && { href: "/admin/estadisticas", titulo: "Estadísticas", detalle: "Uso de herramientas y salud de la fuente", grupo: "Control", icono: "admin" },
+    staff && { href: "/admin/reportes", titulo: "Reportes", detalle: "Cifras del mes para descargar", grupo: "Control", icono: "lista" },
+    { href: "/admin/alertas", titulo: "Alertas", detalle: "Lo abierto y lo ya resuelto", grupo: "Control", icono: "campana" },
+    admin && { href: "/admin/bitacora", titulo: "Bitácora", detalle: "Quién hizo qué y cuándo", grupo: "Control", icono: "lista" },
+    admin && { href: "/admin/accesos", titulo: "Accesos", detalle: "Estatus, sesiones y equipos de cada persona", grupo: "Control", icono: "llave" },
   ];
   return p.filter((x): x is Pantalla => Boolean(x));
 }
@@ -75,10 +76,10 @@ const AJUSTES: Pantalla[] = [
 
 function miCuenta(persona: Persona): Pantalla[] {
   return [
-    { href: "/perfil", titulo: "Mis datos", detalle: "Tu perfil, tus datos fiscales y bancarios" },
-    { href: "/paquetes", titulo: "Mis paquetes", detalle: "Tu crédito, su vigencia y tus movimientos" },
-    { href: "/mi-uso", titulo: "Mi uso", detalle: "Tus cupos del mes y tus consultas" },
-    { href: `/privacidad?org=${encodeURIComponent(persona.organizacion.slug)}`, titulo: "Privacidad", detalle: "Cómo cuidamos tus datos" },
+    { href: "/perfil", titulo: "Mis datos", detalle: "Tu perfil, tus datos fiscales y bancarios", icono: "cuenta" },
+    { href: "/paquetes", titulo: "Mis paquetes", detalle: "Tu crédito, su vigencia y tus movimientos", icono: "dinero" },
+    { href: "/mi-uso", titulo: "Mi uso", detalle: "Tus cupos del mes y tus consultas", icono: "admin" },
+    { href: `/privacidad?org=${encodeURIComponent(persona.organizacion.slug)}`, titulo: "Privacidad", detalle: "Cómo cuidamos tus datos", icono: "candado" },
   ];
 }
 

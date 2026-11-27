@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { Encabezado } from "@/components/encabezado";
 import { PanelComisionista } from "@/components/panel-comisionista";
 import { SeccionesDeInicio } from "@/components/secciones-de-inicio";
-import { VolverPortada } from "@/components/volver-portada";
 import { exigirRol } from "@/lib/sesion";
 
 export const metadata = { title: "Panel — Tasa" };
@@ -16,8 +15,7 @@ export default async function Panel() {
     <>
       <Encabezado />
       <main className="flex flex-1 flex-col px-6 py-6">
-        <div className="mx-auto w-full max-w-md">
-          <VolverPortada />
+        <div className="mx-auto w-full max-w-md md:max-w-3xl">
           {persona.rol === "comisionista" ? (
             <PanelComisionista persona={persona} />
           ) : (
