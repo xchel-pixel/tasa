@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Bibliotecas de terceros servidas tal cual (jsPDF, pdf.js, QRious): no son código de Tasa.
+    "public/vendor/**",
   ]),
 ]);
 
