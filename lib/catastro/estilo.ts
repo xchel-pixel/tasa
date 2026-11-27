@@ -1,4 +1,5 @@
-import type { StyleSpecification } from "maplibre-gl";
+import type { LayerSpecification, SourceSpecification, StyleSpecification } from "maplibre-gl";
+import { CAPAS } from "./capas";
 
 /**
  * El estilo del Mapa catastral (sin directiva: lo usa la pantalla y lo revisan las pruebas).
@@ -9,11 +10,17 @@ import type { StyleSpecification } from "maplibre-gl";
  * - Nombres de calles (desde zoom 15) y de colonias (desde zoom 14), en español, de mapbox-streets: SOLO las
  *   etiquetas (texto blanco con contorno oscuro), sin dibujar calles. Encima del satélite y de las líneas, debajo del
  *   predio elegido. La fuente no pide mosaicos abajo de zoom 14 ni arriba de 16 (de ahí en adelante reusa los de 16).
+ * - Capas del equipo (capas.ts: uso de suelo, colonias, ejidos, manzanas, construcciones): en el estilo solo para el
+ *   equipo y APAGADAS al cargar (una capa apagada no pide mosaicos); el selector "Capas" las prende. Van debajo de los
+ *   predios, en el orden de capas.ts.
  * Sin atribución de la fuente catastral; la de Mapbox la pone la pantalla (© Mapbox © OpenStreetMap © Maxar).
  */
 
 export const ZOOM_PREDIOS = 17;
 export const RUTA_PREDIOS = "/mapa-catastral/predios/{z}/{x}/{y}";
+/** La ruta de los mosaicos de una capa del equipo (la de predios es RUTA_PREDIOS). */
+export const rutaCapa = (id: string) => `/mapa-catastral/capas/${id}/{z}/{x}/{y}`;
+const EXTRA = CAPAS.filter((c) => c.id !== "predios");
 export const ROLES_CON_LINEAS = ["admin_org", "finanzas", "equipo"] as const;
 export const CAPAS_NOMBRES = ["nombres-colonias", "nombres-calles"] as const;
 
@@ -33,6 +40,8 @@ export function estiloMapa(o: { token: string; lineas: boolean; origen: string; 
         tileSize: 512,
         maxzoom: 19,
       },
+      ...(o.lineas ? Object.fromEntries(EXTRA.map((c): [string, SourceSpecification] =>
+        [c.id, { type: "raster", tiles: [o.origen + rutaCapa(c.id)], tileSize: 512, minzoom: c.zoomMin, maxzoom: 20 }])) : {}),
       ...(o.lineas ? { predios: { type: "raster" as const, tiles: [o.origen + RUTA_PREDIOS], tileSize: 512, minzoom: ZOOM_PREDIOS, maxzoom: 20 } } : {}),
       calles: {
         type: "vector",
@@ -45,6 +54,10 @@ export function estiloMapa(o: { token: string; lineas: boolean; origen: string; 
     layers: [
       // Sin fundido: cada mosaico se ve en cuanto llega.
       { id: "satelite", type: "raster", source: "satelite", paint: { "raster-fade-duration": 0 } },
+      ...(o.lineas
+        ? EXTRA.map((c): LayerSpecification => ({ id: c.id, type: "raster", source: c.id, minzoom: c.zoomMin, layout: { visibility: "none" },
+            paint: { "raster-fade-duration": 0, ...(c.id === "uso_suelo" ? { "raster-opacity": 0.6 } : {}) } }))
+        : []),
       ...(o.lineas
         ? [{ id: "predios", type: "raster" as const, source: "predios", minzoom: ZOOM_PREDIOS, paint: { "raster-fade-duration": 0 } }]
         : []),

@@ -146,3 +146,18 @@ describe("Expediente de un rústico", () => {
     expect(valores.copiar).toContain("Valor unitario de terreno: $16.31/m² · $163,080.00/ha (calculado)");
   });
 });
+
+describe("Rústico para un rol que no ve 'Tipo de predio' (comisionista)", () => {
+  test("con la marca del servidor (ficha.rustico) la ficha sigue en hectáreas y $/ha, sin mostrar el tipo", () => {
+    // Lo que ve un comisionista de XG: superficies y valores, sin tipo_predio.
+    const ficha = { clave: "140211165140013", municipio: "14", rustico: true,
+      campos: { sup_terreno: 690976, valor_terreno: 11268436.61, valor_catastral_total: 11268436.61 } } as unknown as Ficha;
+    const secciones = seccionesDeFicha(ficha);
+    expect(secciones.find((s) => s.id === "superficies")!.filas).toContainEqual(["Superficie de terreno (catastro)", "69.0976 ha (690,976.00 m²)"]);
+    expect(secciones.find((s) => s.id === "valores")!.filas).toContainEqual(["Valor unitario de terreno", "$16.31/m² · $163,080.00/ha"]);
+    expect(JSON.stringify(secciones)).not.toMatch(/Tipo de predio|RUSTICO/);
+    // Sin la marca (urbano), solo m².
+    const urbano = { ...ficha, rustico: false } as Ficha;
+    expect(seccionesDeFicha(urbano).find((s) => s.id === "superficies")!.filas).toContainEqual(["Superficie de terreno (catastro)", "690,976.00 m²"]);
+  });
+});

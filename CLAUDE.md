@@ -178,7 +178,9 @@ la app las muestra, la base las hace cumplir.
   debe regresarlo al inicio. La lista sale de las rutas reales: una ruta nueva sin su expectativa en
   `humo/humo.spec.ts` hace fallar la prueba, así que al crear una pantalla se agrega ahí. Usa Microsoft
   Edge en esta PC y necesita `SUPABASE_SECRET_KEY` en `.env.local`. Después de publicar, solo
-  `npm run humo:prod` (una prueba: entra, abre el Mapa catastral y su PDF). Humo elige la organización
+  `npm run humo:prod` (dos pruebas cortas: el comisionista de DEMO y la cuenta "PRUEBA Comisionista" de XG,
+  xchel+comisionista@arqosuv.com, abren el Mapa catastral; ninguno recibe mosaicos). Esa cuenta es de prueba
+  (es_demo): no recibe trabajos ni sale en reportes de comisiones ni en conteos; no se borra. Humo elige la organización
   con `elegir_organizacion` y al terminar deja la que la persona tenía activa.
 - **Publicación (nov-2026): GitHub Actions, no la integración de Git de Vercel.** El proyecto vive en el
   equipo Pro "devarqosuv's projects" (cuenta devarqosuv), cuyo GitHub no ve `xchel-pixel/tasa`.

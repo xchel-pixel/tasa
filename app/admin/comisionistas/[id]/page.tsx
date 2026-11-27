@@ -15,6 +15,7 @@ import { mesDeFecha, mesesCerrados } from "@/lib/meses";
 import { tratosDeLaOrg, fechaDMA } from "@/lib/tratos";
 import { leerPerfil } from "@/lib/perfil";
 import { AgregarMovimiento, CambiarActivo, CambiarVinculo, DecidirPerfil, ModerarElemento, ModerarTarjeta, CorregirReferidor, EditarDatos, ForzarElite, PaginaNotion, PonerPerfil, TasaDeBienvenida } from "./formularios";
+import { cuentasDePrueba } from "@/lib/cuentas-prueba";
 
 export const metadata = { title: "Comisionista — Tasa" };
 
@@ -126,6 +127,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
   const referido = f.referido_por
     ? ((await supabase.from("personas").select("nombre").eq("id", f.referido_por).maybeSingle()).data?.nombre ?? null)
     : null;
+  const prueba = await cuentasDePrueba(supabase);
   const [csf, otros] = await Promise.all([
     staff && f.csf_ruta ? supabase.storage.from("altas").createSignedUrl(f.csf_ruta, 600) : Promise.resolve(null),
     yo.rol === "admin_org"
@@ -236,6 +238,7 @@ export default async function FichaComisionista({ params, searchParams }: PagePr
             personaId={id}
             actual={f.referido_por}
             opciones={otros.data
+              .filter((o) => !prueba.has(o.persona_id))
               .map((o) => ({ id: o.persona_id, nombre: o.personas?.nombre ?? "" }))
               .sort((a, b) => a.nombre.localeCompare(b.nombre))}
           />

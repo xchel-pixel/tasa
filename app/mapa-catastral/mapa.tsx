@@ -7,13 +7,15 @@ import type { Map as MapaGL, GeoJSONSource, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { fechaLegible, seccionesDeFicha, type LadosCompactos, type TablaFicha } from "@/lib/catastro/etiquetas";
 import { detectarBusqueda, enQueretaro, SUBDIRECCIONES, textoDelTipo } from "@/lib/catastro/busqueda";
-import { CAPAS_NOMBRES, estiloMapa, ZOOM_PREDIOS } from "@/lib/catastro/estilo";
+import { CAPAS, COLOR_RUSTICOS, type IdCapa } from "@/lib/catastro/capas";
+import type { Parcela } from "@/lib/catastro/ejidos";
+import { CAPAS_NOMBRES, estiloMapa } from "@/lib/catastro/estilo";
 import { caja, ligaMaps, ligaVisor, type Geometria } from "@/lib/catastro/geo";
 import { NOTA_FUENTE, SIN_DATO } from "@/lib/catastro/textos";
 import type { Ficha, Resultado } from "@/lib/catastro/servicio";
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import { PedirMasDxf } from "@/components/formularios-dxf";
-import { buscarClave, buscarEnMapa, picarMapa, registrarBusquedaDomicilio, type ResultadoBusqueda } from "./acciones";
+import { buscarClave, buscarEnMapa, picarMapa, picarParcela, registrarBusquedaDomicilio, type ResultadoBusqueda } from "./acciones";
 
 const CENTRO: [number, number] = [-100.3899, 20.5888]; // Querétaro
 const ENTRADA = "w-full rounded-lg border border-borde-campo bg-fondo px-3 py-2 text-[1rem] focus:border-acento";
@@ -157,7 +159,11 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
   /** Líneas y claves de los predios: solo admin_org, finanzas y equipo (la ruta de mosaicos también lo revisa). */
   lineas: boolean;
 }) {
-  const [verLineas, setVerLineas] = useState(true);
+  const [prendidas, setPrendidas] = useState<Record<IdCapa, boolean>>(
+    () => Object.fromEntries(CAPAS.map((c) => [c.id, c.encendida])) as Record<IdCapa, boolean>);
+  // El clic del mapa se arma una vez: lee "Ejidos" de aquí.
+  const ejidosPrendida = useRef(false);
+  const [parcela, setParcela] = useState<Parcela | null>(null);
   const [verCalles, setVerCalles] = useState(true);
   const [subdireccion, setSubdireccion] = useState("14");
   const [buscadas, setBuscadas] = useState<{ para: string; lista: Sugerencia[] }>({ para: "", lista: [] });
@@ -293,7 +299,12 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
           return;
         }
         const { lat, lng } = e.lngLat;
-        empezar(async () => mostrar(await picarMapa(lat, lng), false));
+        setParcela(null);
+        empezar(async () => {
+          const [r, p] = await Promise.all([picarMapa(lat, lng), ejidosPrendida.current ? picarParcela(lat, lng) : null]);
+          mostrar(r, false);
+          setParcela(p?.ok ? p.parcela : null);
+        });
       });
       m.on("load", () => {
         try {
@@ -315,10 +326,13 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Interruptor "Líneas de predios" (solo el equipo la tiene en el estilo).
+  // Selector "Capas" (solo el equipo las tiene en el estilo). Una capa apagada no pide mosaicos.
   useEffect(() => {
-    if (listo && lineas) mapa.current?.setLayoutProperty("predios", "visibility", verLineas ? "visible" : "none");
-  }, [listo, lineas, verLineas]);
+    if (!listo || !lineas) return;
+    for (const c of CAPAS) mapa.current?.setLayoutProperty(c.id, "visibility", prendidas[c.id] ? "visible" : "none");
+    ejidosPrendida.current = prendidas.ejidos;
+  }, [listo, lineas, prendidas]);
+  const zoomFaltante = CAPAS.filter((c) => lineas && prendidas[c.id] && zoom < c.zoomMin).map((c) => c.zoomMin);
 
   // "Nombres de calles": encendido por omisión; la elección se recuerda en este navegador (se lee al cargar el mapa).
   useEffect(() => {
@@ -410,7 +424,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
       <div className="mt-2 flex items-center justify-between gap-2 px-2">
         <button type="button" onClick={miUbicacion} className="toque text-[0.9375rem] font-semibold text-acento underline underline-offset-4">Mi ubicación</button>
         <span className="text-[0.8125rem] text-secundario">
-          {ocupado ? "Consultando…" : lineas && verLineas && zoom < ZOOM_PREDIOS ? "Acércate para ver las líneas" : zoom < 16 ? "Acércate y pica un terreno" : "Pica un terreno"}
+          {ocupado ? "Consultando…" : zoomFaltante.length ? "Acércate para ver las capas" : zoom < 16 ? "Acércate y pica un terreno" : "Pica un terreno"}
         </span>
       </div>
       <label className="mt-1 flex items-center gap-2 px-2 text-[0.9375rem]">
@@ -418,10 +432,37 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
         Nombres de calles
       </label>
       {lineas ? (
-        <label className="mt-1 flex items-center gap-2 px-2 text-[0.9375rem]">
-          <input type="checkbox" checked={verLineas} onChange={(e) => setVerLineas(e.target.checked)} className="h-5 w-5 accent-primario" />
-          Líneas de predios
-        </label>
+        <details className="mt-1 rounded-lg border border-linea bg-fondo px-2 py-1">
+          <summary className="toque flex min-h-11 cursor-pointer items-center text-[0.9375rem] font-semibold">
+            Capas
+            <span className="ml-2 text-[0.8125rem] font-normal text-secundario">
+              {CAPAS.filter((c) => prendidas[c.id]).map((c) => c.nombre).join(", ") || "ninguna"}
+            </span>
+          </summary>
+          <ul className="flex flex-col gap-2 pb-2">
+            {[...CAPAS].reverse().map((c) => (
+              <li key={c.id}>
+                <label className="flex items-start gap-2 text-[0.9375rem]">
+                  <input type="checkbox" checked={prendidas[c.id]} onChange={(e) => setPrendidas((p) => ({ ...p, [c.id]: e.target.checked }))}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-primario" />
+                  <span>
+                    <span className="flex items-center gap-1.5">
+                      {c.color ? <span aria-hidden className="inline-block h-3 w-5 rounded-sm border-2" style={{ borderColor: c.color }} /> : (
+                        <span aria-hidden className="inline-flex h-3 w-5 overflow-hidden rounded-sm">
+                          {["#f7e7a6", "#f5c6cb", "#a8d8b9", "#9b9bf0"].map((t) => <span key={t} className="h-full flex-1" style={{ background: t }} />)}
+                        </span>
+                      )}
+                      {c.id === "predios" ? <span aria-hidden className="inline-block h-3 w-5 rounded-sm border-2" style={{ borderColor: COLOR_RUSTICOS }} /> : null}
+                      {c.nombre}
+                      <span className="text-[0.8125rem] text-secundario">· desde zoom {c.zoomMin}</span>
+                    </span>
+                    <span className="block text-[0.8125rem] leading-5 text-secundario">{c.leyenda}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : null}
 
       <div className="relative mt-2">
@@ -442,6 +483,18 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
         </button>
       ) : null}
       {aviso ? <p role="status" className="mt-3 rounded-xl bg-proceso-fondo px-4 py-3 text-[0.9375rem] leading-6 text-proceso">{aviso}</p> : null}
+
+      {parcela && prendidas.ejidos ? (
+        <section className="mt-3 rounded-xl border border-linea bg-fondo px-4 py-3" aria-label="Parcela ejidal">
+          <h2 className="text-[1rem] font-semibold">Parcela ejidal</h2>
+          <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
+            <div><dt className="text-[0.8125rem] text-secundario">Ejido</dt><dd className="text-[0.9375rem]">{parcela.ejido ?? <span className="text-secundario">{SIN_DATO}</span>}</dd></div>
+            <div><dt className="text-[0.8125rem] text-secundario">Parcela</dt><dd className="text-[0.9375rem]">{parcela.parcela ?? <span className="text-secundario">Sin número (uso común o zona urbana)</span>}</dd></div>
+            <div><dt className="text-[0.8125rem] text-secundario">Superficie</dt><dd className="text-[0.9375rem]">{parcela.superficie_m2 === null ? <span className="text-secundario">{SIN_DATO}</span>
+              : `${(parcela.superficie_m2 / 10_000).toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ha (${parcela.superficie_m2.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²)`}</dd></div>
+          </dl>
+        </section>
+      ) : null}
 
       {ficha ? (
         <article className="mt-3 flex flex-col gap-3">

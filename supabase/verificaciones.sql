@@ -6361,6 +6361,63 @@ begin
 end;
 $sec$;
 
+-- @@ Capas del mapa por capa y cuenta de prueba sin trabajos (0095)
+-- Mosaicos: el permiso de siempre en cada petición, con capa de una lista fija; el límite de 600 por hora es por capa.
+-- Cuenta de prueba (es_demo): no recibe un trabajo ni al reasignarlo, y no sale en el resumen de comisionistas.
+do $sec$
+declare
+  xg    uuid := pg_temp.xg();
+  yo    uuid;
+  prueba uuid;
+  b0    solicitudes%rowtype;
+begin
+  perform pg_temp.sistema();
+  update cupos_herramienta set cantidad = null where organizacion_id = xg and herramienta like 'mapa_catastral%';
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'admin_marca', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  select id into yo from personas where correo = 'xchel@arqosuv.com';
+  delete from catastro_mosaicos where persona_id = yo;
+
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico('ejidos'), 'ok', 'admin_org: mosaicos de ejidos sí');
+  perform pg_temp.igual(catastro_permiso_mosaico('construcciones'), 'ok', 'admin_org: construcciones sí');
+  perform pg_temp.igual(catastro_permiso_mosaico('otra_cosa'), 'capa', 'Una capa fuera de la lista: no');
+  perform pg_temp.igual(catastro_permiso_mosaico(), 'ok', 'Sin capa: predios, como antes');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico('ejidos'), 'rol', 'Comisionista: ni ejidos (403)');
+  perform pg_temp.igual(catastro_permiso_mosaico('uso_suelo'), 'rol', 'Comisionista: ni uso de suelo (403)');
+  perform pg_temp.como(null);
+  perform pg_temp.debe_fallar($q$select catastro_permiso_mosaico('ejidos')$q$, 'permission denied', 'Sin sesión: ni la función');
+
+  -- El límite es por capa: 600 de predios no frenan los de ejidos.
+  perform pg_temp.sistema();
+  update catastro_mosaicos set cantidad = 600 where persona_id = yo and capa = 'predios';
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico('predios'), 'limite', 'Predios: el 601 de la hora, 429');
+  perform pg_temp.igual(catastro_permiso_mosaico('ejidos'), 'ok', 'Ejidos sigue: su propio conteo');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from catastro_mosaicos where persona_id = yo)::int, 3, 'Un renglón por capa en la hora');
+  perform pg_temp.igual((select sum(mosaicos) from catastro_mosaicos_por_dia(current_date - 1) where capa = 'ejidos')::int >= 2, true,
+    'El reporte por día y capa');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select * from catastro_mosaicos_por_dia(current_date)$q$, 'permission denied', 'El reporte, solo la plataforma');
+
+  -- Cuenta de prueba.
+  perform pg_temp.sistema();
+  prueba := pg_temp.comisionista('Prueba Comisionista Mapa');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform marcar_demo(prueba, 'Cuenta de prueba para capturas y humo');
+  perform pg_temp.igual((select count(*) from resumen_comisionistas() where persona_id = prueba)::int, 0, 'No sale en el resumen de comisionistas');
+  perform pg_temp.igual((select count(*) from resumen_comisionistas())::int > 0, true, 'Los demás sí salen');
+  perform pg_temp.sistema();
+  select * into b0 from solicitudes where organizacion_id = xg and comisionista_id is not null and comisionista_id <> prueba limit 1;
+  perform pg_temp.debe_fallar(format('update solicitudes set comisionista_id = %L where id = %L', prueba, b0.id), 'no recibe trabajos',
+    'No recibe un trabajo existente (asignar, importar o a mano)');
+  perform pg_temp.igual((select comisionista_id from solicitudes where id = b0.id), b0.comisionista_id, 'El trabajo sigue con su comisionista');
+  update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

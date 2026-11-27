@@ -138,7 +138,7 @@ export const unitarioLegible = (u: Unitario) =>
  *   terreno daría un unitario falso.
  * · Superficie en 0 o vacía con valor: "—" (no se divide).
  */
-export function unitariosCatastrales(c: Record<string, unknown>): Unitario[] {
+export function unitariosCatastrales(c: Record<string, unknown>, rustico = esRustico(c)): Unitario[] {
   const num = (k: string): number | null => {
     const v = c[k];
     if (v === null || v === undefined || v === "") return null;
@@ -153,7 +153,7 @@ export function unitariosCatastrales(c: Record<string, unknown>): Unitario[] {
 
   if (!condominio) {
     // Rústico: también por hectárea (del valor, no del unitario por m² ya redondeado).
-    const porHa = esRustico(c) && vt !== null ? { porHa: dividir(vt, st === null ? null : st / 10_000) } : {};
+    const porHa = rustico && vt !== null ? { porHa: dividir(vt, st === null ? null : st / 10_000) } : {};
     if (vt !== null && vt > 0) salida.push({ tras: "valor_terreno", etiqueta: "Valor unitario de terreno", porM2: dividir(vt, st), ...porHa });
     if (vc !== null && vc > 0) salida.push({ tras: "valor_construccion", etiqueta: "Valor unitario de construcción (promedio)", porM2: dividir(vc, sc) });
     return salida;
@@ -176,7 +176,10 @@ export function unitariosCatastrales(c: Record<string, unknown>): Unitario[] {
 const hectareas = (m2: number) => (m2 / 10_000).toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
 /** Predio rústico: se trabaja por hectárea. */
-export const esRustico = (c: Record<string, unknown>) => String(c.tipo_predio ?? "").toUpperCase() === "RUSTICO";
+/** Predio rústico: se trabaja por hectárea. Con la ficha, también `ficha.rustico` (lo pone el servidor aunque el rol no
+ *  vea el campo "Tipo de predio"). */
+export const esRustico = (c: Record<string, unknown>, f?: { rustico?: boolean } | null) =>
+  f?.rustico === true || String(c.tipo_predio ?? "").toUpperCase() === "RUSTICO";
 
 /** Superficie de un rústico: hectáreas primero (4 decimales) y su equivalente en m². */
 export const superficieRustica = (m2: number) => `${hectareas(m2)} ha (${n2(m2)} m²)`;
@@ -346,14 +349,14 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
       }
     } else {
       for (const campo of s.campos) {
-        const m2 = campo === "sup_terreno" && esRustico(c) ? Number(c[campo]) : NaN;
+        const m2 = campo === "sup_terreno" && esRustico(c, f) ? Number(c[campo]) : NaN;
         const v = Number.isFinite(m2) && m2 > 0 ? superficieRustica(m2) : valorLegible(campo, c[campo]);
         if (v) filas.push([ETIQUETAS[campo][0], v]);
       }
       // La del polígono, después de la de catastro: exacta con la geometría UTM; "aprox." si salió de los grados.
       // Valores unitarios calculados, cada uno junto al valor del que sale; se copian con la sección.
       if (s.id === "valores" && filas.length) {
-        for (const u of unitariosCatastrales(c)) {
+        for (const u of unitariosCatastrales(c, esRustico(c, f))) {
           const i = filas.findIndex(([e]) => e === ETIQUETAS[u.tras][0]);
           if (i < 0) continue;
           let tras = i + 1;

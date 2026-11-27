@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { detectarBusqueda, enQueretaro, nombreSubdireccion, SUBDIRECCIONES, type TipoDeBusqueda } from "@/lib/catastro/busqueda";
+import { consultarParcela, type RespuestaParcela } from "@/lib/catastro/ejidos";
 import { buscarFolioReal } from "@/lib/catastro/idecatq";
 import { expandirLigaCorta } from "@/lib/catastro/ligas";
 import { consultarClave, consultarPunto, SIN_FUENTE, type Quien, type Resultado } from "@/lib/catastro/servicio";
@@ -132,4 +133,18 @@ export async function buscarEnMapa(texto: string, subdireccion: string): Promise
 export async function registrarBusquedaDomicilio(): Promise<void> {
   const q = await quien();
   if (q) await registrar("domicilio", null, "ok");
+}
+
+/**
+ * La parcela ejidal donde se picó (con la capa Ejidos encendida). Solo admin_org, finanzas y equipo: el mismo permiso
+ * que los mosaicos de ejidos, revisado en cada petición (y cuenta en su límite por hora). En el momento, sin caché y
+ * sin guardar nada; solo ejido, parcela y superficie (lib/catastro/ejidos.ts).
+ */
+export async function picarParcela(lat: number, lon: number): Promise<RespuestaParcela> {
+  const q = await quien();
+  if (!q || !Number.isFinite(lat) || !Number.isFinite(lon) || !enQueretaro(lat, lon)) return { ok: false };
+  const supabase = await crearClienteServidor();
+  const { data: permiso } = await supabase.rpc("catastro_permiso_mosaico", { p_capa: "ejidos" });
+  if (permiso !== "ok") return { ok: false };
+  return consultarParcela(lat, lon);
 }

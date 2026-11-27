@@ -3,6 +3,7 @@ import { exigirRol } from "@/lib/sesion";
 import { tratosDeLaOrg } from "@/lib/tratos";
 import { crearClienteServidor, oExplota } from "@/lib/supabase/server";
 import FormularioAlta from "./formulario-alta";
+import { cuentasDePrueba } from "@/lib/cuentas-prueba";
 
 export const metadata = { title: "Alta de comisionista — Tasa" };
 
@@ -10,14 +11,16 @@ export default async function NuevoComisionista() {
   const persona = await exigirRol("admin_org");
   const tratos = await tratosDeLaOrg(persona.organizacion.id);
   const supabase = await crearClienteServidor();
-  const filas =
+  const prueba = await cuentasDePrueba(supabase);
+  const filas = (
     oExplota(
       await supabase
         .from("comisionistas")
         .select("persona_id, slug, personas!comisionistas_persona_id_fkey(nombre)")
         .returns<{ persona_id: string; slug: string; personas: { nombre: string } | null }[]>(),
       "los comisionistas"
-    ) ?? [];
+    ) ?? []
+  ).filter((c) => !prueba.has(c.persona_id));
 
   return (
     <PantallaAdmin titulo="Alta de comisionista" volver={{ href: "/admin/comisionistas", texto: "Comisionistas" }}>

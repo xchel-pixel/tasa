@@ -623,3 +623,35 @@ test("humo: DEMO comisionista en el Mapa catastral", async ({ browser, baseURL }
     await contexto.close();
   }
 });
+
+// La cuenta comisionista de PRUEBA de XG (0095: es_demo; no recibe trabajos ni sale en reportes). Con un predio rústico
+// real ya guardado (no consulta la fuente ni gasta cupo): ficha sin datos personales ni la fuente, sin capas y 403 en todos los mosaicos.
+const PRUEBA_XG = process.env.HUMO_PRUEBA_XG ?? "xchel+comisionista@arqosuv.com";
+test("humo: XG PRUEBA comisionista en el Mapa catastral", async ({ browser, baseURL }) => {
+  test.setTimeout(150_000);
+  const contexto = await browser.newContext();
+  await entrar(contexto, PRUEBA_XG, baseURL!);
+  // Lo personal y la fuente. (A diferencia de DEMO, XG le abre al comisionista campos de "Datos del registro" —p. ej. el
+  // área del polígono—: eso es configuración de la organización, no se vigila aquí.)
+  const PROHIBIDO = /Propietari|Valor de operación|Escritura|Notari|Contrato|Dato del condominio|Historial de cambios|Visor oficial|IDECATQ|catastroedo|gobierno/i;
+  try {
+    const pagina = await contexto.newPage();
+    const mosaicos: string[] = [];
+    pagina.on("request", (r) => { if (/[/]mapa-catastral[/](predios|capas)[/]/.test(r.url())) mosaicos.push(r.url()); });
+    await ir(pagina, "/mapa-catastral?clave=140211165140013");
+    await expect(pagina.getByRole("heading", { name: "Clave 140211165140013" })).toBeVisible({ timeout: 45_000 });
+    await pagina.waitForTimeout(3000);
+    expect(mosaicos, "no pide mosaicos de ninguna capa").toEqual([]);
+    await expect(pagina.locator("summary", { hasText: "Capas" }), "sin selector de capas").toHaveCount(0);
+    for (const ruta of ["/mapa-catastral/predios/18/57968/115743", "/mapa-catastral/capas/ejidos/15/7255/14468", "/mapa-catastral/capas/uso_suelo/15/7255/14468"]) {
+      expect((await pagina.request.get(ruta)).status(), ruta).toBe(403);
+    }
+    const ficha = await pagina.locator("main article").innerText();
+    test.info().annotations.push({ type: "ficha", description: ficha.replaceAll("\n", " ").slice(0, 400) });
+    expect(ficha).not.toMatch(PROHIBIDO);
+    expect(ficha, "rústico: superficie en hectáreas").toMatch(/69[.]0976 ha/);
+    expect(ficha, "rústico: unitario por hectárea").toMatch(/[/]ha/);
+  } finally {
+    await contexto.close();
+  }
+});

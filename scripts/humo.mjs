@@ -52,7 +52,8 @@ const iProd = args.indexOf("--prod");
 if (iProd >= 0) {
   args.splice(iProd, 1);
   process.env.HUMO_URL ??= "https://tasa.xgplataform.com";
-  if (!args.includes("-g")) args.push("-g", "DEMO comisionista en el Mapa catastral");
+  // Las dos cuentas comisionistas: la de DEMO y la de PRUEBA de XG.
+  if (!args.includes("-g")) args.push("-g", "comisionista en el Mapa catastral");
 } else {
   process.env.HUMO_URL ??= "http://localhost:3200";
 }

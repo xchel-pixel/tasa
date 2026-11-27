@@ -42,7 +42,7 @@ export default async function EstadisticasPagina({ searchParams }: { searchParam
   const supabase = await crearClienteServidor();
   const [datos, gente, niveles, actividad] = await Promise.all([
     supabase.rpc("estadisticas", parametros(f)),
-    supabase.from("membresias").select("persona_id, rol, personas(nombre)").in("rol", ["comisionista", "equipo"])
+    supabase.from("membresias").select("persona_id, rol, personas(nombre)").in("rol", ["comisionista", "equipo"]).eq("es_demo", false)
       .returns<{ persona_id: string; rol: string; personas: { nombre: string } | null }[]>(),
     supabase.from("niveles").select("id, nombre").order("orden").returns<{ id: string; nombre: string }[]>(),
     supabase.rpc("inactividad_org"),

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { fuentesDe } from "@/lib/fuentes-pdf";
 import { pdfPredio } from "@/lib/catastro/pdf";
-import { conPunto, normalizarClave, type Ficha } from "@/lib/catastro/servicio";
+import { conPunto, esPredioRustico, normalizarClave, type Ficha } from "@/lib/catastro/servicio";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   // Al negar, la base registra la denegación y devuelve el motivo y el estado (0070).
   const negado = data as { error?: string; estado?: number } | null;
   if (negado?.error) return mensaje(negado.error, negado.estado ?? 403);
-  const bytes = await pdfPredio(conPunto(data as Ficha), await fuentesDe("manrope"));
+  const bytes = await pdfPredio({ ...conPunto(data as Ficha), rustico: await esPredioRustico(clave) }, await fuentesDe("manrope"));
   return new NextResponse(Buffer.from(bytes), {
     headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="Ficha_predio_${clave}.pdf"`, "Cache-Control": "private, no-store" },
   });

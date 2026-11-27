@@ -40,6 +40,8 @@ export type Ficha = {
   privados?: (Omit<Privados, "propietarios"> & { propietarios: Privados["propietarios"]; actualizado_en: string }) | null;
   /** tipo (0067): "ajuste_lector" = el lector de Tasa mejoró, sin cambio en la fuente. */
   historial?: { consultado_en: string; reemplazada_en: string; cambios: string[]; tipo?: "cambio" | "ajuste_lector" }[];
+  /** Predio rústico (se lee en hectáreas). Lo pone el servidor: el rol puede no ver el campo "Tipo de predio". */
+  rustico?: boolean;
   /** 0089: el rol ve medidas y colindancias (en pantalla o en PDF), aunque el predio no traiga el texto. */
   ve_medidas?: boolean;
 };
@@ -80,7 +82,24 @@ async function ficha(clave: string): Promise<Ficha | null> {
   const supabase = await crearClienteServidor();
   const { data, error } = await supabase.rpc("catastro_ficha", { p_clave: clave });
   if (error) throw new Error(error.message);
-  return conPunto((data as Ficha | null) ?? null);
+  const f = conPunto((data as Ficha | null) ?? null);
+  return f ? { ...f, rustico: await esPredioRustico(clave) } : f;
+}
+
+/**
+ * ¿Es rústico? Solo sí o no, leído con la llave de servicio: la ficha de un rol que no ve "Tipo de predio" (comisionista)
+ * también debe mostrar hectáreas y $/ha. El campo mismo sigue oculto para ese rol.
+ */
+export async function esPredioRustico(clave: string): Promise<boolean> {
+  // Si no se puede leer, se ve como urbano (solo cambia el formato): nunca tumba la ficha.
+  try {
+    const db = clienteDeServicio(await encabezadoHumo());
+    if (!db) return false;
+    const { data } = await db.from("catastro_predios").select("tipo:extra->>tipo_predio").eq("clave", clave).maybeSingle<{ tipo: string | null }>();
+    return String(data?.tipo ?? "").toUpperCase() === "RUSTICO";
+  } catch {
+    return false;
+  }
 }
 
 /** ¿Puede ir a la fuente? Nulo = sí. Si no, el motivo; la base registra la denegación (0070). */

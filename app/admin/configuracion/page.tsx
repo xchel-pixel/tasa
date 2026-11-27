@@ -26,7 +26,8 @@ export default async function Configuracion() {
     supabase.from("ajustes").select("contacto_soporte, terminos, aviso_privacidad").eq("organizacion_id", persona.organizacion.id)
       .maybeSingle<{ contacto_soporte: string | null; terminos: string | null; aviso_privacidad: string | null }>(),
     supabase.from("membresias").select("persona_id", { count: "exact", head: true }).eq("organizacion_id", persona.organizacion.id).eq("activa", true).neq("rol", "comisionista"),
-    supabase.from("comisionistas").select("persona_id", { count: "exact", head: true }),
+    // Comisionistas, sin las cuentas de prueba.
+    supabase.from("membresias").select("persona_id", { count: "exact", head: true }).eq("organizacion_id", persona.organizacion.id).eq("rol", "comisionista").eq("es_demo", false),
   ]);
 
   const listaMarcas = marcas.data ?? [];

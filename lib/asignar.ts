@@ -16,6 +16,8 @@ export async function paraAsignar(): Promise<{ asigna: boolean; comisionistas: {
     .select("persona_id, personas(nombre:nombre_visible, activo)")
     .eq("rol", "comisionista")
     .eq("activa", true)
+    // Una cuenta de prueba nunca recibe trabajos (la base también lo impide, 0095).
+    .eq("es_demo", false)
     .returns<{ persona_id: string; personas: { nombre: string; activo: boolean } | null }[]>();
   const comisionistas = (data ?? [])
     .filter((m) => m.personas?.activo)
