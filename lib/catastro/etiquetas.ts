@@ -1,6 +1,7 @@
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import type { Campo } from "./limpiar";
 import { superficieDelPoligono } from "./geo";
+import { SIN_DATO } from "./textos";
 import { ladosDelPoligono, leerColindancias, textoMedida, textoParaCopiar } from "./colindancias";
 import type { Ficha } from "./servicio";
 
@@ -120,10 +121,11 @@ export function lineasDeColindancias(texto: string): string[] {
 const n2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Un valor unitario calculado: va justo después del valor del que sale (`tras`). `porM2` nulo = superficie en 0 o vacía ("—"). */
-export type Unitario = { tras: Campo; etiqueta: string; porM2: number | null };
+export type Unitario = { tras: Campo; etiqueta: string; porM2: number | null; /** Solo rústicos: valor ÷ hectáreas. */ porHa?: number | null };
 
 /** "$1,234.56/m²", o "—" sin superficie. */
-export const unitarioLegible = (u: Unitario) => (u.porM2 === null ? "—" : `$${n2(u.porM2)}/m²`);
+export const unitarioLegible = (u: Unitario) =>
+  u.porM2 === null ? "—" : `$${n2(u.porM2)}/m²${u.porHa ? ` · $${n2(u.porHa)}/ha` : ""}`;
 
 /**
  * Valores unitarios calculados (valor ÷ superficie). Solo con lo que trae la ficha (ya filtrada por rol): si el rol no
@@ -150,7 +152,9 @@ export function unitariosCatastrales(c: Record<string, unknown>): Unitario[] {
   const condominio = num("sup_terreno_privativa") !== null || num("indiviso") !== null || num("valor_terreno_privativo") !== null;
 
   if (!condominio) {
-    if (vt !== null && vt > 0) salida.push({ tras: "valor_terreno", etiqueta: "Valor unitario de terreno", porM2: dividir(vt, st) });
+    // Rústico: también por hectárea (del valor, no del unitario por m² ya redondeado).
+    const porHa = esRustico(c) && vt !== null ? { porHa: dividir(vt, st === null ? null : st / 10_000) } : {};
+    if (vt !== null && vt > 0) salida.push({ tras: "valor_terreno", etiqueta: "Valor unitario de terreno", porM2: dividir(vt, st), ...porHa });
     if (vc !== null && vc > 0) salida.push({ tras: "valor_construccion", etiqueta: "Valor unitario de construcción (promedio)", porM2: dividir(vc, sc) });
     return salida;
   }
@@ -167,6 +171,15 @@ export function unitariosCatastrales(c: Record<string, unknown>): Unitario[] {
   }
   return salida;
 }
+
+/** m² → hectáreas con 4 decimales (1 m² = 0.0001 ha). */
+const hectareas = (m2: number) => (m2 / 10_000).toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
+/** Predio rústico: se trabaja por hectárea. */
+export const esRustico = (c: Record<string, unknown>) => String(c.tipo_predio ?? "").toUpperCase() === "RUSTICO";
+
+/** Superficie de un rústico: hectáreas primero (4 decimales) y su equivalente en m². */
+export const superficieRustica = (m2: number) => `${hectareas(m2)} ha (${n2(m2)} m²)`;
 
 /** El valor listo para leerse; nulo si no hay. */
 export function valorLegible(campo: string, valor: unknown): string | null {
@@ -238,10 +251,13 @@ export type SeccionLista = {
 
 /** Dirección armada con las piezas, cuando el rol no tiene la dirección completa pero sí sus partes. */
 function direccionDePartes(c: Record<string, unknown>): string | null {
-  const t = (k: string) => (typeof c[k] === "string" || typeof c[k] === "number" ? String(c[k]).trim() : "");
+  const crudo = (k: string) => (typeof c[k] === "string" || typeof c[k] === "number" ? String(c[k]).trim() : "");
+  // "Sin dato" (rústicos) no se mete a media dirección; si no hay nada más, la dirección es "Sin dato".
+  const t = (k: string) => (crudo(k) === SIN_DATO ? "" : crudo(k));
   const calle = [t("calle"), t("num_ext"), t("num_int") ? `int. ${t("num_int")}` : ""].filter(Boolean).join(" ");
   const partes = [calle, t("colonia"), t("codigo_postal") ? `CP ${t("codigo_postal")}` : ""].filter(Boolean);
-  return partes.length ? partes.join(", ") : null;
+  if (partes.length) return partes.join(", ");
+  return ["calle", "colonia", "codigo_postal"].some((k) => crudo(k) === SIN_DATO) ? SIN_DATO : null;
 }
 
 /**
@@ -330,7 +346,8 @@ export function seccionesDeFicha(f: Ficha, { verAjustes = false }: { verAjustes?
       }
     } else {
       for (const campo of s.campos) {
-        const v = valorLegible(campo, c[campo]);
+        const m2 = campo === "sup_terreno" && esRustico(c) ? Number(c[campo]) : NaN;
+        const v = Number.isFinite(m2) && m2 > 0 ? superficieRustica(m2) : valorLegible(campo, c[campo]);
         if (v) filas.push([ETIQUETAS[campo][0], v]);
       }
       // La del polígono, después de la de catastro: exacta con la geometría UTM; "aprox." si salió de los grados.

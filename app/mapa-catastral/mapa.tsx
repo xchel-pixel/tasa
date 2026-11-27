@@ -9,7 +9,7 @@ import { fechaLegible, seccionesDeFicha, type LadosCompactos, type TablaFicha } 
 import { detectarBusqueda, enQueretaro, SUBDIRECCIONES, textoDelTipo } from "@/lib/catastro/busqueda";
 import { CAPAS_NOMBRES, estiloMapa, ZOOM_PREDIOS } from "@/lib/catastro/estilo";
 import { caja, ligaMaps, ligaVisor, type Geometria } from "@/lib/catastro/geo";
-import { NOTA_FUENTE } from "@/lib/catastro/textos";
+import { NOTA_FUENTE, SIN_DATO } from "@/lib/catastro/textos";
 import type { Ficha, Resultado } from "@/lib/catastro/servicio";
 import { municipioPorClave } from "@/lib/traslado/calculo";
 import { PedirMasDxf } from "@/components/formularios-dxf";
@@ -459,7 +459,7 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
                   <div key={i} className={valor.length > 60 || valor.includes("\n") ? "sm:col-span-2" : ""}>
                     <dt className="text-[0.8125rem] text-secundario">{etiqueta}</dt>
                     <dd className="whitespace-pre-line text-[0.9375rem]">
-                      {valor}
+                      {valor === SIN_DATO ? <span className="text-secundario">{SIN_DATO}</span> : valor}
                       {s.calculadas?.includes(i) ? <span className="ml-2 text-[0.8125rem] text-secundario">calculado</span> : null}
                       {s.id === "identificacion" && i === 0 ? (
                         <button type="button" onClick={() => copiar(ficha.clave)} className="ml-2 align-middle text-[0.8125rem] font-semibold text-acento underline underline-offset-4">

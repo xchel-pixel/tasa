@@ -9,11 +9,17 @@ import { datosDeCapa, type Datos } from "./limpiar";
 
 const BASE = "https://catastroedo.queretaro.gob.mx";
 export const LIMITE_MS = 12_000;
-const CAPAS = Array.from({ length: 18 }, (_, i) => `queretaro:M${String(i + 1).padStart(2, "0")}_PA`).join(",");
+/** Predios urbanos (`M01_PA`…`M18_PA`) y rústicos (`M01_PRA`…`M18_PRA`): los rústicos están en otra capa, con la misma
+ *  clave de 15 dígitos y el mismo campo DGR_CVECAT. */
+const capas = (tipo: "PA" | "PRA") => Array.from({ length: 18 }, (_, i) => `queretaro:M${String(i + 1).padStart(2, "0")}_${tipo}`).join(",");
+export const CAPAS_URBANAS = capas("PA");
+export const CAPAS_RUSTICAS = capas("PRA");
+/** Las 36, para el mosaico de líneas del equipo (un solo mosaico, no cuesta un viaje más). */
+export const CAPAS_DE_PREDIOS = `${CAPAS_URBANAS},${CAPAS_RUSTICAS}`;
 
 export type PredioDeCapa = {
   clave: string | null;
-  /** De la capa (`M06_PA` → "06"), nunca del campo CVE_MUN (en condominios viene vacío). */
+  /** De la capa (`M06_PA` o `M06_PRA` → "06"), nunca del campo CVE_MUN (en condominios viene vacío). */
   municipio: string;
   geometria: Geometria | null;
   /** La misma, en UTM 14N tal como la entrega la fuente (sin redondear): para DXF y croquis. */
@@ -29,11 +35,11 @@ function falla(servicio: string, e: unknown) {
   console.warn(`IDECATQ ${servicio}: ${e instanceof Error ? e.name : "error"}`);
 }
 
-/** La dirección del GetFeatureInfo a las 18 capas en un punto (también la usa humo:fuente). */
-export function urlMapa(lat: number, lon: number): string {
+/** La dirección del GetFeatureInfo a 18 capas de predios en un punto: urbanas por omisión (también la usa humo:fuente). */
+export function urlMapa(lat: number, lon: number, capas: string = CAPAS_URBANAS): string {
   const [x, y] = aUtm(lat, lon);
   const bbox = [x - 5, y - 5, x + 5, y + 5].map((v) => v.toFixed(2)).join(",");
-  return `${BASE}/geoserver/queretaro/wms?service=WMS&version=1.1.1&request=GetFeatureInfo&layers=${CAPAS}&query_layers=${CAPAS}`
+  return `${BASE}/geoserver/queretaro/wms?service=WMS&version=1.1.1&request=GetFeatureInfo&layers=${capas}&query_layers=${capas}`
     + `&srs=EPSG:32614&bbox=${bbox}&width=101&height=101&x=50&y=50&info_format=application/json&feature_count=5`;
 }
 
@@ -50,37 +56,59 @@ export function pedidoExpediente(clave: string): { url: string; init: RequestIni
   };
 }
 
-/** GetFeatureInfo a las 18 capas de predios en un punto. Un solo viaje. */
-export async function consultarMapa(lat: number, lon: number): Promise<RespuestaMapa> {
+type Candidato = { f: { properties?: Record<string, unknown> }; municipio: string; utm: Geometria | null; contiene: boolean };
+
+/** Un GetFeatureInfo a 18 capas: los predios cerca del punto, marcando cuál lo contiene de verdad. */
+async function candidatos(lat: number, lon: number, capas: string, tipo: "PA" | "PRA"): Promise<Candidato[]> {
   const [x, y] = aUtm(lat, lon);
-  const url = urlMapa(lat, lon);
+  const r = await fetch(urlMapa(lat, lon, capas), { cache: "no-store", signal: AbortSignal.timeout(LIMITE_MS) });
+  if (!r.ok) throw new Error(`HTTP${r.status}`);
+  const j = (await r.json()) as { features?: { id?: unknown; geometry?: unknown; properties?: Record<string, unknown> }[] };
+  return (j.features ?? []).map((f) => {
+    const capa = /^M(0[1-9]|1[0-8])_(PA|PRA)[.]/.exec(String(f.id ?? ""));
+    if (!capa || capa[2] !== tipo) return null;
+    const utm = geometriaValida(f.geometry);
+    return { f, municipio: capa[1], utm, contiene: !!utm && contiene(utm, [x, y]) };
+  }).filter((z) => z !== null);
+}
+
+/**
+ * GetFeatureInfo en un punto, en dos pasos para no cargar de más a la fuente: primero las 18 capas urbanas (casi
+ * todos los toques); las 18 rústicas solo si ningún urbano contiene el punto. Así no se pierde exactitud: un punto
+ * dentro de un rústico pero a menos de 5 m de un urbano sigue dando el rústico. Si ninguno lo contiene, el primero
+ * cercano (urbano antes que rústico), como antes.
+ */
+export async function consultarMapa(lat: number, lon: number): Promise<RespuestaMapa> {
+  let urbanos: Candidato[];
   try {
-    const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(LIMITE_MS) });
-    if (!r.ok) throw new Error(`HTTP${r.status}`);
-    const j = (await r.json()) as { features?: { id?: unknown; geometry?: unknown; properties?: Record<string, unknown> }[] };
-    const features = (j.features ?? []).map((f) => {
-      const capa = /^M(0[1-9]|1[0-8])_PA\./.exec(String(f.id ?? ""));
-      const utm = geometriaValida(f.geometry);
-      return capa ? { f, municipio: capa[1], utm } : null;
-    }).filter((z) => z !== null);
-    // El que de verdad contiene el punto; si ninguno, el primero.
-    const elegido = features.find((z) => z.utm && contiene(z.utm, [x, y])) ?? features[0];
-    if (!elegido) return { ok: true, predio: null };
-    const clave = String(elegido.f.properties?.DGR_CVECAT ?? "").replace(/\D/g, "");
-    return {
-      ok: true,
-      predio: {
-        clave: /^(0[1-9]|1[0-8])\d{13}$/.test(clave) ? clave : null,
-        municipio: elegido.municipio,
-        geometria: elegido.utm ? utmAGeografica(elegido.utm) : null,
-        geometriaUtm: elegido.utm,
-        datos: datosDeCapa(elegido.f.properties),
-      },
-    };
+    urbanos = await candidatos(lat, lon, CAPAS_URBANAS, "PA");
   } catch (e) {
     falla("mapa", e);
     return { ok: false };
   }
+  let elegido = urbanos.find((z) => z.contiene);
+  if (!elegido) {
+    try {
+      const rusticos = await candidatos(lat, lon, CAPAS_RUSTICAS, "PRA");
+      elegido = rusticos.find((z) => z.contiene) ?? urbanos[0] ?? rusticos[0];
+    } catch (e) {
+      falla("mapa", e);
+      if (!urbanos.length) return { ok: false };
+      elegido = urbanos[0];
+    }
+  }
+  if (!elegido) return { ok: true, predio: null };
+  const clave = String(elegido.f.properties?.DGR_CVECAT ?? "").replace(/[^0-9]/g, "");
+  return {
+    ok: true,
+    predio: {
+      clave: /^(0[1-9]|1[0-8])[0-9]{13}$/.test(clave) ? clave : null,
+      municipio: elegido.municipio,
+      geometria: elegido.utm ? utmAGeografica(elegido.utm) : null,
+      geometriaUtm: elegido.utm,
+      datos: datosDeCapa(elegido.f.properties),
+    },
+  };
 }
 
 /** BuscaDatos: el expediente completo de una clave. Falla si no trae el predio. */

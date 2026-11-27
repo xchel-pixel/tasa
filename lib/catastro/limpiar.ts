@@ -1,3 +1,5 @@
+import { SIN_DATO } from "./textos";
+
 /**
  * Lista blanca del mapa catastral: de lo que regresa IDECATQ solo pasa lo que está aquí, con nombre propio.
  * Lo personal del propietario (CURP, RFC, teléfono, domicilio, sexo, defunción, número de persona) se descarta
@@ -98,11 +100,35 @@ function tabla(x: unknown, llaves: string[]): Record<string, string | number>[] 
   return filas.length ? filas : null;
 }
 
+/** "ND" = no disponible: en los rústicos la fuente lo pone en calle, colonia y CP. */
+const esND = (x: unknown) => txt(x)?.toUpperCase() === "ND";
+
+/** Un dato de la ubicación, sin "ND" (para armar el texto de la ubicación). */
+function lugar(x: unknown): string | null {
+  return esND(x) ? null : txt(x);
+}
+
+/** Calle, colonia, CP y localidad: con "ND" se guarda "Sin dato" (la pantalla lo pinta en gris), no se deja vacío. */
+function lugarOSinDato(x: unknown): string | null {
+  return esND(x) ? SIN_DATO : txt(x);
+}
+
 function ubicacionTexto(u: Obj): string | null {
-  const calle = [txt(u.tipoCalle), txt(u.calle), txt(u.exterior), txt(u.interior) ? `int. ${txt(u.interior)}` : null, txt(u.letra)].filter(Boolean).join(" ");
-  const partes = [calle, [txt(u.tipoColonia), txt(u.colonia)].filter(Boolean).join(" "), txt(u.codigoPostal) ? `CP ${txt(u.codigoPostal)}` : null,
-    txt(u.localidad), txt(u.municipio)].filter(Boolean);
+  const calle = [lugar(u.tipoCalle), lugar(u.calle), lugar(u.exterior), lugar(u.interior) ? `int. ${lugar(u.interior)}` : null, lugar(u.letra)].filter(Boolean).join(" ");
+  const partes = [calle, [lugar(u.tipoColonia), lugar(u.colonia)].filter(Boolean).join(" "), lugar(u.codigoPostal) ? `CP ${lugar(u.codigoPostal)}` : null,
+    lugar(u.localidad), lugar(u.municipio)].filter(Boolean);
   return partes.length ? partes.join(", ") : null;
+}
+
+/**
+ * La superficie de terreno en m². En los predios rústicos la fuente la da en hectáreas (69.0976 = 690,976 m²; lo
+ * confirman el área del polígono y la serie de valor, que trae los dos): se pasa a m² para que superficies y valores
+ * unitarios se lean igual que en los urbanos.
+ */
+export function superficieTerreno(area: unknown, tipoPredio: unknown): number | null {
+  const n = num(area);
+  if (n === null) return null;
+  return txt(tipoPredio)?.toUpperCase() === "RUSTICO" ? Math.round(n * 10_000 * 100) / 100 : n;
 }
 
 /** Quita nulos. */
@@ -110,7 +136,7 @@ function compacto(d: Record<string, unknown>): Datos {
   return Object.fromEntries(Object.entries(d).filter(([, v]) => v !== null && v !== undefined && v !== "")) as Datos;
 }
 
-/** Lo que viene de la capa del mapa (GetFeatureInfo `M__PA`): solo los campos de la lista. */
+/** Lo que viene de la capa del mapa (GetFeatureInfo `M__PA` o `M__PRA`): solo los campos de la lista. */
 export function datosDeCapa(propiedades: unknown): Datos {
   const p = obj(propiedades);
   const curt = [txt(p.CURT_1), txt(p.CURT_2)].filter(Boolean).join(" / ");
@@ -133,15 +159,15 @@ export function limpiarExpediente(respuesta: unknown): { datos: Datos; privados:
   const u = obj(predio.ubicacion), r = obj(predio.datosRPPC);
 
   const datos = compacto({
-    colonia: txt(u.colonia),
-    codigo_postal: txt(u.codigoPostal),
+    colonia: lugarOSinDato(u.colonia),
+    codigo_postal: lugarOSinDato(u.codigoPostal),
     ubicacion: ubicacionTexto(u),
-    sup_terreno: num(predio.areaTotalTerreno),
+    sup_terreno: superficieTerreno(predio.areaTotalTerreno, predio.tipoPredio),
     sup_construccion: num(predio.areaTotalConstruccion),
-    calle: [txt(u.tipoCalle), txt(u.calle)].filter(Boolean).join(" ") || null,
-    num_ext: txt(u.exterior),
-    num_int: txt(u.interior),
-    localidad: txt(u.localidad),
+    calle: esND(u.calle) ? SIN_DATO : [lugar(u.tipoCalle), lugar(u.calle)].filter(Boolean).join(" ") || null,
+    num_ext: lugar(u.exterior),
+    num_int: lugar(u.interior),
+    localidad: lugarOSinDato(u.localidad),
     manzana: txt(predio.manzana) ?? txt(u.manzana),
     tipo_predio: txt(predio.tipoPredio),
     estatus: txt(predio.estatus),

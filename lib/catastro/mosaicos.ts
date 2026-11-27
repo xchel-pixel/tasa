@@ -1,11 +1,15 @@
 /**
  * La petición de un mosaico de líneas de predios, armada por completo en el servidor. Del navegador solo se acepta
  * el número de mosaico: zoom 17 a 20 y x/y enteros cuyo mosaico cae dentro de Querétaro, sin parámetros extra.
- * Host, capas (M01_PA…M18_PA), formato png, EPSG:3857 y 512×512 son fijos. Nulo = petición inválida (400).
+ * Host, capas (predios urbanos M01_PA…M18_PA y rústicos M01_PRA…M18_PRA), formato png, EPSG:3857 y 512×512 son
+ * fijos. Nulo = petición inválida (400).
  */
 
+import { CAPAS_DE_PREDIOS } from "./idecatq";
+
 const FUENTE = "https://catastroedo.queretaro.gob.mx/geoserver/queretaro/wms";
-export const CAPAS_PREDIOS = Array.from({ length: 18 }, (_, i) => `queretaro:M${String(i + 1).padStart(2, "0")}_PA`).join(",");
+// Las mismas capas que se consultan al tocar el mapa: urbanos y rústicos en un solo mosaico (no cuesta un viaje más).
+export const CAPAS_PREDIOS = CAPAS_DE_PREDIOS;
 const R = 20037508.342789244; // medio mundo en EPSG:3857
 // Querétaro, con holgura (la misma que para consultar un punto).
 const QRO = { latMin: 20, latMax: 21.8, lonMin: -100.7, lonMax: -99 };

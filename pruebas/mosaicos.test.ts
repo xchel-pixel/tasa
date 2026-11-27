@@ -11,7 +11,7 @@ const QRO = { z: "18", x: "57968", y: "115743" }; // centro de Querétaro
 const vacia = new URLSearchParams();
 
 describe("La petición se arma en el servidor", () => {
-  test("un mosaico de Querétaro: host, capas M01_PA…M18_PA, png, EPSG:3857 y 512×512 fijos", () => {
+  test("un mosaico de Querétaro: host, capas de predios urbanos y rústicos, png, EPSG:3857 y 512×512 fijos", () => {
     const url = new URL(peticionDeMosaico(QRO, vacia)!);
     expect(url.origin + url.pathname).toBe("https://catastroedo.queretaro.gob.mx/geoserver/queretaro/wms");
     const q = Object.fromEntries(url.searchParams);
@@ -19,8 +19,9 @@ describe("La petición se arma en el servidor", () => {
       service: "WMS", version: "1.1.1", request: "GetMap", layers: CAPAS_PREDIOS, styles: "", format: "image/png", transparent: "true",
       srs: "EPSG:3857", bbox: expect.stringMatching(/^-?\d+\.\d{2},-?\d+\.\d{2},-?\d+\.\d{2},-?\d+\.\d{2}$/), width: "512", height: "512",
     });
-    expect(CAPAS_PREDIOS.split(",")).toHaveLength(18);
-    expect(CAPAS_PREDIOS.split(",").every((c) => /^queretaro:M(0[1-9]|1[0-8])_PA$/.test(c))).toBe(true);
+    // Urbanos y rústicos en el mismo mosaico (nov-2026).
+    expect(CAPAS_PREDIOS.split(",")).toHaveLength(36);
+    expect(CAPAS_PREDIOS.split(",").every((c) => /^queretaro:M(0[1-9]|1[0-8])_(PA|PRA)$/.test(c))).toBe(true);
     expect(peticionDeMosaico({ ...QRO, y: "115743.png" }, vacia)).not.toBeNull();
   });
 
