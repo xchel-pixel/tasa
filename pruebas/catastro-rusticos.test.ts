@@ -161,3 +161,13 @@ describe("Rústico para un rol que no ve 'Tipo de predio' (comisionista)", () =>
     expect(seccionesDeFicha(urbano).find((s) => s.id === "superficies")!.filas).toContainEqual(["Superficie de terreno (catastro)", "690,976.00 m²"]);
   });
 });
+
+describe("Superficie según cartografía (antes 'Área del polígono (capa)')", () => {
+  test("va en Superficies, que el comisionista sí ve; nombre neutro; ya no en 'Datos del registro'", () => {
+    const ficha = { clave: "140211165140013", municipio: "14", campos: { sup_terreno: 690976, capa_area: 727013.64 } } as unknown as Ficha;
+    const secciones = seccionesDeFicha(ficha);
+    expect(secciones.find((s) => s.id === "superficies")!.filas).toContainEqual(["Superficie según cartografía", "727,013.64 m²"]);
+    expect(secciones.find((s) => s.id === "registro")).toBeUndefined();
+    expect(JSON.stringify(secciones)).not.toMatch(/capa|IDECATQ|catastroedo|gobierno/i);
+  });
+});

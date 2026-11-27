@@ -164,6 +164,8 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
   // El clic del mapa se arma una vez: lee "Ejidos" de aquí.
   const ejidosPrendida = useRef(false);
   const [parcela, setParcela] = useState<Parcela | null>(null);
+  // Aviso de los límites de mosaicos (429): por hora y capa, o el tope del día.
+  const [avisoCapas, setAvisoCapas] = useState<string | null>(null);
   const [verCalles, setVerCalles] = useState(true);
   const [subdireccion, setSubdireccion] = useState("14");
   const [buscadas, setBuscadas] = useState<{ para: string; lista: Sugerencia[] }>({ para: "", lista: [] });
@@ -293,6 +295,15 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
       });
       m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
       m.on("zoomend", () => setZoom(m.getZoom()));
+      // Un mosaico de capa con 429: el cuerpo dice si fue el límite por hora (de esa capa) o el tope del día.
+      m.on("error", (e) => {
+        const err = e.error as (Error & { status?: number; url?: string; body?: Blob }) | undefined;
+        if (err?.status !== 429) return;
+        const capa = CAPAS.find((c) => err.url?.includes(c.id === "predios" ? "/mapa-catastral/predios/" : `/mapa-catastral/capas/${c.id}/`));
+        void (err.body?.text() ?? Promise.resolve("")).then((t) => setAvisoCapas(t.trim() === "dia"
+          ? "Llegaste al tope de 2,000 mosaicos de capas por hoy. Se reinicia mañana; mientras, el mapa satelital y la consulta de predios siguen funcionando."
+          : `Llegaste al límite de 600 mosaicos por hora${capa ? ` de la capa ${capa.nombre}` : ""}. Espera un rato o apaga esa capa; se reinicia en la siguiente hora.`));
+      });
       m.on("click", (e) => {
         if (m.getZoom() < 16) {
           m.flyTo({ center: e.lngLat, zoom: 18 });
@@ -431,6 +442,9 @@ export function MapaCatastral({ token: tokenMapbox, claveInicial, textoInicial =
         <input type="checkbox" checked={verCalles} onChange={(e) => cambiarCalles(e.target.checked)} className="h-5 w-5 accent-primario" />
         Nombres de calles
       </label>
+      {lineas && avisoCapas ? (
+        <p role="status" className="mt-2 rounded-xl bg-proceso-fondo px-4 py-3 text-[0.9375rem] leading-6 text-proceso">{avisoCapas}</p>
+      ) : null}
       {lineas ? (
         <details className="mt-1 rounded-lg border border-linea bg-fondo px-2 py-1">
           <summary className="toque flex min-h-11 cursor-pointer items-center text-[0.9375rem] font-semibold">

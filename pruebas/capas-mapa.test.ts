@@ -103,8 +103,13 @@ describe("La ruta: permiso en cada petición, después la caché", () => {
     const f = vi.spyOn(globalThis, "fetch");
     permiso.valor = "rol";
     expect((await pedir("ejidos")).status).toBe(403);
+    // Los 429 dicen cuál límite fue, para el aviso de la pantalla.
     permiso.valor = "limite";
-    expect((await pedir("ejidos")).status).toBe(429);
+    const hora = await pedir("ejidos");
+    expect([hora.status, await hora.text()]).toEqual([429, "hora"]);
+    permiso.valor = "tope_dia";
+    const dia = await pedir("ejidos");
+    expect([dia.status, await dia.text()]).toEqual([429, "dia"]);
     expect(f).not.toHaveBeenCalled();
   });
 

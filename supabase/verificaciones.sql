@@ -6418,6 +6418,61 @@ begin
 end;
 $sec$;
 
+-- @@ Tope de mosaicos del día y la cuenta de prueba fuera del consumo (0096)
+-- 2,000 mosaicos por persona al día sumando capas; el de otra persona no cuenta. El reporte de consumo no cuenta las
+-- cuentas de prueba. Las consultas de la cuenta de prueba no suman al tope de 200 de un comisionista real (es por persona).
+do $sec$
+declare
+  xg     uuid := pg_temp.xg();
+  yo     uuid;
+  ana    uuid;
+  prueba uuid;
+begin
+  perform pg_temp.sistema();
+  update cupos_herramienta set cantidad = null where organizacion_id = xg and herramienta like 'mapa_catastral%';
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'admin_marca', 'equipo', 'comisionista']
+   where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  select id into yo from personas where correo = 'xchel@arqosuv.com';
+  select id into ana from personas where correo = 'xchel+ana@arqosuv.com';
+  delete from catastro_mosaicos where persona_id = yo;
+  -- 1,999 en el día repartidos en capas y horas (ninguna llega a 600 por hora).
+  insert into catastro_mosaicos (organizacion_id, persona_id, hora, capa, cantidad)
+  values (xg, yo, date_trunc('hour', now()) - interval '1 hour', 'predios', 500), (xg, yo, date_trunc('hour', now()) - interval '1 hour', 'ejidos', 500),
+         (xg, yo, date_trunc('hour', now()), 'construcciones', 500), (xg, yo, date_trunc('hour', now()), 'colonias', 499);
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico('manzanas'), 'ok', 'El mosaico 2,000 del día sí');
+  perform pg_temp.igual(catastro_permiso_mosaico('manzanas'), 'tope_dia', 'El 2,001: tope del día (429)');
+  perform pg_temp.igual(catastro_permiso_mosaico('predios'), 'tope_dia', 'El tope es de todas las capas');
+  perform pg_temp.como('gaby@tasa.test');
+  perform pg_temp.igual(catastro_permiso_mosaico('manzanas'), 'ok', 'El tope es por persona');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from eventos_uso where persona_id = yo and codigo = 'tope_dia_mosaicos')::int, 1,
+    'La denegación queda registrada una vez');
+  -- Del día anterior no cuenta (aunque esté en la base).
+  update catastro_mosaicos set hora = hora - interval '2 days' where persona_id = yo;
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform pg_temp.igual(catastro_permiso_mosaico('manzanas'), 'ok', 'Al día siguiente se reinicia');
+
+  -- Reporte de consumo: la cuenta de prueba no cuenta.
+  perform pg_temp.sistema();
+  prueba := pg_temp.comisionista('Prueba Consumo');
+  perform pg_temp.como('xchel@arqosuv.com');
+  perform marcar_demo(prueba, 'Cuenta de prueba');
+  perform pg_temp.sistema();
+  insert into catastro_mosaicos (organizacion_id, persona_id, hora, capa, cantidad) values (xg, prueba, date_trunc('hour', now()), 'uso_suelo', 77);
+  perform pg_temp.igual((select coalesce(sum(mosaicos), 0) from catastro_mosaicos_por_dia(current_date - 1) where capa = 'uso_suelo')::int, 0,
+    'El reporte de consumo no cuenta la cuenta de prueba');
+
+  -- Tope de 200 consultas: por persona. Las 200 de la cuenta de prueba no tocan el de Ana.
+  insert into usos_herramienta (organizacion_id, persona_id, herramienta, modo, creado_en)
+  select xg, prueba, 'mapa_catastral', 'consulta', (hoy_mx() + time '12:00') at time zone 'America/Mexico_City' from generate_series(1, 200);
+  perform pg_temp.igual(catastro_impedimento_de(xg, prueba), 'Llegaste al tope de seguridad de 200 consultas al día. Mañana se reinicia.',
+    'La cuenta de prueba llega a su propio tope');
+  perform pg_temp.igual(coalesce(catastro_impedimento_de(xg, ana), '') like '%200 consultas%', false, 'Ana no: sus 200 son solo suyas');
+  update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$sec$;
+
 -- @@ Fin
 do $$ begin raise notice 'Verificaciones correctas.'; end $$;
 

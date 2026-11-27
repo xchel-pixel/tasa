@@ -77,7 +77,8 @@ export const ETIQUETAS: Record<Campo, [string, Formato]> = {
   capa_localidad: ["Clave de localidad", "texto"],
   capa_curt: ["CURT", "texto"],
   // La que reporta la capa del mapa; en Superficies va la que Tasa calcula del polígono.
-  capa_area: ["Área del polígono (capa)", "m2"],
+  // Nombre neutro (nov-2026): lo ve también el comisionista si la organización se lo abre; no nombra la fuente.
+  capa_area: ["Superficie según cartografía", "m2"],
   capa_perimetro: ["Perímetro del polígono (aprox.)", "texto"],
   capa_coor_x: ["Coordenada X", "texto"],
   capa_coor_y: ["Coordenada Y", "texto"],
@@ -220,7 +221,7 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
   { id: "identificacion", titulo: "Identificación", equipo: false, campos: [] },
   { id: "ubicacion", titulo: "Ubicación", equipo: false, campos: ["ubicacion"] },
   { id: "superficies", titulo: "Superficies", equipo: false,
-    campos: ["sup_terreno", "rppc_area_terreno", "sup_construccion", "sup_terreno_privativa", "sup_terreno_comun", "sup_construccion_privativa",
+    campos: ["sup_terreno", "rppc_area_terreno", "capa_area", "sup_construccion", "sup_terreno_privativa", "sup_terreno_comun", "sup_construccion_privativa",
              "sup_construccion_comun", "indiviso"] },
   { id: "valores", titulo: "Valores catastrales", equipo: false,
     campos: ["valor_terreno", "valor_construccion", "valor_catastral_total", "fecha_validez", "codigo_valor", "valor_terreno_privativo",
@@ -233,7 +234,7 @@ export const SECCIONES: { id: IdSeccion; titulo: string; equipo: boolean; campos
              "regimen", "tipo_condominio", "nombre_condominio", "fecha_alta", "fecha_mantenimiento", "manzana", "localidad", "calle",
              "num_ext", "num_int", "colonia", "codigo_postal", "superficie", "tipos_construccion", "series_valor", "movimientos",
              "rppc_folio_real", "rppc_tipo", "rppc_estatus", "rppc_ubicacion", "rppc_lote", "rppc_nom_col_bar_otro",
-             "capa_folio", "capa_no_oficial", "capa_localidad", "capa_curt", "capa_area", "capa_perimetro", "capa_coor_x", "capa_coor_y",
+             "capa_folio", "capa_no_oficial", "capa_localidad", "capa_curt", "capa_perimetro", "capa_coor_x", "capa_coor_y",
              "cacoct", "vacopt", "vatrct", "vatrpt"] },
   { id: "propietario", titulo: "Propietario y operación", equipo: true, campos: [] },
   { id: "historial", titulo: "Historial de cambios", equipo: true, campos: [] },
