@@ -79,7 +79,36 @@ export function prediosDeZona(features: Feature[], zona: Caja): PredioZona[] {
     const anillos = anillosDe(g);
     if (tocaZona(anillos, zona)) salida.push({ clave, municipio: m[1], rustico: m[2] === "PRA", anillos });
   }
-  return salida;
+  return juntarPorClave(salida);
+}
+
+/**
+ * Un predio por clave: si la fuente lo trae en varias partes (o en varios elementos, o en las dos capas), se juntan sus
+ * partes; una parte repetida tal cual se descarta.
+ */
+export function juntarPorClave(predios: PredioZona[]): PredioZona[] {
+  const porClave = new Map<string, PredioZona>();
+  const vistas = new Set<string>();
+  for (const p of predios) {
+    const partes = p.anillos.filter((pol) => {
+      const llave = `${p.clave}|${JSON.stringify(pol)}`;
+      if (vistas.has(llave)) return false;
+      vistas.add(llave);
+      return true;
+    });
+    const ya = porClave.get(p.clave);
+    if (ya) ya.anillos.push(...partes);
+    else if (partes.length) porClave.set(p.clave, { ...p, anillos: partes });
+  }
+  return [...porClave.values()];
+}
+
+/** Cuántos polígonos (partes) y huecos interiores traen los predios: cada uno es una línea cerrada en PREDIO. */
+export function poligonosDe(predios: PredioZona[]): { partes: number; huecos: number; conHueco: number } {
+  const partes = predios.reduce((s, p) => s + p.anillos.length, 0);
+  const huecos = predios.reduce((s, p) => s + p.anillos.reduce((h, pol) => h + pol.length - 1, 0), 0);
+  const conHueco = predios.filter((p) => p.anillos.some((pol) => pol.length > 1)).length;
+  return { partes, huecos, conHueco };
 }
 
 /** Las construcciones cuyo punto interior cae en la zona, con su nivel (de la capa). */
@@ -131,7 +160,7 @@ export async function consultarZona(zona: Caja, pausa = PAUSA_MS): Promise<Resul
   await esperar(pausa);
   const rusticos = await consulta(2, CAPAS_RUSTICAS, zona);
   if (!Array.isArray(rusticos)) return { ok: false, paso: 2, codigo: rusticos.codigo };
-  const predios = [...prediosDeZona(urbanos, zona), ...prediosDeZona(rusticos, zona)];
+  const predios = juntarPorClave([...prediosDeZona(urbanos, zona), ...prediosDeZona(rusticos, zona)]);
   const municipios = [...new Set(predios.map((p) => p.municipio))].sort();
   const { capas, rotos } = capasDeConstruccion(municipios);
   if (!capas) return { ok: true, predios, construcciones: [], rotos };

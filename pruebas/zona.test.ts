@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { dxfDeZona } from "@/lib/catastro/dxf";
+import { dxfDeZona, lineasPredio } from "@/lib/catastro/dxf";
 import { cajaDeZona, capasDeConstruccion, consultarZona, prediosDeZona, textoDeFalla, urlZona, type Caja } from "@/lib/catastro/zona";
 
 /** DXF por zona (0098): rectángulo de hasta 500 m por lado, tres consultas en secuencia, solo clave, polígono y nivel. */
@@ -95,5 +95,31 @@ describe("DXF de la zona", () => {
     expect(dxf).toContain("Sin construcciones en la cartografía de los municipios 05");
     expect(dxf).not.toMatch(/987654|SECRETO|ORIGEN|catastroedo|IDECATQ/);
     expect(dxf).not.toContain("²");
+  });
+});
+
+describe("Predios en varias partes, repetidos o con hueco", () => {
+  const conHueco = { type: "Polygon", coordinates: [
+    [[350100, 2287010], [350160, 2287010], [350160, 2287070], [350100, 2287070], [350100, 2287010]],
+    [[350120, 2287030], [350140, 2287030], [350140, 2287050], [350120, 2287050], [350120, 2287030]]] };
+  const features = [
+    { id: "M14_PA.1", geometry: cuadro(350010, 2287010, 20), properties: { DGR_CVECAT: "140100123619158" } },
+    // La misma parte otra vez (repetida tal cual): se descarta.
+    { id: "M14_PA.7", geometry: cuadro(350010, 2287010, 20), properties: { DGR_CVECAT: "140100123619158" } },
+    // Otra parte del mismo predio (otro elemento con la misma clave): se junta.
+    { id: "M14_PA.8", geometry: cuadro(350040, 2287010, 5), properties: { DGR_CVECAT: "140100123619158" } },
+    { id: "M14_PA.9", geometry: conHueco, properties: { DGR_CVECAT: "140100123619995" } },
+  ];
+  test("un predio por clave, sin partes repetidas; el aviso explica las líneas de más", () => {
+    const p = prediosDeZona(features, ZONA);
+    expect(p.map((x) => [x.clave, x.anillos.length])).toEqual([["140100123619158", 2], ["140100123619995", 1]]);
+    expect(lineasPredio(p)).toBe("  2 predios en 4 líneas cerradas: 1 parte de más (predios en varias partes, con la misma clave) y 1 hueco interior (1 predio)");
+    expect(lineasPredio(prediosDeZona([features[0]], ZONA))).toBeNull();
+  });
+  test("cada parte lleva la clave del predio en TEXTO", () => {
+    const dxf = dxfDeZona({ zona: ZONA, predios: prediosDeZona(features, ZONA), construcciones: [], rotos: [], fecha: "2026-11-27T18:00:00Z" });
+    expect(dxf.split("140100123619158").length - 1).toBe(2);
+    expect(dxf.split("140100123619995").length - 1).toBe(1);
+    expect(dxf).toContain("2 predios en 4 líneas cerradas");
   });
 });

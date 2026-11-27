@@ -325,7 +325,7 @@ begin
      and not has_table_privilege('authenticated', c.oid, 'select');
   -- Excepciones a propósito: los datos catastrales solo se leen por función (catastro_ficha, 0059), nunca directo;
   -- la huella de la clave de humo (0072) no la lee nadie, solo es_humo(); las sesiones de humo (0076), solo al_entrar y Accesos.
-  perform pg_temp.igual(v, 'calendario_ligas, catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones, humo_huella, sesiones_humo'::text,
+  perform pg_temp.igual(v, 'calendario_ligas, catastro_bloqueo_correos, catastro_fallas, catastro_mosaicos, catastro_predios, catastro_propietarios, catastro_versiones, humo_huella, sesiones_humo'::text,
     'authenticated puede leer todas las tablas (el RLS filtra las filas), salvo las catastrales, la huella de humo y las ligas de calendario (0091: solo por función)');
 
   select string_agg(c.relname, ', ' order by c.relname) into v
@@ -6595,6 +6595,40 @@ begin
   delete from catastro_zonas;
   update ajustes set zona_dxf_equipo = false where organizacion_id = xg;
   update herramientas set roles = array['admin_org'] where organizacion_id = xg and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+end;
+$sec$;
+
+-- @@ Correo de bloqueo de la fuente: solo a XG, uno al día (0099)
+-- Al abrirse la alerta de bloqueo, catastro_aviso_fuente dice a quién mandar el correo: la cuenta admin_org de XG con
+-- super_plataforma. Con la alerta ya abierta, no. Cerrada y vuelta a abrir el mismo día, tampoco (uno al día).
+do $sec$
+declare
+  r jsonb;
+begin
+  perform pg_temp.sistema();
+  update herramientas set activa = true, roles = array['admin_org', 'finanzas', 'equipo', 'comisionista']
+   where organizacion_id = pg_temp.xg() and clave in ('mapa_catastral', 'mapa_catastral_pdf');
+  delete from alertas where tipo = 'catastro_bloqueo';
+  delete from catastro_bloqueo_correos;
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_aviso_fuente('mosaicos', 500), null::jsonb, 'Otra falla (no 403/429): sin correo');
+  r := catastro_aviso_fuente('mosaicos', 429);
+  perform pg_temp.igual(r->>'correo', 'xchel@arqosuv.com', 'Al abrirse la alerta: correo solo a XG (admin_org con super_plataforma)');
+  perform pg_temp.igual(r->>'mensaje' like 'La fuente catastral respondió 429%', true, 'El correo lleva lo que respondió');
+  perform pg_temp.igual(catastro_aviso_fuente('mapa', 403), null::jsonb, 'Con la alerta abierta: sin otro correo');
+  perform pg_temp.sistema();
+  update alertas set resuelta_en = now(), resolucion = 'prueba' where tipo = 'catastro_bloqueo';
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.igual(catastro_aviso_fuente('zona', 429), null::jsonb, 'Cerrada y reabierta el mismo día: sin segundo correo');
+  perform pg_temp.sistema();
+  perform pg_temp.igual((select count(*) from alertas where tipo = 'catastro_bloqueo' and resuelta_en is null), 1::bigint,
+    'La alerta sí se vuelve a abrir en Hoy');
+  perform pg_temp.como('xchel+ana@arqosuv.com');
+  perform pg_temp.debe_fallar($q$select count(*) from catastro_bloqueo_correos$q$, 'permission denied', 'Nadie lee el registro de correos');
+  perform pg_temp.sistema();
+  delete from alertas where tipo = 'catastro_bloqueo';
+  delete from catastro_bloqueo_correos;
+  update herramientas set roles = array['admin_org'] where organizacion_id = pg_temp.xg() and clave in ('mapa_catastral', 'mapa_catastral_pdf');
 end;
 $sec$;
 

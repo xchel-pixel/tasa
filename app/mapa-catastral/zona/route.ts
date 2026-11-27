@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { bytesDxf, dxfDeZona } from "@/lib/catastro/dxf";
+import { bytesDxf, dxfDeZona, lineasPredio } from "@/lib/catastro/dxf";
 import { cajaDeZona, consultarZona, textoDeFalla } from "@/lib/catastro/zona";
 import { obtenerSesion } from "@/lib/sesion";
 import { crearClienteServidor, encabezadoHumo } from "@/lib/supabase/server";
@@ -49,6 +49,8 @@ export async function GET(request: NextRequest) {
       "Content-Disposition": `attachment; filename="${nombre}"`,
       "Cache-Control": "private, no-store",
       "X-Zona": `predios:${resultado.predios.length};construcciones:${resultado.construcciones.length};rotos:${resultado.rotos.join(",")}`,
+      // Por qué PREDIO tiene más líneas que predios, ya en palabras. Codificado: un encabezado no lleva acentos.
+      ...(lineasPredio(resultado.predios) ? { "X-Zona-Lineas": encodeURIComponent(lineasPredio(resultado.predios)!.trim()) } : {}),
     },
   });
 }

@@ -132,7 +132,8 @@ export function DescargaZona({ mapa, listo, alDibujar, estado, sinLimite, saldo,
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
       const datos = Object.fromEntries((r.headers.get("X-Zona") ?? "").split(";").map((p) => p.split(":")));
       const rotos = datos.rotos ? ` Sin construcciones de los municipios ${datos.rotos.split(",").join(", ")}: su capa falla en la cartografía.` : "";
-      setAviso({ error: false, texto: `Zona bajada: ${datos.predios ?? 0} predios y ${datos.construcciones ?? 0} construcciones.${rotos}` });
+      const lineas = r.headers.get("X-Zona-Lineas");
+      setAviso({ error: false, texto: `Zona bajada: ${datos.predios ?? 0} predios y ${datos.construcciones ?? 0} construcciones.${lineas ? ` ${decodeURIComponent(lineas)}.` : ""}${rotos}` });
       terminar();
       router.refresh();
     } catch {

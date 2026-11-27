@@ -1,5 +1,6 @@
 import type { Construccion } from "./construcciones";
 import { aUtm, puntoInterior, type Geometria, type Punto } from "./geo";
+import { poligonosDe } from "./zona";
 
 /**
  * El DXF de un predio guardado: el polígono en UTM zona 14 norte (EPSG:32614), en metros, sin pasar a grados.
@@ -201,6 +202,18 @@ export type ZonaDxf = {
   fecha: string | Date;
 };
 
+/**
+ * Por qué PREDIO tiene más líneas que predios: un predio en varias partes (cada parte, una línea) o con hueco interior
+ * (el hueco, otra línea). Nulo si son iguales.
+ */
+export function lineasPredio(predios: ZonaDxf["predios"]): string | null {
+  const { partes, huecos, conHueco } = poligonosDe(predios.map((p) => ({ ...p, municipio: "" })));
+  if (partes === predios.length && !huecos) return null;
+  const piezas = [partes > predios.length ? `${partes - predios.length} ${partes - predios.length === 1 ? "parte" : "partes"} de más (predios en varias partes, con la misma clave)` : null,
+    huecos ? `${huecos} ${huecos === 1 ? "hueco interior" : "huecos interiores"} (${conHueco === 1 ? "1 predio" : `${conHueco} predios`})` : null].filter(Boolean);
+  return `  ${predios.length} predios en ${partes + huecos} líneas cerradas: ${piezas.join(" y ")}`;
+}
+
 export function dxfDeZona({ zona, predios, construcciones, rotos, fecha }: ZonaDxf): string {
   const [zx0, zy0, zx1, zy1] = zona;
   const todos = [...predios.flatMap((p) => p.anillos.flat(2)), [zx0, zy0] as Punto, [zx1, zy1] as Punto];
@@ -215,6 +228,7 @@ export function dxfDeZona({ zona, predios, construcciones, rotos, fecha }: ZonaD
   const resumen = [
     `Zona: ${miles(((zx1 - zx0) * (zy1 - zy0)) / 10000)} ha (${miles(zx1 - zx0)} x ${miles(zy1 - zy0)} m)`,
     `Predios: ${predios.length} (${urbanos} urbanos, ${predios.length - urbanos} rústicos)`,
+    ...(lineasPredio(predios) ? [lineasPredio(predios)!] : []),
     construcciones.length
       ? `Construcciones: ${construcciones.length}, ${miles(construcciones.reduce((s, x) => s + x.m2, 0))} m2 en total, ${niveles.length === 1 ? "1 nivel" : `${niveles.length} niveles`}`
       : "Construcciones: ninguna en la cartografía",
@@ -261,11 +275,13 @@ export function dxfDeZona({ zona, predios, construcciones, rotos, fecha }: ZonaD
 
   g(0, "SECTION"); g(2, "ENTITIES");
   for (const p of predios) {
-    for (const pol of p.anillos) for (const anillo of pol) polilinea("PREDIO", anillo);
-    // La clave al centro, del tamaño del predio (que quepa en un lote de 7 m de frente).
-    const m2 = superficieUtm(p.anillos);
-    const [cx, cy] = puntoInterior({ type: "MultiPolygon", coordinates: p.anillos });
-    texto(cx, cy, p.clave, r3(Math.min(3, Math.max(0.3, Math.sqrt(m2) / 18))), true);
+    for (const pol of p.anillos) {
+      for (const anillo of pol) polilinea("PREDIO", anillo);
+      // La clave al centro de cada parte (un predio en varias partes la lleva en todas), del tamaño de la parte.
+      const m2 = superficieUtm([pol]);
+      const [cx, cy] = puntoInterior({ type: "Polygon", coordinates: pol });
+      texto(cx, cy, p.clave, r3(Math.min(3, Math.max(0.3, Math.sqrt(m2) / 18))), true);
+    }
   }
   for (const c of construcciones) for (const pol of c.anillos) for (const anillo of pol) polilinea(capaDeNivel(c.nivel), anillo);
   resumen.forEach((t, i) => texto(x0, y0 - 2.5 * h - i * 1.7 * h, t, h));
